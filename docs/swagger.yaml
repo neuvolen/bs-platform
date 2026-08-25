@@ -1,0 +1,3061 @@
+consumes:
+- application/json
+definitions:
+  http.AccessResponse:
+    properties:
+      accessToken:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
+  http.AdminAssignRoleRequest:
+    properties:
+      role:
+        example: moderator
+        type: string
+    required:
+    - role
+    type: object
+  http.AdminDiseaseCategoryUpsertRequest:
+    properties:
+      title:
+        example: Cashflow
+        type: string
+    required:
+    - title
+    type: object
+  http.AdminUserItem:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      id:
+        example: cbedcee0-1673-432d-b5b9-2a35aabae68c
+        type: string
+      name:
+        example: John
+        type: string
+      roles:
+        example:
+        - participant
+        - moderator
+        items:
+          type: string
+        type: array
+      surname:
+        example: Doe
+        type: string
+    type: object
+  http.AdminUserPermissionsResponse:
+    properties:
+      permissions:
+        example:
+        - rbac:manage
+        - catalog:read
+        items:
+          type: string
+        type: array
+      userId:
+        example: cbedcee0-1673-432d-b5b9-2a35aabae68c
+        type: string
+    type: object
+  http.AdminUserRolesResponse:
+    properties:
+      roles:
+        example:
+        - participant
+        - moderator
+        items:
+          type: string
+        type: array
+      userId:
+        example: cbedcee0-1673-432d-b5b9-2a35aabae68c
+        type: string
+    type: object
+  http.AdminUsersListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/http.AdminUserItem'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 42
+        type: integer
+    type: object
+  http.AssignDiseaseRequest:
+    properties:
+      diseaseId:
+        description: 'required: true'
+        example: a3e1c9a2-4f3a-4f2d-8b1a-1a2b3c4d5e61
+        type: string
+      userId:
+        description: 'required: true'
+        example: b3e1c9a2-4f3a-4f2d-8b1a-1a2b3c4d5e6f
+        type: string
+    type: object
+  http.AssignDiseaseResponse:
+    properties:
+      totalSteps:
+        example: 12
+        type: integer
+      userDiseaseId:
+        example: c3e1c9a2-4f3a-4f2d-8b1a-1a2b3c4d5e6a
+        type: string
+    type: object
+  http.DiseaseCategoryResponse:
+    properties:
+      code:
+        type: string
+      id:
+        type: string
+      title:
+        type: string
+    type: object
+  http.DiseaseDetailsResponse:
+    properties:
+      disease:
+        $ref: '#/definitions/http.DiseaseResponse'
+      plan:
+        allOf:
+        - $ref: '#/definitions/http.PlanResponse'
+        description: null если нет плана
+      steps:
+        description: '[] если нет шагов/плана'
+        items:
+          $ref: '#/definitions/http.StepResponse'
+        type: array
+    type: object
+  http.DiseaseResponse:
+    properties:
+      category:
+        $ref: '#/definitions/http.DiseaseCategoryResponse'
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      organId:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  http.DiseaseUpsertRequest:
+    properties:
+      categoryId:
+        example: b3e1c9a2-4f3a-4f2d-8b1a-1a2b3c4d5e6f
+        type: string
+      description:
+        example: Expenses exceed income for last 3 months
+        type: string
+      organId:
+        example: b3e1c9a2-4f3a-4f2d-8b1a-1a2b3c4d5e6f
+        type: string
+      title:
+        example: Negative cash flow
+        type: string
+    required:
+    - categoryId
+    - organId
+    - title
+    type: object
+  http.LoginRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: secret123
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  http.LoginResponse:
+    properties:
+      accessToken:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      user:
+        properties:
+          email:
+            example: user@example.com
+            type: string
+          id:
+            example: b3e1c9a2-4f3a-4f2d-8b1a-1a2b3c4d5e6f
+            type: string
+          name:
+            example: John
+            type: string
+          role:
+            example: participant
+            type: string
+          surname:
+            example: Doe
+            type: string
+        type: object
+    type: object
+  http.MeResponse:
+    properties:
+      createdAt:
+        example: "2025-12-23T12:34:56Z"
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      id:
+        example: b3e1c9a2-4f3a-4f2d-8b1a-1a2b3c4d5e6f
+        type: string
+      name:
+        example: John
+        type: string
+      role:
+        example: participant
+        type: string
+      surname:
+        example: Doe
+        type: string
+      updatedAt:
+        example: "2025-12-23T12:34:56Z"
+        type: string
+    type: object
+  http.OAuthLoginRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      name:
+        example: John
+        type: string
+      provider:
+        example: google
+        type: string
+      providerId:
+        example: "1234567890"
+        type: string
+      surname:
+        example: Doe
+        type: string
+    required:
+    - provider
+    - providerId
+    type: object
+  http.OrganResponse:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      slug:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  http.OrganUpsertRequest:
+    properties:
+      description:
+        example: Everything related to money, cashflow, budgeting
+        type: string
+      slug:
+        example: finance
+        type: string
+      title:
+        example: Finance
+        type: string
+    required:
+    - slug
+    - title
+    type: object
+  http.PlanResponse:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      diseaseId:
+        type: string
+      id:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  http.PlanUpsertRequest:
+    properties:
+      description:
+        example: 7-day actions to stabilize cashflow
+        type: string
+      title:
+        example: Cashflow recovery plan
+        type: string
+    required:
+    - title
+    type: object
+  http.PlanWithStepsResponse:
+    properties:
+      plan:
+        $ref: '#/definitions/http.PlanResponse'
+      steps:
+        items:
+          $ref: '#/definitions/http.StepResponse'
+        type: array
+    type: object
+  http.RegisterRequest:
+    properties:
+      email:
+        example: newuser@example.com
+        type: string
+      name:
+        example: John
+        type: string
+      password:
+        example: strongpassword
+        minLength: 6
+        type: string
+      surname:
+        example: Doe
+        type: string
+    required:
+    - email
+    - name
+    - password
+    - surname
+    type: object
+  http.RegisterResponse:
+    properties:
+      email:
+        example: newuser@example.com
+        type: string
+      id:
+        example: b3e1c9a2-4f3a-4f2d-8b1a-1a2b3c4d5e6f
+        type: string
+      name:
+        example: John
+        type: string
+      role:
+        example: participant
+        type: string
+      surname:
+        example: Doe
+        type: string
+    type: object
+  http.StepResponse:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      orderNo:
+        type: integer
+      planId:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  http.StepUpsertRequest:
+    properties:
+      description:
+        example: Pause subscriptions and renegotiate vendor costs
+        type: string
+      orderNo:
+        example: 1
+        type: integer
+      title:
+        example: Cut non-essential expenses
+        type: string
+    required:
+    - orderNo
+    - title
+    type: object
+  http.UpdateMeRequest:
+    properties:
+      name:
+        example: John
+        type: string
+      surname:
+        example: Doe
+        type: string
+    type: object
+  http.UserStepItem:
+    properties:
+      completedAt:
+        example: "2026-01-09T10:12:00Z"
+        type: string
+      createdAt:
+        example: "2026-01-09T10:00:00Z"
+        type: string
+      id:
+        example: 11111111-2222-3333-4444-555555555555
+        type: string
+      state:
+        example: pending
+        type: string
+      stepId:
+        example: 99999999-8888-7777-6666-555555555555
+        type: string
+      updatedAt:
+        example: "2026-01-09T10:10:00Z"
+        type: string
+      userDiseaseId:
+        example: c3e1c9a2-4f3a-4f2d-8b1a-1a2b3c4d5e6a
+        type: string
+    type: object
+  http.UserStepsPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/http.UserStepItem'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 12
+        type: integer
+    type: object
+  http.diaryCreateRequest:
+    properties:
+      mood:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      text:
+        type: string
+    type: object
+  http.feedbackCreateRequest:
+    properties:
+      tags:
+        items:
+          type: string
+        type: array
+      target:
+        properties:
+          diaryId:
+            type: string
+          type:
+            description: '"step" | "diary"'
+            type: string
+          userStepId:
+            type: string
+        type: object
+      text:
+        type: string
+    type: object
+  http.updateDashboardUserReq:
+    properties:
+      name:
+        type: string
+      surname:
+        type: string
+    type: object
+  http.updateStepStateRequest:
+    properties:
+      state:
+        description: 0 = pending, 1 = active, 2 = completed
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: API for Business Surgery service.
+  title: Business Surgery Backend API
+  version: "1.0"
+paths:
+  /api/v1/admin/assign-disease:
+    post:
+      consumes:
+      - application/json
+      description: Creates user_disease (active) for user, generates user_steps from
+        latest treatment plan and writes activity log (assignment)
+      parameters:
+      - description: Assignment payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.AssignDiseaseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.AssignDiseaseResponse'
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Assign disease to user
+      tags:
+      - admin-tracking
+  /api/v1/admin/disease-categories:
+    get:
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/http.DiseaseCategoryResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List disease categories (admin)
+      tags:
+      - admin-categories
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Category payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.AdminDiseaseCategoryUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.DiseaseCategoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create disease category
+      tags:
+      - admin-categories
+  /api/v1/admin/disease-categories/{id}:
+    delete:
+      description: Deletes category if it is not referenced by any disease.
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Category ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete disease category
+      tags:
+      - admin-categories
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Category ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Category payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.AdminDiseaseCategoryUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.DiseaseCategoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update disease category
+      tags:
+      - admin-categories
+  /api/v1/admin/users:
+    get:
+      description: Returns users list with roles. Supports pagination and text search
+        by email, name, surname.
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        type: string
+      - description: Limit (default 20, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.AdminUsersListResponse'
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List users (admin)
+      tags:
+      - admin-users
+  /api/v1/admin/users/{id}/permissions:
+    get:
+      description: Returns permissions assigned to a user via RBAC tables (roles ->
+        permissions). Useful for debugging RBAC.
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.AdminUserPermissionsResponse'
+        "400":
+          description: invalid_user_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user permissions (admin)
+      tags:
+      - admin-users
+  /api/v1/admin/users/{id}/roles:
+    get:
+      description: Returns all roles assigned to a user
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.AdminUserRolesResponse'
+        "400":
+          description: invalid user id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: user not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user roles
+      tags:
+      - admin-rbac
+    post:
+      consumes:
+      - application/json
+      description: Adds a role to the user (does not remove existing roles)
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role to assign
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.AdminAssignRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: user or role not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: role already assigned
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Assign role to user
+      tags:
+      - admin-rbac
+  /api/v1/admin/users/{id}/roles/{roleCode}:
+    delete:
+      description: Removes a role from the user. Cannot remove the last remaining
+        role.
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role code (participant | moderator | admin)
+        in: path
+        name: roleCode
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid input or last role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: role not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove role from user
+      tags:
+      - admin-rbac
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user. Returns short-lived access token in JSON and
+        sets HttpOnly refresh_token cookie.
+      parameters:
+      - description: Login request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie:
+              description: Sets refresh_token=...; HttpOnly; Secure; SameSite=None;
+                Secure; SameSite=None
+              type: string
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Log in
+      tags:
+      - auth
+  /api/v1/auth/logout:
+    post:
+      description: Revokes current refresh session (if tracked) and clears refresh_token
+        cookie.
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          headers:
+            Set-Cookie:
+              description: Clears refresh_token=; Expires=...
+              type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Logout
+      tags:
+      - auth
+  /api/v1/auth/oauth:
+    post:
+      consumes:
+      - application/json
+      description: Logs in or creates a user via OAuth provider and sets cookies like
+        standard login.
+      parameters:
+      - description: OAuth login request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.OAuthLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie:
+              description: Sets refresh_token=...; HttpOnly; Secure; SameSite=None
+              type: string
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: OAuth login
+      tags:
+      - auth
+  /api/v1/auth/oauth/google/callback:
+    get:
+      description: Handles Google OAuth2 callback, exchanges code, finalizes login,
+        sets cookies, and redirects to frontend (if configured).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns tokens and user info when frontend redirect URL is
+            not configured
+          schema:
+            additionalProperties: true
+            type: object
+        "307":
+          description: Redirects to frontend with cookies set
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Google OAuth callback
+      tags:
+      - auth
+  /api/v1/auth/oauth/google/login:
+    get:
+      description: Redirects to Google OAuth2 consent screen. Sets oauth_state cookie
+        for CSRF protection.
+      produces:
+      - application/json
+      responses:
+        "307":
+          description: Redirects to Google
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Google OAuth login (redirect)
+      tags:
+      - auth
+  /api/v1/auth/ping:
+    get:
+      description: Verifies access token and shows user info from claims.
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Ping (protected)
+      tags:
+      - auth
+  /api/v1/auth/refresh:
+    post:
+      description: Exchanges a valid refresh_token cookie for a new access token.
+        Rotates refresh cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie:
+              description: Rotates refresh_token=...; HttpOnly; Secure; SameSite=None
+              type: string
+          schema:
+            $ref: '#/definitions/http.AccessResponse'
+        "401":
+          description: missing or invalid refresh cookie
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Refresh access token
+      tags:
+      - auth
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user with email, password, name and surname
+      parameters:
+      - description: Register request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.RegisterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register new user
+      tags:
+      - auth
+  /api/v1/diseases:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Disease payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.DiseaseUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.DiseaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create disease
+      tags:
+      - diseases
+  /api/v1/diseases/:
+    get:
+      parameters:
+      - description: Filter by organ id (uuid)
+        in: query
+        name: organId
+        type: string
+      - description: Filter by category id (uuid)
+        in: query
+        name: categoryId
+        type: string
+      - description: If provided, response includes isAssigned for this user (uuid)
+        in: query
+        name: userId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/http.DiseaseDetailsResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List diseases with plan and steps
+      tags:
+      - diseases
+  /api/v1/diseases/{id}:
+    delete:
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Disease ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete disease
+      tags:
+      - diseases
+    get:
+      parameters:
+      - description: Disease ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.DiseaseDetailsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get disease details (includes plan and steps)
+      tags:
+      - diseases
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Disease ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Disease payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.DiseaseUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.DiseaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update disease
+      tags:
+      - diseases
+  /api/v1/diseases/{id}/plan:
+    get:
+      parameters:
+      - description: Disease ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.PlanWithStepsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get plan by disease id (with steps)
+      tags:
+      - plans
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Disease ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Plan payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.PlanUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.PlanResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create/update plan for disease
+      tags:
+      - plans
+  /api/v1/diseases/categories:
+    get:
+      description: Returns categories for selector
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/http.DiseaseCategoryResponse'
+            type: array
+      summary: List disease categories
+      tags:
+      - diseases
+  /api/v1/me:
+    get:
+      description: Returns profile of currently authenticated user.
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MeResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Allows authenticated user to update their own profile (name, surname).
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Profile update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.UpdateMeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update current user profile
+      tags:
+      - users
+  /api/v1/me/activity:
+    get:
+      description: Возвращает активность текущего пользователя (лента). Поддерживает
+        пагинацию.
+      parameters:
+      - description: Limit (default 20, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My activity logs
+      tags:
+      - users
+      - tracking
+  /api/v1/me/diary:
+    get:
+      description: Возвращает записи дневника текущего пользователя (kind='diary').
+        Поддерживает пагинацию.
+      parameters:
+      - description: Limit (default 20, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List my diary entries
+      tags:
+      - users
+      - diary
+    post:
+      consumes:
+      - application/json
+      description: Создаёт запись дневника текущего пользователя. Тело сохраняется
+        в activity_logs.payload (kind='diary').
+      parameters:
+      - description: Diary entry
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.diaryCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create diary entry
+      tags:
+      - users
+      - diary
+  /api/v1/me/diseases:
+    get:
+      description: Возвращает список проблем текущего пользователя с прогрессом по
+        шагам. Поддерживает status + пагинацию.
+      parameters:
+      - description: Status (active|resolved|...) default active
+        in: query
+        name: status
+        type: string
+      - description: Limit (default 20, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My diseases list with progress
+      tags:
+      - users
+      - tracking
+  /api/v1/me/diseases/{userDiseaseId}/resolve:
+    post:
+      description: Marks user_disease as resolved (sets resolved_at) and writes activity
+        log (status_change).
+      parameters:
+      - description: User disease ID (uuid)
+        in: path
+        name: userDiseaseId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Resolve a user disease
+      tags:
+      - me-steps
+  /api/v1/me/diseases/{userDiseaseId}/steps:
+    get:
+      description: Returns user_steps for given userDiseaseId (ordered by created_at
+        asc)
+      parameters:
+      - description: User disease ID (uuid)
+        in: path
+        name: userDiseaseId
+        required: true
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 200
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.UserStepsPage'
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List steps for a user disease
+      tags:
+      - me-steps
+  /api/v1/me/progress:
+    get:
+      description: 'Возвращает агрегированный прогресс текущего пользователя: активные
+        проблемы, выполненные шаги, общий прогресс, последняя активность.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: My progress stats
+      tags:
+      - users
+      - tracking
+  /api/v1/me/steps/{userStepId}/complete:
+    post:
+      description: Marks user_step as completed (sets completed_at) and writes activity
+        log (step_completed). If all steps completed, auto-resolves the disease (status_change).
+      parameters:
+      - description: User step ID (uuid)
+        in: path
+        name: userStepId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Complete a step
+      tags:
+      - me-steps
+  /api/v1/me/steps/{userStepId}/state:
+    post:
+      consumes:
+      - application/json
+      description: 'Updates user_step state. Body: {state: 0|1|2} where 0=pending,
+        1=active, 2=completed. For completed it uses /complete logic (activity + auto-resolve).'
+      parameters:
+      - description: User step ID (uuid)
+        in: path
+        name: userStepId
+        required: true
+        type: string
+      - description: State
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.updateStepStateRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: bad_request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: not_found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update step state
+      tags:
+      - me-steps
+  /api/v1/moderator/dashboard:
+    get:
+      description: 'Один эндпойнт для страницы дашборда модератора: возвращает статистику
+        карточек и список участников (поиск + пагинация).'
+      parameters:
+      - description: Search (email/name/surname)
+        in: query
+        name: q
+        type: string
+      - description: Limit (default 20, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Moderator dashboard (stats + users)
+      tags:
+      - Moderator
+      - Dashboard
+  /api/v1/moderator/dashboard/stats:
+    get:
+      description: 'Возвращает агрегированную статистику для дашборда модератора:
+        всего участников, средний прогресс и активные проблемы.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Moderator dashboard stats
+      tags:
+      - Moderator
+      - Dashboard
+  /api/v1/moderator/dashboard/users:
+    get:
+      description: Возвращает список участников для таблицы дашборда (поиск + пагинация)
+        с прогрессом и последней активностью.
+      parameters:
+      - description: Search (email/name/surname)
+        in: query
+        name: q
+        type: string
+      - description: Limit (default 20, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Moderator dashboard users list
+      tags:
+      - Moderator
+      - Dashboard
+  /api/v1/moderator/dashboard/users/{id}:
+    delete:
+      description: Deletes participant from moderator dashboard
+      parameters:
+      - description: User ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete participant
+      tags:
+      - moderator-dashboard
+    put:
+      consumes:
+      - application/json
+      description: Updates participant name and surname from moderator dashboard
+      parameters:
+      - description: User ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.updateDashboardUserReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update participant profile
+      tags:
+      - moderator-dashboard
+  /api/v1/moderator/users/{id}/activity:
+    get:
+      description: Возвращает ленту активности участника (события) с пагинацией.
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Limit (default 20, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid_user_id
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: not_found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Participant activity log
+      tags:
+      - Moderator
+      - Participants
+  /api/v1/moderator/users/{id}/diseases:
+    get:
+      description: Список болезней/проблем участника с прогрессом по шагам плана лечения.
+        Поддерживает пагинацию и фильтр по статусу.
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status filter
+        enum:
+        - active
+        - paused
+        - resolved
+        in: query
+        name: status
+        type: string
+      - description: Limit (default 20, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid_user_id
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: not_found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Participant diseases (problems) list
+      tags:
+      - Moderator
+      - Participants
+  /api/v1/moderator/users/{id}/feedback:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт обратную связь участнику. Запись сохраняется в activity_logs.payload
+        (kind='feedback'). Можно привязать к шагу (target.type=step + userStepId)
+        или к записи дневника (target.type=diary + diaryId).
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Feedback
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.feedbackCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create feedback for participant
+      tags:
+      - Moderator
+      - Participants
+  /api/v1/moderator/users/{id}/progress:
+    get:
+      description: 'Возвращает суммарный прогресс участника: кол-во активных проблем,
+        выполненные/все шаги и дату последней активности.'
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid_user_id
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: not_found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Participant progress
+      tags:
+      - Moderator
+      - Participants
+  /api/v1/moderator/users/{id}/treatment:
+    get:
+      description: Возвращает болезни участника, шаги по каждой болезни со статусами,
+        текущий шаг (этап) и общий прогресс.
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status filter
+        enum:
+        - active
+        - resolved
+        - archived
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid_user_id
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: not_found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Participant treatment overview (diseases + steps + current stage +
+        overall progress)
+      tags:
+      - Moderator
+      - Participants
+  /api/v1/organs:
+    get:
+      description: Returns list of business organs.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/http.OrganResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List organs
+      tags:
+      - organs
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Organ payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.OrganUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.OrganResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create organ
+      tags:
+      - organs
+  /api/v1/organs/{id}:
+    delete:
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Organ ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete organ
+      tags:
+      - organs
+    get:
+      parameters:
+      - description: Organ ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.OrganResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get organ by id
+      tags:
+      - organs
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Organ ID (uuid)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Organ payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.OrganUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.OrganResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update organ
+      tags:
+      - organs
+  /api/v1/plans/{planId}:
+    get:
+      parameters:
+      - description: Plan ID (uuid)
+        in: path
+        name: planId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.PlanResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get plan by id
+      tags:
+      - plans
+  /api/v1/plans/{planId}/steps:
+    get:
+      parameters:
+      - description: Plan ID (uuid)
+        in: path
+        name: planId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/http.StepResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List steps by plan id
+      tags:
+      - steps
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Plan ID (uuid)
+        in: path
+        name: planId
+        required: true
+        type: string
+      - description: Step payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.StepUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.StepResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Add step to plan
+      tags:
+      - plans
+  /api/v1/plans/{planId}/steps/{stepId}:
+    delete:
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Plan ID (uuid)
+        in: path
+        name: planId
+        required: true
+        type: string
+      - description: Step ID (uuid)
+        in: path
+        name: stepId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete step
+      tags:
+      - plans
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Bearer {accessToken}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Plan ID (uuid)
+        in: path
+        name: planId
+        required: true
+        type: string
+      - description: Step ID (uuid)
+        in: path
+        name: stepId
+        required: true
+        type: string
+      - description: Step payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.StepUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.StepResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update step
+      tags:
+      - plans
+produces:
+- application/json
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

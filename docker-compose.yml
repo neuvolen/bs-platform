@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: bsurg_db
+    environment:
+      POSTGRES_USER: bsurg
+      POSTGRES_PASSWORD: bsurg
+      POSTGRES_DB: bsurg
+      TZ: UTC
+    ports:
+      - "5433:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bsurg -d bsurg"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  dbdata:
