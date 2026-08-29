@@ -12,10 +12,9 @@ import (
 func SetupRouter(registrars ...httpapi.RoutesRegistrar) *gin.Engine {
 	r := gin.Default()
 
-	corsConfig := cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:3000",
-			"https://busines-hirurgiy-ten.vercel.app",
+		corsConfig := cors.Config{
+		AllowOriginFunc: func(origin string) bool {
+			return true
 		},
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{
