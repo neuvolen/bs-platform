@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/bnursik/business_surgery_backend/internal/bot"
+	"strings"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/domain/dashboardusers"
@@ -214,11 +215,19 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) http
 // BuildBot wires the Telegram webhook on the server and its relay to the
 // Apps Script bot. Start the returned service with a context that lives as
 // long as the server.
-func BuildBot(d *Deps, token, team, apiBase, publicURL string) (*bot.Service, httpapi.RoutesRegistrar) {
+func BuildBot(d *Deps, token, team, apiBase, publicURL, notify string) (*bot.Service, httpapi.RoutesRegistrar) {
 	var admins []int64
 	for id := range httpapi.ParsePlatformTeam(team) {
 		admins = append(admins, id)
 	}
-	svc := bot.New(pg.NewBotRepo(d.DB), bot.Options{Token: token, APIBase: apiBase, Admins: admins})
+	// The daily comparison goes to the owner only, unless BOT_SHADOW_NOTIFY says otherwise.
+	if strings.TrimSpace(notify) == "" {
+		notify = "453800951"
+	}
+	var who []int64
+	for id := range httpapi.ParsePlatformTeam(notify) {
+		who = append(who, id)
+	}
+	svc := bot.New(pg.NewBotRepo(d.DB), bot.Options{Token: token, APIBase: apiBase, Admins: admins, Notify: who})
 	return svc, httpapi.NewBotModule(httpapi.NewBotHandler(svc, publicURL))
 }

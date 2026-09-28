@@ -21,6 +21,7 @@ type Config struct {
 	PublicURL       string // https://host the Telegram webhook is set to; empty: the host the sheet called
 	TelegramAPIBase string // tests only
 	BotRelayPattern string // tests only: which relay addresses are allowed
+	BotShadowNotify string // Telegram ids for the daily server-bot comparison
 }
 
 func Load() Config {
@@ -40,5 +41,6 @@ func Load() Config {
 		PublicURL:        os.Getenv("PUBLIC_URL"),
 		TelegramAPIBase:  os.Getenv("TELEGRAM_API_BASE"),
 		BotRelayPattern:  os.Getenv("BOT_RELAY_PATTERN"),
+		BotShadowNotify:  os.Getenv("BOT_SHADOW_NOTIFY"),
 	}
 }

@@ -81,7 +81,7 @@ func main() {
 	if cfg.BotRelayPattern != "" {
 		bot.RelayURLPattern = regexp.MustCompile(cfg.BotRelayPattern)
 	}
-	botSvc, botModule := app.BuildBot(deps, cfg.TelegramBotToken, cfg.PlatformTeam, cfg.TelegramAPIBase, cfg.PublicURL)
+	botSvc, botModule := app.BuildBot(deps, cfg.TelegramBotToken, cfg.PlatformTeam, cfg.TelegramAPIBase, cfg.PublicURL, cfg.BotShadowNotify)
 	modules = append(modules, botModule)
 	botCtx, botStop := context.WithCancel(context.Background())
 	defer botStop()

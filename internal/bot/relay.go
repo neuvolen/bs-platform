@@ -51,6 +51,8 @@ type Service struct {
 	tgClient *http.Client
 	workers  int
 	wake     chan struct{}
+	topic    string  // the group's ОТЧЁТЫ topic
+	notify   []int64 // who gets the daily comparison
 
 	mu       sync.RWMutex
 	relayURL string
@@ -62,6 +64,8 @@ type Options struct {
 	Admins  []int64
 	Workers int
 	Timeout time.Duration
+	Topic   string  // reports topic, default 9
+	Notify  []int64 // daily comparison recipients
 }
 
 func New(repo *pg.BotRepo, o Options) *Service {
@@ -70,6 +74,9 @@ func New(repo *pg.BotRepo, o Options) *Service {
 	}
 	if o.Workers <= 0 {
 		o.Workers = 8
+	}
+	if o.Topic == "" {
+		o.Topic = DefaultReportsTopic
 	}
 	if o.Timeout <= 0 {
 		o.Timeout = 120 * time.Second
@@ -86,6 +93,8 @@ func New(repo *pg.BotRepo, o Options) *Service {
 		tgClient: &http.Client{Timeout: 30 * time.Second},
 		workers:  o.Workers,
 		wake:     make(chan struct{}, 1),
+		topic:    o.Topic,
+		notify:   o.Notify,
 	}
 }
 
@@ -252,6 +261,12 @@ func (s *Service) Receive(ctx context.Context, body []byte) (bool, error) {
 	fresh, err := s.repo.SaveUpdate(ctx, pg.BotUpdate{UpdateID: p.UpdateID, Kind: p.Kind, ChatID: p.ChatID, OrderKey: p.OrderKey, Body: body})
 	if err == nil && fresh {
 		s.Wake()
+		// The server bot reads the message too, without answering anyone.
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			s.shadowUpdate(ctx, body)
+		}()
 	}
 	return fresh, err
 }
@@ -351,6 +366,9 @@ func (s *Service) housekeeping(ctx context.Context) {
 		}
 		n++
 		s.checkAlert(ctx)
+		if _, err := s.maybeDailyShadow(ctx, time.Now()); err != nil {
+			log.Printf("bot shadow: daily: %v", err)
+		}
 		if n%60 == 0 {
 			if err := s.repo.Cleanup(ctx); err != nil {
 				log.Printf("bot cleanup: %v", err)
