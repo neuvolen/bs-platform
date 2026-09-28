@@ -3051,6 +3051,188 @@ paths:
       summary: Update step
       tags:
       - plans
+  /api/v1/platform/boards/{id}:
+    delete:
+      description: Soft delete; the board stays in history and can be restored.
+      parameters:
+      - description: board id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: version the delete is based on
+        in: query
+        name: version
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a board
+      tags:
+      - platform
+    put:
+      consumes:
+      - application/json
+      description: '`version` = the version the edit was based on (0 for a new board).
+        A stale version gets 409 with the current copy.'
+      parameters:
+      - description: board id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Save a board
+      tags:
+      - platform
+  /api/v1/platform/boards/{id}/versions:
+    get:
+      parameters:
+      - description: board id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Board history
+      tags:
+      - platform
+  /api/v1/platform/boards/{id}/versions/{version}:
+    get:
+      parameters:
+      - description: board id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: version
+        in: path
+        name: version
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: One saved copy of a board
+      tags:
+      - platform
+  /api/v1/platform/docs/{key}:
+    put:
+      consumes:
+      - application/json
+      description: A section keyed as in the browser (bs_crm, bs_tools, …). `value`
+        is stored as-is. Same version rule as boards.
+      parameters:
+      - description: section key, e.g. bs_crm
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Save a section
+      tags:
+      - platform
+  /api/v1/platform/import:
+    post:
+      consumes:
+      - application/json
+      description: Body = the platform's localStorage dump. Boards are matched by
+        id; the newer copy wins and the older one is kept in history. Sections already
+        on the server are not overwritten and are listed in the report.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Move a browser's data to the server
+      tags:
+      - platform
+  /api/v1/platform/sync:
+    get:
+      description: Boards and sections changed after `since`. Poll with the returned
+        `rev` to pick up other devices' edits.
+      parameters:
+      - description: last rev the client has seen (0 = everything)
+        in: query
+        name: since
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Changes since a revision
+      tags:
+      - platform
 produces:
 - application/json
 securityDefinitions:

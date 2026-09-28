@@ -46,6 +46,9 @@ type Deps struct {
 
 	// NEW: dashboard users (moderator manage)
 	DashboardUsersSvc dashboardusers.Service
+
+	// Platform storage (boards and sections moved from the browser)
+	PlatformRepo *pg.PlatformRepo
 }
 
 func BuildDeps(db *pg.DB, jwtSecret, accessTTL, refreshTTL string) *Deps {
@@ -107,6 +110,8 @@ func BuildDeps(db *pg.DB, jwtSecret, accessTTL, refreshTTL string) *Deps {
 		TrackingSvc:   trackingSvc,
 
 		DashboardUsersSvc: dashUsersSvc,
+
+		PlatformRepo: pg.NewPlatformRepo(db),
 	}
 }
 
@@ -153,6 +158,9 @@ func BuildHTTPModules(
 	// diary
 	meDiaryHandler := httpapi.NewMeDiaryHandler(d.TrackingSvc)
 
+	// platform storage
+	platformHandler := httpapi.NewPlatformHandler(d.PlatformRepo)
+
 	return []httpapi.RoutesRegistrar{
 		httpapi.NewAuthModule(authHandler, []byte(jwtSecret)),
 
@@ -188,5 +196,7 @@ func BuildHTTPModules(
 		httpapi.NewMeStepsModule(meStepsH, []byte(jwtSecret)),
 
 		httpapi.NewMeDiaryModule(meDiaryHandler, []byte(jwtSecret)),
+
+		httpapi.NewPlatformModule(platformHandler, []byte(jwtSecret)),
 	}
 }

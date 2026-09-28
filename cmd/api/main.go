@@ -28,6 +28,7 @@ import (
 	"github.com/bnursik/business_surgery_backend/internal/config"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/bnursik/business_surgery_backend/internal/server"
+	"github.com/bnursik/business_surgery_backend/migrations"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -60,6 +61,15 @@ func main() {
 	}
 	defer db.Pool.Close()
 
+	// Bring the schema up to date before serving. A failed migration must not
+	// take the whole API down: existing endpoints keep working on the schema
+	// they already have, and the error is in the logs.
+	migCtx, migCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	if err := pg.Migrate(migCtx, db, migrations.FS); err != nil {
+		log.Printf("MIGRATIONS FAILED, serving with the current schema: %v", err)
+	}
+	migCancel()
+
 	deps := app.BuildDeps(db, cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	modules := app.BuildHTTPModules(deps, cfg.JWTSecret, googleOAuthConfig, cfg.FrontendURL)
 	router := server.SetupRouter(modules...)
@@ -68,8 +78,8 @@ func main() {
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      router,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  60 * time.Second,
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

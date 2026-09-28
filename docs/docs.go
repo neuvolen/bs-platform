@@ -3887,6 +3887,284 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/v1/platform/boards/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "` + "`" + `version` + "`" + ` = the version the edit was based on (0 for a new board). A stale version gets 409 with the current copy.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Save a board",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "board id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft delete; the board stays in history and can be restored.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Delete a board",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "board id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "version the delete is based on",
+                        "name": "version",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/platform/boards/{id}/versions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Board history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "board id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/platform/boards/{id}/versions/{version}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "One saved copy of a board",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "board id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "version",
+                        "name": "version",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/platform/docs/{key}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "A section keyed as in the browser (bs_crm, bs_tools, …). ` + "`" + `value` + "`" + ` is stored as-is. Same version rule as boards.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Save a section",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "section key, e.g. bs_crm",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/platform/import": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Body = the platform's localStorage dump. Boards are matched by id; the newer copy wins and the older one is kept in history. Sections already on the server are not overwritten and are listed in the report.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Move a browser's data to the server",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/platform/sync": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Boards and sections changed after ` + "`" + `since` + "`" + `. Poll with the returned ` + "`" + `rev` + "`" + ` to pick up other devices' edits.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Changes since a revision",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "last rev the client has seen (0 = everything)",
+                        "name": "since",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
