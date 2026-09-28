@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/bnursik/business_surgery_backend/pkg/auth"
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +30,8 @@ type PlatformAuthHandler struct {
 	team     map[int64]string // Telegram id -> display name
 	jwt      *auth.Manager
 	client   *http.Client
+	repo     *pg.PlatformRepo // set by NewPlatformModule
+	names    *residentNames
 
 	mu          sync.Mutex
 	botUsername string
@@ -175,30 +179,130 @@ func (h *PlatformAuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "telegram_check_failed", "detail": err.Error()})
 		return
 	}
+	role := "admin"
 	name, ok := h.team[u.ID]
 	if !ok {
-		c.JSON(http.StatusForbidden, gin.H{"error": "not_team", "telegramId": u.ID})
-		return
+		// Not the team: maybe an active resident from the Google Sheet.
+		rname, active, lerr := h.repo.ResidentByTg(c.Request.Context(), u.ID)
+		if lerr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+			return
+		}
+		if !active {
+			c.JSON(http.StatusForbidden, gin.H{"error": "not_team", "telegramId": u.ID})
+			return
+		}
+		role, name = "resident", rname
 	}
 	if name == "" {
 		name = strings.TrimSpace(u.FirstName + " " + u.LastName)
 	}
 	sub := "tg:" + strconv.FormatInt(u.ID, 10)
-	access, _, err := h.jwt.GenerateTokens(sub, "admin", []string{})
+	access, _, err := h.jwt.GenerateTokens(sub, role, []string{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 	team := map[string]string{}
-	for id, n := range h.team {
-		team["tg:"+strconv.FormatInt(id, 10)] = n
+	if role == "admin" {
+		for id, n := range h.team {
+			team["tg:"+strconv.FormatInt(id, 10)] = n
+		}
 	}
+	setSessionCookie(c, access, int(platformSessionTTL.Seconds()))
 	c.JSON(http.StatusOK, gin.H{
 		"token":     access,
 		"expiresAt": time.Now().Add(platformSessionTTL).UTC(),
-		"user":      gin.H{"id": sub, "name": name, "photo": u.Photo, "role": "admin"},
+		"user":      gin.H{"id": sub, "name": name, "photo": u.Photo, "role": role},
 		"team":      team,
 	})
+}
+
+// PlatformSessionCookie holds the same JWT as the API token. It only decides
+// whether the platform page itself is served; the API keeps using the
+// Authorization header.
+const PlatformSessionCookie = "bs_session"
+
+func setSessionCookie(c *gin.Context, value string, maxAge int) {
+	secure := c.Request.TLS != nil || strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https")
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name: PlatformSessionCookie, Value: value, Path: "/", MaxAge: maxAge,
+		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// Logout godoc
+// @Summary      Log out of the platform on this device
+// @Tags         platform
+// @Success      204
+// @Router       /api/v1/platform/auth/logout [post]
+func (h *PlatformAuthHandler) Logout(c *gin.Context) {
+	setSessionCookie(c, "", -1)
+	c.Status(http.StatusNoContent)
+}
+
+type residentsSyncReq struct {
+	TS        int64                 `json:"ts"`
+	Residents []pg.PlatformResident `json:"residents"`
+}
+
+// SyncResidents godoc
+// @Summary      Resident list from the Google Sheet
+// @Description  Sent by the Apps Script. Header X-BS-Signature = hex HMAC-SHA256 of the raw body with the bot token as key. The list replaces the previous one; residents not in it lose access.
+// @Tags         platform
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} map[string]any
+// @Failure      401 {object} map[string]any
+// @Router       /api/v1/platform/residents/sync [post]
+func (h *PlatformAuthHandler) SyncResidents(c *gin.Context) {
+	if h.botToken == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "telegram_not_configured"})
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request"})
+		return
+	}
+	m := hmac.New(sha256.New, []byte(h.botToken))
+	m.Write(body)
+	got, _ := hex.DecodeString(strings.ToLower(strings.TrimSpace(c.GetHeader("X-BS-Signature"))))
+	if !hmac.Equal(m.Sum(nil), got) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "bad_signature"})
+		return
+	}
+	var req residentsSyncReq
+	if err := json.Unmarshal(body, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad json"})
+		return
+	}
+	// A captured old request must not roll the list back.
+	if d := time.Since(time.Unix(req.TS, 0)); d > time.Hour || d < -5*time.Minute {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "stale_request"})
+		return
+	}
+	// An empty list would lock every resident out at once. That is never a
+	// real state of the club, only a broken read of the sheet: refuse it.
+	valid := 0
+	for _, p := range req.Residents {
+		if p.TgID > 0 && strings.TrimSpace(p.Name) != "" {
+			valid++
+		}
+	}
+	if valid == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "empty_list"})
+		return
+	}
+	n, err := h.repo.ReplaceResidents(c.Request.Context(), req.Residents)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	if h.names != nil {
+		h.names.forget()
+	}
+	c.JSON(http.StatusOK, gin.H{"saved": n})
 }
 
 // verifyTelegramWidget checks the Login Widget signature:

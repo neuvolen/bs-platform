@@ -3051,6 +3051,14 @@ paths:
       summary: Update step
       tags:
       - plans
+  /api/v1/platform/auth/logout:
+    post:
+      responses:
+        "204":
+          description: No Content
+      summary: Log out of the platform on this device
+      tags:
+      - platform
   /api/v1/platform/auth/telegram:
     post:
       consumes:
@@ -3251,6 +3259,29 @@ paths:
       security:
       - BearerAuth: []
       summary: Move a browser's data to the server
+      tags:
+      - platform
+  /api/v1/platform/residents/sync:
+    post:
+      consumes:
+      - application/json
+      description: Sent by the Apps Script. Header X-BS-Signature = hex HMAC-SHA256
+        of the raw body with the bot token as key. The list replaces the previous
+        one; residents not in it lose access.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Resident list from the Google Sheet
       tags:
       - platform
   /api/v1/platform/sync:

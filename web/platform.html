@@ -2070,7 +2070,7 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
   var LS = window.localStorage;
   var P = Storage.prototype;
   var rawSet = P.setItem, rawGet = P.getItem, rawRemove = P.removeItem;
-  var LOCAL_ONLY = {bs_lastsync:1, bs_peer:1};
+  var LOCAL_ONLY = {bs_lastsync:1, bs_peer:1, bs_seed:1};   // bs_seed пишет только сервер
   var K_TOKEN = 'bsx_token', K_USER = 'bsx_user', K_STATE = 'bsx_state';
 
   function lsGet(k){ try{ return rawGet.call(LS, k); }catch(e){ return null; } }
@@ -2261,6 +2261,12 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
         return;
       }
       if(r.status === 413){ note('Разбор «' + (data.name||'') + '» слишком большой для сервера. Уменьшите обложку'); return; }
+      if(r.status === 403){
+        // Нет прав (резидент и чужой или новый разбор): не повторяем бесконечно
+        st.boards[id] = {v: s ? s.v : 0, h: hb(data), denied: true};
+        if(isResidentUser()) note('Эти изменения видны только вам: разбор ведёт трекер');
+        return;
+      }
       var e = new Error('http ' + r.status); e.net = true; throw e;
     });
   }
@@ -2270,6 +2276,7 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
     return api('DELETE', '/boards/' + encodeURIComponent(id) + '?version=' + s.v).then(function(r){
       if(r.status === 200){ st.boards[id] = {v: r.j.version, h: '', deleted: true}; delete base.boards[id]; return; }
       if(r.status === 404){ delete st.boards[id]; return; }
+      if(r.status === 403){ st.boards[id] = {v: s.v, h: '', deleted: true, denied: true}; return; }
       if(r.status === 409 && r.j && r.j.current){
         var cur = r.j.current;
         if(cur.deleted){ st.boards[id] = {v: cur.version, h: '', deleted: true}; return; }
@@ -2305,6 +2312,10 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
         return;
       }
       if(r.status === 400) return;                // ключ, который сервер не хранит
+      if(r.status === 403){                       // только для чтения: библиотеки клуба у резидента
+        st.docs[k] = {v: s ? s.v : 0, h: hash(val), deleted: del};
+        return;
+      }
       var e = new Error('http ' + r.status); e.net = true; throw e;
     });
   }
@@ -2312,6 +2323,7 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
   // ── Приём чужих правок ──────────────────────────────────────────────────
   function pull(){
     return api('GET', '/sync?since=' + st.rev).then(function(r){
+      if(r.status === 403){ var e0 = new Error('denied'); e0.denied = true; throw e0; }
       if(r.status !== 200){ var e = new Error('http ' + r.status); e.net = true; throw e; }
       apply(r.j);
       return r.j;
@@ -2383,6 +2395,7 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
     });
     if(j.rev > st.rev) st.rev = j.rev;
     saveState();
+    if(booted && keys.indexOf('bs_seed') >= 0) applySeed();
     if(booted && keys.length) reloadKeys(keys);
   }
 
@@ -2463,6 +2476,7 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
       setStatus(Object.keys(dirty).length ? 'saving' : 'ok');
     }, function(e){
       if(e && e.auth){ onAuthLost(); return; }
+      if(e && e.denied){ accessRevoked(); return; }
       failures++;
       setStatus('off');
     }).then(function(){
@@ -2501,10 +2515,10 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
       '<div class="m-h">' + (name ? 'Вы вошли как ' + escH(name) + '<br>' : '') +
         (ago === null ? 'Связи с сервером ещё не было' : 'Сверено с сервером ' + (ago < 5 ? 'только что' : ago + ' с назад')) + '</div>' +
       '<div class="m-i" id="bsxNow">Обновить сейчас</div>' +
-      '<div class="m-i" id="bsxImp">Перенести данные из файла</div>' +
+      (isResidentUser() ? '' : '<div class="m-i" id="bsxImp">Перенести данные из файла</div>') +
       '<div class="m-i" id="bsxOut">Выйти на этом устройстве</div>';
     menu.querySelector('#bsxNow').onclick = function(){ menu.classList.remove('on'); setStatus('saving'); tick(); };
-    menu.querySelector('#bsxImp').onclick = function(){ menu.classList.remove('on'); importFile(); };
+    if(menu.querySelector('#bsxImp')) menu.querySelector('#bsxImp').onclick = function(){ menu.classList.remove('on'); importFile(); };
     menu.querySelector('#bsxOut').onclick = function(){ menu.classList.remove('on'); logout(); };
   }
   function setStatus(s){
@@ -2606,7 +2620,9 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
       lsDel(K_TOKEN); lsDel(K_USER); lsDel(K_STATE);
       var ks = []; for(var i = 0; i < LS.length; i++){ var k = LS.key(i); if(k && k.indexOf('bs_') === 0) ks.push(k); }
       ks.forEach(lsDel);
-      reload();
+      // Сначала сервер снимает куку, потом перезагрузка покажет страницу входа
+      fetch(API + '/auth/logout', {method:'POST', credentials:'same-origin'})
+        .catch(function(){}).then(reload);
     };
     if(Object.keys(dirty).length){ tick().then(go); } else go();
   }
@@ -2620,12 +2636,15 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
   function firstSync(){
     showLoading('Загружаю данные с сервера…');
     pull().then(function(j){
-      var empty = !(j.boards && j.boards.length) && !(j.docs && j.docs.length);
+      // Раздел bs_seed сервер кладёт сам, он не считается данными команды
+      var ownDocs = (j.docs || []).filter(function(d){ return d.key !== 'bs_seed'; });
+      var empty = !(j.boards && j.boards.length) && !ownDocs.length;
       var hasLocal = !!lsGet('bs_boards');
-      if(empty && !hasLocal) return offerFirstImport();
+      if(empty && !hasLocal && !isResidentUser()) return offerFirstImport();
       boot();
     }, function(e){
       if(e && e.auth){ onAuthLost(); return; }
+      if(e && e.denied){ accessRevoked(); return; }
       if(lsGet('bs_boards')){ boot(); setStatus('off'); note('Нет связи с сервером. Работаю с копией на этом компьютере, всё отправлю, когда связь вернётся'); }
       else { showLogin('Сервер недоступен. Проверьте интернет и обновите страницу', true); }
     });
@@ -2687,13 +2706,40 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
     document.getElementById('bsxOk').onclick = function(){ loginEl.style.display = 'none'; if(then) then(); };
   }
 
+  // Данные клуба, которые раньше были зашиты в страницу, теперь приходят с сервера
+  // после входа: команде полностью, резиденту только его часть
+  function applySeed(){
+    var seed = parse(lsGet('bs_seed'), null);
+    if(!seed || typeof seed !== 'object') return;
+    ['PL_ROWS', 'RESIDENTS', 'FINES', 'SDATA'].forEach(function(k){
+      if(seed[k] !== undefined) window[k] = seed[k];
+    });
+  }
+  function isResidentUser(){ return !!(auth.user && auth.user.role === 'resident'); }
+  function applyRole(){
+    if(!isResidentUser()) return;
+    try{
+      window.setMode('res');
+      document.querySelectorAll('.mo').forEach(function(e){ if(e.parentElement) e.parentElement.style.display = 'none'; });
+      if(!window.boards || !window.boards.length){
+        note('Ваш разбор появится здесь после первой встречи с трекером');
+      }
+    }catch(e){}
+  }
+  function accessRevoked(){
+    token = ''; lsDel(K_TOKEN);
+    panel('Доступ к платформе закрыт.\nЕсли это ошибка, напишите куратору', true);
+  }
+
   function boot(){
     if(booted){ if(loginEl) loginEl.style.display = 'none'; return; }
     if(loginEl) loginEl.style.display = 'none';
     ui();
     booted = true;
     for(var i = 0; i < LS.length; i++){ var k = LS.key(i); if(isSyncKey(k)) dirty[k] = 1; }
+    applySeed();
     try{ bootFn(); }catch(e){ console.error(e); }
+    applyRole();
     setStatus(Object.keys(dirty).length ? 'saving' : 'ok');
     lastOk = Date.now();
     tick().then(schedulePoll);
@@ -9405,6 +9451,7 @@ function applyGallup(keys){
     localStorage.setItem('bs_gallup', JSON.stringify(all));
   }catch(e){}
   curBoard.gallup = g;
+  saveBoardSilent();
   goSection('rGallup');
   toast('Разобрано тем: ' + keys.length);
 }
@@ -9590,7 +9637,7 @@ function deleteGallup(){
         if(curBoard) delete all[curBoard.id];
         localStorage.setItem('bs_gallup', JSON.stringify(all));
       }catch(e){}
-      if(curBoard) curBoard.gallup = null;
+      if(curBoard){ curBoard.gallup = null; saveBoardSilent(); }
       goSection('rGallup');
       toast('Тест удалён');
     });
@@ -11368,6 +11415,7 @@ function snapshot(){
     wheelHist: curBoard && curBoard.wheelHist ? curBoard.wheelHist : [],
     diagHist: curBoard && curBoard.diagHist ? curBoard.diagHist : [],
     diagTests: curBoard && curBoard.diagTests ? curBoard.diagTests : [],
+    gallup: curBoard && curBoard.gallup ? curBoard.gallup : null,
     checks: curBoard && curBoard.checks ? curBoard.checks : {},
     summary: curBoard && curBoard.summary ? curBoard.summary : {},
     report: curBoard && curBoard.report ? curBoard.report : {},

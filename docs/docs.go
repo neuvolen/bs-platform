@@ -3888,6 +3888,19 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/platform/auth/logout": {
+            "post": {
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Log out of the platform on this device",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/api/v1/platform/auth/telegram": {
             "post": {
                 "description": "Body: {widget:{…fields from the Telegram Login Widget…}} or {initData:\"…\"} from a Mini App. Only team members get in.",
@@ -4183,6 +4196,37 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/platform/residents/sync": {
+            "post": {
+                "description": "Sent by the Apps Script. Header X-BS-Signature = hex HMAC-SHA256 of the raw body with the bot token as key. The list replaces the previous one; residents not in it lose access.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Resident list from the Google Sheet",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true

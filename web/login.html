@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Business Surgery</title>
+<!--ICONS-->
+<meta name="theme-color" content="#0a0a0a">
+<meta name="robots" content="noindex,nofollow">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#080808;color:#fff;font:14px/1.5 -apple-system,'Inter',system-ui,sans-serif}
+body{display:flex;align-items:center;justify-content:center;padding:16px}
+.c{width:min(420px,100%);background:#121212;border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:34px 26px;text-align:center}
+.lg{width:54px;height:54px;border-radius:14px;margin:0 auto 18px;display:block}
+.t{font-size:22px;font-weight:900;letter-spacing:-.5px}
+.s{color:rgba(255,255,255,.5);margin:8px 0 26px;font-size:13.5px}
+#w{min-height:48px;display:flex;justify-content:center;align-items:center}
+#m{margin-top:18px;font-size:12.5px;color:rgba(255,255,255,.55);white-space:pre-line}
+#m.err{color:#FF8A8A}
+</style>
+</head>
+<body>
+<div class="c">
+  <!--LOGO-->
+  <div class="t">Business Surgery</div>
+  <div class="s">Платформа клуба. Вход через Telegram</div>
+  <div id="w"></div>
+  <div id="m"></div>
+</div>
+<script>
+(function(){
+  var API = '/api/v1/platform';
+  function msg(t, err){ var m = document.getElementById('m'); m.textContent = t; m.className = err ? 'err' : ''; }
+  function done(j){
+    try{
+      localStorage.setItem('bsx_token', j.token);
+      localStorage.setItem('bsx_user', JSON.stringify({user: j.user, team: j.team}));
+    }catch(e){}
+    msg('Вход выполнен, открываю…');
+    location.replace('/' + location.hash);
+  }
+  function login(body){
+    msg('Проверяю…');
+    fetch(API + '/auth/telegram', {method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(body)})
+      .then(function(r){ return r.json().then(function(j){ return {s: r.status, j: j}; }); })
+      .then(function(r){
+        if(r.s === 200) return done(r.j);
+        if(r.s === 403) return msg('Этот Telegram-аккаунт не найден среди резидентов и команды BS.\nНапишите куратору, он проверит Chat ID в таблице.\nВаш ID: ' + (r.j.telegramId || '?'), true);
+        msg('Telegram не подтвердил вход: ' + ((r.j && (r.j.detail || r.j.error)) || r.s), true);
+      })
+      .catch(function(){ msg('Нет связи с сервером', true); });
+  }
+  window.BSX_onTelegram = function(user){ login({widget: user}); };
+
+  var inTg = /tgWebAppData=/.test(location.hash);
+  if(inTg){
+    var s = document.createElement('script');
+    s.src = 'https://telegram.org/js/telegram-web-app.js';
+    s.onload = function(){
+      var wa = window.Telegram && window.Telegram.WebApp;
+      if(!wa || !wa.initData){ msg('Откройте платформу кнопкой в боте', true); return; }
+      try{ wa.ready(); wa.expand(); }catch(e){}
+      login({initData: wa.initData});
+    };
+    s.onerror = function(){ msg('Не удалось связаться с Telegram', true); };
+    document.head.appendChild(s);
+    return;
+  }
+  fetch(API + '/config').then(function(r){ return r.json(); }).then(function(c){
+    if(!c.telegram){ msg('Вход ещё не настроен на сервере.\n' + (c.reason || ''), true); return; }
+    var s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://telegram.org/js/telegram-widget.js?22';
+    s.setAttribute('data-telegram-login', c.bot);
+    s.setAttribute('data-size', 'large');
+    s.setAttribute('data-radius', '12');
+    s.setAttribute('data-request-access', 'write');
+    s.setAttribute('data-onauth', 'BSX_onTelegram(user)');
+    document.getElementById('w').appendChild(s);
+  }).catch(function(){ msg('Сервер недоступен. Проверьте интернет и обновите страницу', true); });
+})();
+</script>
+</body>
+</html>

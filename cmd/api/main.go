@@ -26,6 +26,7 @@ import (
 
 	"github.com/bnursik/business_surgery_backend/internal/app"
 	"github.com/bnursik/business_surgery_backend/internal/config"
+	httpapi "github.com/bnursik/business_surgery_backend/internal/handlers/http"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/bnursik/business_surgery_backend/internal/server"
 	"github.com/bnursik/business_surgery_backend/migrations"
@@ -75,7 +76,14 @@ func main() {
 	modules := app.BuildHTTPModules(deps, cfg.JWTSecret, googleOAuthConfig, cfg.FrontendURL)
 	modules = append(modules, app.BuildPlatformModule(deps, cfg.JWTSecret, cfg.TelegramBotToken, cfg.PlatformTeam))
 	router := server.SetupRouter(modules...)
-	web.Register(router)
+	web.Register(router, cfg.JWTSecret, httpapi.PlatformSessionCookie)
+
+	// Business data cut out of the page goes to storage, visible after login only.
+	seedCtx, seedCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	if err := deps.PlatformRepo.PutServerDoc(seedCtx, "bs_seed", web.Seed()); err != nil {
+		log.Printf("platform seed not saved: %v", err)
+	}
+	seedCancel()
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	srv := &http.Server{

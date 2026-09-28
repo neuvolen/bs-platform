@@ -12,6 +12,7 @@ type PlatformModule struct {
 }
 
 func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte) *PlatformModule {
+	a.repo, a.names = h.repo, h.names
 	return &PlatformModule{h: h, auth: a, secret: secret}
 }
 
@@ -20,12 +21,15 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	pub := r.Group("/api/v1/platform")
 	pub.GET("/config", m.auth.Config)
 	pub.POST("/auth/telegram", m.auth.Login)
+	pub.POST("/auth/logout", m.auth.Logout)
+	// Resident list from the Google Sheet, signed with the bot token.
+	pub.POST("/residents/sync", m.auth.SyncResidents)
 
 	g := r.Group("/api/v1/platform")
 	g.Use(middleware.AuthJWT(m.secret))
-	// For now the platform is for the team only. Residents get their own,
-	// narrower access when Telegram login lands.
-	g.Use(middleware.RequireRole("admin", "moderator"))
+	// Residents get in too; what each of them may see is decided per request
+	// (platform_resident.go).
+	g.Use(middleware.RequireRole("admin", "moderator", "resident"))
 
 	g.GET("/sync", m.h.Sync)
 	g.PUT("/boards/:id", m.h.PutBoard)

@@ -17,11 +17,16 @@ import (
 // PlatformHandler serves the storage behind the BS platform (boards and the
 // sections that used to live in each browser's localStorage).
 type PlatformHandler struct {
-	repo *pg.PlatformRepo
+	repo  *pg.PlatformRepo
+	names *residentNames
 }
 
 func NewPlatformHandler(repo *pg.PlatformRepo) *PlatformHandler {
-	return &PlatformHandler{repo: repo}
+	return &PlatformHandler{repo: repo, names: &residentNames{m: map[int64]residentName{}, repo: repo}}
+}
+
+func forbidden(c *gin.Context, why string) {
+	c.JSON(http.StatusForbidden, gin.H{"error": "forbidden", "reason": why})
 }
 
 // Boards can carry cover images; keep the ceiling generous but finite.
@@ -74,10 +79,20 @@ func (h *PlatformHandler) Sync(c *gin.Context) {
 	if since < 0 {
 		since = 0
 	}
+	var name string
+	if isResident(c) {
+		if name = h.residentOf(c); name == "" {
+			forbidden(c, "not_resident")
+			return
+		}
+	}
 	boards, docs, rev, err := h.repo.Changes(c.Request.Context(), since, "user:"+platformUser(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
+	}
+	if isResident(c) {
+		boards, docs = filterForResident(boards, docs, name, "user:"+platformUser(c))
 	}
 	c.JSON(http.StatusOK, gin.H{"rev": rev, "boards": boards, "docs": docs, "serverTime": time.Now().UTC()})
 }
@@ -110,6 +125,24 @@ func (h *PlatformHandler) PutBoard(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "body must be {version, data:{…}}"})
 		return
 	}
+	if isResident(c) {
+		name := h.residentOf(c)
+		cur, err := h.repo.GetBoard(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+			return
+		}
+		if name == "" || cur == nil || cur.Deleted || !boardBelongsTo(cur, name) {
+			forbidden(c, "not_your_board")
+			return
+		}
+		next := pg.PlatformBoard{}
+		next.Resident, _ = pg.BoardLabels(req.Data)
+		if !boardBelongsTo(&next, name) {
+			forbidden(c, "cannot_reassign_board")
+			return
+		}
+	}
 	out, err := h.repo.PutBoard(c.Request.Context(), id, req.Version, req.Data, platformUser(c))
 	if errors.Is(err, pg.ErrPlatformConflict) {
 		c.JSON(http.StatusConflict, gin.H{"error": "conflict", "current": out})
@@ -134,6 +167,10 @@ func (h *PlatformHandler) PutBoard(c *gin.Context) {
 // @Failure      409 {object} map[string]any
 // @Router       /api/v1/platform/boards/{id} [delete]
 func (h *PlatformHandler) DeleteBoard(c *gin.Context) {
+	if isResident(c) {
+		forbidden(c, "residents_cannot_delete")
+		return
+	}
 	id := c.Param("id")
 	if !platformIDRe.MatchString(id) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad board id"})
@@ -169,6 +206,10 @@ func (h *PlatformHandler) DeleteBoard(c *gin.Context) {
 // @Success      200 {array} map[string]any
 // @Router       /api/v1/platform/boards/{id}/versions [get]
 func (h *PlatformHandler) BoardVersions(c *gin.Context) {
+	if isResident(c) {
+		forbidden(c, "team_only")
+		return
+	}
 	list, err := h.repo.BoardVersions(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
@@ -187,6 +228,10 @@ func (h *PlatformHandler) BoardVersions(c *gin.Context) {
 // @Success      200 {object} map[string]any
 // @Router       /api/v1/platform/boards/{id}/versions/{version} [get]
 func (h *PlatformHandler) BoardVersion(c *gin.Context) {
+	if isResident(c) {
+		forbidden(c, "team_only")
+		return
+	}
 	v, err := strconv.Atoi(c.Param("version"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad version"})
@@ -224,8 +269,12 @@ type putDocReq struct {
 // @Router       /api/v1/platform/docs/{key} [put]
 func (h *PlatformHandler) PutDoc(c *gin.Context) {
 	key := c.Param("key")
-	if !platformKeyRe.MatchString(key) || key == "bs_boards" || platformLocalOnlyKeys[key] {
+	if !platformKeyRe.MatchString(key) || key == "bs_boards" || key == platformSeedKey || platformLocalOnlyKeys[key] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad key"})
+		return
+	}
+	if isResident(c) && residentReadableKeys[key] {
+		forbidden(c, "read_only")
 		return
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, platformMaxBody)
@@ -235,6 +284,13 @@ func (h *PlatformHandler) PutDoc(c *gin.Context) {
 		return
 	}
 	scope := platformScopeFor(c, key, req.Scope)
+	if isResident(c) {
+		if h.residentOf(c) == "" {
+			forbidden(c, "not_resident")
+			return
+		}
+		scope = "user:" + platformUser(c) // всё, что пишет резидент, только его
+	}
 	out, err := h.repo.PutDoc(c.Request.Context(), scope, key, req.Version, req.Value, req.Deleted, platformUser(c))
 	if errors.Is(err, pg.ErrPlatformConflict) {
 		c.JSON(http.StatusConflict, gin.H{"error": "conflict", "current": out})
@@ -273,6 +329,10 @@ type importReport struct {
 // @Success      200 {object} map[string]any
 // @Router       /api/v1/platform/import [post]
 func (h *PlatformHandler) Import(c *gin.Context) {
+	if isResident(c) {
+		forbidden(c, "team_only")
+		return
+	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4*platformMaxBody)
 	var req importReq
 	if err := c.ShouldBindJSON(&req); err != nil || req.Storage == nil {
@@ -341,7 +401,7 @@ func (h *PlatformHandler) Import(c *gin.Context) {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		if k == "bs_boards" || platformLocalOnlyKeys[k] {
+		if k == "bs_boards" || k == platformSeedKey || platformLocalOnlyKeys[k] {
 			continue
 		}
 		if !platformKeyRe.MatchString(k) {

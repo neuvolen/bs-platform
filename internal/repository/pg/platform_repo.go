@@ -154,7 +154,7 @@ func (r *PlatformRepo) PutBoard(ctx context.Context, id string, baseVersion int,
 		return nil, err
 	}
 
-	resident, name := boardLabels(data)
+	resident, name := BoardLabels(data)
 
 	if !exists {
 		// Includes baseVersion != 0: the client knew a version the server
@@ -403,9 +403,9 @@ func (r *PlatformRepo) getDocTx(ctx context.Context, tx pgx.Tx, scope, key strin
 	return &d, nil
 }
 
-// boardLabels pulls the resident name and board title out of the board JSON
+// BoardLabels pulls the resident name and board title out of the board JSON
 // so they can be indexed and shown without loading the whole board.
-func boardLabels(data json.RawMessage) (resident, name string) {
+func BoardLabels(data json.RawMessage) (resident, name string) {
 	var probe struct {
 		Name string `json:"name"`
 		Info struct {
@@ -448,4 +448,65 @@ func jsonEqual(a, b []byte) bool {
 	xa, _ := json.Marshal(x)
 	ya, _ := json.Marshal(y)
 	return bytes.Equal(xa, ya)
+}
+
+// PlatformResident is one row of the resident list sent by the Apps Script.
+type PlatformResident struct {
+	TgID   int64  `json:"tg"`
+	Name   string `json:"name"`
+	Active bool   `json:"active"`
+}
+
+// ReplaceResidents stores the full list: given rows are upserted, everyone
+// else is marked inactive (a former resident loses access, keeps history).
+func (r *PlatformRepo) ReplaceResidents(ctx context.Context, list []PlatformResident) (int, error) {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	ids := make([]int64, 0, len(list))
+	for _, p := range list {
+		if p.TgID <= 0 || p.Name == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO platform_residents (tg_id, name, active, updated_at) VALUES ($1, $2, $3, now())
+			ON CONFLICT (tg_id) DO UPDATE SET name = EXCLUDED.name, active = EXCLUDED.active, updated_at = now()`,
+			p.TgID, p.Name, p.Active); err != nil {
+			return 0, err
+		}
+		ids = append(ids, p.TgID)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE platform_residents SET active = false, updated_at = now()
+		WHERE active AND NOT (tg_id = ANY($1))`, ids); err != nil {
+		return 0, err
+	}
+	return len(ids), tx.Commit(ctx)
+}
+
+// ResidentByTg returns the resident's name if they are active.
+func (r *PlatformRepo) ResidentByTg(ctx context.Context, tgID int64) (string, bool, error) {
+	var name string
+	var active bool
+	err := r.db.Pool.QueryRow(ctx, `SELECT name, active FROM platform_residents WHERE tg_id = $1`, tgID).Scan(&name, &active)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return name, active, nil
+}
+
+// PutServerDoc writes a doc the server owns (clients cannot write it):
+// creates it, or bumps it only when the value really changed.
+func (r *PlatformRepo) PutServerDoc(ctx context.Context, key, value string) error {
+	_, err := r.db.Pool.Exec(ctx, `
+		INSERT INTO platform_docs (scope, key, value, version, updated_by) VALUES ('club', $1, $2, 1, 'server')
+		ON CONFLICT (scope, key) DO UPDATE
+		SET value = EXCLUDED.value, version = platform_docs.version + 1,
+		    rev = nextval('platform_rev_seq'), deleted = false, updated_at = now(), updated_by = 'server'
+		WHERE platform_docs.value IS DISTINCT FROM EXCLUDED.value OR platform_docs.deleted`, key, value)
+	return err
 }
