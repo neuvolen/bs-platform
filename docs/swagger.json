@@ -1191,13 +1191,23 @@
                 "responses": {}
             }
         },
-        "/api/v1/bot/features": {
+        "/api/v1/bot/control": {
             "post": {
-                "description": "Signed by the sheet. Body {ts, on:[report_feedback, evening_reminder]}: the full list of what the server does itself; an empty list gives everything back to the sheet.",
+                "description": "Signed by the sheet. Answer {features:[…], master:\"sheet\"|\"server\"}; the sheet skips whatever the server does.",
                 "tags": [
                     "bot"
                 ],
-                "summary": "Hand work over from the Apps Script bot to the server, or back",
+                "summary": "What the server does itself, asked by the sheet every few minutes",
+                "responses": {}
+            }
+        },
+        "/api/v1/bot/features": {
+            "post": {
+                "description": "Signed by the sheet. {ts, on:[…]}: exactly these features, whatever the rollout says ([] gives everything back to the sheet). {ts, clear:true}: the rollout decides again.",
+                "tags": [
+                    "bot"
+                ],
+                "summary": "The sheet's override of what the server does",
                 "responses": {}
             }
         },
@@ -1217,6 +1227,16 @@
                     "bot"
                 ],
                 "summary": "How the bot's updates are flowing",
+                "responses": {}
+            }
+        },
+        "/api/v1/bot/tick": {
+            "post": {
+                "description": "Signed by the sheet. The same jobs the server runs every minute: what it does, the daily check, meeting reminders, the daily comparison, the 22:00 reminder. Each job still keeps to its own hours and runs once a day.",
+                "tags": [
+                    "bot"
+                ],
+                "summary": "Run the bot's timed jobs now",
                 "responses": {}
             }
         },
@@ -1249,6 +1269,16 @@
                     "club"
                 ],
                 "summary": "Residents with meetings left, unpaid fines and total debt",
+                "responses": {}
+            }
+        },
+        "/api/v1/club/export": {
+            "post": {
+                "description": "Signed by the sheet (X-BS-Signature). Only answers once the server keeps the club's data (master = server).",
+                "tags": [
+                    "club"
+                ],
+                "summary": "ДДС and PL for the sheet's copy",
                 "responses": {}
             }
         },

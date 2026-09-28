@@ -98,6 +98,9 @@ func (s *Service) maybeDailyShadow(ctx context.Context, now time.Time) (*DayResu
 	if err != nil || !fresh {
 		return &res, err
 	}
+	if s.Has(FeatureDailyCheck) && res.Match {
+		return &res, nil // the server fines itself now: a matching day needs no note
+	}
 	for _, id := range s.notify {
 		if e := s.SendMessage(ctx, id, msg); e != nil {
 			log.Printf("bot shadow: notify %d: %v", id, e)

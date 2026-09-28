@@ -13,9 +13,10 @@ import (
 	"github.com/bnursik/business_surgery_backend/internal/club"
 )
 
-// Features the server can take over from the Apps Script bot, one at a time.
-// The sheet switches them on and off (menu BS) and stops doing the same work
-// itself, so nothing is done twice.
+// Features the server can take over from the Apps Script bot. The server
+// decides when (rollout.go); the sheet asks every few minutes what the server
+// does and stops doing the same work. The sheet can still take everything
+// back in an emergency (an override).
 const (
 	// FeatureReportFeedback: 🔥 on a report, 👍 on a video note, and the
 	// private notes about a short report, a report in the wrong topic or a
@@ -23,13 +24,22 @@ const (
 	FeatureReportFeedback = "report_feedback"
 	// FeatureEveningReminder: 22:00 reminder to those without a report today.
 	FeatureEveningReminder = "evening_reminder"
+	// FeatureDailyCheck: the 14:30 check of yesterday's reports and the fines.
+	FeatureDailyCheck = "daily_check"
+	// FeatureMeetingReminders: 3 days, 1 day and 1 hour before a meeting.
+	FeatureMeetingReminders = "meeting_reminders"
+	// Not yet done by the server; listed so the sheet knows the names.
+	FeatureBotPrivate = "bot_private"
+	FeatureReportLog  = "report_log"
 )
 
 // KnownFeatures in the order they are handed over.
-var KnownFeatures = []string{FeatureReportFeedback, FeatureEveningReminder}
+var KnownFeatures = []string{FeatureReportFeedback, FeatureEveningReminder, FeatureDailyCheck,
+	FeatureMeetingReminders, FeatureBotPrivate, FeatureReportLog}
 
 const (
-	metaFeatures      = "features"
+	metaOverride      = "features_override" // set by the sheet: exactly these, whatever the rollout says
+	metaEffective     = "features_effective"
 	eveningHour       = 22
 	shortNoticeEvery  = 4 * time.Hour // as the script: once in 4 hours per person
 	wrongNoticeEvery  = 6 * time.Hour
@@ -47,6 +57,16 @@ func (f *featureSet) has(name string) bool {
 	return f.on[name]
 }
 
+func (f *featureSet) set(list []string) {
+	m := map[string]bool{}
+	for _, x := range list {
+		m[x] = true
+	}
+	f.mu.Lock()
+	f.on = m
+	f.mu.Unlock()
+}
+
 func (s *Service) Has(feature string) bool { return s.features.has(feature) }
 
 // Features returns what the server does itself now.
@@ -62,8 +82,7 @@ func (s *Service) Features() []string {
 	return out
 }
 
-// SetFeatures replaces the set of features the server does itself.
-func (s *Service) SetFeatures(ctx context.Context, on []string) ([]string, error) {
+func validFeatures(on []string) ([]string, error) {
 	known := map[string]bool{}
 	for _, k := range KnownFeatures {
 		known[k] = true
@@ -75,39 +94,38 @@ func (s *Service) SetFeatures(ctx context.Context, on []string) ([]string, error
 		}
 		m[f] = true
 	}
-	var list []string
+	list := []string{}
 	for _, k := range KnownFeatures {
 		if m[k] {
 			list = append(list, k)
 		}
 	}
-	b, _ := json.Marshal(list)
-	if err := s.repo.SetMeta(ctx, metaFeatures, string(b)); err != nil {
-		return nil, err
-	}
-	s.features.mu.Lock()
-	s.features.on = m
-	s.features.mu.Unlock()
 	return list, nil
 }
 
-func (s *Service) loadFeatures(ctx context.Context) {
-	v, err := s.repo.GetMeta(ctx, metaFeatures)
-	if err != nil || v == "" {
-		return
+// SetFeatures is the sheet's override: exactly these features, whatever the
+// rollout says. An empty list gives everything back to the sheet.
+func (s *Service) SetFeatures(ctx context.Context, on []string) ([]string, error) {
+	list, err := validFeatures(on)
+	if err != nil {
+		return nil, err
 	}
-	var list []string
-	if json.Unmarshal([]byte(v), &list) != nil {
-		return
+	b, _ := json.Marshal(list)
+	if err := s.repo.SetMeta(ctx, metaOverride, string(b)); err != nil {
+		return nil, err
 	}
-	m := map[string]bool{}
-	for _, f := range list {
-		m[f] = true
-	}
-	s.features.mu.Lock()
-	s.features.on = m
-	s.features.mu.Unlock()
+	return s.refreshFeatures(ctx)
 }
+
+// ClearOverride hands the decision back to the rollout.
+func (s *Service) ClearOverride(ctx context.Context) ([]string, error) {
+	if err := s.repo.DeleteMeta(ctx, metaOverride); err != nil {
+		return nil, err
+	}
+	return s.refreshFeatures(ctx)
+}
+
+func (s *Service) loadFeatures(ctx context.Context) { _, _ = s.refreshFeatures(ctx) }
 
 // once returns true the first time key is seen within every; a note to a
 // person is not repeated too often, across restarts too.

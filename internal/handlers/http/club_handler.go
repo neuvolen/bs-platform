@@ -38,6 +38,8 @@ func NewClubModule(h *ClubHandler) *ClubModule { return &ClubModule{h: h} }
 func (m *ClubModule) Register(r *gin.Engine) {
 	// Import: signed by the Apps Script with the bot token, or sent by an admin.
 	r.POST("/api/v1/club/import", m.h.Import)
+	// Copy of ДДС and PL for the sheet, once the server keeps the club's data.
+	r.POST("/api/v1/club/export", m.h.Export)
 
 	g := r.Group("/api/v1/club")
 	g.Use(middleware.AuthJWT(m.h.jwtSecret))
@@ -138,6 +140,12 @@ func (h *ClubHandler) Import(c *gin.Context) {
 	}
 	dry := c.Query("dry") == "1"
 	ctx := c.Request.Context()
+	// Once the server keeps the club's data, the sheet is a copy: its data
+	// must not come back and overwrite the server's, whatever it holds.
+	if m, err := h.repo.Master(ctx); err == nil && m == "server" {
+		c.JSON(http.StatusConflict, gin.H{"error": "server_is_master", "detail": "Данные уже ведутся на сервере, таблица их не перезаписывает"})
+		return
+	}
 
 	snap, warn, perr := club.Parse(req.Sheets)
 	if perr != nil {
@@ -334,4 +342,111 @@ func (h *ClubHandler) PL(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, club.BuildPL(s.Payments, s.PL, year, upTo))
+}
+
+// ExportPayment is one ДДС row as the sheet writes it.
+type ExportPayment struct {
+	Date       string `json:"date"`
+	Income     int64  `json:"income"`
+	Expense    int64  `json:"expense"`
+	IncomeCat  string `json:"incomeCat"`
+	Resident   string `json:"resident"`
+	ExpenseCat string `json:"expenseCat"`
+	Applied    bool   `json:"applied"`
+}
+
+// ExportPLLine is one line of the PL sheet: its name and 12 months (null: empty cell).
+type ExportPLLine struct {
+	Name   string   `json:"name"`
+	Values []*int64 `json:"values"`
+}
+
+// ExportPL turns the computed P&L into the sheet's lines, by line name.
+func ExportPL(sheet *club.PLSheet, pl *club.PL) []ExportPLLine {
+	if sheet == nil || pl == nil {
+		return nil
+	}
+	var out []ExportPLLine
+	for _, row := range sheet.Rows {
+		line := ExportPLLine{Name: row.Name, Values: make([]*int64, 12)}
+		for m := 0; m < 12; m++ {
+			if m+1 > pl.UpTo {
+				continue
+			}
+			mo := pl.Months[m]
+			var v int64
+			ok := true
+			switch row.Section {
+			case "income":
+				v = mo.Income[row.Name]
+			case "expense":
+				v = mo.Expense[row.Name]
+			case "total_income":
+				v = mo.IncomeSum
+			case "total_expense":
+				v = mo.Expenses
+			case "profit":
+				v = mo.Profit
+			case "dividends":
+				v = mo.Dividends
+			case "cash":
+				v, ok = mo.Cash, mo.HasCash
+			default:
+				ok = false
+			}
+			if ok {
+				x := v
+				line.Values[m] = &x
+			}
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+// Export godoc
+// @Summary  ДДС and PL for the sheet's copy
+// @Description  Signed by the sheet (X-BS-Signature). Only answers once the server keeps the club's data (master = server).
+// @Tags     club
+// @Router   /api/v1/club/export [post]
+func (h *ClubHandler) Export(c *gin.Context) {
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20))
+	if err != nil || !VerifyBotSignature(body, c.GetHeader("X-BS-Signature"), h.botToken) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "bad_signature"})
+		return
+	}
+	var req struct {
+		TS int64 `json:"ts"`
+	}
+	if json.Unmarshal(body, &req) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad json"})
+		return
+	}
+	if d := time.Since(time.Unix(req.TS, 0)); d > time.Hour || d < -5*time.Minute {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "stale_request"})
+		return
+	}
+	ctx := c.Request.Context()
+	if m, err := h.repo.Master(ctx); err != nil || m != "server" {
+		c.JSON(http.StatusConflict, gin.H{"error": "sheet_is_master"})
+		return
+	}
+	s, ok := h.load(c)
+	if !ok {
+		return
+	}
+	pays := make([]ExportPayment, 0, len(s.Payments))
+	for _, p := range s.Payments {
+		pays = append(pays, ExportPayment{Date: p.Date.In(club.Almaty).Format("02.01.2006"), Income: p.Income, Expense: p.Expense,
+			IncomeCat: p.IncomeCat, Resident: p.Resident, ExpenseCat: p.ExpenseCat, Applied: p.Applied})
+	}
+	year := club.Today().Year()
+	if s.PL != nil && s.PL.Year != 0 {
+		year = s.PL.Year
+	}
+	upTo := 12
+	if year == club.Today().Year() {
+		upTo = int(club.Today().Month())
+	}
+	c.JSON(http.StatusOK, gin.H{"payments": pays, "pl": ExportPL(s.PL, club.BuildPL(s.Payments, s.PL, year, upTo))})
 }

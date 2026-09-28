@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/bnursik/business_surgery_backend/internal/bot"
+	"os"
 	"strings"
 	"time"
 
@@ -228,6 +229,6 @@ func BuildBot(d *Deps, token, team, apiBase, publicURL, notify string) (*bot.Ser
 	for id := range httpapi.ParsePlatformTeam(notify) {
 		who = append(who, id)
 	}
-	svc := bot.New(pg.NewBotRepo(d.DB), bot.Options{Token: token, APIBase: apiBase, Admins: admins, Notify: who})
+	svc := bot.New(pg.NewBotRepo(d.DB), bot.Options{Token: token, APIBase: apiBase, Admins: admins, Notify: who, TestClock: os.Getenv("BOT_TEST_CLOCK") == "1"})
 	return svc, httpapi.NewBotModule(httpapi.NewBotHandler(svc, publicURL))
 }

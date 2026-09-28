@@ -35,6 +35,8 @@ func (m *BotModule) Register(r *gin.Engine) {
 	r.POST("/api/v1/bot/status", m.h.Status)
 	r.POST("/api/v1/bot/retry", m.h.RetryFailed)
 	r.POST("/api/v1/bot/features", m.h.SetFeatures)
+	r.POST("/api/v1/bot/control", m.h.Control)
+	r.POST("/api/v1/bot/tick", m.h.Tick)
 }
 
 // Webhook godoc
@@ -229,13 +231,14 @@ func nzs(v []string) []string {
 }
 
 type botFeaturesReq struct {
-	TS int64    `json:"ts"`
-	On []string `json:"on"`
+	TS    int64    `json:"ts"`
+	On    []string `json:"on"`
+	Clear bool     `json:"clear"`
 }
 
 // SetFeatures godoc
-// @Summary  Hand work over from the Apps Script bot to the server, or back
-// @Description  Signed by the sheet. Body {ts, on:[report_feedback, evening_reminder]}: the full list of what the server does itself; an empty list gives everything back to the sheet.
+// @Summary  The sheet's override of what the server does
+// @Description  Signed by the sheet. {ts, on:[…]}: exactly these features, whatever the rollout says ([] gives everything back to the sheet). {ts, clear:true}: the rollout decides again.
 // @Tags     bot
 // @Router   /api/v1/bot/features [post]
 func (h *BotHandler) SetFeatures(c *gin.Context) {
@@ -243,14 +246,63 @@ func (h *BotHandler) SetFeatures(c *gin.Context) {
 	if !h.signed(c, &req) {
 		return
 	}
-	if len(req.On) > 0 && h.svc.RelayURL() == "" {
-		c.JSON(http.StatusConflict, gin.H{"error": "not_via_server", "detail": "сначала бот должен принимать сообщения через сервер"})
-		return
+	var list []string
+	var err error
+	if req.Clear {
+		list, err = h.svc.ClearOverride(c.Request.Context())
+	} else {
+		if len(req.On) > 0 && h.svc.RelayURL() == "" {
+			c.JSON(http.StatusConflict, gin.H{"error": "not_via_server", "detail": "сначала бот должен принимать сообщения через сервер"})
+			return
+		}
+		list, err = h.svc.SetFeatures(c.Request.Context(), req.On)
 	}
-	list, err := h.svc.SetFeatures(c.Request.Context(), req.On)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_feature", "detail": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"features": nzs(list)})
+}
+
+type botControlReq struct {
+	TS      int64  `json:"ts"`
+	Version string `json:"version"`
+}
+
+// Control godoc
+// @Summary  What the server does itself, asked by the sheet every few minutes
+// @Description  Signed by the sheet. Answer {features:[…], master:"sheet"|"server"}; the sheet skips whatever the server does.
+// @Tags     bot
+// @Router   /api/v1/bot/control [post]
+func (h *BotHandler) Control(c *gin.Context) {
+	var req botControlReq
+	if !h.signed(c, &req) {
+		return
+	}
+	h.svc.NoteScript(c.Request.Context(), req.Version)
+	c.JSON(http.StatusOK, gin.H{"features": nzs(h.svc.Features()), "master": h.svc.Master(c.Request.Context())})
+}
+
+type botTickReq struct {
+	TS  int64  `json:"ts"`
+	Now string `json:"now"` // RFC3339, honoured only with BOT_TEST_CLOCK=1
+}
+
+// Tick godoc
+// @Summary  Run the bot's timed jobs now
+// @Description  Signed by the sheet. The same jobs the server runs every minute: what it does, the daily check, meeting reminders, the daily comparison, the 22:00 reminder. Each job still keeps to its own hours and runs once a day.
+// @Tags     bot
+// @Router   /api/v1/bot/tick [post]
+func (h *BotHandler) Tick(c *gin.Context) {
+	var req botTickReq
+	if !h.signed(c, &req) {
+		return
+	}
+	now := time.Now()
+	if req.Now != "" && h.svc.TestClock() {
+		if t, err := time.Parse(time.RFC3339, req.Now); err == nil {
+			now = t
+		}
+	}
+	c.JSON(http.StatusOK, h.svc.Tick(c.Request.Context(), now))
 }

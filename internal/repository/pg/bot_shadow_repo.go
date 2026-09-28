@@ -220,3 +220,28 @@ func (r *BotRepo) Setting(ctx context.Context, key string) (string, error) {
 	}
 	return v, err
 }
+
+func (r *BotRepo) DeleteMeta(ctx context.Context, key string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM bot_meta WHERE key = $1`, key)
+	return err
+}
+
+// ShadowStreak: the most recent daily comparisons, newest first (day, match).
+func (r *BotRepo) ShadowStreak(ctx context.Context, n int) ([]time.Time, []bool, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT day, match FROM bot_shadow_days ORDER BY day DESC LIMIT $1`, n)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	var days []time.Time
+	var ok []bool
+	for rows.Next() {
+		var d time.Time
+		var m bool
+		if err := rows.Scan(&d, &m); err != nil {
+			return nil, nil, err
+		}
+		days, ok = append(days, d), append(ok, m)
+	}
+	return days, ok, rows.Err()
+}

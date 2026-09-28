@@ -43,30 +43,32 @@ const (
 
 // Service holds the relay workers and talks to Telegram.
 type Service struct {
-	repo     *pg.BotRepo
-	token    string
-	apiBase  string // https://api.telegram.org, a fake in tests
-	admins   []int64
-	client   *http.Client // to the relay: no redirects, Apps Script answers 302
-	tgClient *http.Client
-	workers  int
-	wake     chan struct{}
-	features featureSet
-	topic    string  // the group's ОТЧЁТЫ topic
-	notify   []int64 // who gets the daily comparison
+	repo      *pg.BotRepo
+	token     string
+	apiBase   string // https://api.telegram.org, a fake in tests
+	admins    []int64
+	client    *http.Client // to the relay: no redirects, Apps Script answers 302
+	tgClient  *http.Client
+	workers   int
+	wake      chan struct{}
+	features  featureSet
+	testClock bool
+	topic     string  // the group's ОТЧЁТЫ topic
+	notify    []int64 // who gets the daily comparison
 
 	mu       sync.RWMutex
 	relayURL string
 }
 
 type Options struct {
-	Token   string
-	APIBase string
-	Admins  []int64
-	Workers int
-	Timeout time.Duration
-	Topic   string  // reports topic, default 9
-	Notify  []int64 // daily comparison recipients
+	Token     string
+	APIBase   string
+	Admins    []int64
+	Workers   int
+	Timeout   time.Duration
+	Topic     string  // reports topic, default 9
+	TestClock bool    // tests only: /tick may set the time
+	Notify    []int64 // daily comparison recipients
 }
 
 func New(repo *pg.BotRepo, o Options) *Service {
@@ -91,11 +93,12 @@ func New(repo *pg.BotRepo, o Options) *Service {
 			Timeout:       o.Timeout,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
-		tgClient: &http.Client{Timeout: 30 * time.Second},
-		workers:  o.Workers,
-		wake:     make(chan struct{}, 1),
-		topic:    o.Topic,
-		notify:   o.Notify,
+		tgClient:  &http.Client{Timeout: 30 * time.Second},
+		workers:   o.Workers,
+		wake:      make(chan struct{}, 1),
+		topic:     o.Topic,
+		testClock: o.TestClock,
+		notify:    o.Notify,
 	}
 }
 
@@ -129,7 +132,28 @@ func (s *Service) SetRelayURL(ctx context.Context, u string) error {
 	s.relayURL = u
 	s.mu.Unlock()
 	s.Wake()
+	_, _ = s.refreshFeatures(ctx)
 	return nil
+}
+
+// Master: who keeps the club's data, "sheet" or "server".
+func (s *Service) Master(ctx context.Context) string {
+	m, err := s.repo.Club().Master(ctx)
+	if err != nil || m == "" {
+		return "sheet"
+	}
+	return m
+}
+
+// NoteScript remembers which script version asked last, for diagnostics.
+func (s *Service) NoteScript(ctx context.Context, version string) {
+	if version == "" {
+		return
+	}
+	if old, _ := s.repo.GetMeta(ctx, "script_version"); old != version {
+		_ = s.repo.SetMeta(ctx, "script_version", version)
+		_, _ = s.refreshFeatures(ctx)
+	}
 }
 
 func (s *Service) Wake() {
@@ -367,13 +391,7 @@ func (s *Service) housekeeping(ctx context.Context) {
 		case <-t.C:
 		}
 		n++
-		s.checkAlert(ctx)
-		if _, err := s.maybeDailyShadow(ctx, time.Now()); err != nil {
-			log.Printf("bot shadow: daily: %v", err)
-		}
-		if _, err := s.maybeEveningReminder(ctx, time.Now()); err != nil {
-			log.Printf("bot evening: %v", err)
-		}
+		s.Tick(ctx, time.Now())
 		if n%60 == 0 {
 			if err := s.repo.Cleanup(ctx); err != nil {
 				log.Printf("bot cleanup: %v", err)
@@ -381,6 +399,47 @@ func (s *Service) housekeeping(ctx context.Context) {
 		}
 	}
 }
+
+// TickResult is what one round of the timed jobs did.
+type TickResult struct {
+	Features []string          `json:"features"`
+	Daily    *DailyOutcome     `json:"daily,omitempty"`
+	Meetings []MeetingReminder `json:"meetings,omitempty"`
+	Shadow   *DayResult        `json:"shadow,omitempty"`
+	Evening  []string          `json:"evening,omitempty"`
+	Errors   []string          `json:"errors,omitempty"`
+}
+
+// Tick runs the timed jobs once: every minute from housekeeping, or on demand.
+func (s *Service) Tick(ctx context.Context, now time.Time) TickResult {
+	var r TickResult
+	fail := func(what string, err error) {
+		if err != nil {
+			log.Printf("bot %s: %v", what, err)
+			r.Errors = append(r.Errors, what+": "+err.Error())
+		}
+	}
+	var err error
+	r.Features, err = s.refreshFeatures(ctx)
+	fail("features", err)
+	s.checkAlert(ctx)
+	r.Daily, err = s.maybeDailyCheck(ctx, now)
+	fail("daily check", err)
+	r.Meetings, err = s.maybeMeetingReminders(ctx, now)
+	fail("meetings", err)
+	r.Shadow, err = s.maybeDailyShadow(ctx, now)
+	fail("shadow", err)
+	r.Evening, err = s.maybeEvening(ctx, now)
+	fail("evening", err)
+	return r
+}
+
+func (s *Service) maybeEvening(ctx context.Context, now time.Time) ([]string, error) {
+	return s.maybeEveningReminder(ctx, now)
+}
+
+// TestClock: the tick endpoint may be given a time (tests only).
+func (s *Service) TestClock() bool { return s.testClock }
 
 // checkAlert tells the team when updates pile up on the server: the script is
 // down or refuses them. At most once in 3 hours.
