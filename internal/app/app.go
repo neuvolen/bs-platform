@@ -196,6 +196,11 @@ func BuildHTTPModules(
 	}
 }
 
+// BuildClubModule wires the club data moved from the Google Sheet.
+func BuildClubModule(d *Deps, jwtSecret, telegramBotToken string) httpapi.RoutesRegistrar {
+	return httpapi.NewClubModule(httpapi.NewClubHandler(pg.NewClubRepo(d.DB), d.PlatformRepo, telegramBotToken, jwtSecret))
+}
+
 // BuildPlatformModule wires the BS platform: its storage API and Telegram login.
 func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) httpapi.RoutesRegistrar {
 	return httpapi.NewPlatformModule(

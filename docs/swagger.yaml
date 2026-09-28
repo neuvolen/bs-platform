@@ -1252,6 +1252,82 @@ paths:
       summary: Register new user
       tags:
       - auth
+  /api/v1/club/debet:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Residents with meetings left, unpaid fines and total debt
+      tags:
+      - club
+  /api/v1/club/fines:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Fines
+      tags:
+      - club
+  /api/v1/club/import:
+    post:
+      consumes:
+      - application/json
+      description: Body {ts, sheets:{name:[[cells…]]}} with display values. Signed
+        by the Apps Script (X-BS-Signature = HMAC-SHA256 of the body with the bot
+        token) or sent with an admin token. ?dry=1 only checks. The answer compares
+        the server's debts and P&L with the sheet's.
+      produces:
+      - application/json
+      responses: {}
+      summary: Import the club data from the Google Sheet
+      tags:
+      - club
+  /api/v1/club/meetings:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Scheduled meetings
+      tags:
+      - club
+  /api/v1/club/payments:
+    get:
+      parameters:
+      - description: year, default all
+        in: query
+        name: year
+        type: integer
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Cash journal (ДДС)
+      tags:
+      - club
+  /api/v1/club/pl:
+    get:
+      parameters:
+      - description: 'default: the P&L year'
+        in: query
+        name: year
+        type: integer
+      - description: 'last month to include, default: current month'
+        in: query
+        name: upto
+        type: integer
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: P&L built from the cash journal
+      tags:
+      - club
+  /api/v1/club/status:
+    get:
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: What the server holds and who is the source of truth
+      tags:
+      - club
   /api/v1/diseases:
     post:
       consumes:

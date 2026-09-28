@@ -75,6 +75,7 @@ func main() {
 	deps := app.BuildDeps(db, cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	modules := app.BuildHTTPModules(deps, cfg.JWTSecret, googleOAuthConfig, cfg.FrontendURL)
 	modules = append(modules, app.BuildPlatformModule(deps, cfg.JWTSecret, cfg.TelegramBotToken, cfg.PlatformTeam))
+	modules = append(modules, app.BuildClubModule(deps, cfg.JWTSecret, cfg.TelegramBotToken))
 	router := server.SetupRouter(modules...)
 	web.Register(router, cfg.JWTSecret, httpapi.PlatformSessionCookie)
 

@@ -48,7 +48,7 @@ func platformTgID(c *gin.Context) int64 {
 	return id
 }
 
-// normName makes "Даулет  Сайты", "даулет сайты" and "Даулёт Сайты" equal.
+// normName makes "Пётр  Иванов", "петр иванов" and "Пётр Иванов" equal.
 func normName(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = strings.ReplaceAll(s, "ё", "е")

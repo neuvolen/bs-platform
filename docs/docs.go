@@ -1189,6 +1189,128 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/club/debet": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "club"
+                ],
+                "summary": "Residents with meetings left, unpaid fines and total debt",
+                "responses": {}
+            }
+        },
+        "/api/v1/club/fines": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "club"
+                ],
+                "summary": "Fines",
+                "responses": {}
+            }
+        },
+        "/api/v1/club/import": {
+            "post": {
+                "description": "Body {ts, sheets:{name:[[cells…]]}} with display values. Signed by the Apps Script (X-BS-Signature = HMAC-SHA256 of the body with the bot token) or sent with an admin token. ?dry=1 only checks. The answer compares the server's debts and P\u0026L with the sheet's.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "club"
+                ],
+                "summary": "Import the club data from the Google Sheet",
+                "responses": {}
+            }
+        },
+        "/api/v1/club/meetings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "club"
+                ],
+                "summary": "Scheduled meetings",
+                "responses": {}
+            }
+        },
+        "/api/v1/club/payments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "club"
+                ],
+                "summary": "Cash journal (ДДС)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "year, default all",
+                        "name": "year",
+                        "in": "query"
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/v1/club/pl": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "club"
+                ],
+                "summary": "P\u0026L built from the cash journal",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "default: the P\u0026L year",
+                        "name": "year",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "last month to include, default: current month",
+                        "name": "upto",
+                        "in": "query"
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/v1/club/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "club"
+                ],
+                "summary": "What the server holds and who is the source of truth",
+                "responses": {}
+            }
+        },
         "/api/v1/diseases": {
             "post": {
                 "security": [
