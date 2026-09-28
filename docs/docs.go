@@ -1189,6 +1189,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/bot/connect": {
+            "post": {
+                "description": "Signed by the sheet. Body {ts, relay: Apps Script /exec address, version}. Checks the script answers there with that version, remembers it as the relay and points Telegram at the server.",
+                "tags": [
+                    "bot"
+                ],
+                "summary": "Switch the Telegram bot to the server",
+                "responses": {}
+            }
+        },
+        "/api/v1/bot/retry": {
+            "post": {
+                "tags": [
+                    "bot"
+                ],
+                "summary": "Send again the updates the script refused ten times",
+                "responses": {}
+            }
+        },
+        "/api/v1/bot/status": {
+            "post": {
+                "description": "Signed by the sheet. Telegram's webhook state, the relay address, the script version behind it and the queue on the server.",
+                "tags": [
+                    "bot"
+                ],
+                "summary": "How the bot's updates are flowing",
+                "responses": {}
+            }
+        },
+        "/api/v1/bot/webhook": {
+            "get": {
+                "description": "The sheet's own checks ask the webhook address for its version. With the server in between, the answer is the version of the script behind it.",
+                "tags": [
+                    "bot"
+                ],
+                "summary": "Which Apps Script version the bot's updates reach (?action=bsVersion)",
+                "responses": {}
+            },
+            "post": {
+                "description": "Stores the update and answers at once; the update then goes on to the Apps Script bot. Checked by X-Telegram-Bot-Api-Secret-Token.",
+                "tags": [
+                    "bot"
+                ],
+                "summary": "Telegram webhook",
+                "responses": {}
+            }
+        },
         "/api/v1/club/debet": {
             "get": {
                 "security": [

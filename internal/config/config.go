@@ -17,6 +17,10 @@ type Config struct {
 	// Platform login with Telegram
 	TelegramBotToken string
 	PlatformTeam     string // "id:Name,id:Name" of team members allowed in
+
+	PublicURL       string // https://host the Telegram webhook is set to; empty: the host the sheet called
+	TelegramAPIBase string // tests only
+	BotRelayPattern string // tests only: which relay addresses are allowed
 }
 
 func Load() Config {
@@ -33,5 +37,8 @@ func Load() Config {
 
 		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
 		PlatformTeam:     os.Getenv("PLATFORM_TEAM"),
+		PublicURL:        os.Getenv("PUBLIC_URL"),
+		TelegramAPIBase:  os.Getenv("TELEGRAM_API_BASE"),
+		BotRelayPattern:  os.Getenv("BOT_RELAY_PATTERN"),
 	}
 }

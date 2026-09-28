@@ -16,15 +16,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 	"time"
-	
+
 	_ "github.com/bnursik/business_surgery_backend/docs"
 	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/bnursik/business_surgery_backend/internal/app"
+	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"github.com/bnursik/business_surgery_backend/internal/config"
 	httpapi "github.com/bnursik/business_surgery_backend/internal/handlers/http"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
@@ -76,6 +78,16 @@ func main() {
 	modules := app.BuildHTTPModules(deps, cfg.JWTSecret, googleOAuthConfig, cfg.FrontendURL)
 	modules = append(modules, app.BuildPlatformModule(deps, cfg.JWTSecret, cfg.TelegramBotToken, cfg.PlatformTeam))
 	modules = append(modules, app.BuildClubModule(deps, cfg.JWTSecret, cfg.TelegramBotToken))
+	if cfg.BotRelayPattern != "" {
+		bot.RelayURLPattern = regexp.MustCompile(cfg.BotRelayPattern)
+	}
+	botSvc, botModule := app.BuildBot(deps, cfg.TelegramBotToken, cfg.PlatformTeam, cfg.TelegramAPIBase, cfg.PublicURL)
+	modules = append(modules, botModule)
+	botCtx, botStop := context.WithCancel(context.Background())
+	defer botStop()
+	if botSvc.Enabled() {
+		botSvc.Start(botCtx)
+	}
 	router := server.SetupRouter(modules...)
 	web.Register(router, cfg.JWTSecret, httpapi.PlatformSessionCookie)
 

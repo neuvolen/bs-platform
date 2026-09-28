@@ -1,8 +1,10 @@
 package app
 
 import (
+	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/domain/dashboardusers"
 	"github.com/bnursik/business_surgery_backend/internal/domain/diseasecategories"
 	"github.com/bnursik/business_surgery_backend/internal/domain/diseases"
 	"github.com/bnursik/business_surgery_backend/internal/domain/organs"
@@ -10,12 +12,12 @@ import (
 	"github.com/bnursik/business_surgery_backend/internal/domain/rbac"
 	"github.com/bnursik/business_surgery_backend/internal/domain/tracking"
 	"github.com/bnursik/business_surgery_backend/internal/domain/users"
-	"github.com/bnursik/business_surgery_backend/internal/domain/dashboardusers"
 
 	httpapi "github.com/bnursik/business_surgery_backend/internal/handlers/http"
 	"github.com/bnursik/business_surgery_backend/internal/repository/pg"
 
 	authsvc "github.com/bnursik/business_surgery_backend/internal/services/auth"
+	dashboardusersvc "github.com/bnursik/business_surgery_backend/internal/services/dashboardusers"
 	diseasecategoriesvc "github.com/bnursik/business_surgery_backend/internal/services/diseasecategories"
 	diseasessvc "github.com/bnursik/business_surgery_backend/internal/services/diseases"
 	organsvc "github.com/bnursik/business_surgery_backend/internal/services/organs"
@@ -23,7 +25,6 @@ import (
 	rbacsvc "github.com/bnursik/business_surgery_backend/internal/services/rbac"
 	trackingsvc "github.com/bnursik/business_surgery_backend/internal/services/tracking"
 	usersvc "github.com/bnursik/business_surgery_backend/internal/services/users"
-	dashboardusersvc "github.com/bnursik/business_surgery_backend/internal/services/dashboardusers"
 
 	"github.com/bnursik/business_surgery_backend/pkg/auth"
 	"golang.org/x/oauth2"
@@ -32,8 +33,8 @@ import (
 type Deps struct {
 	DB *pg.DB
 
-	AuthSvc  users.AuthService
-	UsersSvc users.UsersService
+	AuthSvc   users.AuthService
+	UsersSvc  users.UsersService
 	UsersRepo users.UserRepository
 
 	RBACSvc rbac.Service
@@ -208,4 +209,16 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) http
 		httpapi.NewPlatformAuthHandler(telegramBotToken, team, jwtSecret),
 		[]byte(jwtSecret),
 	)
+}
+
+// BuildBot wires the Telegram webhook on the server and its relay to the
+// Apps Script bot. Start the returned service with a context that lives as
+// long as the server.
+func BuildBot(d *Deps, token, team, apiBase, publicURL string) (*bot.Service, httpapi.RoutesRegistrar) {
+	var admins []int64
+	for id := range httpapi.ParsePlatformTeam(team) {
+		admins = append(admins, id)
+	}
+	svc := bot.New(pg.NewBotRepo(d.DB), bot.Options{Token: token, APIBase: apiBase, Admins: admins})
+	return svc, httpapi.NewBotModule(httpapi.NewBotHandler(svc, publicURL))
 }
