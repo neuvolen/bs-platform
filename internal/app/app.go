@@ -158,9 +158,6 @@ func BuildHTTPModules(
 	// diary
 	meDiaryHandler := httpapi.NewMeDiaryHandler(d.TrackingSvc)
 
-	// platform storage
-	platformHandler := httpapi.NewPlatformHandler(d.PlatformRepo)
-
 	return []httpapi.RoutesRegistrar{
 		httpapi.NewAuthModule(authHandler, []byte(jwtSecret)),
 
@@ -196,7 +193,14 @@ func BuildHTTPModules(
 		httpapi.NewMeStepsModule(meStepsH, []byte(jwtSecret)),
 
 		httpapi.NewMeDiaryModule(meDiaryHandler, []byte(jwtSecret)),
-
-		httpapi.NewPlatformModule(platformHandler, []byte(jwtSecret)),
 	}
+}
+
+// BuildPlatformModule wires the BS platform: its storage API and Telegram login.
+func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) httpapi.RoutesRegistrar {
+	return httpapi.NewPlatformModule(
+		httpapi.NewPlatformHandler(d.PlatformRepo),
+		httpapi.NewPlatformAuthHandler(telegramBotToken, team, jwtSecret),
+		[]byte(jwtSecret),
+	)
 }

@@ -13,6 +13,10 @@ type Config struct {
 	GoogleClientSecret string
 	GoogleRedirectURL  string
 	FrontendURL        string
+
+	// Platform login with Telegram
+	TelegramBotToken string
+	PlatformTeam     string // "id:Name,id:Name" of team members allowed in
 }
 
 func Load() Config {
@@ -26,5 +30,8 @@ func Load() Config {
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
 		FrontendURL:        os.Getenv("FRONTEND_URL"),
+
+		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
+		PlatformTeam:     os.Getenv("PLATFORM_TEAM"),
 	}
 }

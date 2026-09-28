@@ -29,6 +29,7 @@ import (
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/bnursik/business_surgery_backend/internal/server"
 	"github.com/bnursik/business_surgery_backend/migrations"
+	"github.com/bnursik/business_surgery_backend/web"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -72,7 +73,9 @@ func main() {
 
 	deps := app.BuildDeps(db, cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	modules := app.BuildHTTPModules(deps, cfg.JWTSecret, googleOAuthConfig, cfg.FrontendURL)
+	modules = append(modules, app.BuildPlatformModule(deps, cfg.JWTSecret, cfg.TelegramBotToken, cfg.PlatformTeam))
 	router := server.SetupRouter(modules...)
+	web.Register(router)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	srv := &http.Server{

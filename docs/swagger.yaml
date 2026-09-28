@@ -3051,6 +3051,33 @@ paths:
       summary: Update step
       tags:
       - plans
+  /api/v1/platform/auth/telegram:
+    post:
+      consumes:
+      - application/json
+      description: 'Body: {widget:{…fields from the Telegram Login Widget…}} or {initData:"…"}
+        from a Mini App. Only team members get in.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Log in with Telegram
+      tags:
+      - platform
   /api/v1/platform/boards/{id}:
     delete:
       description: Soft delete; the board stays in history and can be restored.
@@ -3159,6 +3186,21 @@ paths:
       security:
       - BearerAuth: []
       summary: One saved copy of a board
+      tags:
+      - platform
+  /api/v1/platform/config:
+    get:
+      description: Public. Tells the login screen which bot to use for the Telegram
+        widget.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Platform login settings
       tags:
       - platform
   /api/v1/platform/docs/{key}:

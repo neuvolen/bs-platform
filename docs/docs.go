@@ -3888,6 +3888,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/platform/auth/telegram": {
+            "post": {
+                "description": "Body: {widget:{…fields from the Telegram Login Widget…}} or {initData:\"…\"} from a Mini App. Only team members get in.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Log in with Telegram",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/platform/boards/{id}": {
             "put": {
                 "security": [
@@ -4047,6 +4085,27 @@ const docTemplate = `{
                         "required": true
                     }
                 ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/platform/config": {
+            "get": {
+                "description": "Public. Tells the login screen which bot to use for the Telegram widget.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform"
+                ],
+                "summary": "Platform login settings",
                 "responses": {
                     "200": {
                         "description": "OK",

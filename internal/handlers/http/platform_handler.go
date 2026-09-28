@@ -32,11 +32,13 @@ var platformPersonalKeys = map[string]bool{
 	"bs_theme":   true,
 	"bs_order":   true,
 	"bs_onboard": true,
+	"bs_me":      true, // who I am on the board (name, colour, presence id)
 }
 
 // Keys that are pure local bookkeeping and never leave the browser.
 var platformLocalOnlyKeys = map[string]bool{
 	"bs_lastsync": true,
+	"bs_peer":     true, // presence ping, rewritten every few seconds
 }
 
 var platformKeyRe = regexp.MustCompile(`^bs_[a-z0-9_]{1,60}$`)
@@ -255,6 +257,7 @@ type importReport struct {
 	BoardsSame       []string `json:"boardsSame"`
 	BoardsKeptServer []string `json:"boardsKeptServer"`
 	DocsAdded        []string `json:"docsAdded"`
+	DocsMerged       []string `json:"docsMerged"`
 	DocsSame         []string `json:"docsSame"`
 	DocsKeptServer   []string `json:"docsKeptServer"`
 	Skipped          []string `json:"skipped"`
@@ -280,7 +283,7 @@ func (h *PlatformHandler) Import(c *gin.Context) {
 	by := platformUser(c)
 	rep := importReport{
 		BoardsAdded: []string{}, BoardsUpdated: []string{}, BoardsSame: []string{}, BoardsKeptServer: []string{},
-		DocsAdded: []string{}, DocsSame: []string{}, DocsKeptServer: []string{}, Skipped: []string{},
+		DocsAdded: []string{}, DocsMerged: []string{}, DocsSame: []string{}, DocsKeptServer: []string{}, Skipped: []string{},
 	}
 
 	// Boards
@@ -366,7 +369,22 @@ func (h *PlatformHandler) Import(c *gin.Context) {
 		case cur.Value == v:
 			rep.DocsSame = append(rep.DocsSame, k)
 		default:
-			rep.DocsKeptServer = append(rep.DocsKeptServer, k)
+			// Both sides have data: keep everything the server has and add
+			// what only the file has. Nothing on the server is overwritten.
+			merged, changed := unionJSON(cur.Value, v)
+			if !changed {
+				rep.DocsKeptServer = append(rep.DocsKeptServer, k)
+				continue
+			}
+			if _, err := h.repo.PutDoc(ctx, scope, k, cur.Version, merged, false, by); err != nil {
+				if errors.Is(err, pg.ErrPlatformConflict) {
+					rep.DocsKeptServer = append(rep.DocsKeptServer, k+" (изменён во время переноса, повторите)")
+					continue
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+				return
+			}
+			rep.DocsMerged = append(rep.DocsMerged, k)
 		}
 	}
 
@@ -403,4 +421,112 @@ func pgJSONEqual(a, b json.RawMessage) bool {
 	xa, _ := json.Marshal(x)
 	ya, _ := json.Marshal(y)
 	return string(xa) == string(ya)
+}
+
+// unionJSON adds to `server` whatever only `incoming` has, never changing or
+// removing what the server already holds:
+//   - lists of records with "id": records whose id the server lacks are appended;
+//   - other lists: elements the server lacks are appended;
+//   - objects: missing keys are added, shared keys are merged the same way;
+//   - plain values: the server's wins, unless it is empty.
+//
+// Returns the merged JSON and whether anything was added.
+func unionJSON(server, incoming string) (string, bool) {
+	var a, b any
+	errA := json.Unmarshal([]byte(server), &a)
+	errB := json.Unmarshal([]byte(incoming), &b)
+	if errA != nil || errB != nil {
+		if strings.TrimSpace(server) == "" && strings.TrimSpace(incoming) != "" {
+			return incoming, true
+		}
+		return server, false
+	}
+	out, changed := unionValue(a, b)
+	if !changed {
+		return server, false
+	}
+	buf, err := json.Marshal(out)
+	if err != nil {
+		return server, false
+	}
+	return string(buf), true
+}
+
+func unionValue(a, b any) (any, bool) {
+	switch av := a.(type) {
+	case map[string]any:
+		bv, ok := b.(map[string]any)
+		if !ok {
+			return a, false
+		}
+		changed := false
+		keys := make([]string, 0, len(bv))
+		for k := range bv {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			if cur, ok := av[k]; ok {
+				if m, ch := unionValue(cur, bv[k]); ch {
+					av[k] = m
+					changed = true
+				}
+			} else {
+				av[k] = bv[k]
+				changed = true
+			}
+		}
+		return av, changed
+	case []any:
+		bv, ok := b.([]any)
+		if !ok {
+			return a, false
+		}
+		seen := map[string]bool{}
+		for _, el := range av {
+			seen[elemKey(el)] = true
+		}
+		changed := false
+		for _, el := range bv {
+			k := elemKey(el)
+			if !seen[k] {
+				av = append(av, el)
+				seen[k] = true
+				changed = true
+			}
+		}
+		return av, changed
+	default:
+		if isEmptyJSON(a) && !isEmptyJSON(b) {
+			return b, true
+		}
+		return a, false
+	}
+}
+
+// elemKey identifies a list element: its "id" when it is a record with one,
+// otherwise its whole content.
+func elemKey(el any) string {
+	if m, ok := el.(map[string]any); ok {
+		if id, ok := m["id"]; ok && id != nil && id != "" {
+			buf, _ := json.Marshal(id)
+			return "id:" + string(buf)
+		}
+	}
+	buf, _ := json.Marshal(el)
+	return "v:" + string(buf)
+}
+
+func isEmptyJSON(v any) bool {
+	switch t := v.(type) {
+	case nil:
+		return true
+	case string:
+		return t == ""
+	case float64:
+		return t == 0
+	case bool:
+		return !t
+	}
+	return false
 }
