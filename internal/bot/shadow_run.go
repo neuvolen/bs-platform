@@ -34,6 +34,9 @@ func (s *Service) shadowUpdate(ctx context.Context, body []byte) {
 		}
 		return MatchByName(full, cands)
 	})
+	if s.Has(FeatureReportFeedback) {
+		s.feedback(ctx, m, d)
+	}
 	if !d.Record {
 		return
 	}

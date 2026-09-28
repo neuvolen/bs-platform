@@ -51,6 +51,7 @@ type Service struct {
 	tgClient *http.Client
 	workers  int
 	wake     chan struct{}
+	features featureSet
 	topic    string  // the group's ОТЧЁТЫ topic
 	notify   []int64 // who gets the daily comparison
 
@@ -145,6 +146,7 @@ func (s *Service) Start(ctx context.Context) {
 		s.relayURL = u
 		s.mu.Unlock()
 	}
+	s.loadFeatures(ctx)
 	for i := 0; i < s.workers; i++ {
 		go s.worker(ctx)
 	}
@@ -368,6 +370,9 @@ func (s *Service) housekeeping(ctx context.Context) {
 		s.checkAlert(ctx)
 		if _, err := s.maybeDailyShadow(ctx, time.Now()); err != nil {
 			log.Printf("bot shadow: daily: %v", err)
+		}
+		if _, err := s.maybeEveningReminder(ctx, time.Now()); err != nil {
+			log.Printf("bot evening: %v", err)
 		}
 		if n%60 == 0 {
 			if err := s.repo.Cleanup(ctx); err != nil {

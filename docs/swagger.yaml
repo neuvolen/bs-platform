@@ -1261,6 +1261,15 @@ paths:
       summary: Switch the Telegram bot to the server
       tags:
       - bot
+  /api/v1/bot/features:
+    post:
+      description: 'Signed by the sheet. Body {ts, on:[report_feedback, evening_reminder]}:
+        the full list of what the server does itself; an empty list gives everything
+        back to the sheet.'
+      responses: {}
+      summary: Hand work over from the Apps Script bot to the server, or back
+      tags:
+      - bot
   /api/v1/bot/retry:
     post:
       responses: {}

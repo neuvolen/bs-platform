@@ -34,6 +34,7 @@ func (m *BotModule) Register(r *gin.Engine) {
 	r.POST("/api/v1/bot/connect", m.h.Connect)
 	r.POST("/api/v1/bot/status", m.h.Status)
 	r.POST("/api/v1/bot/retry", m.h.RetryFailed)
+	r.POST("/api/v1/bot/features", m.h.SetFeatures)
 }
 
 // Webhook godoc
@@ -184,7 +185,7 @@ func (h *BotHandler) Status(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	out := gin.H{"relay": h.svc.RelayURL()}
+	out := gin.H{"relay": h.svc.RelayURL(), "features": nzs(h.svc.Features())}
 	if info, err := h.svc.GetWebhookInfo(ctx); err == nil {
 		out["webhook"] = info
 		out["viaServer"] = strings.HasSuffix(info.URL, "/api/v1/bot/webhook")
@@ -218,4 +219,38 @@ func (h *BotHandler) RetryFailed(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"requeued": n})
+}
+
+func nzs(v []string) []string {
+	if v == nil {
+		return []string{}
+	}
+	return v
+}
+
+type botFeaturesReq struct {
+	TS int64    `json:"ts"`
+	On []string `json:"on"`
+}
+
+// SetFeatures godoc
+// @Summary  Hand work over from the Apps Script bot to the server, or back
+// @Description  Signed by the sheet. Body {ts, on:[report_feedback, evening_reminder]}: the full list of what the server does itself; an empty list gives everything back to the sheet.
+// @Tags     bot
+// @Router   /api/v1/bot/features [post]
+func (h *BotHandler) SetFeatures(c *gin.Context) {
+	var req botFeaturesReq
+	if !h.signed(c, &req) {
+		return
+	}
+	if len(req.On) > 0 && h.svc.RelayURL() == "" {
+		c.JSON(http.StatusConflict, gin.H{"error": "not_via_server", "detail": "сначала бот должен принимать сообщения через сервер"})
+		return
+	}
+	list, err := h.svc.SetFeatures(c.Request.Context(), req.On)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_feature", "detail": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"features": nzs(list)})
 }

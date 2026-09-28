@@ -198,3 +198,25 @@ func (r *BotRepo) ShadowDays(ctx context.Context, n int) ([]json.RawMessage, err
 
 // Club gives the club data the bot checks against.
 func (r *BotRepo) Club() *ClubRepo { return &ClubRepo{db: r.db} }
+
+// Once marks key as done now unless it was done within every; true means
+// "go ahead". Safe with several server instances.
+func (r *BotRepo) Once(ctx context.Context, key string, every time.Duration) (bool, error) {
+	tag, err := r.db.Pool.Exec(ctx, `INSERT INTO bot_meta (key, value, updated_at) VALUES ('once:' || $1, '', now())
+		ON CONFLICT (key) DO UPDATE SET updated_at = now()
+		WHERE bot_meta.updated_at < now() - $2::interval`, key, every.String())
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// Setting is a bot text from the sheet's «Настройки».
+func (r *BotRepo) Setting(ctx context.Context, key string) (string, error) {
+	var v string
+	err := r.db.Pool.QueryRow(ctx, `SELECT value FROM club_settings WHERE key = $1`, key).Scan(&v)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return v, err
+}
