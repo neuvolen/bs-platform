@@ -131,20 +131,30 @@ func filterForResident(boards []pg.PlatformBoard, docs []pg.PlatformDoc, name, u
 
 // residentSeed keeps from the club seed only what a resident may see.
 //
-// The seed is a snapshot baked into the page, not live data: showing a
-// resident their debt or fines from it would show outdated money. Until the
-// platform reads the Google Sheet live, a resident gets the club roster
-// (names, format, start date) and visit counts, and no money, fines,
-// schedule, NPS or leads at all, their own included.
+// Everyone's name, format and start date (the club roster) and visit counts.
+// Their own money, fines and meetings only once the seed is live data from
+// the server (LIVE): a snapshot baked into the page would show outdated money.
+// Other residents' money, fines and meetings, NPS, leads and the P&L never.
 func residentSeed(seed, name string) string {
 	var s map[string]json.RawMessage
 	if json.Unmarshal([]byte(seed), &s) != nil {
 		return "{}"
 	}
+	var live struct {
+		Source string `json:"source"`
+	}
+	_ = json.Unmarshal(s["LIVE"], &live)
+	isLive := live.Source == "server"
+	me := normName(name)
+
 	var residents []map[string]any
 	_ = json.Unmarshal(s["RESIDENTS"], &residents)
 	roster := make([]map[string]any, 0, len(residents))
 	for _, r := range residents {
+		if isLive && me != "" && normName(toStr(r["name"])) == me {
+			roster = append(roster, r) // their own line, money included
+			continue
+		}
 		roster = append(roster, map[string]any{
 			"name": r["name"], "format": r["format"], "start": r["start"],
 		})
@@ -159,14 +169,36 @@ func residentSeed(seed, name string) string {
 			"name": v["name"], "per": v["per"], "done": v["done"], "months": v["months"],
 		})
 	}
+	fines := []any{}
+	schedule := []any{}
+	if isLive && me != "" {
+		var all []map[string]any
+		_ = json.Unmarshal(s["FINES"], &all)
+		for _, f := range all {
+			if normName(toStr(f["res"])) == me {
+				fines = append(fines, f)
+			}
+		}
+		var meets []map[string]any
+		_ = json.Unmarshal(sdata["schedule"], &meets)
+		for _, m := range meets {
+			if normName(toStr(m["res"])) == me {
+				schedule = append(schedule, m)
+			}
+		}
+	}
 	out := map[string]any{
 		"PL_ROWS":   []any{},
 		"RESIDENTS": roster,
-		"FINES":     []any{},
+		"FINES":     fines,
 		"SDATA": map[string]any{
-			"schedule": []any{}, "restasks": []any{}, "visits": cleanVisits,
+			"schedule": schedule, "restasks": []any{}, "visits": cleanVisits,
 			"nps": []any{}, "leads": []any{}, "profit": []any{},
 		},
+	}
+	if isLive {
+		// Not "server": a resident's page must not treat the empty P&L as live.
+		out["LIVE"] = map[string]string{"source": "resident"}
 	}
 	buf, _ := json.Marshal(out)
 	return string(buf)

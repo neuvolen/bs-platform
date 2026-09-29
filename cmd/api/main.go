@@ -77,7 +77,7 @@ func main() {
 	deps := app.BuildDeps(db, cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	modules := app.BuildHTTPModules(deps, cfg.JWTSecret, googleOAuthConfig, cfg.FrontendURL)
 	modules = append(modules, app.BuildPlatformModule(deps, cfg.JWTSecret, cfg.TelegramBotToken, cfg.PlatformTeam))
-	modules = append(modules, app.BuildClubModule(deps, cfg.JWTSecret, cfg.TelegramBotToken))
+	modules = append(modules, app.BuildClubModule(deps, cfg.JWTSecret, cfg.TelegramBotToken, web.Seed()))
 	if cfg.BotRelayPattern != "" {
 		bot.RelayURLPattern = regexp.MustCompile(cfg.BotRelayPattern)
 	}
@@ -93,7 +93,7 @@ func main() {
 
 	// Business data cut out of the page goes to storage, visible after login only.
 	seedCtx, seedCancel := context.WithTimeout(context.Background(), 20*time.Second)
-	if err := deps.PlatformRepo.PutServerDoc(seedCtx, "bs_seed", web.Seed()); err != nil {
+	if err := httpapi.RefreshPlatformSeed(seedCtx, pg.NewClubRepo(db), deps.PlatformRepo, web.Seed()); err != nil {
 		log.Printf("platform seed not saved: %v", err)
 	}
 	seedCancel()

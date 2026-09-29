@@ -2714,6 +2714,13 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
     ['PL_ROWS', 'RESIDENTS', 'FINES', 'SDATA'].forEach(function(k){
       if(seed[k] !== undefined) window[k] = seed[k];
     });
+    // Живые данные клуба с сервера: PL считается из ДДС на сервере, месяцы берутся оттуда же
+    window.PL_LIVE = !!(seed.LIVE && seed.LIVE.source === 'server');
+    if(window.PL_LIVE){
+      if(seed.PL_MONTHS && seed.PL_MONTHS.length) window.MONTHS = seed.PL_MONTHS;
+      window.PLDATA = null;
+      try{ if(typeof window.bsRerenderLive === 'function') window.bsRerenderLive(); }catch(e){}
+    }
   }
   function isResidentUser(){ return !!(auth.user && auth.user.role === 'resident'); }
   function applyRole(){
@@ -4163,6 +4170,11 @@ function goBlock(b){
 }
 
 // ═══ Разделы ═══
+// Пришли свежие данные клуба с сервера: открытый раздел с ними перерисовывается
+window.bsRerenderLive = function(){
+  var live = {pl:1, fines:1, aSched:1, rsched:1, rFines:1, rStats:1, rResList:1, summary:1, sRes:1, sFive:1, analytics:1};
+  try{ if(typeof section !== 'undefined' && live[section]) goSection(section); }catch(e){}
+};
 function goSection(s){
   section = s;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -4328,6 +4340,15 @@ var PL_ROWS = [{"name": "Остаток на начало", "kind": "total", "va
 var MONTHS = ['Апрель','Май','Июнь','Июль','Август','Сентябрь'];
 var PLDATA = null;
 function loadPL(){
+  if(window.PL_LIVE){
+    // Цифры с сервера: их не правят руками, а считают из ДДС
+    PLDATA = {year: 0, cells: {}, live: true};
+    PL_ROWS.forEach(function(row){
+      if(row.kind !== 'item') return;
+      row.vals.forEach(function(v, mi){ if(v) PLDATA.cells[row.name + '|' + mi] = v; });
+    });
+    return;
+  }
   try{ PLDATA = JSON.parse(localStorage.getItem('bs_pl')||'null'); }catch(e){}
   if(!PLDATA){
     PLDATA = {year:2026, cells:{}};
@@ -4341,7 +4362,7 @@ function loadPL(){
     savePL();
   }
 }
-function savePL(){ try{ localStorage.setItem('bs_pl', JSON.stringify(PLDATA)); }catch(e){} }
+function savePL(){ if(PLDATA && PLDATA.live) return; try{ localStorage.setItem('bs_pl', JSON.stringify(PLDATA)); }catch(e){} }
 function cellVal(name, mi){ return Number(PLDATA.cells[name+'|'+mi]) || 0; }
 
 function calcPL(mi){
@@ -4367,9 +4388,10 @@ function renderPL(){
   var pg = document.getElementById('pg-stub');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   pg.querySelector('.pt').textContent = 'PL и движение денег';
-  pg.querySelector('.psub').textContent =
-    'С апреля 2026, когда касса обнулилась · данные из ДДС на ' +
-    new Date().toLocaleDateString('ru',{day:'2-digit',month:'long'});
+  pg.querySelector('.psub').textContent = PLDATA.live
+    ? ('С апреля, когда касса обнулилась · живые данные: ДДС на сервере, обновляются каждый час')
+    : ('С апреля 2026, когда касса обнулилась · данные из ДДС на ' +
+       new Date().toLocaleDateString('ru',{day:'2-digit',month:'long'}));
 
   var anchor = 0;
   var calc = MONTHS.map(function(_,i){ return calcPL(i); });
@@ -4402,6 +4424,7 @@ function renderPL(){
       h += '<div class="tr"><div class="tc tc-n">'+esc(row.name)+'</div>' +
         MONTHS.map(function(_,i){
           var v = cellVal(row.name, i);
+          if(PLDATA.live) return '<div class="tc">'+(v?money(String(v)):'')+'</div>';
           return '<div class="tc"><input class="tin2" value="'+(v?money(String(v)):'')+'" ' +
             'placeholder="0" oninput="setCell(\''+row.name.replace(/'/g,"")+'\','+i+',this.value,this)"></div>';
         }).join('') +

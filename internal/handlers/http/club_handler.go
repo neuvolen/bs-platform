@@ -1,12 +1,14 @@
 package http
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,6 +23,10 @@ import (
 
 // ClubHandler serves the club data moved from the Google Sheet.
 type ClubHandler struct {
+	// StaticSeed is the page's own snapshot of the club data, for the parts
+	// the server does not hold (NPS, leads, resident tasks).
+	StaticSeed string
+
 	repo      *pg.ClubRepo
 	platform  *pg.PlatformRepo
 	botToken  string
@@ -184,6 +190,10 @@ func (h *ClubHandler) Import(c *gin.Context) {
 			return
 		}
 		rep.Saved = true
+		// The platform's club sections show the new numbers.
+		if err := RefreshPlatformSeed(ctx, h.repo, h.platform, h.StaticSeed); err != nil {
+			log.Printf("platform seed: %v", err)
+		}
 		// Who may log into the platform as a resident follows the same list.
 		var list []pg.PlatformResident
 		for _, p := range snap.Residents {
@@ -449,4 +459,24 @@ func (h *ClubHandler) Export(c *gin.Context) {
 		upTo = int(club.Today().Month())
 	}
 	c.JSON(http.StatusOK, gin.H{"payments": pays, "pl": ExportPL(s.PL, club.BuildPL(s.Payments, s.PL, year, upTo))})
+}
+
+// RefreshPlatformSeed puts the club data into the platform's bs_seed: live
+// numbers once the server holds the club's data, the page's snapshot before.
+func RefreshPlatformSeed(ctx context.Context, clubRepo *pg.ClubRepo, platform *pg.PlatformRepo, static string) error {
+	if platform == nil {
+		return nil
+	}
+	snap, err := clubRepo.Load(ctx)
+	if err != nil {
+		return err
+	}
+	if len(snap.Residents) == 0 {
+		return platform.PutServerDoc(ctx, platformSeedKey, static)
+	}
+	seed, err := club.LiveSeed(snap, static, time.Now())
+	if err != nil {
+		return err
+	}
+	return platform.PutServerDoc(ctx, platformSeedKey, seed)
 }
