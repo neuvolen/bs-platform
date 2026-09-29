@@ -241,6 +241,9 @@ func BuildBot(d *Deps, token, team, apiBase, publicURL, notify string) (*bot.Ser
 func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string) []httpapi.RoutesRegistrar {
 	g := httpapi.NewAppGateway(token, os.Getenv("APP_SCRIPT_URL"))
 	g.Admins = httpapi.ParsePlatformTeam(os.Getenv("PLATFORM_TEAM"))
+	if d.PlatformRepo != nil {
+		g.Boards = d.PlatformRepo
+	}
 	repo := pg.NewBotRepo(d.DB)
 	var once sync.Once
 	g.OnOK = func() {

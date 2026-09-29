@@ -485,6 +485,26 @@ func (r *PlatformRepo) ReplaceResidents(ctx context.Context, list []PlatformResi
 	return len(ids), tx.Commit(ctx)
 }
 
+// LiveBoards returns every board that is not deleted.
+func (r *PlatformRepo) LiveBoards(ctx context.Context) ([]PlatformBoard, error) {
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT id, resident, name, data, version, rev, deleted, updated_at, updated_by
+		FROM platform_boards WHERE NOT deleted`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PlatformBoard{}
+	for rows.Next() {
+		var b PlatformBoard
+		if err := rows.Scan(&b.ID, &b.Resident, &b.Name, &b.Data, &b.Version, &b.Rev, &b.Deleted, &b.UpdatedAt, &b.UpdatedBy); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
 // ResidentByTg returns the resident's name if they are active.
 func (r *PlatformRepo) ResidentByTg(ctx context.Context, tgID int64) (string, bool, error) {
 	var name string

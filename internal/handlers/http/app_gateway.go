@@ -54,6 +54,9 @@ type AppGateway struct {
 	// the person acted upon, not the caller.
 	Admins map[int64]string
 
+	// Boards lets the app show a resident their board from the platform.
+	Boards AppBoardSource
+
 	token     string
 	scriptURL string
 	client    *http.Client
@@ -100,6 +103,7 @@ func NewAppGatewayModule(g *AppGateway) *AppGatewayModule { return &AppGatewayMo
 func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.GET("/api/v1/app/call", m.g.Call)
 	r.POST("/api/v1/app/post", m.g.Post)
+	r.GET("/api/v1/app/myboard", m.g.MyBoard)
 }
 
 // AppSign is the signature the script checks on calls from the server:
