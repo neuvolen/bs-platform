@@ -995,6 +995,22 @@ paths:
       summary: Remove role from user
       tags:
       - admin-rbac
+  /api/v1/app/call:
+    get:
+      description: 'Query: action and its parameters, plus _tg = Telegram.WebApp.initData.
+        The caller is the Telegram user from initData; chatId in the query is ignored.'
+      responses: {}
+      summary: A call of the Telegram app, passed to the script
+      tags:
+      - app
+  /api/v1/app/post:
+    post:
+      description: 'Body (text/plain JSON): {bsAction: uploadImage|sendImage, …, _tg:
+        initData}. sendImage goes to the caller only.'
+      responses: {}
+      summary: A POST of the Telegram app (pictures), passed to the script
+      tags:
+      - app
   /api/v1/auth/login:
     post:
       consumes:

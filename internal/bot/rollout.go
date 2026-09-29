@@ -25,6 +25,15 @@ const DailyCheckStreak = 5
 
 const metaDailySince = "daily_check_since"
 
+// The Telegram app goes through the server (app gateway). Once it has done so
+// for AppGatewayDays and was used in the last day, the script refuses calls
+// that do not come through the server: nobody can call it as someone else.
+const (
+	MetaAppFirstOK = "app_first_ok"
+	MetaAppLastOK  = "app_last_ok"
+	AppGatewayDays = 3
+)
+
 // ControlScript is the first script version that asks the server what it
 // does (v28). An older script does everything itself, so the server must not
 // do the same; only the v27 menu button (old "features" key) is honoured.
@@ -39,6 +48,9 @@ func (s *Service) rollout(ctx context.Context, now time.Time) []string {
 	on := []string{FeatureReportFeedback, FeatureEveningReminder, FeatureMeetingReminders}
 	if s.dailyCheckReady(ctx, now) {
 		on = append(on, FeatureDailyCheck)
+	}
+	if s.appGatewayReady(ctx, now) {
+		on = append(on, FeatureAppGateway)
 	}
 	return on
 }
@@ -126,6 +138,7 @@ var FeatureNames = map[string]string{
 	FeatureMeetingReminders: "напоминания о встречах",
 	FeatureBotPrivate:       "личные сообщения бота",
 	FeatureReportLog:        "запись отчётов",
+	FeatureAppGateway:       "приложение в Telegram работает только через сервер",
 }
 
 func featureChangeText(old, now []string) string {
@@ -159,4 +172,12 @@ func featureChangeText(old, now []string) string {
 	}
 	b.WriteString("\nВернуть всё таблице: меню BS → «Бот: всё вернуть таблице (аварийно)».")
 	return b.String()
+}
+
+func (s *Service) appGatewayReady(ctx context.Context, now time.Time) bool {
+	first, _ := s.repo.GetMeta(ctx, MetaAppFirstOK)
+	last, _ := s.repo.GetMeta(ctx, MetaAppLastOK)
+	f, err1 := time.Parse(time.RFC3339, first)
+	l, err2 := time.Parse(time.RFC3339, last)
+	return err1 == nil && err2 == nil && now.Sub(f) >= AppGatewayDays*24*time.Hour && now.Sub(l) <= 24*time.Hour
 }

@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/domain/dashboardusers"
@@ -233,4 +235,25 @@ func BuildBot(d *Deps, token, team, apiBase, publicURL, notify string) (*bot.Ser
 	}
 	svc := bot.New(pg.NewBotRepo(d.DB), bot.Options{Token: token, APIBase: apiBase, Admins: admins, Notify: who, TestClock: os.Getenv("BOT_TEST_CLOCK") == "1"})
 	return svc, httpapi.NewBotModule(httpapi.NewBotHandler(svc, publicURL))
+}
+
+// BuildAppGateway: the Telegram app's calls go through the server.
+func BuildAppGateway(d *Deps, token string) httpapi.RoutesRegistrar {
+	g := httpapi.NewAppGateway(token, os.Getenv("APP_SCRIPT_URL"))
+	g.Admins = httpapi.ParsePlatformTeam(os.Getenv("PLATFORM_TEAM"))
+	repo := pg.NewBotRepo(d.DB)
+	var once sync.Once
+	g.OnOK = func() {
+		once.Do(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if v, _ := repo.GetMeta(ctx, bot.MetaAppFirstOK); v == "" {
+				_ = repo.SetMeta(ctx, bot.MetaAppFirstOK, time.Now().UTC().Format(time.RFC3339))
+			}
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = repo.SetMeta(ctx, bot.MetaAppLastOK, time.Now().UTC().Format(time.RFC3339))
+	}
+	return httpapi.NewAppGatewayModule(g)
 }

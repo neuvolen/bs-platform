@@ -1,0 +1,398 @@
+package http
+
+import (
+	"bytes"
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+// The Telegram app (neuvolen.github.io/bs-app) talks to the server instead
+// of the Google Apps Script directly.
+//
+//   - Who is calling is taken from Telegram's signed initData, not from a
+//     chatId the page puts in the address: nobody can act as someone else.
+//   - The script still does the work: the server passes each call on,
+//     signed, with the checked identity. Once every app goes through the
+//     server, the script can refuse calls that are not signed (app_gateway).
+//   - The app's data bundle is kept on the server per person and handed out
+//     at once while a fresh one is fetched in the background.
+//
+// The page sends initData as the "_tg" parameter (GET) or field (POST), so
+// its requests stay "simple" and need no CORS preflight.
+
+// DefaultAppScriptURL is the Apps Script deployment the app has always used.
+const DefaultAppScriptURL = "https://script.google.com/macros/s/AKfycbwBbU7pJMyIptJoOtJ5hctU2rYbh3AioA-ScM14Y3dwuIF0UFNYrp7HiWqhOiQX74NpPA/exec"
+
+const (
+	appMaxAge       = 7 * 24 * time.Hour // a Mini App may stay open for days
+	bundleFresh     = 20 * time.Second   // served as is
+	bundleStale     = 30 * time.Minute   // served at once, refreshed behind
+	appScriptTimout = 90 * time.Second
+)
+
+// AppGateway passes the app's calls to the script.
+type AppGateway struct {
+	// OnOK is called after every call the script answered (the rollout
+	// counts how long the app has been going through the server).
+	OnOK func()
+
+	// Admins is the team: for a few admin actions the chatId in the query is
+	// the person acted upon, not the caller.
+	Admins map[int64]string
+
+	token     string
+	scriptURL string
+	client    *http.Client
+	now       func() time.Time
+
+	mu      sync.Mutex
+	bundles map[string]*cachedBundle
+	stats   appStats
+}
+
+type cachedBundle struct {
+	body       []byte
+	at         time.Time
+	refreshing bool
+}
+
+type appStats struct {
+	OK        int       `json:"ok"`
+	Failed    int       `json:"failed"`
+	Refused   int       `json:"refused"`
+	FirstOK   time.Time `json:"firstOk"`
+	LastOK    time.Time `json:"lastOk"`
+	Users     map[int64]bool
+	CacheHits int `json:"cacheHits"`
+}
+
+func NewAppGateway(token, scriptURL string) *AppGateway {
+	if strings.TrimSpace(scriptURL) == "" {
+		scriptURL = DefaultAppScriptURL
+	}
+	return &AppGateway{
+		token: strings.TrimSpace(token), scriptURL: scriptURL,
+		client:  &http.Client{Timeout: appScriptTimout}, // follows the script's redirect to its answer
+		now:     time.Now,
+		bundles: map[string]*cachedBundle{},
+		stats:   appStats{Users: map[int64]bool{}},
+	}
+}
+
+type AppGatewayModule struct{ g *AppGateway }
+
+func NewAppGatewayModule(g *AppGateway) *AppGatewayModule { return &AppGatewayModule{g: g} }
+
+func (m *AppGatewayModule) Register(r *gin.Engine) {
+	r.GET("/api/v1/app/call", m.g.Call)
+	r.POST("/api/v1/app/post", m.g.Post)
+}
+
+// AppSign is the signature the script checks on calls from the server:
+// hex(HMAC-SHA256("app|" + action + "|" + chatId + "|" + ts, bot token)).
+func AppSign(token, action, chatID, ts string) string {
+	m := hmac.New(sha256.New, []byte(token))
+	m.Write([]byte("app|" + action + "|" + chatID + "|" + ts))
+	return hex.EncodeToString(m.Sum(nil))
+}
+
+func verifyAppInitData(initData, token string, now time.Time) (*platformTgUser, error) {
+	q, err := url.ParseQuery(initData)
+	if err != nil || q.Get("hash") == "" {
+		return nil, errors.New("no Telegram data")
+	}
+	vals := map[string]string{}
+	for k := range q {
+		vals[k] = q.Get(k)
+	}
+	hash := vals["hash"]
+	delete(vals, "hash")
+	m := hmac.New(sha256.New, []byte("WebAppData"))
+	m.Write([]byte(token))
+	if !checkTelegramHash(vals, m.Sum(nil), hash) {
+		return nil, errors.New("bad signature")
+	}
+	ts, err := strconv.ParseInt(vals["auth_date"], 10, 64)
+	if err != nil || now.Sub(time.Unix(ts, 0)) > appMaxAge || time.Unix(ts, 0).Sub(now) > 5*time.Minute {
+		return nil, errors.New("Telegram data expired, reopen the app")
+	}
+	var u struct {
+		ID        int64  `json:"id"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		Username  string `json:"username"`
+	}
+	if err := json.Unmarshal([]byte(vals["user"]), &u); err != nil || u.ID <= 0 {
+		return nil, errors.New("no user")
+	}
+	return &platformTgUser{ID: u.ID, FirstName: u.FirstName, LastName: u.LastName, Username: u.Username}, nil
+}
+
+func (g *AppGateway) identify(c *gin.Context, initData string) (*platformTgUser, bool) {
+	if g.token == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "telegram_not_configured"})
+		return nil, false
+	}
+	u, err := verifyAppInitData(initData, g.token, g.now())
+	if err != nil {
+		g.mu.Lock()
+		g.stats.Refused++
+		g.mu.Unlock()
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not_telegram", "detail": err.Error()})
+		return nil, false
+	}
+	return u, true
+}
+
+func (g *AppGateway) note(ok bool, user int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if ok {
+		if g.OnOK != nil {
+			go g.OnOK()
+		}
+		g.stats.OK++
+		if g.stats.FirstOK.IsZero() {
+			g.stats.FirstOK = g.now()
+		}
+		g.stats.LastOK = g.now()
+		g.stats.Users[user] = true
+	} else {
+		g.stats.Failed++
+	}
+}
+
+// Stats: how the app's calls went since the server started.
+func (g *AppGateway) Stats() map[string]any {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return map[string]any{"ok": g.stats.OK, "failed": g.stats.Failed, "refused": g.stats.Refused,
+		"users": len(g.stats.Users), "cacheHits": g.stats.CacheHits, "firstOk": g.stats.FirstOK, "lastOk": g.stats.LastOK}
+}
+
+func fullName(u *platformTgUser) string {
+	return strings.TrimSpace(u.FirstName + " " + u.LastName)
+}
+
+// params builds the script's query: the page's own parameters, with the
+// identity replaced by the checked one and the server's signature added.
+// Admin actions whose chatId names the person acted upon (a subscriber to
+// ban, to move to residents, to update).
+var appTargetActions = map[string]bool{"banFromChannel": true, "convertToResident": true, "updateSubscriber": true}
+
+func (g *AppGateway) params(in url.Values, action string, u *platformTgUser) url.Values {
+	out := url.Values{}
+	for k, v := range in {
+		if k == "_tg" || k == "chatId" || k == "userName" || k == "userTg" || strings.HasPrefix(k, "_srv") {
+			continue
+		}
+		out[k] = v
+	}
+	cid := strconv.FormatInt(u.ID, 10)
+	if _, admin := g.Admins[u.ID]; admin && appTargetActions[action] && in.Get("chatId") != "" {
+		cid = in.Get("chatId")
+	}
+	ts := strconv.FormatInt(g.now().Unix(), 10)
+	out.Set("action", action)
+	out.Set("chatId", cid)
+	if n := fullName(u); n != "" {
+		out.Set("userName", n)
+	}
+	if u.Username != "" {
+		out.Set("userTg", u.Username)
+	}
+	out.Set("_srv_ts", ts)
+	out.Set("_srv_sig", AppSign(g.token, action, cid, ts))
+	return out
+}
+
+func (g *AppGateway) get(ctx context.Context, q url.Values) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.scriptURL+"?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return nil, errors.New("script unreachable")
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 || !json.Valid(b) {
+		return nil, errors.New("script answered " + strconv.Itoa(resp.StatusCode))
+	}
+	return b, nil
+}
+
+// Call godoc
+// @Summary  A call of the Telegram app, passed to the script
+// @Description  Query: action and its parameters, plus _tg = Telegram.WebApp.initData. The caller is the Telegram user from initData; chatId in the query is ignored.
+// @Tags     app
+// @Router   /api/v1/app/call [get]
+func (g *AppGateway) Call(c *gin.Context) {
+	in := c.Request.URL.Query()
+	action := in.Get("action")
+	if action == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no action"})
+		return
+	}
+	u, ok := g.identify(c, in.Get("_tg"))
+	if !ok {
+		return
+	}
+	q := g.params(in, action, u)
+	if action == "getBotCache" {
+		g.bundle(c, q, u, in.Get("fresh") == "1")
+		return
+	}
+	body, err := g.get(c.Request.Context(), q)
+	g.note(err == nil, u.ID)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	// Anything but a read may have changed the data every bundle is built from.
+	if !strings.HasPrefix(action, "get") && !strings.HasPrefix(action, "check") {
+		g.dropBundles()
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+}
+
+func (g *AppGateway) dropBundles() {
+	g.mu.Lock()
+	g.bundles = map[string]*cachedBundle{}
+	g.mu.Unlock()
+}
+
+// bundle hands out the person's data bundle: a fresh copy at once, an older
+// one at once while a new one is fetched, or waits for the script.
+func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, force bool) {
+	key := q.Get("chatId")
+	g.mu.Lock()
+	b := g.bundles[key]
+	var body []byte
+	age := time.Duration(-1)
+	if b != nil && !force {
+		body, age = b.body, g.now().Sub(b.at)
+	}
+	refresh := b != nil && !force && age > bundleFresh && age < bundleStale && !b.refreshing
+	if refresh {
+		b.refreshing = true
+	}
+	if body != nil && age < bundleStale {
+		g.stats.CacheHits++
+	}
+	g.mu.Unlock()
+
+	if body != nil && age >= 0 && age < bundleStale {
+		c.Header("X-BS-Bundle-Age", strconv.Itoa(int(age.Seconds())))
+		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+		if refresh {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), appScriptTimout)
+				defer cancel()
+				nq := g.params(q, "getBotCache", u)
+				fresh, err := g.get(ctx, nq)
+				g.mu.Lock()
+				if cur := g.bundles[key]; cur != nil {
+					cur.refreshing = false
+					if err == nil {
+						cur.body, cur.at = fresh, g.now()
+					}
+				}
+				g.mu.Unlock()
+				if err != nil {
+					log.Printf("app bundle refresh: %v", err)
+				}
+			}()
+		}
+		return
+	}
+	fresh, err := g.get(c.Request.Context(), q)
+	g.note(err == nil, u.ID)
+	if err != nil {
+		// The script is slow or down: an old bundle beats an empty screen.
+		g.mu.Lock()
+		old := g.bundles[key]
+		g.mu.Unlock()
+		if old != nil {
+			c.Header("X-BS-Bundle-Age", strconv.Itoa(int(g.now().Sub(old.at).Seconds())))
+			c.Data(http.StatusOK, "application/json; charset=utf-8", old.body)
+			return
+		}
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	g.mu.Lock()
+	g.bundles[key] = &cachedBundle{body: fresh, at: g.now()}
+	g.mu.Unlock()
+	c.Header("X-BS-Bundle-Age", "0")
+	c.Data(http.StatusOK, "application/json; charset=utf-8", fresh)
+}
+
+// Post godoc
+// @Summary  A POST of the Telegram app (pictures), passed to the script
+// @Description  Body (text/plain JSON): {bsAction: uploadImage|sendImage, …, _tg: initData}. sendImage goes to the caller only.
+// @Tags     app
+// @Router   /api/v1/app/post [post]
+func (g *AppGateway) Post(c *gin.Context) {
+	raw, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 24<<20))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "body too large"})
+		return
+	}
+	var body map[string]any
+	if json.Unmarshal(raw, &body) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad json"})
+		return
+	}
+	tg, _ := body["_tg"].(string)
+	u, ok := g.identify(c, tg)
+	if !ok {
+		return
+	}
+	action, _ := body["bsAction"].(string)
+	if action != "uploadImage" && action != "sendImage" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown bsAction"})
+		return
+	}
+	cid := strconv.FormatInt(u.ID, 10)
+	ts := strconv.FormatInt(g.now().Unix(), 10)
+	delete(body, "_tg")
+	body["chatId"] = cid // a picture is only ever sent to the one who made it
+	body["_srv_ts"] = ts
+	body["_srv_sig"] = AppSign(g.token, action, cid, ts)
+	out, _ := json.Marshal(body)
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, g.scriptURL, bytes.NewReader(out))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal"})
+		return
+	}
+	req.Header.Set("Content-Type", "text/plain;charset=utf-8")
+	resp, err := g.client.Do(req)
+	if err != nil {
+		g.note(false, u.ID)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "script unreachable"})
+		return
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	g.note(resp.StatusCode < 400, u.ID)
+	c.Data(resp.StatusCode, "application/json; charset=utf-8", b)
+}

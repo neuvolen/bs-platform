@@ -31,11 +31,13 @@ const (
 	// Not yet done by the server; listed so the sheet knows the names.
 	FeatureBotPrivate = "bot_private"
 	FeatureReportLog  = "report_log"
+	// FeatureAppGateway: the script answers the Telegram app only through the server.
+	FeatureAppGateway = "app_gateway"
 )
 
 // KnownFeatures in the order they are handed over.
 var KnownFeatures = []string{FeatureReportFeedback, FeatureEveningReminder, FeatureDailyCheck,
-	FeatureMeetingReminders, FeatureBotPrivate, FeatureReportLog}
+	FeatureMeetingReminders, FeatureBotPrivate, FeatureReportLog, FeatureAppGateway}
 
 const (
 	metaOverride      = "features_override" // set by the sheet: exactly these, whatever the rollout says
