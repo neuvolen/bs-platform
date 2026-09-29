@@ -2759,6 +2759,14 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
       firstSync();
     },
     importFile: function(){ importFile(false); },
+    // Ввод денег и встреч клуба: запись уходит в таблицу через сервер
+    club: function(action, params){
+      return fetch('/api/v1/club/action', {method:'POST',
+        headers: Object.assign({'Content-Type':'application/json'}, token ? {'Authorization':'Bearer ' + token} : {}),
+        body: JSON.stringify({action: action, params: params})
+      }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ j._status = r.status; return j; }); },
+              function(){ return {error: 'net', detail: 'Нет связи с сервером'}; });
+    },
     tick: tick,
     _merge3: merge3, _mergeStr: mergeStr, _canon: canon
   };
@@ -4468,7 +4476,7 @@ function renderPL(){
     '<div><div class="bs-l">На кассе</div><div class="sum-v" style="font-size:20px;color:'+
       (kassa>0?'#3DD68C':'#FF4D4D')+'">'+money(String(kassa))+'</div></div>' +
     '</div></div>' + h;
-  pg.querySelector('#stubBody').innerHTML = h;
+  pg.querySelector('#stubBody').innerHTML = bsTeamBar([['+ Приход',"bsAddPayment('income')"],['+ Расход',"bsAddPayment('expense')"]]) + h;
   pg.classList.add('on');
 }
 function setAnchor(v){
@@ -4551,11 +4559,105 @@ var RESIDENTS = [{"name": "Елена", "paid": 300000, "rest": 0, "debtRenew": 
 var FINES = [{"res": "Рамиль", "type": "Не сдан отчёт", "amount": 10000, "date": "13.02.2026", "status": "Не оплатил"}, {"res": "Альтаир", "type": "Не сдан отчёт", "amount": 10000, "date": "01.09.2026", "status": "Не оплатил"}, {"res": "Асет", "type": "Не сдан отчёт", "amount": 10000, "date": "01.09.2026", "status": "Не оплатил"}, {"res": "Рамиль", "type": "Не сдан отчёт", "amount": 10000, "date": "01.09.2026", "status": "Не оплатил"}, {"res": "Алишер", "type": "Не сдан отчёт", "amount": 10000, "date": "01.09.2026", "status": "Не оплатил"}, {"res": "Рамиль", "type": "Не сдан отчёт", "amount": 10000, "date": "02.09.2026", "status": "Не оплатил"}];
 
 // ═══ ШТРАФЫ ═══
+// ═══ Ввод в «Учёте»: оплаты, штрафы, встречи ═══
+function bsIsTeam(){ return typeof MODE !== 'undefined' && MODE === 'admin' && window.BSSync && window.PL_LIVE; }
+function bsPLCats(kind){
+  var out = [], mode = null;
+  (PL_ROWS||[]).forEach(function(r){
+    if(r.name === 'ДОХОДЫ'){ mode = 'inc'; return; }
+    if(r.name === 'РАСХОДЫ'){ mode = 'exp'; return; }
+    if(r.kind !== 'item') return;
+    if(r.name === 'Дивиденды'){ if(kind === 'exp') out.push(r.name); return; }
+    if(mode === kind) out.push(r.name);
+  });
+  return out;
+}
+function bsResNames(){ return (RESIDENTS||[]).map(function(r){ return r.name; }); }
+function bsTodayStr(){ var d = new Date(); return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear(); }
+// Небольшая форма поверх страницы. fields: [{k, label, type:'select'|'text'|'number', options, value}]
+function bsForm(title, fields, onSubmit){
+  var old = document.getElementById('bsForm'); if(old) old.remove();
+  var w = document.createElement('div');
+  w.id = 'bsForm';
+  w.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+  var box = '<div style="background:#141414;border:1px solid rgba(212,184,134,.35);border-radius:16px;padding:22px;width:100%;max-width:380px;font-family:inherit">' +
+    '<div style="color:var(--gold);font-weight:900;letter-spacing:1px;font-size:13px;margin-bottom:14px">'+esc(title)+'</div>';
+  fields.forEach(function(f){
+    box += '<div style="font-size:11px;color:var(--t3);margin:10px 0 4px">'+esc(f.label)+'</div>';
+    var st = 'width:100%;box-sizing:border-box;background:#0c0c0c;border:1px solid rgba(255,255,255,.14);border-radius:10px;color:#fff;padding:10px;font-size:14px;font-family:inherit';
+    if(f.type === 'select'){
+      box += '<select data-k="'+f.k+'" style="'+st+'">' + f.options.map(function(o){
+        return '<option'+(o===f.value?' selected':'')+'>'+esc(o)+'</option>'; }).join('') + '</select>';
+    } else {
+      box += '<input data-k="'+f.k+'" type="'+(f.type||'text')+'" value="'+esc(f.value||'')+'" placeholder="'+esc(f.ph||'')+'" style="'+st+'">';
+    }
+  });
+  box += '<div id="bsFormMsg" style="color:#FF4D4D;font-size:12px;min-height:16px;margin-top:10px"></div>' +
+    '<div style="display:flex;gap:10px;margin-top:8px">' +
+    '<button id="bsFormCancel" style="flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:none;color:#fff;font-weight:700">Отмена</button>' +
+    '<button id="bsFormOk" style="flex:1;padding:11px;border-radius:10px;border:none;background:var(--gold);color:#000;font-weight:900">Сохранить</button></div></div>';
+  w.innerHTML = box;
+  document.body.appendChild(w);
+  w.addEventListener('click', function(e){ if(e.target === w) w.remove(); });
+  document.getElementById('bsFormCancel').onclick = function(){ w.remove(); };
+  document.getElementById('bsFormOk').onclick = function(){
+    var v = {};
+    w.querySelectorAll('[data-k]').forEach(function(el){ v[el.dataset.k] = el.value.trim(); });
+    var btn = document.getElementById('bsFormOk'), msg = document.getElementById('bsFormMsg');
+    btn.disabled = true; btn.textContent = 'Сохраняю…'; msg.textContent = '';
+    onSubmit(v).then(function(r){
+      if(r && r.ok){ w.remove(); if(typeof toast === 'function') try{ toast(r.duplicate ? 'Такая запись уже есть' : 'Сохранено в таблицу'); }catch(e){} return; }
+      btn.disabled = false; btn.textContent = 'Сохранить';
+      msg.textContent = (r && (r.detail || r.error)) || 'Не получилось';
+    });
+  };
+}
+function bsMoneyIn(v){ return String(v||'').replace(/[^0-9]/g,''); }
+window.bsAddPayment = function(type){
+  var cats = bsPLCats(type === 'income' ? 'inc' : 'exp');
+  var fields = [{k:'src', label: type === 'income' ? 'Статья дохода' : 'Статья расхода', type:'select', options: cats, value: cats[0]},
+                {k:'amount', label:'Сумма, тенге', type:'text', ph:'100 000'}];
+  if(type === 'income') fields.push({k:'resident', label:'Резидент', type:'select', options: [''].concat(bsResNames())});
+  fields.push({k:'isCash', label:'Способ', type:'select', options:['Kaspi','Наличные'], value:'Kaspi'});
+  bsForm(type === 'income' ? '+ ПРИХОД' : '+ РАСХОД', fields, function(v){
+    return BSSync.club('addPayment', {type: type, src: v.src, amount: bsMoneyIn(v.amount), resident: v.resident || '', isCash: v.isCash === 'Наличные' ? 'true' : 'false'});
+  });
+};
+window.bsAddFine = function(){
+  var types = ['Не сдан отчёт','Опоздание','Штраф'];
+  (FINES||[]).forEach(function(f){ if(f.type && types.indexOf(f.type) < 0) types.push(f.type); });
+  bsForm('+ ШТРАФ', [
+    {k:'name', label:'Резидент', type:'select', options: bsResNames()},
+    {k:'type', label:'За что', type:'select', options: types, value:'Штраф'},
+    {k:'amount', label:'Сумма, тенге', type:'text', value:'10000'}
+  ], function(v){ return BSSync.club('addFine', {name: v.name, type: v.type, amount: bsMoneyIn(v.amount)}); });
+};
+window.bsFinePaid = function(i){
+  var f = (FINES||[])[i]; if(!f) return;
+  if(!confirm('Отметить оплаченным: ' + f.res + ', ' + f.type + ', ' + money(String(f.amount)) + ' ₸ от ' + f.date + '?')) return;
+  BSSync.club('updateFine', {name: f.res, date: f.date, type: f.type, amount: String(f.amount), status: 'Оплатил'}).then(function(r){
+    if(!r || !r.ok) alert((r && (r.detail || r.error)) || 'Не получилось');
+  });
+};
+window.bsAddMeeting = function(){
+  bsForm('+ ВСТРЕЧА', [
+    {k:'res', label:'Резидент', type:'select', options: bsResNames()},
+    {k:'date', label:'Дата', type:'text', value: bsTodayStr(), ph:'30.09.2026'},
+    {k:'time', label:'Время', type:'text', value:'12:00', ph:'15:00'}
+  ], function(v){ return BSSync.club('addSchedule', {res: v.res, date: v.date, time: v.time}); });
+};
+function bsTeamBar(buttons){
+  if(!bsIsTeam()) return '';
+  return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">' + buttons.map(function(b){
+    return '<button onclick="'+b[1]+'" style="padding:9px 14px;border-radius:10px;border:1px solid rgba(212,184,134,.45);background:rgba(212,184,134,.12);color:var(--gold);font-weight:800;font-size:12px;cursor:pointer">'+b[0]+'</button>';
+  }).join('') + '</div>';
+}
+
 function renderFines(){
   var pg = document.getElementById('pg-stub');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   // Штрафы из таблицы плюс начисленные на досках
-  var all = FINES.slice();
+  var all = FINES.map(function(f, i){ return Object.assign({_i: i}, f); });
   boards.forEach(function(b){
     (b.nodes||[]).filter(n=>n.type==='fine').forEach(function(n){
       all.push({res:(b.info&&b.info.res)||b.name,
@@ -4570,7 +4672,7 @@ function renderFines(){
   pg.querySelector('.pt').textContent = 'Штрафы';
   pg.querySelector('.psub').textContent = all.length + ' начислений на ' + money(String(sum)) +
     ' тенге · не оплачено ' + money(String(unpaid));
-  pg.querySelector('#stubBody').innerHTML =
+  pg.querySelector('#stubBody').innerHTML = bsTeamBar([['+ Штраф','bsAddFine()']]) +
     '<div class="card-sum"><div class="sum-row">' +
       '<div><div class="bs-l">Всего</div><div class="sum-v">'+money(String(sum))+'</div></div>' +
       '<div><div class="bs-l">Не оплачено</div><div class="sum-v" style="color:#FF4D4D">'+money(String(unpaid))+'</div></div>' +
@@ -4585,7 +4687,9 @@ function renderFines(){
         '<div style="text-align:right;flex-shrink:0">' +
           '<div style="font-size:16px;font-weight:900;color:'+(paid?'var(--t3)':'#FF4D4D')+'">'+
             money(String(x.amount))+' ₸</div>' +
-          '<div class="row-m">'+esc(x.date||'')+' · '+esc(x.status||'')+'</div></div></div>';
+          '<div class="row-m">'+esc(x.date||'')+' · '+esc(x.status||'')+'</div>' +
+          (!paid && !x.local && bsIsTeam() ? '<button onclick="bsFinePaid('+x._i+')" style="margin-top:6px;padding:5px 10px;border-radius:8px;border:1px solid rgba(212,184,134,.45);background:none;color:var(--gold);font-weight:800;font-size:11px;cursor:pointer">Оплачен</button>' : '') +
+          '</div></div>';
     }).join('') : '<div class="empt">Штрафов нет</div>');
   pg.classList.add('on');
 }
@@ -7903,7 +8007,7 @@ function renderAdminSched(){
   var el = pgSet('Расписание', 'Все встречи клуба');
   var all = (SDATA.schedule||[]).slice().reverse();
   var on = all.filter(function(s){ return s.format==='online'; }).length;
-  el.innerHTML =
+  el.innerHTML = bsTeamBar([['+ Встреча','bsAddMeeting()']]) +
     '<div class="card-sum" style="margin-bottom:14px"><div class="sum-row">' +
       '<div><div class="bs-l">Всего встреч</div><div class="sum-v">'+all.length+'</div></div>' +
       '<div><div class="bs-l">Онлайн</div><div class="sum-v">'+on+'</div></div>' +

@@ -396,3 +396,24 @@ func (g *AppGateway) Post(c *gin.Context) {
 	g.note(resp.StatusCode < 400, u.ID)
 	c.Data(resp.StatusCode, "application/json; charset=utf-8", b)
 }
+
+// CallAs runs an app action in the script on behalf of a team member (the
+// platform's own buttons). The same signed path as the app itself.
+func (g *AppGateway) CallAs(ctx context.Context, tgID int64, name, action string, params map[string]string) (map[string]any, error) {
+	in := url.Values{}
+	for k, v := range params {
+		in.Set(k, v)
+	}
+	u := &platformTgUser{ID: tgID, FirstName: name}
+	body, err := g.get(ctx, g.params(in, action, u))
+	g.note(err == nil, tgID)
+	if err != nil {
+		return nil, err
+	}
+	g.dropBundles()
+	var out map[string]any
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, errors.New("script answered without a result")
+	}
+	return out, nil
+}

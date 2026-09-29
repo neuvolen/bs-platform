@@ -238,7 +238,7 @@ func BuildBot(d *Deps, token, team, apiBase, publicURL, notify string) (*bot.Ser
 }
 
 // BuildAppGateway: the Telegram app's calls go through the server.
-func BuildAppGateway(d *Deps, token string) httpapi.RoutesRegistrar {
+func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string) []httpapi.RoutesRegistrar {
 	g := httpapi.NewAppGateway(token, os.Getenv("APP_SCRIPT_URL"))
 	g.Admins = httpapi.ParsePlatformTeam(os.Getenv("PLATFORM_TEAM"))
 	repo := pg.NewBotRepo(d.DB)
@@ -255,5 +255,6 @@ func BuildAppGateway(d *Deps, token string) httpapi.RoutesRegistrar {
 		defer cancel()
 		_ = repo.SetMeta(ctx, bot.MetaAppLastOK, time.Now().UTC().Format(time.RFC3339))
 	}
-	return httpapi.NewAppGatewayModule(g)
+	action := httpapi.NewClubActionHandler(g, pg.NewClubRepo(d.DB), d.PlatformRepo, staticSeed)
+	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewClubActionModule(action, []byte(jwtSecret))}
 }

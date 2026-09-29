@@ -8,6 +8,7 @@ import (
 
 	"github.com/bnursik/business_surgery_backend/internal/club"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ClubRepo stores the club data that used to live in the Google Sheet.
@@ -266,4 +267,11 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 		s.PL = pl
 	}
 	return s, nil
+}
+
+// DB gives direct access for small writes that mirror the sheet.
+func (r *ClubRepo) DB() interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+} {
+	return r.db.Pool
 }

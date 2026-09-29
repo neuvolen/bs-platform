@@ -1278,6 +1278,21 @@
                 "responses": {}
             }
         },
+        "/api/v1/club/action": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Team only. {action: addPayment|addFine|updateFine|addSchedule, params:{…}} with the Telegram app's parameters. Written into the sheet by the script while the sheet keeps the club's data.",
+                "tags": [
+                    "club"
+                ],
+                "summary": "Enter a payment, fine, paid fine or meeting from the platform",
+                "responses": {}
+            }
+        },
         "/api/v1/club/debet": {
             "get": {
                 "security": [
