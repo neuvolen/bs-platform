@@ -405,6 +405,7 @@ type TickResult struct {
 	Features []string          `json:"features"`
 	Daily    *DailyOutcome     `json:"daily,omitempty"`
 	Meetings []MeetingReminder `json:"meetings,omitempty"`
+	Team     []TeamReminder    `json:"team,omitempty"`
 	Shadow   *DayResult        `json:"shadow,omitempty"`
 	Evening  []string          `json:"evening,omitempty"`
 	Errors   []string          `json:"errors,omitempty"`
@@ -427,6 +428,8 @@ func (s *Service) Tick(ctx context.Context, now time.Time) TickResult {
 	fail("daily check", err)
 	r.Meetings, err = s.maybeMeetingReminders(ctx, now)
 	fail("meetings", err)
+	r.Team, err = s.maybeTeamReminders(ctx, now)
+	fail("team reminders", err)
 	r.Shadow, err = s.maybeDailyShadow(ctx, now)
 	fail("shadow", err)
 	r.Evening, err = s.maybeEvening(ctx, now)

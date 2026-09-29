@@ -56,6 +56,18 @@ type AppGateway struct {
 
 	// Boards lets the app show a resident their board from the platform.
 	Boards AppBoardSource
+	// Avatars: whose Telegram photos the app may show; TGBase for tests.
+	Avatars AppAvatarSource
+	TGBase  string
+	avatars map[int64]*avatarEntry
+	avIDs   map[int64]bool
+	avIDsAt time.Time
+
+	// Done tells which meetings already happened (from the import).
+	Done    AppDoneSource
+	done    map[string]time.Time
+	doneImp map[string]bool
+	doneAt  time.Time
 
 	token     string
 	scriptURL string
@@ -104,6 +116,7 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.GET("/api/v1/app/call", m.g.Call)
 	r.POST("/api/v1/app/post", m.g.Post)
 	r.GET("/api/v1/app/myboard", m.g.MyBoard)
+	r.GET("/api/v1/app/avatar/:id", m.g.Avatar)
 }
 
 // AppSign is the signature the script checks on calls from the server:
@@ -275,6 +288,9 @@ func (g *AppGateway) Call(c *gin.Context) {
 	if !strings.HasPrefix(action, "get") && !strings.HasPrefix(action, "check") {
 		g.dropBundles()
 	}
+	if action == "confirmMeeting" || action == "markAttendance" {
+		g.noteDone(action, map[string]string{"res": in.Get("res"), "date": in.Get("date"), "time": in.Get("time"), "names": in.Get("names")})
+	}
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 }
 
@@ -306,7 +322,7 @@ func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, for
 
 	if body != nil && age >= 0 && age < bundleStale {
 		c.Header("X-BS-Bundle-Age", strconv.Itoa(int(age.Seconds())))
-		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+		c.Data(http.StatusOK, "application/json; charset=utf-8", hideDone(body, g.doneSet(c.Request.Context()), g.now()))
 		if refresh {
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), appScriptTimout)
@@ -337,7 +353,7 @@ func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, for
 		g.mu.Unlock()
 		if old != nil {
 			c.Header("X-BS-Bundle-Age", strconv.Itoa(int(g.now().Sub(old.at).Seconds())))
-			c.Data(http.StatusOK, "application/json; charset=utf-8", old.body)
+			c.Data(http.StatusOK, "application/json; charset=utf-8", hideDone(old.body, g.doneSet(c.Request.Context()), g.now()))
 			return
 		}
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
@@ -347,7 +363,7 @@ func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, for
 	g.bundles[key] = &cachedBundle{body: fresh, at: g.now()}
 	g.mu.Unlock()
 	c.Header("X-BS-Bundle-Age", "0")
-	c.Data(http.StatusOK, "application/json; charset=utf-8", fresh)
+	c.Data(http.StatusOK, "application/json; charset=utf-8", hideDone(fresh, g.doneSet(c.Request.Context()), g.now()))
 }
 
 // Post godoc

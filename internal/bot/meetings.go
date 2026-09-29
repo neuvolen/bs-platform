@@ -143,3 +143,116 @@ func (s *Service) maybeMeetingReminders(ctx context.Context, now time.Time) ([]M
 	}
 	return sent, nil
 }
+
+// Team reminders: an hour before every meeting the bot tells the team
+// (Рустам, Береке). They replace the Google Calendar's own notifications.
+// Residents meeting at the same time (the offline day) come as one message.
+
+// TeamReminder is one message to the team.
+type TeamReminder struct {
+	When      time.Time `json:"when"`
+	Residents []string  `json:"residents"`
+	Text      string    `json:"text"`
+	Key       string    `json:"key"`
+}
+
+// TeamReminders lists what to tell the team at now: meetings starting within
+// the next hour (65 minutes), not yet marked as held.
+func TeamReminders(meetings []club.Meeting, now time.Time) []TeamReminder {
+	a := now.In(club.Almaty)
+	type slot struct {
+		at     time.Time
+		names  []string
+		online []club.Meeting
+		addr   string
+	}
+	slots := map[string]*slot{}
+	var order []string
+	for _, m := range meetings {
+		if m.Done || strings.TrimSpace(m.Resident) == "" {
+			continue
+		}
+		at := meetingStart(m)
+		if !at.After(a) || at.Sub(a) > hourBeforeMin*time.Minute {
+			continue
+		}
+		k := at.Format("2006-01-02T15:04")
+		sl := slots[k]
+		if sl == nil {
+			sl = &slot{at: at}
+			slots[k] = sl
+			order = append(order, k)
+		}
+		sl.names = append(sl.names, strings.TrimSpace(m.Resident))
+		if strings.Contains(m.Link, "http") {
+			sl.online = append(sl.online, m)
+		} else if sl.addr == "" {
+			sl.addr = strings.TrimSpace(m.Link)
+			if sl.addr == "" {
+				sl.addr = strings.TrimSpace(m.Place)
+			}
+		}
+	}
+	var out []TeamReminder
+	for _, k := range order {
+		sl := slots[k]
+		var b strings.Builder
+		fmt.Fprintf(&b, "⏰ Через час встреча, %s\n\n", sl.at.Format("15:04"))
+		if len(sl.names) > 1 && len(sl.online) == 0 {
+			fmt.Fprintf(&b, "Офлайн день · %d резидентов\n• %s\n", len(sl.names), strings.Join(sl.names, "\n• "))
+			if sl.addr != "" {
+				fmt.Fprintf(&b, "\n📍 %s", sl.addr)
+			}
+		} else {
+			for _, m := range sl.online {
+				fmt.Fprintf(&b, "%s · онлайн\n🔗 %s\n", strings.TrimSpace(m.Resident), strings.TrimSpace(m.Link))
+			}
+			for _, n := range sl.names {
+				isOnline := false
+				for _, m := range sl.online {
+					if strings.TrimSpace(m.Resident) == n {
+						isOnline = true
+					}
+				}
+				if !isOnline {
+					fmt.Fprintf(&b, "%s · офлайн", n)
+					if sl.addr != "" {
+						fmt.Fprintf(&b, "\n📍 %s", sl.addr)
+					}
+					b.WriteString("\n")
+				}
+			}
+		}
+		out = append(out, TeamReminder{When: sl.at, Residents: sl.names, Text: strings.TrimSpace(b.String()), Key: "team1h|" + k})
+	}
+	return out
+}
+
+// maybeTeamReminders sends them. Runs whatever the rollout says: the script
+// never reminded the team, so there is nothing to double. Skipped when the
+// imported schedule is older than 3 hours (it could be out of date).
+func (s *Service) maybeTeamReminders(ctx context.Context, now time.Time) ([]TeamReminder, error) {
+	if len(s.admins) == 0 {
+		return nil, nil
+	}
+	if imp, err := s.repo.LastImportAt(ctx); err != nil || imp == nil || now.Sub(*imp) > 3*time.Hour {
+		return nil, err
+	}
+	snap, err := s.repo.Club().Load(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var sent []TeamReminder
+	for _, r := range TeamReminders(snap.Meetings, now) {
+		if !s.once(ctx, "meet:"+r.Key, 30*24*time.Hour) {
+			continue
+		}
+		for _, id := range s.admins {
+			if err := s.SendMessage(ctx, id, r.Text); err != nil {
+				log.Printf("bot team reminder %s → %d: %v", r.Key, id, err)
+			}
+		}
+		sent = append(sent, r)
+	}
+	return sent, nil
+}

@@ -275,3 +275,52 @@ func (r *ClubRepo) DB() interface {
 } {
 	return r.db.Pool
 }
+
+// DoneMeeting is a meeting that already happened: a row marked «Проведена»
+// (Time is its time) or a line in «Лог встреч» (Time is "*"). Date is дд.мм.
+type DoneMeeting struct {
+	Resident string
+	Date     string
+	Time     string
+}
+
+// DoneMeetings lists finished meetings of the last week, from the last import.
+func (r *ClubRepo) DoneMeetings(ctx context.Context) ([]DoneMeeting, error) {
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT resident, to_char(date, 'DD.MM'), time FROM club_meetings
+		 WHERE done AND date >= current_date - 7
+		UNION ALL
+		SELECT resident, to_char(date, 'DD.MM'), '*' FROM club_meeting_log
+		 WHERE date >= current_date - 7`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []DoneMeeting{}
+	for rows.Next() {
+		var d DoneMeeting
+		if err := rows.Scan(&d.Resident, &d.Date, &d.Time); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// ClubTgIDs: Telegram ids of everyone in the club list (residents and team).
+func (r *ClubRepo) ClubTgIDs(ctx context.Context) ([]int64, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT DISTINCT tg_id FROM club_residents WHERE tg_id IS NOT NULL AND tg_id > 0`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}

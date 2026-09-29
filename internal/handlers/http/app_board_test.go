@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/bnursik/business_surgery_backend/internal/repository/pg"
+	"github.com/gin-gonic/gin"
 )
 
 type fakeBoards struct {
