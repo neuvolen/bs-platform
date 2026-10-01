@@ -36,7 +36,11 @@ const (
 
 type PlatformAI struct {
 	repo *pg.PlatformRepo
-	AI   *ai.Client
+	// Ops: journal of club data changes (shown in Учёт → Журнал операций).
+	Ops interface {
+		Ops(ctx context.Context, limit int) ([]pg.ClubOp, error)
+	}
+	AI *ai.Client
 	// Run starts background work; tests replace it to run inline.
 	Run func(func())
 }
@@ -348,4 +352,21 @@ func (h *PlatformAI) RefreshEvents(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"found": n})
+}
+
+// OpsList: GET /ops (team) — the journal of club data changes.
+func (h *PlatformAI) OpsList(c *gin.Context) {
+	if !teamOnly(c) {
+		return
+	}
+	if h.Ops == nil {
+		c.JSON(http.StatusOK, gin.H{"ops": []any{}})
+		return
+	}
+	list, err := h.Ops.Ops(c.Request.Context(), 500)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "load_failed"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ops": list})
 }

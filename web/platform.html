@@ -308,6 +308,14 @@ body.pres .pres-bar{display:flex;z-index:170;background:transparent;border:none}
 .ct-ls{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .ct-l{font-size:12px;font-weight:700;color:#fff;border:1px solid var(--bd2);border-radius:8px;padding:4px 9px;text-decoration:none}
 body.light .ct-l{color:#141414}
+.ops-t{border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+.ops-r{display:grid;grid-template-columns:110px 160px 1fr 200px;gap:12px;padding:10px 14px;border-bottom:1px solid var(--bd);font-size:13px;align-items:baseline}
+.ops-r:last-child{border-bottom:none}
+.ops-r.bad{background:rgba(255,107,111,.06)}
+.ops-d{color:var(--t3);font-variant-numeric:tabular-nums}
+.ops-a{font-weight:800}
+.ops-x{color:#FF6B6F;font-weight:700}
+.ops-w{color:var(--t3);text-align:right}
 .cyc-del{background:transparent;border:1px solid var(--bd2);color:var(--t2);border-radius:8px;padding:6px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;margin-left:8px;flex-shrink:0}
 .cyc-del:hover{border-color:#FF6B6F;color:#FF6B6F}
 .mat-box{border:1px solid var(--bd);border-radius:12px;overflow:hidden}
@@ -4967,6 +4975,7 @@ var BLOCKS = {
     {id:'pl',       n:'PL и ДДС'},
     {id:'aNumbers', n:'В цифрах'},
     {id:'summary',  n:'Анализ'},
+    {id:'ops',      n:'Журнал операций'},
     {id:'gsheet',   n:'Google Таблица'}]},
   sales:   {name:'Продажи', tabs:[
     {id:'leads',    n:'CRM лидов'},
@@ -5245,7 +5254,7 @@ function goSection(s){
     boardUI.forEach(sel=>{ var e=document.querySelector(sel); if(e) e.style.display='none'; });
     var pg = document.getElementById('pg-'+s);
     if(pg) pg.classList.add('on');
-    var fn = {diagLib:renderDiagLib, toolLib:renderToolLib, contacts:renderContPage,
+    var fn = {ops:renderOps, diagLib:renderDiagLib, toolLib:renderToolLib, contacts:renderContPage,
               crm:renderCRM, boards:renderBoardsList, notes:renderNotes, aSched:renderAdminSched,
               aReports:renderAdminReports, stickers:renderStickers, summary:renderTotalAnalysis, lMat:renderLeadMat, pl:renderPL, fines:renderFines, kanban:renderKanban, gdoc:function(){renderLink('gdoc')}, gsheet:function(){renderLink('gsheet')},
               analytics:renderTotalAnalysis, sRes:renderSalesRes, sFive:renderTeams, nps:renderNPS, custdev:renderCDev,
@@ -6888,6 +6897,35 @@ function renderWheelPage(){ renderLifeWheel(); }
 function renderDiagPage(){ renderBizWheel(); }
 
 // ═══ РАЗДЕЛЫ РЕЗИДЕНТА ═══
+// Журнал операций: каждое изменение денег, штрафов, встреч и резидентов из приложения и платформы
+var OPS_NAMES = {addPayment:'Оплата', addFine:'Штраф', updateFine:'Штраф: статус', deleteFine:'Штраф удалён',
+  addSchedule:'Встреча', deleteSchedule:'Встреча удалена', updateMeeting:'Встреча перенесена', confirmMeeting:'Встреча прошла',
+  markAttendance:'Посещение', addResident:'Новый резидент', saveProfile:'Профиль', addOfflineGroup:'Офлайн-день', createEvent:'Мероприятие'};
+function renderOps(){
+  var el = pgSet('Журнал операций', 'Все изменения данных клуба из приложения и платформы');
+  el.innerHTML = '<div class="empt">Загружаем...</div>';
+  if(!window.BSSync || !BSSync.api){ el.innerHTML = '<div class="empt">Журнал доступен на сервере платформы</div>'; return; }
+  BSSync.api('GET','/ops').then(r=>r.json()).then(function(j){
+    var ops = (j && j.ops) || [];
+    var fmtP = function(o){
+      var p = o.params || {}, out = [];
+      ['resident','name','res','names','src','type','amount','date','time','status'].forEach(function(k){
+        if(p[k]) out.push(k==='amount' ? Number(p[k]).toLocaleString('ru-RU') + ' ₸' : (k==='type' ? (p[k]==='income'?'приход':p[k]==='expense'?'расход':p[k]) : p[k]));
+      });
+      return out.join(' · ');
+    };
+    el.innerHTML = '<div class="dbox g" style="margin-bottom:14px;font-size:13px">Первый шаг переезда с Google Таблицы: '+
+      'сервер хранит полную историю изменений, независимо от таблицы. Показаны последние ' + ops.length + '.</div>' +
+      (ops.length ? '<div class="ops-t">' + ops.map(function(o){
+        var d = new Date(o.at);
+        return '<div class="ops-r'+(o.ok?'':' bad')+'"><div class="ops-d">'+d.toLocaleDateString('ru',{day:'2-digit',month:'2-digit'})+' '+
+          d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})+'</div>' +
+          '<div class="ops-a">'+esc(OPS_NAMES[o.action]||o.action)+'</div>' +
+          '<div class="ops-p">'+esc(fmtP(o))+(o.result?' <span class="ops-x">'+esc(o.result)+'</span>':'')+'</div>' +
+          '<div class="ops-w">'+esc(o.who||'')+' · '+(o.source==='app'?'приложение':'платформа')+'</div></div>';
+      }).join('') + '</div>' : '<div class="empt">Изменений пока нет</div>');
+  }).catch(function(){ el.innerHTML = '<div class="empt">Не загрузилось</div>'; });
+}
 function pgSet(t, s){
   var pg = document.getElementById('pg-stub');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));

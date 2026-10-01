@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
 
@@ -60,6 +61,8 @@ type AppGateway struct {
 	Library AppLibrarySource
 	// Sync writes app results (tests, calendar) into the platform storage.
 	Sync AppSyncSource
+	// Ops keeps the journal of every change of club data.
+	Ops AppOpsLog
 	// Avatars: whose Telegram photos the app may show; TGBase for tests.
 	Avatars AppAvatarSource
 	TGBase  string
@@ -297,6 +300,7 @@ func (g *AppGateway) Call(c *gin.Context) {
 	// Anything but a read may have changed the data every bundle is built from.
 	if !strings.HasPrefix(action, "get") && !strings.HasPrefix(action, "check") {
 		g.dropBundles()
+		g.logOp(c.Request.Context(), "app", u, action, q, body)
 	}
 	if action == "confirmMeeting" || action == "markAttendance" {
 		g.noteDone(action, map[string]string{"res": in.Get("res"), "date": in.Get("date"), "time": in.Get("time"), "names": in.Get("names")})
@@ -446,4 +450,51 @@ func (g *AppGateway) CallAs(ctx context.Context, tgID int64, name, action string
 		return nil, errors.New("script answered without a result")
 	}
 	return out, nil
+}
+
+// AppOpsLog stores the journal of club data changes.
+type AppOpsLog interface {
+	LogOp(ctx context.Context, op pg.ClubOp) error
+}
+
+// logOp writes one change into the journal; a journal failure never fails the action.
+func (g *AppGateway) logOp(ctx context.Context, source string, u *platformTgUser, action string, q url.Values, body []byte) {
+	if g.Ops == nil {
+		return
+	}
+	p := map[string]string{}
+	for k, v := range q {
+		if k == "action" || k == "_tg" || strings.HasPrefix(k, "_srv") || len(v) == 0 {
+			continue
+		}
+		val := v[0]
+		if len(val) > 500 {
+			val = val[:500]
+		}
+		p[k] = val
+	}
+	ok, result := true, ""
+	var r map[string]any
+	if json.Unmarshal(body, &r) == nil {
+		if e, _ := r["error"].(string); e != "" {
+			ok, result = false, e
+		} else if d, _ := r["deduplicated"].(bool); d {
+			result = "дубль, не записан"
+		}
+	}
+	who := ""
+	var id int64
+	if u != nil {
+		id = u.ID
+		who = strings.TrimSpace(u.FirstName + " " + u.LastName)
+		if n, team := g.Admins[u.ID]; team && n != "" {
+			who = n
+		}
+	}
+	c, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = ctx
+	if err := g.Ops.LogOp(c, pg.ClubOp{Source: source, TgID: id, Who: who, Action: action, Params: p, OK: ok, Result: result}); err != nil {
+		log.Printf("club ops: %v", err)
+	}
 }

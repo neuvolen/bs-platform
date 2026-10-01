@@ -210,11 +210,13 @@ func BuildClubModule(d *Deps, jwtSecret, telegramBotToken, staticSeed string) ht
 
 // BuildPlatformModule wires the BS platform: its storage API and Telegram login.
 func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) httpapi.RoutesRegistrar {
-	return httpapi.NewPlatformModule(
+	m := httpapi.NewPlatformModule(
 		httpapi.NewPlatformHandler(d.PlatformRepo),
 		httpapi.NewPlatformAuthHandler(telegramBotToken, team, jwtSecret),
 		[]byte(jwtSecret),
 	)
+	m.AI.Ops = pg.NewClubRepo(d.DB)
+	return m
 }
 
 // BuildBot wires the Telegram webhook on the server and its relay to the
@@ -247,6 +249,7 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string) []httpapi.Rou
 		g.Sync = d.PlatformRepo
 	}
 	g.Done = pg.NewClubRepo(d.DB)
+	g.Ops = pg.NewClubRepo(d.DB)
 	g.Avatars = pg.NewClubRepo(d.DB)
 	repo := pg.NewBotRepo(d.DB)
 	var once sync.Once

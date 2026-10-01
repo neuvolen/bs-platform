@@ -7,11 +7,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 
+	"github.com/bnursik/business_surgery_backend/internal/bsfiles"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
@@ -60,33 +62,66 @@ func (h *PlatformAI) Ingest(c *gin.Context) {
 	if name = strings.TrimSpace(name); name == "" {
 		name = "file"
 	}
+	id, added, attached, err := h.storeClubFile(c.Request.Context(), kind, name, c.GetHeader("Content-Type"), data)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"id": id, "added": added, "attached": attached})
+}
+
+// storeClubFile keeps a file once (id = content hash) and registers it:
+// books in bs_bookfiles and on their card, stickers in the club pack.
+func (h *PlatformAI) storeClubFile(ctx context.Context, kind, name, mt string, data []byte) (id string, added bool, attached string, err error) {
 	sum := sha256.Sum256(data)
-	id := hex.EncodeToString(sum[:12])
-	ctx := c.Request.Context()
-	if f, _ := h.repo.GetFile(ctx, id); f == nil {
-		mt := c.GetHeader("Content-Type")
+	id = hex.EncodeToString(sum[:12])
+	if !h.repo.FileExists(ctx, id) {
 		if mt == "" || mt == "application/octet-stream" {
 			mt = http.DetectContentType(data)
 		}
-		if err := h.repo.PutFile(ctx, pg.PlatformFile{ID: id, Name: name, Mime: mt, Data: data}, "ingest"); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "store_failed"})
-			return
+		if err = h.repo.PutFile(ctx, pg.PlatformFile{ID: id, Name: name, Mime: mt, Data: data}, "ingest"); err != nil {
+			return "", false, "", err
 		}
 	}
 	key := "bs_bookfiles"
 	if kind == "sticker" {
 		key = "bs_stickerpack_srv"
 	}
-	added, err := h.appendDocList(ctx, key, ingestItem{ID: id, Name: name})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "doc_failed"})
-		return
+	if added, err = h.appendDocList(ctx, key, ingestItem{ID: id, Name: name}); err != nil {
+		return id, false, "", err
 	}
-	attached := ""
 	if kind == "book" {
 		attached = h.attachBook(ctx, id, name)
 	}
-	c.JSON(http.StatusOK, gin.H{"id": id, "added": added, "attached": attached})
+	return id, added, attached, nil
+}
+
+// LoadEmbedded puts the club files carried inside the server into storage.
+// Safe to run on every start: each file is stored and registered once. Books
+// are re-attached later too, when the platform first saves the book cards.
+func (h *PlatformAI) LoadEmbedded(ctx context.Context, botToken string) {
+	if botToken == "" || h.repo == nil {
+		return
+	}
+	items, err := bsfiles.Manifest(botToken)
+	if err != nil {
+		log.Printf("bsfiles: %v", err)
+		return
+	}
+	n := 0
+	for _, it := range items {
+		b, err := bsfiles.Read(botToken, it)
+		if err != nil {
+			log.Printf("bsfiles %s: %v", it.Name, err)
+			continue
+		}
+		if _, added, att, err := h.storeClubFile(ctx, it.Kind, it.Name, it.Mime, b); err != nil {
+			log.Printf("bsfiles %s: %v", it.Name, err)
+		} else if added || att != "" {
+			n++
+		}
+	}
+	log.Printf("bsfiles: %d files, %d new", len(items), n)
 }
 
 // appendDocList adds an item to a club document holding a JSON list (once).

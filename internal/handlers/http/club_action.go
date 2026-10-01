@@ -2,9 +2,11 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -87,6 +89,17 @@ func (h *ClubActionHandler) Action(c *gin.Context) {
 		return
 	}
 	res, err := h.gw.CallAs(ctx, tg, "", req.Action, params)
+	{
+		q := url.Values{}
+		for k, v := range params {
+			q.Set(k, v)
+		}
+		body, _ := json.Marshal(res)
+		if err != nil {
+			body, _ = json.Marshal(map[string]string{"error": err.Error()})
+		}
+		h.gw.logOp(ctx, "platform", &platformTgUser{ID: tg}, req.Action, q, body)
+	}
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "script", "detail": err.Error()})
 		return

@@ -106,3 +106,9 @@ func (r *PlatformRepo) FailStaleAIJobs(ctx context.Context) {
 	_, _ = r.db.Pool.Exec(ctx, `UPDATE platform_ai_jobs SET status='error', error='сервер перезапустился, загрузите запись ещё раз', updated_at=now()
 		WHERE status IN ('queued','running') AND updated_at < now() - interval '40 minutes'`)
 }
+
+// FileExists checks a file without loading its content.
+func (r *PlatformRepo) FileExists(ctx context.Context, id string) bool {
+	var one int
+	return r.db.Pool.QueryRow(ctx, `SELECT 1 FROM platform_files WHERE id=$1`, id).Scan(&one) == nil
+}

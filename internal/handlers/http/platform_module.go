@@ -18,6 +18,7 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 	m := &PlatformModule{h: h, auth: a, secret: secret, AI: NewPlatformAI(h.repo, nil)}
 	if h.repo != nil {
 		go m.AI.EventsLoop(context.Background())
+		go m.AI.LoadEmbedded(context.Background(), a.botToken)
 	}
 	return m
 }
@@ -53,4 +54,5 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/ai/jobs/:id", m.AI.Job)
 	g.GET("/ai/jobs", m.AI.Jobs)
 	g.POST("/ai/events", m.AI.RefreshEvents)
+	g.GET("/ops", m.AI.OpsList)
 }
