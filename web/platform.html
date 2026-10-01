@@ -1976,7 +1976,8 @@ body.light .gsh tr.r-rest td.neg{color:#D93025}
 .hc{--hc:rgba(255,255,255,.35);display:flex;align-items:center;gap:13px;padding:11px 14px;border:1px solid var(--pb);border-radius:14px;background:var(--pc)}
 .hc.hr{--hc:#FF6B6F;border-color:rgba(255,107,111,.38);background:linear-gradient(90deg,rgba(255,107,111,.09),transparent 70%),var(--pc)}
 .hc.hw{--hc:#FFFFFF}
-.hc.hg{--hc:#3DD68C;border-color:rgba(61,214,140,.3)}
+.hc.hg{--hc:#FFFFFF}
+body.light .hc.hg{--hc:#141414}
 body.light .hc.hw{--hc:#141414}
 body.light .hc.h0{--hc:rgba(20,20,22,.35)}
 .hc-ic{width:44px;height:44px;flex-shrink:0;border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);border:1px solid var(--ph);color:var(--hc)}
@@ -2064,32 +2065,46 @@ body.light .top .save-ic.saved{color:#1F9D61;border-color:rgba(31,157,97,.5)}
 /* Здоровье бизнеса: силуэт с органами и подписями */
 .health .hlt-split{grid-template-columns:minmax(0,1fr)}
 .health .hlt-fig{position:static;margin-bottom:6px}
-#bodyBox,.body-page{height:auto;width:100%;max-width:540px;aspect-ratio:520/600;margin:0 auto;position:relative}
+#bodyBox,.body-page{height:auto;width:100%;max-width:540px;aspect-ratio:520/630;margin:0 auto;position:relative}
 .bd-svg{width:100%;height:100%;display:block;overflow:visible}
-.bo{--oc:rgba(255,255,255,.3)}
-.bo.hr{--oc:#FF6B6F}.bo.hw{--oc:#FFFFFF}.bo.hg{--oc:#3DD68C}
-body.light .bo.hw{--oc:#141414}
-body.light .bo.hg{--oc:#1FA463}body.light .bo.hr{--oc:#E5484D}
-body.light .bo.h0{--oc:rgba(20,20,22,.32)}
+.bo{--oc:rgba(255,255,255,.26);--ot:rgba(255,255,255,.55)}
+.bo.hr{--oc:#FF6B6F;--ot:#FF6B6F}.bo.hw{--oc:#8E8E93;--ot:#FFFFFF}.bo.hg{--oc:#FFFFFF;--ot:#FFFFFF}
+body.light .bo{--oc:rgba(20,20,22,.26);--ot:rgba(20,20,22,.5)}
+body.light .bo.hr{--oc:#FF6B6F;--ot:#E5484D}body.light .bo.hw{--oc:#8A8A90;--ot:#141414}body.light .bo.hg{--oc:#141414;--ot:#141414}
 .bo-s{fill:none;stroke:var(--oc);stroke-linecap:round;stroke-linejoin:round}
-.bo-f{fill:var(--oc);fill-opacity:.28;stroke:var(--oc);stroke-width:1.4}
-.bo-f2{fill:var(--oc);fill-opacity:.18;stroke:var(--oc);stroke-linejoin:round}
+.bo-f{fill:var(--oc);fill-opacity:.22;stroke:var(--oc);stroke-width:1.1}
+.bo-f2{fill:var(--oc);fill-opacity:.16;stroke:var(--oc);stroke-linejoin:round}
 .bo-fl{fill:var(--oc)}
-.bo-band{fill:none;stroke:var(--oc);stroke-opacity:.2;stroke-width:16;stroke-linecap:round}
-.bo-halo{fill:var(--oc);opacity:.3}
-body.light .bo-halo{opacity:.16}
-.bd-sil{stroke:rgba(255,255,255,.17);stroke-width:1.5}
-.bd-s1{stop-color:#2B2B2E}.bd-s2{stop-color:#151517}
+.bo-halo{fill:var(--oc);opacity:.32}
+.bo.hg .bo-halo{opacity:.16}
+body.light .bo-halo{opacity:.14}
+body.light .bo.hg .bo-halo{opacity:0}
+.bd-sil{stroke:rgba(255,255,255,.2);stroke-width:1.2;stroke-linejoin:round}
+.bd-ln{fill:none;stroke:rgba(255,255,255,.14);stroke-width:1.1;stroke-linecap:round}
+.bd-s1{stop-color:#222225}.bd-s2{stop-color:#121214}
 .bd-floor{fill:rgba(255,255,255,.05)}
-body.light .bd-sil{stroke:rgba(0,0,0,.14)}
-body.light .bd-s1{stop-color:#F3F3F5}body.light .bd-s2{stop-color:#E2E2E7}
+body.light .bd-sil{stroke:rgba(0,0,0,.2)}
+body.light .bd-ln{stroke:rgba(0,0,0,.12)}
+body.light .bd-s1{stop-color:#F7F7F8}body.light .bd-s2{stop-color:#ECECEF}
 body.light .bd-floor{fill:rgba(0,0,0,.06)}
-.bo-ld{fill:none;stroke:var(--oc);stroke-opacity:.75;stroke-width:1.3}
-.bo-card{fill:var(--pc);stroke:var(--oc);stroke-opacity:.5;stroke-width:1.3}
-.bo.h0 .bo-card{stroke:var(--pi);stroke-opacity:1}
-.bo-n{font:800 14px 'Manrope',sans-serif;fill:var(--ptx)}
-.bo-l{font:700 11px 'Manrope',sans-serif;fill:var(--pm)}
-.bo-v{font:900 25px 'Manrope',sans-serif;fill:var(--oc);text-anchor:end}
+.bo-ld{fill:none;stroke:var(--oc);stroke-opacity:.7;stroke-width:1}
+.bo-ul{fill:none;stroke:var(--oc);stroke-opacity:.55;stroke-width:1}
+.bo.h0 .bo-ld,.bo.h0 .bo-ul{stroke-dasharray:3 3}
+.bo-ring{fill:none;stroke:var(--oc);stroke-width:1;stroke-opacity:.8}
+.bo-hit{fill:transparent}
+.bo-knock{fill:#1D1D20}
+body.light .bo-knock{fill:#F2F2F4}
+body.light .bo.hg > g[filter]{filter:none}
+body.light .bo.hg .bo-f2{fill-opacity:.07}
+body.light .bo.hg .bo-f{fill-opacity:.12}
+.health .hlt-score{display:none}
+.bo-n{font:800 15px 'Manrope',sans-serif;fill:var(--ptx)}
+.bo-l{font:800 10px 'Manrope',sans-serif;fill:var(--pm);letter-spacing:.12em;text-transform:uppercase}
+.bo-v{font:900 22px 'Manrope',sans-serif;fill:var(--ot);text-anchor:end}
+.bo-vs{font-size:11px;font-weight:800;fill:var(--pm)}
+.bo-tv{font:900 34px 'Manrope',sans-serif;fill:var(--ot);text-anchor:middle;letter-spacing:-.02em}
+.bo-tot.hw .bo-tv,.bo-tot.hg .bo-tv{fill:var(--ptx)}
+.bo-tl{font:800 9.5px 'Manrope',sans-serif;fill:var(--pm);text-anchor:middle;letter-spacing:.16em}
 body.light .bo.hw .bo-v{fill:#141414}
 /* Светлая тема: общий цвет текста в SVG не трогает обложки и силуэт */
 body.light .cvi .tx{fill:#fff}
@@ -2097,7 +2112,8 @@ body.light .cvi .tx.a-t{fill:var(--acc)}
 body.light .cvi .tx.dk{fill:#000}
 body.light .bd-svg .bo-n{fill:var(--ptx)}
 body.light .bd-svg .bo-l{fill:var(--pm)}
-body.light .bd-svg .bo-v{fill:var(--oc)}
+body.light .bd-svg .bo-v{fill:var(--ot)}
+body.light .bd-svg .bo.hw .bo-v{fill:#141414}
 </style>
 <style id="r6Style">
 /* ═══ R6: CRM и WhatsApp, Threads, 99 чек-листов, мероприятия ═══ */
@@ -2828,6 +2844,27 @@ a.d8-chip:hover,.d8-chip.d8-a:hover{border-color:var(--ptx)}
 .kb-sub li::before{content:'·';position:absolute;left:0;font-weight:800}
 .kb-sub a{color:inherit}
 .d8-helpw{margin:14px 0 4px}
+</style>
+
+<style id="r9Style">
+/* ═══ R9: сортировка списков, ошибка ИИ в мероприятиях ═══ */
+.bsl-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;grid-column:1/-1}
+.bsl-l{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--pm,var(--t3))}
+.bsl-seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;border-radius:11px;background:var(--pc,rgba(255,255,255,.04));border:1px solid var(--pi,rgba(255,255,255,.1))}
+.bsl-b{font:700 12.5px 'Manrope',sans-serif;color:var(--pm,var(--t2));background:transparent;border:0;border-radius:8px;padding:6px 11px;cursor:pointer;white-space:nowrap}
+.bsl-b:hover{color:var(--ptx,#fff)}
+.bsl-b.on{background:var(--pon,#fff);color:var(--pontx,#000)}
+.pf-tools .bsl-bar{margin:0}
+.bsl-h{grid-column:1/-1;display:flex;align-items:baseline;gap:8px;margin:18px 0 8px;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ptx,#fff)}
+.bsl-h span{color:var(--pm,var(--t3));font-weight:700;letter-spacing:0}
+.bsl-bar + .bsl-h{margin-top:4px}
+.ev-err{margin:0 0 16px;padding:14px 16px;border-radius:14px;border:1px solid rgba(255,107,111,.45);background:rgba(255,107,111,.07);color:var(--ptx);font-size:13.5px;line-height:1.45;overflow-wrap:anywhere;word-break:break-word;max-width:100%;box-sizing:border-box}
+.ev-err-t{display:flex;align-items:center;gap:10px;font-weight:800}
+.ev-err-t:before{content:'';width:8px;height:8px;border-radius:50%;background:#FF6B6F;flex-shrink:0}
+.ev-err-m{font-size:12.5px;color:var(--pm);margin-top:4px}
+.ev-err-tg{margin-top:8px;font:700 12px 'Manrope',sans-serif;color:var(--pm);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.ev-err-raw{display:none;margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--pc);border:1px solid var(--pi);font:500 11.5px/1.45 ui-monospace,Menlo,monospace;color:var(--pm);white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto}
+.ev-err.open .ev-err-raw{display:block}
 </style>
 </head>
 <body>
@@ -5217,7 +5254,9 @@ function renderLib(){
   var list = libOrgan==='Все' ? src : src.filter(d=>d.organ===libOrgan);
   if(q) list = list.filter(d=>d.title.toLowerCase().indexOf(q)>=0 ||
     (d.short||d.desc||'').toLowerCase().indexOf(q)>=0);
-  document.getElementById('libGrid').innerHTML = list.map(function(d){
+  var MD = libMode === 'cont' ? ['az','new'] : ['az','organ','new'], md = bslMode('lib_' + libMode, MD);
+  var gr = bslApply(list, md, {t:function(d){ return d.title; }, g:function(d){ return d.organ; }, n:function(d){ return src.indexOf(d); }});
+  document.getElementById('libGrid').innerHTML = bslBar('lib_' + libMode, MD, md, 'renderLib') + bslRender(gr, function(d){
     var gi = src.indexOf(d);
     return '<div class="lcard" onclick="pickFromLib('+gi+')">' +
       '<div class="lc-top" style="background:linear-gradient(135deg,'+d.color+'22,'+d.color+'08)">'+d.icon+'</div>' +
@@ -5226,7 +5265,7 @@ function renderLib(){
         '<div class="lc-t">'+esc(d.title)+'</div>' +
         '<div class="lc-d">'+esc(d.short||d.desc||'').slice(0,88)+'</div>' +
       '</div></div>';
-  }).join('');
+  });
 }
 function setLibOrgan(o){ libOrgan=o; renderLib(); }
 function checkAI(){
@@ -5389,13 +5428,19 @@ function renderQ(){
   if(!qOrgan || organs.indexOf(qOrgan)<0) qOrgan=organs[0];
   document.getElementById('qTabs').innerHTML=organs.map(o=>
     '<div class="tb'+(o===qOrgan?' on':'')+'" onclick="setQ(\''+o+'\')">'+o+'</div>').join('');
-  var list = QDB[qOrgan]||[];
-  var h = list.map(function(q,i){
-    return '<div class="dstep"><div class="dnum">'+(i+1)+'</div>' +
-      '<div style="flex:1"><div class="qtext" contenteditable spellcheck="false" ' +
-      'oninput="editQ('+i+',this.innerText)" style="font-size:14px;color:var(--t2);line-height:1.5;outline:none">'+esc(q)+'</div></div>' +
-      '<div class="qadd" title="На доску" onclick="qToBoard('+i+')">＋</div>' +
-      (MODE==='admin' ? '<div class="qdel" onclick="delQ('+i+')">✕</div>' : '') + '</div>';
+  var MD = ['az','orig','organ'], md = bslMode('questions', MD);
+  var items = [];
+  (md === 'organ' ? organs : [qOrgan]).forEach(function(o){ (QDB[o] || []).forEach(function(q, i){ items.push({o:o, i:i, q:q}); }); });
+  var gr = bslApply(items, md, {t:function(x){ return x.q; }, g:function(x){ return x.o; }, n:function(x){ return x.i; }});
+  var h = bslBar('questions', MD, md, 'renderQ') + gr.map(function(g){
+    return (g.h != null ? bslHead(g.h, g.items.length) : '') + g.items.map(function(x, k){
+      var o = escA(x.o), i = x.i;
+      return '<div class="dstep"><div class="dnum">'+(k+1)+'</div>' +
+        '<div style="flex:1"><div class="qtext" contenteditable spellcheck="false" data-o="'+o+'" data-i="'+i+'" ' +
+        'oninput="qOrgan=this.dataset.o;editQ(+this.dataset.i,this.innerText)" style="font-size:14px;color:var(--t2);line-height:1.5;outline:none">'+esc(x.q)+'</div></div>' +
+        '<div class="qadd" title="На доску" data-o="'+o+'" onclick="qOrgan=this.dataset.o;qToBoard('+i+')">＋</div>' +
+        (MODE==='admin' ? '<div class="qdel" data-o="'+o+'" onclick="qOrgan=this.dataset.o;delQ('+i+')">✕</div>' : '') + '</div>';
+    }).join('');
   }).join('');
   if(MODE==='admin'){
     h += '<button class="btn bs" style="width:100%;margin-top:14px;padding:13px" onclick="addQ()">+ Добавить вопрос</button>';
@@ -5412,9 +5457,9 @@ function qToBoard(i){
 }
 function addQ(){
   QDB[qOrgan].push('Новый вопрос'); saveQ(); renderQ();
+  var ni = QDB[qOrgan].length - 1, no = qOrgan;
   setTimeout(function(){
-    var els=document.querySelectorAll('#qList .qtext');
-    var last=els[els.length-1];
+    var last = Array.from(document.querySelectorAll('#qList .qtext')).find(function(e){ return e.dataset.o === no && +e.dataset.i === ni; });
     if(last){ last.focus(); document.execCommand('selectAll',false,null); }
   },50);
 }
@@ -6124,7 +6169,10 @@ function renderNotes(){
   var newCnt = INBOX.filter(x=>x.status==='new').length;
   pg.querySelector('.psub').textContent = INBOX.length
     ? (newCnt + ' неразобранных из ' + INBOX.length) : 'Пока пусто';
-  pg.querySelector('#stubBody').innerHTML = INBOX.length ? INBOX.map(function(x,i){
+  var MD = ['az','new'], md = bslMode('inbox', MD);
+  var gr = bslApply(INBOX.map(function(x, i){ return {x:x, i:i}; }), md, {t:function(o){ return o.x.text; }, n:function(o){ return new Date(o.x.date).getTime() || o.i; }});
+  pg.querySelector('#stubBody').innerHTML = INBOX.length ? bslBar('inbox', MD, md, 'renderNotes') + bslRender(gr, function(o){
+    var x = o.x, i = o.i;
     var d = new Date(x.date);
     return '<div class="row" style="cursor:default;'+(x.status!=='new'?'opacity:.5':'')+'">' +
       '<div class="row-bar" style="background:'+(x.insight?'var(--gold)':'var(--bd2)')+'"></div>' +
@@ -6141,7 +6189,7 @@ function renderNotes(){
         '<button type="button" class="hi-del" onclick="dropNote('+i+')">✕</button></div>'
         : '<div class="row-m">разобрано</div>') +
     '</div>';
-  }).join('') : '<div class="empt">Заметки с досок резидентов появятся здесь</div>';
+  }) : '<div class="empt">Заметки с досок резидентов появятся здесь</div>';
   pg.classList.add('on');
 }
 function noteToLib(i, kind){
@@ -6509,7 +6557,7 @@ function renderSalesRes(){
     '<div class="pf-tools"><div class="search pf-search"><input id="srSearch" placeholder="Имя резидента" oninput="srRender()"></div>' +
     '<div class="pf-filters">' + F.filter(f=>f[0]==='all'||f[2]).map(function(f){
       return '<div class="pf-fl'+(srF===f[0]?' on':'')+'" data-f="'+f[0]+'" onclick="srF=\''+f[0]+'\';document.querySelectorAll(\'.pf-fl\').forEach(x=>x.classList.toggle(\'on\',x.dataset.f===srF));srRender()">'+f[1]+' · '+f[2]+'</div>';
-    }).join('') + '</div></div>' +
+    }).join('') + '</div>' + bslBar('residents', ['az','fmt','new'], bslMode('residents', ['az','fmt','new']), 'srRender') + '</div>' +
     '<div class="pf-note" style="margin-bottom:12px">Общий долг: <b class="'+(totalDebt?'pf-red':'')+'">'+(money(String(totalDebt))||'0')+'</b> · оплачено '+(money(String(RESIDENTS.reduce((a,r)=>a+(r.paid||0),0)))||'0')+'</div>' +
     '<div id="srTbl"></div>';
   srRender();
@@ -6525,9 +6573,11 @@ function srRender(){
     if(srF==='off') return srFmt(r,'офлайн');
     return true;
   });
+  var md = bslMode('residents', ['az','fmt','new']);
+  var gr = bslApply(list, md, {t:function(r){ return r.name; }, g:function(r){ return r.format || 'Формат не указан'; }, n:function(r){ return bslDate(r.start); }});
   box.innerHTML = '<div class="pf-tbl rs-tbl"><div class="pf-tr pf-th"><span>Резидент</span><span>Формат</span><span>В клубе с</span>' +
     '<span>Встречи</span><span class="r">Штрафы</span><span class="r">Долг</span></div>' +
-    (list.length ? list.map(function(r){
+    (list.length ? bslRender(gr, function(r){
       var left = (r.granted||0) - (r.done||0);
       return '<div class="pf-tr" onclick="openResident('+RESIDENTS.indexOf(r)+')">' +
         '<span class="pf-nm"><i class="pf-av sm">'+esc((r.name||'?').charAt(0).toUpperCase())+'</i>'+esc(r.name)+'</span>' +
@@ -6536,7 +6586,7 @@ function srRender(){
         '<span'+(left<0?' class="pf-red"':'')+'>'+(r.done||0)+'/'+(r.granted||0)+'</span>' +
         '<span class="r'+(r.fines?' pf-red':' m')+'">'+(r.fines?money(String(r.fines)):'0')+'</span>' +
         '<span class="r b'+(r.total?' pf-red':' m')+'">'+(r.total?money(String(r.total)):'0')+'</span></div>';
-    }).join('') : '<div class="pf-empty">Никого не нашлось</div>') + '</div>';
+    }) : '<div class="pf-empty">Никого не нашлось</div>') + '</div>';
 }
 
 // ═══ KANBAN ═══
@@ -7738,14 +7788,16 @@ function refreshCal(){
 
 function renderResContacts(){
   var el = pgSet('Резиденты клуба', RESIDENTS.length + ' человек');
-  el.innerHTML = RESIDENTS.map(function(r,i){
+  var MD = ['az','new'], md = bslMode('res_contacts', MD);
+  var gr = bslApply(RESIDENTS.map(function(r, i){ return {r:r, i:i}; }), md, {t:function(o){ return o.r.name; }, n:function(o){ return bslDate(o.r.start); }});
+  el.innerHTML = bslBar('res_contacts', MD, md, 'renderResContacts') + bslRender(gr, function(o){ var r = o.r, i = o.i;
     var v = (SDATA.visits||[]).find(x=>x.name===r.name) || {};
     return '<div class="row" onclick="openResProfile('+i+')">' +
       '<div class="row-bar" style="background:var(--gold)"></div>' +
       '<div style="flex:1"><div class="row-t">'+esc(r.name)+'</div>' +
       '<div class="row-d">в клубе с '+esc(r.start||'')+' · '+esc(r.format||'')+'</div></div>' +
       '<div class="row-m">'+(v.months||0)+' мес</div></div>';
-  }).join('');
+  });
 }
 function openResProfile(i){
   var r = RESIDENTS[i]; if(!r) return;
@@ -7839,8 +7891,8 @@ function renderResources(){
   Object.keys(gives).forEach(function(nm){
     gives[nm].forEach(function(g){ fromRes.push({who:nm, what:g}); });
   });
-  var cats = [];
-  RESLIB.items.forEach(function(x){ if(cats.indexOf(x.cat)<0) cats.push(x.cat); });
+  var MD = ['az','cat','new'], md = bslMode('resources', MD);
+  var gr = bslApply(RESLIB.items, md, {t:function(x){ return x.t; }, g:function(x){ return x.cat; }, n:function(x){ return RESLIB.items.indexOf(x); }});
 
   el.innerHTML =
     (MODE==='admin' ? '<button class="btn bg" style="width:100%;padding:13px;margin-bottom:14px" ' +
@@ -7849,10 +7901,11 @@ function renderResources(){
       '<div class="bs-l" style="margin-bottom:10px">Навыки резидентов</div>' +
       fromRes.map(x=>'<div class="dli"><div class="ddot"></div><div><b style="color:#fff">'+
         esc(x.who)+'</b> · '+esc(x.what)+'</div></div>').join('') + '</div>' : '') +
-    cats.map(function(cat){
-      var items = RESLIB.items.filter(x=>x.cat===cat);
+    bslBar('resources', MD, md, 'renderResources') +
+    gr.map(function(g){
+      var items = g.items;
       return '<div class="card-sum" style="margin-bottom:12px">' +
-        '<div class="bs-l" style="margin-bottom:12px">'+esc(cat)+'</div>' +
+        '<div class="bs-l" style="margin-bottom:12px">'+esc(g.h != null ? g.h + ' · ' + items.length : (md === 'new' ? 'Сначала новые' : 'Все ресурсы · ' + items.length))+'</div>' +
         items.map(function(x){
           var i = RESLIB.items.indexOf(x);
           return '<div class="res-row"'+(MODE==='admin'?' onclick="editRes('+i+')" style="cursor:pointer"':'')+'>' +
@@ -9468,7 +9521,9 @@ function renderUseful(){
     '</div></div>' +
     '<button class="btn bg" style="width:100%;padding:13px;margin-bottom:14px" onclick="editUseful(null)">' +
       '+ Добавить материал</button>' +
-    USEFUL.items.map(function(x, i){
+    (function(){ var MD = ['az','tag','new','queue'], md = bslMode('useful', MD);
+      return bslBar('useful', MD, md, 'renderUseful') + bslRender(bslApply(USEFUL.items.map(function(x, i){ return {x:x, i:i}; }), md,
+        {t:function(o){ return o.x.t; }, g:function(o){ return o.x.tag || 'Без темы'; }, n:function(o){ return o.i; }}), function(o){ var x = o.x, i = o.i;
       return '<div class="row"'+(x.done?' style="opacity:.5;cursor:pointer"':' style="cursor:pointer"')+
         ' onclick="editUseful('+i+')">' +
         '<div class="row-bar" style="background:'+(x.done?'var(--bd2)':'var(--gold)')+'"></div>' +
@@ -9478,7 +9533,7 @@ function renderUseful(){
           '<div class="row-d">'+esc(x.txt||'').slice(0,120)+'</div>' +
           (x.threads ? '<span class="thr-b" title="Опубликовано в Threads">Threads ✓ ' + esc(thrDate(x.threads)) + '</span>' : '') + '</div>' +
         '<div class="row-m">'+(x.done?'опубликовано':(x.d||'в очереди'))+'</div></div>';
-    }).join('') +
+    }); })() +
     '<div class="dbox g" style="margin-top:16px;font-size:12.5px">' +
       'Бот берёт верхний неопубликованный материал и отправляет в топик Полезное. ' +
       'После отправки помечает как опубликованный.</div>';
@@ -11521,12 +11576,71 @@ function openFile(id){
 }
 function saveToolLib(){ try{ localStorage.setItem('bs_tools', JSON.stringify(TOOLS)); }catch(e){} }
 
+// ═══ R9: сортировка библиотек и списков ═══
+// Режим каждого списка хранится локально в bsl_<список>. Русская сортировка, числа по значению
+var BSL_ORG = ['Стратегия','Маркетинг','Продажи','Команда','Финансы','Процессы','Аналитика'];
+var BSL_LBL = {az:'А-Я', organ:'По органам', cat:'По категориям', tag:'По темам', fmt:'По формату', 'new':'Новые', used:'Частые', recent:'Недавние', orig:'По порядку', num:'По номеру', queue:'Очередь'};
+function bslKey(v){ return String(v == null ? '' : v).replace(/^\s*Книга:\s*/i, '').replace(/^[^0-9A-Za-zА-Яа-яЁё]+/, '').trim(); }
+function bslCmp(a, b){ return bslKey(a).localeCompare(bslKey(b), 'ru', {numeric:true, sensitivity:'base'}); }
+function bslOrg(v){ return String(v || '').replace(/^[^A-Za-zА-Яа-яЁё]+/, '').trim(); }
+function bslMode(list, modes){
+  var m = '';
+  try{ m = localStorage.getItem('bsl_' + list) || ''; }catch(e){}
+  return modes.indexOf(m) >= 0 ? m : modes[0];
+}
+function bslBar(list, modes, cur, fn){
+  return '<div class="bsl-bar" data-list="' + list + '"><span class="bsl-l">Сортировка</span><div class="bsl-seg">' + modes.map(function(m){
+    return '<button type="button" class="bsl-b' + (m === cur ? ' on' : '') + '" data-m="' + m + '" onclick="bslPick(\'' + list + '\',this.dataset.m,\'' + fn + '\')">' + BSL_LBL[m] + '</button>';
+  }).join('') + '</div></div>';
+}
+function bslPick(list, m, fn){
+  try{ localStorage.setItem('bsl_' + list, m); }catch(e){}
+  document.querySelectorAll('.bsl-bar[data-list="' + list + '"] .bsl-b').forEach(function(b){ b.classList.toggle('on', b.dataset.m === m); });
+  if(typeof window[fn] === 'function') window[fn]();
+}
+// items -> [{h:заголовок|null, items:[...]}]; o: {t, g, n (больше = новее), u (частота)}
+function bslApply(items, mode, o){
+  o = o || {};
+  var t = o.t || function(x){ return x.title; };
+  var az = function(a, b){ return bslCmp(t(a), t(b)); };
+  var arr = items.slice();
+  if(mode === 'organ' || mode === 'cat' || mode === 'tag' || mode === 'fmt'){
+    var gs = {}, order = [];
+    arr.forEach(function(x){ var g = (o.g ? o.g(x) : '') || o.none || 'Без категории'; if(!gs[g]){ gs[g] = []; order.push(g); } gs[g].push(x); });
+    var rk = function(g){ if(mode !== 'organ') return 0; var i = BSL_ORG.indexOf(bslOrg(g)); return i < 0 ? 99 : i; };
+    order.sort(function(a, b){ return rk(a) - rk(b) || bslCmp(a, b); });
+    return order.map(function(g){ return {h:g, items:gs[g].sort(az)}; });
+  }
+  if(mode === 'new' || mode === 'recent') arr.sort(function(a, b){ return (o.n(b) - o.n(a)) || az(a, b); });
+  else if(mode === 'used') arr.sort(function(a, b){ return (o.u(b) - o.u(a)) || az(a, b); });
+  else if(mode === 'orig' || mode === 'num' || mode === 'queue'){ if(o.n) arr.sort(function(a, b){ return o.n(a) - o.n(b); }); }
+  else arr.sort(az);
+  return [{h:null, items:arr}];
+}
+function bslHead(h, n){ return '<div class="bsl-h">' + esc(h) + '<span>' + n + '</span></div>'; }
+function bslRender(groups, row){ return groups.map(function(g){ return (g.h != null ? bslHead(g.h, g.items.length) : '') + g.items.map(row).join(''); }).join(''); }
+// Сколько раз диагноз или инструмент стоит на досках
+function bslUsed(type){
+  var c = {};
+  (typeof boards !== 'undefined' && boards ? boards : []).forEach(function(b){
+    (b.nodes || []).forEach(function(n){ if(n && n.type === type && n.title) c[n.title] = (c[n.title] || 0) + 1; });
+  });
+  return c;
+}
+function bslDate(v){
+  var m = String(v || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
+  if(m) return new Date((m[3].length === 2 ? 2000 + +m[3] : +m[3]), m[2] - 1, +m[1]).getTime();
+  return new Date(v || 0).getTime() || 0;
+}
+
 function renderDiagLib(){
   var q = (document.getElementById('dlSearch').value||'').toLowerCase();
   var list = DIAG.map((d,i)=>({d:d,i:i})).filter(x=>
     !q || x.d.title.toLowerCase().indexOf(q)>=0 || (x.d.organ||'').toLowerCase().indexOf(q)>=0);
   document.getElementById('dlCount').textContent = DIAG.length + ' диагнозов в базе';
-  document.getElementById('dlBody').innerHTML = list.map(function(x){
+  var MD = ['az','organ','new','used'], md = bslMode('diag', MD), used = md === 'used' ? bslUsed('diag') : {};
+  var gr = bslApply(list, md, {t:function(x){ return x.d.title; }, g:function(x){ return x.d.organ; }, n:function(x){ return x.i; }, u:function(x){ return used[x.d.title] || 0; }});
+  document.getElementById('dlBody').innerHTML = bslBar('diag', MD, md, 'renderDiagLib') + (list.length ? bslRender(gr, function(x){
     return '<div class="row" onclick="editDiag('+x.i+')">' +
       '<div class="row-bar" style="background:'+x.d.color+'"></div>' +
       '<div style="flex:1;min-width:0">' +
@@ -11536,14 +11650,16 @@ function renderDiagLib(){
       '</div>' +
       '<div class="row-m">'+((x.d.signs||[]).length)+' признаков · '+((x.d.questions||[]).length)+' вопросов</div>' +
     '</div>';
-  }).join('') || '<div class="empt">Ничего не найдено</div>';
+  }) : '<div class="empt">Ничего не найдено</div>');
 }
 function renderToolLib(){
   var q = (document.getElementById('tlSearch').value||'').toLowerCase();
   var list = TOOLS.map((d,i)=>({d:d,i:i})).filter(x=>
     !q || x.d.title.toLowerCase().indexOf(q)>=0 || (x.d.organ||'').toLowerCase().indexOf(q)>=0);
   document.getElementById('tlCount').textContent = TOOLS.length + ' инструментов в базе';
-  document.getElementById('tlBody').innerHTML = list.map(function(x){
+  var MD = ['az','organ','new','used'], md = bslMode('tools', MD), used = md === 'used' ? bslUsed('tool') : {};
+  var gr = bslApply(list, md, {t:function(x){ return x.d.title; }, g:function(x){ return x.d.organ; }, n:function(x){ return x.i; }, u:function(x){ return used[x.d.title] || 0; }});
+  document.getElementById('tlBody').innerHTML = bslBar('tools', MD, md, 'renderToolLib') + (list.length ? bslRender(gr, function(x){
     return '<div class="row" onclick="editTool('+x.i+')">' +
       '<div class="row-bar" style="background:'+x.d.color+'"></div>' +
       '<div style="flex:1;min-width:0">' +
@@ -11553,7 +11669,7 @@ function renderToolLib(){
       '</div>' +
       '<div class="row-m">'+(x.d.isBook?'книга'+(x.d.file?' · файл':' · без файла'):((x.d.how||[]).length)+' шагов'+(x.d.link?' · материалы':''))+'</div>' +
     '</div>';
-  }).join('') || '<div class="empt">Ничего не найдено</div>';
+  }) : '<div class="empt">Ничего не найдено</div>');
 }
 function renderContPage(){
   var q = (document.getElementById('ctSearch').value||'').toLowerCase();
@@ -11567,9 +11683,10 @@ function renderContPage(){
   var chips = '<div class="ct-chips">' + ['Все'].concat(Object.keys(tops).sort((a,b)=>a.localeCompare(b,'ru'))).map(function(t){
     return '<div class="tb'+(t===cat?' on':'')+'" onclick="window._ctCat=\''+t.replace(/'/g,"\\'")+'\';renderContPage()">'+esc(t)+
       (t==='Все'?'':' <span style="opacity:.55">'+tops[t]+'</span>')+'</div>'; }).join('') + '</div>';
-  var groups = {}; list.forEach(function(x){ var g=x.c.cat||'Без категории'; (groups[g]=groups[g]||[]).push(x); });
-  var body = Object.keys(groups).sort((a,b)=>a.localeCompare(b,'ru')).map(function(g){
-    return '<div class="ct-g">'+esc(g)+' · '+groups[g].length+'</div>' + groups[g].map(function(x){
+  var MD = ['az','cat','new'], md = bslMode('contacts', MD);
+  var gr = bslApply(list, md, {t:function(x){ return x.c.name; }, g:function(x){ return x.c.cat || 'Без категории'; }, n:function(x){ return x.i; }});
+  var body = gr.map(function(g){
+    return (g.h != null ? '<div class="ct-g">'+esc(g.h)+' · '+g.items.length+'</div>' : '') + g.items.map(function(x){
       var empty = !x.c.phone && !x.c.tg && !x.c.insta;
       return '<div class="row" onclick="editContact('+x.i+')">' +
         '<div style="flex:1;min-width:0">' +
@@ -11581,7 +11698,7 @@ function renderContPage(){
       '</div>';
     }).join('');
   }).join('');
-  document.getElementById('ctBody').innerHTML = chips + (body || '<div class="empt">Контактов не найдено</div>');
+  document.getElementById('ctBody').innerHTML = chips + bslBar('contacts', MD, md, 'renderContPage') + ((list.length && body) || '<div class="empt">Контактов не найдено</div>');
 }
 function renderCRM(){
   var q = (document.getElementById('crmSearch').value||'').toLowerCase();
@@ -12118,12 +12235,15 @@ function toggleHealth(){
   if(on) renderHealth();
 }
 
-// Силуэт человека: правая половина точками, левая зеркально, сглаживание Catmull-Rom. Поле 520x600, ось x=260
+// Анатомическая фигура (канон 8 голов): правая половина точками, левая зеркально, сглаживание Catmull-Rom.
+// Поле 520x630, ось x=260, макушка y=22, голова 66, стопы y=552
 var BODY_SIL = (function(){
-  var R = [[15,110],[18,128],[48,140],[80,150],[96,170],[104,206],[109,246],[115,286],[121,322],[127,350],
-    [135,372],[137,394],[129,410],[115,406],[111,386],[105,356],[97,318],[89,280],[82,240],[75,212],
-    [64,236],[57,278],[59,318],[67,352],[69,392],[64,444],[56,494],[53,532],[49,566],[57,588],[22,594],[16,578],
-    [18,536],[16,492],[14,446],[9,410],[0,398]];
+  var R = [[11,84],[12,98],[24,108],[46,115],[62,121],[70,132],[73,148],[74,172],[75,198],[77,222],
+    [82,248],[86,270],[88,288],[93,300],[95,316],[93,331],[88,342],[82,341],[79,328],[78,312],[79,298],
+    [76,284],[71,260],[66,238],[62,218],[59,192],[56,166],[53,152],
+    [52,172],[49,194],[45,214],[44,228],[48,252],[51,272],[51,290],
+    [48,318],[44,352],[38,386],[35,402],[36,420],[37,446],[33,480],[26,512],[22,530],[26,544],[22,552],[8,553],[6,546],
+    [9,528],[10,498],[13,452],[11,420],[10,402],[8,360],[5,318],[0,298]];
   var pts = R.map(function(p){ return [260 + p[0], p[1]]; });
   for(var i = R.length - 2; i >= 0; i--) pts.push([260 - R[i][0], R[i][1]]);
   var n = pts.length, d = 'M' + pts[0][0] + ' ' + pts[0][1];
@@ -12135,6 +12255,7 @@ var BODY_SIL = (function(){
   }
   return d + 'Z';
 })();
+var BODY_HEAD = 'M260 22C276 22 284.5 34 284.5 50C284.5 62 282 72 276.5 79C271 85.5 266 88.5 260 88.5C254 88.5 249 85.5 243.5 79C238 72 235.5 62 235.5 50C235.5 34 244 22 260 22Z';
 var BODY_N = 0;
 function drawBody(h, boxId){
   var box = document.getElementById(boxId || 'bodyBox');
@@ -12143,102 +12264,116 @@ function drawBody(h, boxId){
   function lv(k){ return hLevel(h[k]); }
   function sc(k){ var v = Number(h[k]) || 0; return v ? String(v) : '-'; }
   function grp(k, inner, halo){
-    var on = (Number(h[k]) || 0) > 0;
-    return '<g class="bo ' + lv(k) + '" data-o="' + k + '">' +
-      (on && halo ? '<ellipse cx="' + halo[0] + '" cy="' + halo[1] + '" rx="' + halo[2] + '" ry="' + (halo[3] || halo[2]) + '" class="bo-halo" filter="url(#' + gid + 'b)"/>' : '') +
-      '<g' + (on ? ' filter="url(#' + gid + ')"' : '') + '>' + inner + '</g></g>';
+    var l = lv(k), lit = l === 'hr' || l === 'hg';
+    return '<g class="bo ' + l + '" data-o="' + k + '">' +
+      (lit && halo ? '<ellipse cx="' + halo[0] + '" cy="' + halo[1] + '" rx="' + halo[2] + '" ry="' + (halo[3] || halo[2]) + '" class="bo-halo" filter="url(#' + gid + 'b)"/>' : '') +
+      '<g' + (lit ? ' filter="url(#' + gid + ')"' : '') + '>' + inner + '</g></g>';
   }
-  // ── Скелет (Команда): позвоночник, рёбра, ключицы, таз ──
-  var sk = '<path d="M260 146c-18-6-40-6-60 4M260 146c18-6 40-6 60 4" class="bo-s" stroke-width="3"/>';
-  for(var y = 120; y <= 338; y += 12.2){
-    var w = y < 150 ? 9 : (y > 270 ? 14 : 11);
-    sk += '<rect x="' + (260 - w / 2) + '" y="' + y.toFixed(1) + '" width="' + w + '" height="8.4" rx="3" class="bo-f"/>';
+  function P(d, cls, w, op){ return '<path d="' + d + '" class="' + (cls || 'bo-s') + '"' + (w ? ' stroke-width="' + w + '"' : '') + (op ? ' opacity="' + op + '"' : '') + '/>'; }
+  // ── Костяк (Команда): позвоночник, рёбра, ключицы, грудина, таз ──
+  var sk = '';
+  for(var vi = 0; vi < 17; vi++){
+    var y = 92 + vi * 11.4, w = y < 116 ? 6 : (y > 214 ? 10 : 8);
+    sk += '<rect x="' + (260 - w / 2) + '" y="' + y.toFixed(1) + '" width="' + w + '" height="7.6" rx="2.4" class="bo-f"/>';
   }
-  for(var i = 0; i < 6; i++){
-    var ry = 162 + i * 17, sp = 48 - Math.abs(i - 2) * 3 - (i > 3 ? 4 : 0), dy = 18 + i * 2;
-    sk += '<path d="M265 ' + ry + 'C' + (260 + sp * .7) + ' ' + (ry - 8) + ' ' + (260 + sp) + ' ' + (ry + 2) + ' ' + (260 + sp - 4) + ' ' + (ry + dy) + '" class="bo-s" stroke-width="3"/>' +
-      '<path d="M255 ' + ry + 'C' + (260 - sp * .7) + ' ' + (ry - 8) + ' ' + (260 - sp) + ' ' + (ry + 2) + ' ' + (260 - sp + 4) + ' ' + (ry + dy) + '" class="bo-s" stroke-width="3"/>';
+  for(var ri = 0; ri < 6; ri++){
+    var ry = 134 + ri * 12, sp = 40 - Math.abs(ri - 2) * 2.5 - (ri > 3 ? 3 : 0), dy = 14 + ri * 2.6;
+    sk += P('M264 ' + ry + 'C' + (260 + sp * .7) + ' ' + (ry - 7) + ' ' + (260 + sp) + ' ' + (ry + 1) + ' ' + (260 + sp - 3) + ' ' + (ry + dy), 'bo-s', 1.7) +
+      P('M256 ' + ry + 'C' + (260 - sp * .7) + ' ' + (ry - 7) + ' ' + (260 - sp) + ' ' + (ry + 1) + ' ' + (260 - sp + 3) + ' ' + (ry + dy), 'bo-s', 1.7);
   }
-  sk += '<path d="M260 158v58" class="bo-s" stroke-width="4"/>' +
-    '<path d="M258 344c-16-8-44-8-56 8-10 14-2 32 16 36 14 3 28-4 36-14M262 344c16-8 44-8 56 8 10 14 2 32-16 36-14 3-28-4-36-14" class="bo-s" stroke-width="3"/>' +
-    '<circle cx="232" cy="372" r="6" class="bo-s" stroke-width="2"/><circle cx="288" cy="372" r="6" class="bo-s" stroke-width="2"/>';
-  // ── Кровь (Финансы): аорта, артерии к рукам и ногам, капли ──
-  var bl = '<path d="M268 212c4-26 0-46-10-58M268 212v128c0 10-10 20-26 32-8 8-10 30-10 60v100M268 340c0 10 10 20 26 32 8 8 10 30 10 60v100" class="bo-s" stroke-width="2.6"/>' +
-    '<path d="M258 154C230 148 196 156 184 172C172 200 166 240 162 280L143 354M262 154C290 148 324 156 336 172C348 200 354 240 358 280L377 354" class="bo-s" stroke-width="2"/>' +
-    '<path d="M232 400l-10 14M304 400l10 14M168 236l-10 8M352 236l10 8M268 260l12 6M268 300l-14 6M157 300l-8 2M363 300l8 2" class="bo-s" stroke-width="1.4" opacity=".75"/>' +
-    '<path d="M306 452c0 0-10 12-10 19a10 10 0 0 0 20 0c0-7-10-19-10-19Z" class="bo-fl"/>' +
-    '<path d="M214 446c0 0-7 8-7 13a7 7 0 0 0 14 0c0-5-7-13-7-13Z" class="bo-fl" opacity=".7"/>';
+  sk += P('M262 120C276 115 292 114 308 119M258 120C244 115 228 114 212 119', 'bo-s', 2) +
+    P('M260 124V176', 'bo-s', 3) +
+    P('M257 252C246 244 228 244 221 256C216 266 222 280 236 284C246 286 254 282 258 276M263 252C274 244 292 244 299 256C304 266 298 280 284 284C274 286 266 282 262 276', 'bo-s', 1.9) +
+    '<circle cx="242" cy="284" r="4.2" class="bo-s" stroke-width="1.4"/><circle cx="278" cy="284" r="4.2" class="bo-s" stroke-width="1.4"/>';
+  // ── Кровь (Финансы): аорта, сонные артерии, артерии рук и ног ──
+  var bl = P('M272 156C272 142 268 132 262 130C256 128 252 134 252 142', 'bo-s', 2.6) +
+    P('M266 134V256C266 262 262 266 258 270M266 256C266 262 270 266 274 270', 'bo-s', 2.2) +
+    P('M258 270C250 282 246 300 246 330C246 370 244 400 242 440C240 480 240 510 241 532M274 270C282 282 286 300 286 330C286 370 288 400 290 440C292 480 292 510 291 532', 'bo-s', 1.8) +
+    P('M262 130C262 116 257 102 254 86M264 130C266 116 265 102 266 86', 'bo-s', 1.4) +
+    P('M262 130C284 124 302 122 316 130C324 150 326 184 330 220C334 250 340 274 346 298M258 132C236 124 218 122 204 130C196 150 194 184 190 220C186 250 180 274 174 298', 'bo-s', 1.5) +
+    P('M266 200l12 4M266 230l-12 5M246 360l-8 6M286 360l8 6M330 232l6 8M190 232l-6 8M243 470l-6 8M290 470l6 8', 'bo-s', 1.1, '.7');
   // ── ДНК (Процессы): спираль в животе ──
   var dna = '', a1 = '', a2 = '';
-  for(var yy = 262; yy <= 332; yy += 2){
-    var t = (yy - 262) / 11;
-    a1 += (yy === 262 ? 'M' : 'L') + (234 + Math.sin(t) * 13).toFixed(1) + ' ' + yy;
-    a2 += (yy === 262 ? 'M' : 'L') + (234 - Math.sin(t) * 13).toFixed(1) + ' ' + yy;
+  for(var yy = 206; yy <= 262; yy += 2){
+    var t = (yy - 206) / 9;
+    a1 += (yy === 206 ? 'M' : 'L') + (236 + Math.sin(t) * 8).toFixed(1) + ' ' + yy;
+    a2 += (yy === 206 ? 'M' : 'L') + (236 - Math.sin(t) * 8).toFixed(1) + ' ' + yy;
   }
-  for(var ry2 = 266; ry2 < 332; ry2 += 7){
-    var tt = (ry2 - 262) / 11, x1 = 234 + Math.sin(tt) * 13, x2 = 234 - Math.sin(tt) * 13;
-    dna += '<path d="M' + x1.toFixed(1) + ' ' + ry2 + 'H' + x2.toFixed(1) + '" class="bo-s" stroke-width="1.6" opacity=".7"/>';
+  for(var ry2 = 209; ry2 < 262; ry2 += 5){
+    var tt = (ry2 - 206) / 9, x1 = 236 + Math.sin(tt) * 8, x2 = 236 - Math.sin(tt) * 8;
+    if(Math.abs(x1 - x2) > 2) dna += P('M' + x1.toFixed(1) + ' ' + ry2 + 'H' + x2.toFixed(1), 'bo-s', 1.2, '.75');
   }
-  dna = '<path d="' + a1 + '" class="bo-s" stroke-width="3"/><path d="' + a2 + '" class="bo-s" stroke-width="3" opacity=".8"/>' + dna;
-  // ── Мозг (Стратегия) ──
-  var br = '<g transform="translate(232 29) scale(.34)"><path vector-effect="non-scaling-stroke" class="bo-f2" stroke-width="2.4" d="M40 92C28 90 22 78 26 66 22 54 30 40 44 38 48 26 62 20 74 26 82 18 98 18 106 28 120 26 132 36 132 50 142 56 144 72 136 82 138 94 128 104 116 102 110 112 96 114 88 106 80 112 66 110 62 102 52 106 42 100 40 92Z"/>' +
-    '<path vector-effect="non-scaling-stroke" class="bo-s" stroke-width="1.6" d="M48 60c8-8 18-4 16 6M70 40c8 6 6 16 14 18M92 36c8 8 4 16 12 20M112 48c8 8 4 18 12 22M56 84c8-8 20-4 22 6M86 72c8-6 18-2 20 8M98 92c8-4 16 0 18 6M80 26c4 22-2 44 6 78"/></g>';
-  // ── Глаза (Аналитика) ──
+  dna = P(a1, 'bo-s', 2.1) + P(a2, 'bo-s', 2.1, '.75') + dna;
+  // ── Мозг (Стратегия): два полушария с извилинами ──
+  var br = P('M259 27.5C251 25 242.5 28.5 241 35.5C239.5 42 243.5 47.5 251 48C254.5 48.3 257.5 47 259 45.5Z' +
+      'M261 27.5C269 25 277.5 28.5 279 35.5C280.5 42 276.5 47.5 269 48C265.5 48.3 262.5 47 261 45.5Z', 'bo-f2', 1.6) +
+    P('M245 34c3-3 7-2 7 1M244 41c4-2 8 0 9 3M251 30c1 3 4 4 6 3M275 34c-3-3-7-2-7 1M276 41c-4-2-8 0-9 3M269 30c-1 3-4 4-6 3M249 38c2 1 5 1 6-1M271 38c-2 1-5 1-6-1', 'bo-s', 1.1);
+  // ── Зрение (Аналитика): глаза на уровне середины головы ──
   var ey = '';
-  [246, 274].forEach(function(x){
-    ey += '<path d="M' + (x - 10) + ' 86c6-8 14-8 20 0-6 8-14 8-20 0Z" class="bo-s" stroke-width="2"/><circle cx="' + x + '" cy="86" r="3.6" class="bo-fl"/>';
+  [250.5, 269.5].forEach(function(x){
+    ey += P('M' + (x - 6.5) + ' 56c3.5-4.6 9.5-4.6 13 0-3.5 4.6-9.5 4.6-13 0Z', 'bo-s', 1.4) +
+      '<circle cx="' + x + '" cy="56" r="2.3" class="bo-fl"/>' +
+      P('M' + (x - 6) + ' 50.5c3.5-2 8.5-2 12 0', 'bo-s', 1.1, '.7');
   });
-  // ── Сердце (Маркетинг) ──
-  var ht = '<g transform="translate(255 168) scale(.32)"><path vector-effect="non-scaling-stroke" class="bo-f2" stroke-width="2.4" d="M80 140C58 124 40 104 40 80c0-20 14-32 30-30 4 0 8 2 10 4 6-8 20-10 30-4 14 8 16 30 6 50-8 16-20 28-36 40Z"/>' +
-    '<path vector-effect="non-scaling-stroke" class="bo-s" stroke-width="2" d="M76 52c-2-12 0-22 10-26 10-4 18 2 18 10M86 26V12M96 24l4-12M70 70c8 14 6 30 14 46M96 64c-4 16 2 32-4 46"/></g>';
-  // ── Руки (Продажи): предплечья и кисти ──
+  // ── Сердце (Маркетинг): левая половина груди ──
+  var ht = '<g transform="translate(274 163) rotate(-14) translate(-20 -19) scale(.25)">' +
+    '<path class="bo-knock" d="M80 140C58 124 40 104 40 80c0-20 14-32 30-30 4 0 8 2 10 4 6-8 20-10 30-4 14 8 16 30 6 50-8 16-20 28-36 40Z"/>' +
+    '<path vector-effect="non-scaling-stroke" class="bo-f2" stroke-width="1.8" d="M80 140C58 124 40 104 40 80c0-20 14-32 30-30 4 0 8 2 10 4 6-8 20-10 30-4 14 8 16 30 6 50-8 16-20 28-36 40Z"/>' +
+    '<path vector-effect="non-scaling-stroke" class="bo-s" stroke-width="1.5" d="M76 52c-2-12 0-22 10-26 10-4 18 2 18 10M86 26V12M96 24l4-12M70 70c8 14 6 30 14 46M96 64c-4 16 2 32-4 46"/></g>';
+  // ── Руки (Продажи): кисти на концах рук ──
   var hd = '';
   [-1, 1].forEach(function(s){
-    var ex = 260 + s * 104, wx = 260 + s * 121, hx = 260 + s * 124;
-    hd += '<path d="M' + ex + ' 278L' + wx + ' 350" class="bo-band"/>' +
-      '<path d="M' + ex + ' 278L' + wx + ' 350" class="bo-s" stroke-width="2.4"/>' +
-      '<ellipse cx="' + hx + '" cy="380" rx="9" ry="13" class="bo-f2" stroke-width="2.2"/>' +
-      '<path d="M' + (hx - 6 * s) + ' 392l' + (-2 * s) + ' 12M' + hx + ' 393v14M' + (hx + 5 * s) + ' 391l' + (3 * s) + ' 12M' + (hx - 8 * s) + ' 374l' + (-8 * s) + ' 6" class="bo-s" stroke-width="2.2"/>';
+    var cx = 260 + s * 87;
+    hd += P('M' + (cx - 7 * s) + ' 299C' + (cx - 9 * s) + ' 308 ' + (cx - 8 * s) + ' 318 ' + (cx - 5 * s) + ' 324M' + (cx + 6 * s) + ' 297C' + (cx + 8 * s) + ' 306 ' + (cx + 8 * s) + ' 316 ' + (cx + 6 * s) + ' 324', 'bo-s', 1.5) +
+      P('M' + (cx - 4 * s) + ' 324L' + (cx - 4.5 * s) + ' 337M' + (cx - .5 * s) + ' 325L' + (cx - .5 * s) + ' 340M' + (cx + 3 * s) + ' 325L' + (cx + 3.5 * s) + ' 339M' + (cx + 6 * s) + ' 323L' + (cx + 7 * s) + ' 334', 'bo-s', 1.5) +
+      P('M' + (cx - 7.5 * s) + ' 312C' + (cx - 10 * s) + ' 318 ' + (cx - 10 * s) + ' 324 ' + (cx - 8 * s) + ' 328', 'bo-s', 1.4) +
+      P('M' + (cx - 6 * s) + ' 296H' + (cx + 6 * s), 'bo-s', 1.2, '.6');
   });
-  // ── Подписи с выносками ──
+  // ── Подписи: две колонки, линия-выноска к органу ──
   var PINS = [
-    {k:'brain', side:-1, y:34,  ax:236, ay:48},
-    {k:'eyes',  side:-1, y:104, ax:240, ay:88},
-    {k:'dna',   side:-1, y:268, ax:220, ay:296},
-    {k:'hands', side:-1, y:432, ax:136, ay:392},
-    {k:'heart', side:1,  y:160, ax:290, ay:190},
-    {k:'spine', side:1,  y:236, ax:306, ay:248},
-    {k:'blood', side:1,  y:456, ax:306, ay:470}
+    {k:'brain', side:-1, y:58,  ax:247, ay:36},
+    {k:'spine', side:-1, y:176, ax:226, ay:160},
+    {k:'dna',   side:-1, y:262, ax:230, ay:234},
+    {k:'hands', side:-1, y:356, ax:171, ay:322},
+    {k:'eyes',  side:1,  y:90,  ax:274, ay:56},
+    {k:'heart', side:1,  y:184, ax:282, ay:162},
+    {k:'blood', side:1,  y:430, ax:288, ay:420}
   ];
   var pins = PINS.map(function(p){
     var o = ORG_MAP.find(function(x){ return x.k === p.k; }) || {n:p.k, label:''};
-    var W = 136, H = 48, px = p.side < 0 ? 6 : 520 - 6 - W, cy = p.y + H / 2;
-    var ex = p.side < 0 ? px + W : px, kx = ex - p.side * 16;
+    var x0 = p.side < 0 ? 8 : 370, x1 = p.side < 0 ? 150 : 512, inner = p.side < 0 ? x1 : x0;
+    var v = Number(h[p.k]) || 0;
     return '<g class="bo ' + lv(p.k) + ' bo-pin" data-pin="' + p.k + '">' +
-      '<path d="M' + p.ax + ' ' + p.ay + 'L' + kx + ' ' + cy + 'H' + ex + '" class="bo-ld"/>' +
-      '<circle cx="' + p.ax + '" cy="' + p.ay + '" r="3.4" class="bo-fl bo-dot"/>' +
-      '<rect x="' + px + '" y="' + p.y + '" width="' + W + '" height="' + H + '" rx="12" class="bo-card"/>' +
-      '<text x="' + (px + 14) + '" y="' + (p.y + 21) + '" class="bo-n">' + esc(o.n) + '</text>' +
-      '<text x="' + (px + 14) + '" y="' + (p.y + 37) + '" class="bo-l">' + esc(o.label) + '</text>' +
-      '<text x="' + (px + W - 13) + '" y="' + (p.y + 32) + '" class="bo-v">' + sc(p.k) + '</text>' +
+      '<rect x="' + x0 + '" y="' + (p.y - 40) + '" width="' + (x1 - x0) + '" height="44" class="bo-hit"/>' +
+      '<path d="M' + p.ax + ' ' + p.ay + 'L' + inner + ' ' + p.y + '" class="bo-ld"/>' +
+      '<path d="M' + x0 + ' ' + p.y + 'H' + x1 + '" class="bo-ul"/>' +
+      '<circle cx="' + p.ax + '" cy="' + p.ay + '" r="4.6" class="bo-ring"/><circle cx="' + p.ax + '" cy="' + p.ay + '" r="2" class="bo-fl bo-dot"/>' +
+      '<text x="' + x0 + '" y="' + (p.y - 27) + '" class="bo-l">' + esc(o.label) + '</text>' +
+      '<text x="' + x0 + '" y="' + (p.y - 9) + '" class="bo-n">' + esc(o.n) + '</text>' +
+      '<text x="' + x1 + '" y="' + (p.y - 9) + '" class="bo-v">' + sc(p.k) + (v ? '<tspan class="bo-vs">/10</tspan>' : '') + '</text>' +
     '</g>';
   }).join('');
-  box.innerHTML = '<svg class="bd-svg" viewBox="0 0 520 600" role="img" aria-label="Здоровье бизнеса: органы">' +
-    '<defs><filter id="' + gid + '" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3" result="b"/>' +
+  var tot = healthScore(h), tl = tot ? hLevel(tot / 10) : 'h0';
+  box.innerHTML = '<svg class="bd-svg" viewBox="0 0 520 630" role="img" aria-label="Здоровье бизнеса: органы">' +
+    '<defs><filter id="' + gid + '" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.4" result="b"/>' +
       '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
-      '<filter id="' + gid + 'b" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="12"/></filter>' +
+      '<filter id="' + gid + 'b" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="9"/></filter>' +
       '<linearGradient id="' + gid + 's" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="bd-s1"/><stop offset="1" class="bd-s2"/></linearGradient></defs>' +
-    '<ellipse cx="260" cy="594" rx="96" ry="7" class="bd-floor"/>' +
-    '<ellipse cx="260" cy="66" rx="34" ry="44" class="bd-sil" fill="url(#' + gid + 's)"/>' +
-    '<path d="' + BODY_SIL + '" class="bd-sil" fill="url(#' + gid + 's)"/>' +
+    '<ellipse cx="260" cy="556" rx="74" ry="5" class="bd-floor"/>' +
+    '<g class="bd-fig"><path d="' + BODY_SIL + '" class="bd-sil" fill="url(#' + gid + 's)"/>' +
+      '<path d="' + BODY_HEAD + '" class="bd-sil bd-head" fill="url(#' + gid + 's)"/>' +
+      '<path d="M236 52c-4-1-6 3-5 8 1 4 3 6 5 6M284 52c4-1 6 3 5 8-1 4-3 6-5 6" class="bd-ln"/>' +
+      '<path d="M233 398c4 6 10 8 16 6M287 398c-4 6-10 8-16 6M259 226a1.6 1.6 0 1 0 2 0" class="bd-ln"/></g>' +
     grp('spine', sk, null) +
     grp('blood', bl, null) +
-    grp('dna', dna, [234, 297, 22, 40]) +
+    grp('dna', dna, [236, 234, 15, 32]) +
     grp('hands', hd, null) +
-    grp('heart', ht, [280, 196, 24]) +
-    grp('brain', br, [260, 54, 30, 24]) +
-    grp('eyes', ey, [260, 86, 26, 10]) +
+    grp('heart', ht, [274, 163, 18]) +
+    grp('brain', br, [260, 38, 24, 15]) +
+    grp('eyes', ey, [260, 56, 20, 7]) +
     pins +
+    '<g class="bo ' + tl + ' bo-tot"><text x="260" y="596" class="bo-tv">' + (tot || '-') + '</text>' +
+      '<text x="260" y="616" class="bo-tl">ОБЩАЯ ОЦЕНКА ИЗ 100' + (tot ? ' · ' + esc(hVerdict(tot / 10)).toUpperCase() : '') + '</text></g>' +
   '</svg>';
 }
 
@@ -14133,6 +14268,9 @@ function renderBoardsList(){
       '<span class="rb-sm">' + dg + ' диагн · ' + pfAgo(b.updated || b.date) + '</span>' +
       (adm ? '<button type="button" class="hi-del" onclick="delBoard(\'' + b.id + '\',event)">✕</button>' : '') + '</div>';
   }
+  var MD = ['az','recent'], md = bslMode('boards', MD);
+  var bt = function(g){ return g.latest ? (new Date(g.latest.updated || g.latest.date || 0).getTime() || 1) : 0; };
+  if(md === 'az') data.list.sort(function(a, b){ return bslCmp(a.name, b.name); });
   var rows = data.list.map(function(g){
     var r = g.r || {}, b = g.latest;
     var ini = (g.name || '?').charAt(0).toUpperCase();
@@ -14148,7 +14286,7 @@ function renderBoardsList(){
     '</div>' + (more && rbOpen[g.key] ? '<div class="rb-subs">' + g.boards.map(boardRow).join('') + '</div>' : '') + rbCkList(g);
   }).join('');
   el.innerHTML =
-    (adm ? '<div class="pf-tools"><button class="btn pf-b pf-p" onclick="goSection(\'board\');newBoard()">+ Новый разбор</button></div>' : '') +
+    '<div class="pf-tools">' + (adm ? '<button class="btn pf-b pf-p" onclick="goSection(\'board\');newBoard()">+ Новый разбор</button>' : '') + bslBar('boards', MD, md, 'renderBoardsList') + '</div>' +
     '<div class="pf-tbl rb-tbl"><div class="rb-row rb-th"><span></span><span>Резидент</span><span>Цикл</span><span>Обновлено</span><span></span></div>' +
       (rows || '<div class="pf-empty">Резидентов пока нет</div>') + '</div>' +
     (data.none.length ? '<div class="dh" style="margin-top:22px">Без резидента</div><div class="pf-tbl rb-tbl rb-none">' +
@@ -14263,9 +14401,9 @@ function renderEvents(){
     }).join('') + '</div>' : '<div class="pf-empty">Своих мероприятий пока нет</div>') +
     '<div class="ev-sec-h" style="margin-top:28px"><div><div class="pf-lbl" style="margin:0">Мероприятия Алматы</div>' +
       '<div class="pf-sub">' + (upd && !isNaN(upd) ? 'Обновлено ' + upd.toLocaleDateString('ru', {day:'2-digit', month:'long'}) + ' в ' + upd.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}) : 'Лента обновляется сервером') + '</div></div>' +
-      (adm ? '<div class="ev-ref"><span id="evRefMsg" class="ev-ref-m' + (EV_REF.err ? ' bad' : '') + '">' + esc(EV_REF.busy ? 'Ищем мероприятия, до 1 минуты…' : (EV_REF.err || '')) + '</span>' +
+      (adm ? '<div class="ev-ref"><span id="evRefMsg" class="ev-ref-m">' + esc(EV_REF.busy ? 'Ищем мероприятия, до 1 минуты…' : '') + '</span>' +
         '<button class="btn pf-b pf-p" id="evRefBtn" onclick="evRefresh()"' + (EV_REF.busy ? ' disabled' : '') + '>' + (EV_REF.busy ? '<span class="spin"></span>' : '') + 'Обновить сейчас</button></div>' : '') +
-    '</div>' +
+    '</div>' + (adm && EV_REF.err && !EV_REF.busy ? evErrHTML(EV_REF.err) : '') +
     (tagList.length ? '<div class="pf-filters" style="margin-bottom:14px">' +
       '<div class="pf-fl' + (!evTag ? ' on' : '') + '" onclick="evTag=\'\';renderEvents()">Все</div>' +
       tagList.map(function(t){ return '<div class="pf-fl' + (evTag === t ? ' on' : '') + '" onclick="evTag=\'' + esc(t).replace(/'/g, '') + '\';renderEvents()">' + esc(t) + ' <span class="ev-n">' + tags[t] + '</span></div>'; }).join('') + '</div>' : '') +
@@ -14274,6 +14412,20 @@ function renderEvents(){
 }
 // Обновить ленту сейчас: сервер ищет мероприятия (до минуты), лента bs_events_feed приходит синхронизацией
 var EV_REF = {busy:false, err:''};
+// Ошибка обновления: понятный текст, сырой ответ сервера только по «подробнее»
+function evErrText(e){
+  e = String(e || '');
+  if(/404|no longer available/i.test(e)) return 'ИИ временно недоступен, попробуйте ещё раз через минуту';
+  if(e.length > 120 || /[{}\[\]]/.test(e)) return 'Не получилось обновить ленту';
+  return e || 'Не получилось обновить ленту';
+}
+function evErrHTML(e){
+  var raw = String(e || ''), t = evErrText(raw);
+  return '<div class="ev-err" id="evErr" role="alert"><div class="ev-err-t">' + esc(t) + '</div>' +
+    '<div class="ev-err-m">Лента осталась прежней. Нажмите «Обновить сейчас», чтобы попробовать снова</div>' +
+    (raw && raw !== t ? '<button type="button" class="ev-err-tg" onclick="var c=this.closest(\'.ev-err\');c.classList.toggle(\'open\');this.textContent=c.classList.contains(\'open\')?\'скрыть\':\'подробнее\'">подробнее</button>' +
+      '<div class="ev-err-raw">' + esc(raw) + '</div>' : '') + '</div>';
+}
 function evWhen(d){
   var t = new Date(); t.setHours(0, 0, 0, 0);
   var dd = new Date(d); dd.setHours(0, 0, 0, 0);
@@ -14291,7 +14443,7 @@ function evRefresh(){
     return r.json().catch(function(){ return {error: 'Сервер ответил ' + (r.status || 'ошибкой')}; });
   }, function(){ return {error: 'Нет связи с сервером'}; }).then(function(j){
     j = j || {};
-    if(j.error){ EV_REF = {busy:false, err: String(j.error)}; toast('Не получилось: ' + j.error); }
+    if(j.error){ var er = typeof j.error === 'string' ? j.error : JSON.stringify(j.error); EV_REF = {busy:false, err: er}; toast(evErrText(er)); }
     else { EV_REF = {busy:false, err:''}; toast('Найдено: ' + (Number(j.found) || 0)); }
     if(section === 'events') renderEvents();
     var t = (window.BSSync && BSSync.tick) ? BSSync.tick() : null;
@@ -14452,8 +14604,8 @@ function hTone(v){
   v = Number(v) || 0;
   if(v <= 0) return 'rgba(255,255,255,.3)';
   if(v < 4) return '#FF6B6F';
-  if(v < 7) return '#FFFFFF';
-  return '#3DD68C';
+  if(v < 7) return 'var(--pm)';
+  return 'var(--ptx)';
 }
 // Цвет текста оценки: белый средний уровень в светлой теме становится тёмным
 function hText(v){ v = Number(v) || 0; return (v >= 4 && v < 7) || v <= 0 ? 'var(--ptx)' : hTone(v); }
@@ -14518,9 +14670,7 @@ function renderResHealth(){
   var score = healthScore(h);
   el.innerHTML = '<div class="hsplit">' +
       '<div><div id="bodyBoxPg" class="body-page"></div></div>' +
-      '<div><div class="card-sum hc-total"><div class="bs-l">Общая оценка</div>' +
-        '<div class="hc-big" style="color:' + hText(score / 10) + '">' + score + '</div><div class="pf-sub">из 100 · ' + esc(hVerdict(score / 10)) + '</div></div>' +
-        healthCardsHTML(h, false) + '</div>' +
+      '<div>' + healthCardsHTML(h, false) + '</div>' +
     '</div>';
   setTimeout(function(){ drawBody(h, 'bodyBoxPg'); }, 40);
 }
@@ -15751,6 +15901,7 @@ function renderChecklistsLib(){
       (lvK.length ? '<div class="pf-filters kl-lv"><div class="pf-fl' + (!CKV.level ? ' on' : '') + '" onclick="CKV.level=\'\';renderChecklists()">Любой уровень</div>' +
         lvK.map(function(l){ return '<div class="pf-fl' + (CKV.level === l ? ' on' : '') + '" data-l="' + escA(l) + '" onclick="CKV.level=this.dataset.l;renderChecklists()">' + esc(l) + ' <span class="ev-n">' + lv[l] + '</span></div>'; }).join('') + '</div>' : '') +
     '</div>' +
+    bslBar('checklists', ['az','organ','num'], bslMode('checklists', ['az','organ','num']), 'ckGrid') +
     '<div id="ckGrid" class="kl-grid"></div>';
   ckGrid();
 }
@@ -15763,7 +15914,9 @@ function ckGrid(){
     if(!q) return true;
     return [c.title, c.subtitle, c.organ, c.result, (c.items || []).join(' ')].join(' ').toLowerCase().indexOf(q) >= 0;
   });
-  g.innerHTML = list.length ? list.map(function(c){
+  var all = ckData(), md = bslMode('checklists', ['az','organ','num']);
+  var gr = bslApply(list, md, {t:function(c){ return c.title; }, g:function(c){ return c.organ || 'Другое'; }, n:function(c){ return all.indexOf(c); }});
+  g.innerHTML = list.length ? bslRender(gr, function(c){
     var n = (c.items || []).length, d = ckDone(c, p), lvn = ckLevelN(c.level);
     return '<div class="kl-card' + (n && d >= n ? ' done' : '') + '" data-id="' + escA(c.id) + '" onclick="openChecklist(this.dataset.id)">' +
       '<div class="kl-ct"><span class="kl-org">' + esc(c.organ || 'Другое') + '</span>' + (c.level ? '<span class="kl-lvl" title="Уровень">' + [1, 2, 3].map(function(k){ return '<i' + (k <= lvn ? ' class="on"' : '') + '></i>'; }).join('') + esc(c.level) + '</span>' : '') + '</div>' +
@@ -15772,7 +15925,7 @@ function ckGrid(){
       '<div class="kl-f"><span>' + n + ' пунктов</span>' + (c.time ? '<span>' + esc(c.time) + '</span>' : '') + (d ? '<span class="kl-dn">' + (d >= n ? 'пройден' : d + ' из ' + n) + '</span>' : '') + '</div>' +
       (d ? '<div class="kl-pb"><i style="width:' + Math.round(d / Math.max(1, n) * 100) + '%"></i></div>' : '') +
     '</div>';
-  }).join('') : '<div class="pf-empty" style="grid-column:1/-1">Ничего не нашлось</div>';
+  }) : '<div class="pf-empty" style="grid-column:1/-1">Ничего не нашлось</div>';
 }
 function ckById(id){ return ckData().find(function(c){ return String(c.id) === String(id); }); }
 function openChecklist(id){
@@ -17105,13 +17258,15 @@ function r8RenderKBNotes(){
   if(!R8_SEC[R8V.sec]) R8V.sec = 'razbor';
   var el = pgSet('Заметки', 'Конспекты BS: разбор, энергия, цели, команда, финансы, маркетинг, Lean и заметки из рабочего документа');
   var pa = document.getElementById('phAct'); if(pa) pa.innerHTML = r8AddBtn(R8V.sec);
-  var list = r8Groups(R8V.sec);
+  var MD = ['az','orig'], md = bslMode('notes_kb', MD);
+  var list = bslApply(r8Groups(R8V.sec), md, {t:function(g){ return g.title; }, n:function(g){ return KBD.groups.indexOf(g); }})[0].items;
   el.innerHTML = r8NotesSwitch() +
     '<div class="ct-chips">' + Object.keys(R8_SEC).map(function(s){
       return '<div class="tb' + (s === R8V.sec ? ' on' : '') + '" onclick="R8V.sec=\'' + s + '\';renderNotes()">' + R8_SEC[s] + ' <span style="opacity:.55">' + (cnt[s] || 0) + '</span></div>';
     }).join('') + '</div>' +
     '<div class="cx-note">Продажи и маркетинг из документа: <b class="d8-a" onclick="goSection(\'sCA\')">ЦА и воронки</b> · <b class="d8-a" onclick="goSection(\'sRub\')">Рубрики</b> · ' +
       '<b class="d8-a" onclick="goSection(\'sCreo\')">Креативы</b> · <b class="d8-a" onclick="goSection(\'custdev\')">шаблон CustDev</b> · <b class="d8-a" onclick="goSection(\'events\')">план мероприятий</b></div>' +
+    bslBar('notes_kb', MD, md, 'renderNotes') +
     (list.length ? r8Grid(list) : '<div class="empt">В этом разделе конспектов пока нет</div>');
 }
 

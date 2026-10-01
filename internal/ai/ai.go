@@ -18,7 +18,11 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -28,6 +32,137 @@ type Client struct {
 	OpenAIModel, OpenAISTTModel           string
 	AnthropicBase, GeminiBase, OpenAIBase string
 	HTTP                                  *http.Client
+
+	modelMu sync.Mutex // GeminiModel may be switched when Google retires a model
+}
+
+// HTTPError is a non-2xx answer of a model API (Body is complete).
+type HTTPError struct {
+	Status int
+	Body   string
+}
+
+func (e *HTTPError) Error() string {
+	msg := e.Body
+	if len(msg) > 300 {
+		msg = msg[:300]
+	}
+	return fmt.Sprintf("ИИ ответил %d: %s", e.Status, msg)
+}
+
+func (c *Client) geminiModel() string {
+	c.modelMu.Lock()
+	defer c.modelMu.Unlock()
+	return c.GeminiModel
+}
+
+var suggestedModelRe = regexp.MustCompile(`models/(gemini-[\w.\-]+)`)
+
+// retiredModel: Google answers 404 (or 400) when a model is switched off.
+func retiredModel(err error) (*HTTPError, bool) {
+	var he *HTTPError
+	if !errors.As(err, &he) {
+		return nil, false
+	}
+	low := strings.ToLower(he.Body)
+	return he, (he.Status == 404 || he.Status == 400) && (strings.Contains(low, "no longer available") ||
+		strings.Contains(low, "not found") || strings.Contains(low, "is not supported") || strings.Contains(low, "deprecated"))
+}
+
+// switchGeminiModel picks a working model: the one Google suggests in the
+// error, otherwise the newest "flash" model the key can use.
+func (c *Client) switchGeminiModel(ctx context.Context, he *HTTPError) bool {
+	cur := c.geminiModel()
+	pick := ""
+	for _, m := range suggestedModelRe.FindAllStringSubmatch(he.Body, -1) {
+		if name := strings.TrimRight(m[1], ".,"); name != cur {
+			pick = name
+			break
+		}
+	}
+	if pick == "" {
+		pick = c.newestFlash(ctx, cur)
+	}
+	if pick == "" {
+		return false
+	}
+	c.modelMu.Lock()
+	c.GeminiModel = pick
+	c.modelMu.Unlock()
+	return true
+}
+
+var verRe = regexp.MustCompile(`gemini-(\d+(?:\.\d+)?)`)
+
+func (c *Client) newestFlash(ctx context.Context, cur string) string {
+	r, _ := http.NewRequest("GET", c.GeminiBase+"/v1beta/models?pageSize=1000&key="+c.Gemini, nil)
+	b, err := c.do(ctx, r)
+	if err != nil {
+		return ""
+	}
+	var out struct {
+		Models []struct {
+			Name    string   `json:"name"`
+			Methods []string `json:"supportedGenerationMethods"`
+		} `json:"models"`
+	}
+	_ = json.Unmarshal(b, &out)
+	type cand struct {
+		name string
+		ver  float64
+	}
+	var cs []cand
+	for _, m := range out.Models {
+		n := strings.TrimPrefix(m.Name, "models/")
+		ok := false
+		for _, g := range m.Methods {
+			if g == "generateContent" {
+				ok = true
+			}
+		}
+		low := strings.ToLower(n)
+		if !ok || n == cur || !strings.Contains(low, "flash") {
+			continue
+		}
+		bad := false
+		for _, w := range []string{"lite", "image", "tts", "live", "audio", "embedding", "exp", "thinking"} {
+			if strings.Contains(low, w) {
+				bad = true
+			}
+		}
+		if bad {
+			continue
+		}
+		v := 0.0
+		if mm := verRe.FindStringSubmatch(low); mm != nil {
+			v, _ = strconv.ParseFloat(mm[1], 64)
+		}
+		if strings.Contains(low, "preview") {
+			v -= 0.01 // a stable model of the same version wins
+		}
+		cs = append(cs, cand{n, v})
+	}
+	sort.Slice(cs, func(i, j int) bool { return cs[i].ver > cs[j].ver })
+	if len(cs) == 0 {
+		return ""
+	}
+	return cs[0].name
+}
+
+// geminiCall posts to models/<model>:<method>, switching to a live model
+// once if the configured one was retired.
+func (c *Client) geminiCall(ctx context.Context, method string, body any) ([]byte, error) {
+	for try := 0; ; try++ {
+		url := fmt.Sprintf("%s/v1beta/models/%s:%s?key=%s", c.GeminiBase, c.geminiModel(), method, c.Gemini)
+		b, err := c.do(ctx, jsonReq("POST", url, body))
+		if err == nil || try > 0 {
+			return b, err
+		}
+		he, retired := retiredModel(err)
+		if !retired || !c.switchGeminiModel(ctx, he) {
+			return b, err
+		}
+	}
 }
 
 func FromEnv() *Client {
@@ -42,7 +177,7 @@ func FromEnv() *Client {
 		Gemini:         env("GEMINI_API_KEY", ""),
 		OpenAI:         env("OPENAI_API_KEY", ""),
 		ClaudeModel:    env("AI_CLAUDE_MODEL", "claude-sonnet-5"),
-		GeminiModel:    env("AI_GEMINI_MODEL", "gemini-2.5-flash"),
+		GeminiModel:    env("AI_GEMINI_MODEL", "gemini-3.8-flash"),
 		OpenAIModel:    env("AI_OPENAI_MODEL", "gpt-4o-mini"),
 		OpenAISTTModel: env("AI_OPENAI_STT_MODEL", "whisper-1"),
 		AnthropicBase:  env("ANTHROPIC_API_BASE", "https://api.anthropic.com"),
@@ -123,11 +258,7 @@ func (c *Client) do(ctx context.Context, req *http.Request) ([]byte, error) {
 	defer res.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(res.Body, 32<<20))
 	if res.StatusCode >= 300 {
-		msg := string(b)
-		if len(msg) > 300 {
-			msg = msg[:300]
-		}
-		return nil, fmt.Errorf("ИИ ответил %d: %s", res.StatusCode, msg)
+		return nil, &HTTPError{Status: res.StatusCode, Body: string(b)}
 	}
 	return b, nil
 }
@@ -173,7 +304,6 @@ func (c *Client) gemini(ctx context.Context, system string, parts []map[string]a
 }
 
 func (c *Client) geminiCfg(ctx context.Context, system string, parts []map[string]any, cfg map[string]any) (string, error) {
-	url := fmt.Sprintf("%s/v1beta/models/%s:generateContent?key=%s", c.GeminiBase, c.GeminiModel, c.Gemini)
 	body := map[string]any{
 		"system_instruction": map[string]any{"parts": []map[string]any{{"text": system}}},
 		"contents":           []map[string]any{{"role": "user", "parts": parts}},
@@ -181,8 +311,7 @@ func (c *Client) geminiCfg(ctx context.Context, system string, parts []map[strin
 	if cfg != nil {
 		body["generationConfig"] = cfg
 	}
-	r := jsonReq("POST", url, body)
-	b, err := c.do(ctx, r)
+	b, err := c.geminiCall(ctx, "generateContent", body)
 	if err != nil {
 		return "", err
 	}
@@ -344,13 +473,11 @@ func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
 	var err error
 	switch {
 	case c.Gemini != "":
-		url := fmt.Sprintf("%s/v1beta/models/%s:generateContent?key=%s", c.GeminiBase, c.GeminiModel, c.Gemini)
-		r := jsonReq("POST", url, map[string]any{
+		var b []byte
+		if b, err = c.geminiCall(ctx, "generateContent", map[string]any{
 			"contents": []map[string]any{{"role": "user", "parts": []map[string]any{{"text": prompt}}}},
 			"tools":    []map[string]any{{"google_search": map[string]any{}}},
-		})
-		var b []byte
-		if b, err = c.do(ctx, r); err == nil {
+		}); err == nil {
 			var out struct {
 				Candidates []struct {
 					Content struct {
