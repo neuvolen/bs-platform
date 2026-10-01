@@ -94,7 +94,12 @@ func (h *PlatformAuthHandler) Config(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"telegram": false, "reason": "Telegram did not accept the bot token: " + err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"telegram": true, "bot": name})
+	// The numeric bot id is the public part of the token; the redirect login needs it.
+	id := h.botToken
+	if i := strings.Index(id, ":"); i > 0 {
+		id = id[:i]
+	}
+	c.JSON(http.StatusOK, gin.H{"telegram": true, "bot": name, "id": id})
 }
 
 func (h *PlatformAuthHandler) username() (string, error) {
