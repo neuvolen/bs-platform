@@ -122,6 +122,7 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.GET("/api/v1/app/myboard", m.g.MyBoard)
 	r.GET("/api/v1/app/library", m.g.Library_)
 	r.POST("/api/v1/app/mytests", m.g.MyTests)
+	r.POST("/api/v1/app/message", m.g.Message)
 	r.GET("/api/v1/app/mycal", m.g.MyCal)
 	r.PUT("/api/v1/app/mycal", m.g.MyCal)
 	r.GET("/api/v1/app/file/:id", m.g.LibraryFile)

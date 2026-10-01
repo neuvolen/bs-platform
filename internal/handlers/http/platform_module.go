@@ -30,6 +30,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	pub.POST("/auth/logout", m.auth.Logout)
 	// Resident list from the Google Sheet, signed with the bot token.
 	pub.POST("/residents/sync", m.auth.SyncResidents)
+	pub.POST("/ingest", m.AI.Ingest)
 
 	g := r.Group("/api/v1/platform")
 	g.Use(middleware.AuthJWT(m.secret))

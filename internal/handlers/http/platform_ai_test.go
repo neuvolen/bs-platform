@@ -3,10 +3,13 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -169,6 +172,35 @@ func TestPlatformFilesAndAI(t *testing.T) {
 	w = do("POST", "/ai/events", "", nil, nil) // second run updates the same doc
 	if !strings.Contains(w.Body.String(), `"found":1`) {
 		t.Fatalf("events again: %s", w.Body.String())
+	}
+
+	// Ingest from the private file store: books attach to their card, stickers join the pack.
+	{
+		sum := sha256.Sum256([]byte("test-ingest-key-123456789"))
+		ingestKeySHA256 = hex.EncodeToString(sum[:])
+	}
+	_, _ = db.Pool.Exec(ctx, `DELETE FROM platform_docs WHERE key IN ('bs_bookfiles','bs_stickerpack_srv','bs_tools')`)
+	_, _ = repo.PutDoc(ctx, "club", "bs_tools", 0, `[{"title":"Книга: «Принципы»","isBook":true,"match":"далио|принцип"},{"title":"Платёжный календарь"}]`, false, "t")
+	r.POST("/ingest", h.Ingest)
+	ing := func(key, kind, name string, body []byte) *httptest.ResponseRecorder {
+		return do("POST", "/ingest", "application/pdf", body, map[string]string{"X-Ingest-Key": key, "X-Kind": kind, "X-File-Name": url.QueryEscape(name)})
+	}
+	if w = ing("wrong-key-wrong-key-wrong", "book", "x.pdf", []byte("%PDF")); w.Code != 401 {
+		t.Fatalf("bad key: %d", w.Code)
+	}
+	w = ing("test-ingest-key-123456789", "book", "Рэй Далио Принципы.pdf", []byte("%PDF-book"))
+	if !strings.Contains(w.Body.String(), `"attached":"Книга: «Принципы»"`) {
+		t.Fatalf("book ingest: %s", w.Body.String())
+	}
+	if w = ing("test-ingest-key-123456789", "book", "Рэй Далио Принципы.pdf", []byte("%PDF-book")); !strings.Contains(w.Body.String(), `"added":false`) {
+		t.Fatalf("repeat ingest must be a no-op: %s", w.Body.String())
+	}
+	ing("test-ingest-key-123456789", "sticker", "facepalm.jpg", []byte("\xff\xd8\xff jpeg"))
+	dt, _ := repo.GetDoc(ctx, "club", "bs_tools")
+	ds, _ := repo.GetDoc(ctx, "club", "bs_stickerpack_srv")
+	db2, _ := repo.GetDoc(ctx, "club", "bs_bookfiles")
+	if !strings.Contains(dt.Value, `"fileName":"Рэй Далио Принципы.pdf"`) || !strings.Contains(ds.Value, "facepalm.jpg") || !strings.Contains(db2.Value, "Принципы") {
+		t.Fatalf("docs: %s | %s | %s", dt.Value, ds.Value, db2.Value)
 	}
 
 	// No key: a clear message, nothing queued.

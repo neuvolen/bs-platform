@@ -1995,6 +1995,99 @@ body.light .dynbar[style*="#FFFFFF"]{background:#141414!important}
 .health .hs-v{font-size:40px}
 .health .hs-l{font-size:13px;color:var(--pm)}
 </style>
+<style id="r5Style">
+/* ═══ R5: перестановка кнопок, Резидент главной, Сохранить значком ═══ */
+.tbar>[draggable="true"],.pill>.pb[draggable="true"]{cursor:grab}
+.tbar>[draggable="true"]:active,.pill>.pb[draggable="true"]:active{cursor:grabbing}
+.tbar>.dragging,.pill>.dragging{opacity:.35}
+.side .nv,.side .sv{cursor:grab}
+.side .nv:active,.side .sv:active{cursor:grabbing}
+.top .rp-btn,html.rp-open .top .rp-btn{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.top .rp-btn:hover{opacity:.9}
+html.rp-open .top .rp-btn{box-shadow:0 0 0 3px rgba(255,255,255,.14)}
+body.light.rp-open .top .rp-btn,html.rp-open body.light .top .rp-btn{box-shadow:0 0 0 3px rgba(0,0,0,.1)}
+.top .save-ic.saved{color:#3DD68C;border-color:rgba(61,214,140,.55)}
+body.light .top .save-ic.saved{color:#1F9D61;border-color:rgba(31,157,97,.5)}
+/* Цели и задачи: «Готово» отмечено галочкой и зачёркнуто */
+.kb-row{display:flex;align-items:flex-start;gap:9px}
+.kb-ck{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--pm);flex-shrink:0;margin-top:1px;cursor:pointer;position:relative;transition:background .15s,border-color .15s}
+.kb-ck:hover{border-color:var(--ptx)}
+.kb-ck.on{background:#3DD68C;border-color:#3DD68C}
+.kb-ck.on::after{content:'';position:absolute;left:5px;top:1.5px;width:4px;height:9px;border:solid #000;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.kb-card.done .kb-t{text-decoration:line-through;text-decoration-thickness:1.5px;color:var(--pm)!important}
+.kb-card.done .kb-w{opacity:.6}
+.kb-card.done{opacity:.86}
+/* Обложки по смыслу названия */
+.cv16.diag{--acc:#FF6B6F;--acc2:rgba(255,107,111,.24);--accg:rgba(255,107,111,.5);--cvk:#160B0C}
+.cv16.tool{--acc:#FFFFFF;--acc2:rgba(255,255,255,.16);--accg:rgba(255,255,255,.26);--cvk:#111112}
+.cv-art.il{right:2%;top:46%;width:56%;transform:translateY(-50%);color:#fff;
+  filter:drop-shadow(0 0 1px rgba(255,255,255,.35)) drop-shadow(0 6px 18px var(--accg))}
+.cv-art.il::before{content:'';position:absolute;left:8%;right:8%;top:6%;bottom:6%;border-radius:50%;z-index:-1;
+  background:radial-gradient(closest-side,var(--accg),transparent);opacity:.55}
+.cvi{width:100%;height:auto;display:block;overflow:visible}
+.cvi .k{fill:var(--cvk)}
+.cvi .f{fill:rgba(255,255,255,.08)}
+.cvi .a{stroke:var(--acc)}
+.cvi .af{fill:var(--acc);stroke:none}
+.cvi .af2{fill:var(--acc2)}
+.cvi .w{fill:#fff;stroke:none}
+.cvi .th{stroke-width:2}
+.cvi .th5{stroke-width:4.5}
+.cvi .dm{opacity:.45}
+.cvi .dm2{opacity:.6}
+.cvi .dash{stroke-dasharray:4 5}
+.cvi .acc{color:var(--acc)}
+.cvi .tx{fill:#fff;stroke:none;font-family:'Manrope',sans-serif;font-weight:800;text-anchor:middle}
+.cvi .a-t{fill:var(--acc)}
+.cvi .tx.dk{fill:#000}
+.cvi .dkl{stroke:#000}
+/* Заголовок обложки: слева, две строки, без разрыва слов; иллюстрация справа */
+.cv-title{font-size:calc(19px * var(--tf,1));right:34%;word-break:normal;overflow-wrap:normal;hyphens:manual}
+.cv-title.long{font-size:calc(16px * var(--tf,1));right:30%}
+.cv-title.xl{font-size:calc(13.5px * var(--tf,1));right:26%}
+.cv16.big .cv-title{font-size:calc(34px * var(--tf,1));right:36%}
+.cv16.big .cv-title.long{font-size:calc(28px * var(--tf,1))}
+.cv16.big .cv-title.xl{font-size:calc(23px * var(--tf,1))}
+.cv-art.il{right:1.5%;top:55%;width:49%}
+.cv-shade{background:linear-gradient(90deg,rgba(0,0,0,.78) 0%,rgba(0,0,0,.34) 44%,transparent 66%),linear-gradient(0deg,rgba(0,0,0,.66) 0%,transparent 50%)}
+/* Здоровье бизнеса: силуэт с органами и подписями */
+.health .hlt-split{grid-template-columns:minmax(0,1fr)}
+.health .hlt-fig{position:static;margin-bottom:6px}
+#bodyBox,.body-page{height:auto;width:100%;max-width:540px;aspect-ratio:520/600;margin:0 auto;position:relative}
+.bd-svg{width:100%;height:100%;display:block;overflow:visible}
+.bo{--oc:rgba(255,255,255,.3)}
+.bo.hr{--oc:#FF6B6F}.bo.hw{--oc:#FFFFFF}.bo.hg{--oc:#3DD68C}
+body.light .bo.hw{--oc:#141414}
+body.light .bo.hg{--oc:#1FA463}body.light .bo.hr{--oc:#E5484D}
+body.light .bo.h0{--oc:rgba(20,20,22,.32)}
+.bo-s{fill:none;stroke:var(--oc);stroke-linecap:round;stroke-linejoin:round}
+.bo-f{fill:var(--oc);fill-opacity:.28;stroke:var(--oc);stroke-width:1.4}
+.bo-f2{fill:var(--oc);fill-opacity:.18;stroke:var(--oc);stroke-linejoin:round}
+.bo-fl{fill:var(--oc)}
+.bo-band{fill:none;stroke:var(--oc);stroke-opacity:.2;stroke-width:16;stroke-linecap:round}
+.bo-halo{fill:var(--oc);opacity:.3}
+body.light .bo-halo{opacity:.16}
+.bd-sil{stroke:rgba(255,255,255,.17);stroke-width:1.5}
+.bd-s1{stop-color:#2B2B2E}.bd-s2{stop-color:#151517}
+.bd-floor{fill:rgba(255,255,255,.05)}
+body.light .bd-sil{stroke:rgba(0,0,0,.14)}
+body.light .bd-s1{stop-color:#F3F3F5}body.light .bd-s2{stop-color:#E2E2E7}
+body.light .bd-floor{fill:rgba(0,0,0,.06)}
+.bo-ld{fill:none;stroke:var(--oc);stroke-opacity:.75;stroke-width:1.3}
+.bo-card{fill:var(--pc);stroke:var(--oc);stroke-opacity:.5;stroke-width:1.3}
+.bo.h0 .bo-card{stroke:var(--pi);stroke-opacity:1}
+.bo-n{font:800 14px 'Manrope',sans-serif;fill:var(--ptx)}
+.bo-l{font:700 11px 'Manrope',sans-serif;fill:var(--pm)}
+.bo-v{font:900 25px 'Manrope',sans-serif;fill:var(--oc);text-anchor:end}
+body.light .bo.hw .bo-v{fill:#141414}
+/* Светлая тема: общий цвет текста в SVG не трогает обложки и силуэт */
+body.light .cvi .tx{fill:#fff}
+body.light .cvi .tx.a-t{fill:var(--acc)}
+body.light .cvi .tx.dk{fill:#000}
+body.light .bd-svg .bo-n{fill:var(--ptx)}
+body.light .bd-svg .bo-l{fill:var(--pm)}
+body.light .bd-svg .bo-v{fill:var(--oc)}
+</style>
 </head>
 <body>
 
@@ -2048,17 +2141,17 @@ body.light .dynbar[style*="#FFFFFF"]{background:#141414!important}
   </div>
   <div class="tbar board-only">
     <div class="ic" onclick="openMe()" title="Кто работает" id="meBtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div>
-    <span class="tb-sep"></span>
+    <span class="tb-sep" id="tbSep"></span>
     <div class="ic board-mic" onclick="toggleVoice()" title="Голосовой помощник" id="micBtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
     <div class="ic admin-only" onclick="openCallMenu()" title="Онлайн-созвон: запись, расшифровка, итоги" id="callBtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg></div>
     <div class="ic admin-only ai-tb" id="aiBadge" onclick="openSheet('aiSheet')" title="ИИ-подсказки"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span class="ai-cnt" id="aiBadgeText"></span></div>
     <div class="ic" id="hltBtn" onclick="toggleHealth()" title="Здоровье бизнеса"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></div>
     <div class="ic" id="drawBtn" onclick="toggleDraw()" title="Рисовать"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg></div>
-    <div class="ic" onclick="undo()" title="Отменить (Ctrl Z)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12"/></svg></div>
+    <div class="ic" id="undoBtn" onclick="undo()" title="Отменить (Ctrl Z)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12"/></svg></div>
     <div class="ic" onclick="toggleTheme()" title="Сменить тему" id="thBtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg></div>
     <div class="ic" id="presBtn" onclick="togglePres()" title="Презентация"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l11 7-11 7z"/></svg></div>
     <button type="button" class="btn rp-btn" id="rpBtn" onclick="toggleRP()" title="Панель резидента"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg><span>Резидент</span></button>
-    <button type="button" class="btn save-btn" id="saveBtn" onclick="saveBoard()" title="Сохранить">Сохранить</button>
+    <div class="ic save-ic" id="saveBtn" onclick="saveBoard()" title="Сохранить"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
   </div>
 </div>
 
@@ -2069,8 +2162,6 @@ body.light .dynbar[style*="#FFFFFF"]{background:#141414!important}
     <div class="hm admin-only" onclick="openRP('prep')"><span>▶</span>Подготовка к встрече</div>
     <div class="hm admin-only" onclick="openRP('sum')"><span>▤</span>Саммари разбора</div>
     <div class="hm-sep"></div>
-    <div class="hm" onclick="exportAllData()"><span>↓</span>Выгрузить все данные</div>
-    <div class="hm admin-only" onclick="importAllData()"><span>↑</span>Загрузить копию</div>
     <div class="hm" onclick="openRP('tasks')"><span>✓</span>Задачи резидента</div>
     <div class="hm" onclick="openRP('reps')"><span>▤</span>Отчёты резидента</div>
   </div>
@@ -2271,12 +2362,12 @@ body.light .dynbar[style*="#FFFFFF"]{background:#141414!important}
 </div>
 
 <div class="pill" id="quickBar">
-  <div class="pb pb1 admin-only" onclick="openLib('diag')">+ Диагноз</div>
-  <div class="pb admin-only" onclick="openLib('tool')">Инструмент</div>
-  <div class="pb admin-only" onclick="menuPos={x:0,y:0};addFromMenu('task')">Задача</div>
-  <div class="pb admin-only" onclick="openSheet('qSheet')">Вопрос</div>
-  <div class="pb admin-only" onclick="openLib('cont')">Контакт</div>
-  <div class="pb admin-only" onclick="openStickerPicker()">Стикеры</div>
+  <div data-q="diag" class="pb pb1 admin-only" onclick="openLib('diag')">+ Диагноз</div>
+  <div data-q="tool" class="pb admin-only" onclick="openLib('tool')">Инструмент</div>
+  <div data-q="task" class="pb admin-only" onclick="menuPos={x:0,y:0};addFromMenu('task')">Задача</div>
+  <div data-q="q" class="pb admin-only" onclick="openSheet('qSheet')">Вопрос</div>
+  <div data-q="cont" class="pb admin-only" onclick="openLib('cont')">Контакт</div>
+  <div data-q="stk" class="pb admin-only" onclick="openStickerPicker()">Стикеры</div>
 </div>
 
 <div class="zoom">
@@ -3117,7 +3208,8 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
     bs_lead:'loadLead', bs_mkt:'loadMkt', bs_mycal:'loadCal', bs_pl:'loadPL', bs_questions:'loadQ',
     bs_qver:'loadQ', bs_reslib:'loadResLib', bs_scripts:'loadScripts', bs_splan:'loadSPlan',
     bs_stickers:'loadStickers', bs_teams:'loadTeams', bs_useful:'loadUseful', bs_theme:'loadTheme',
-    bs_me:'loadMe', bs_order:'applyOrder'
+    bs_me:'loadMe', bs_order:'applyOrder', bs_bookfiles:'loadLibs',
+    bs_stickerpack:'loadStickerPack', bs_stickerpack_srv:'loadStickerPack'
   };
   var pendingRerender = false;
   function reloadKeys(keys){
@@ -4862,14 +4954,14 @@ var BLOCKS = {
     {id:'diagMap',  n:'Карта диагнозов'},
     {id:'notes',    n:'Заметки'},
     {id:'stickers', n:'Стикеры'},
-    {id:'resLib',   n:'Ресурсы'}]},
+    {id:'resLib',   n:'Ресурсы'},
+    {id:'contacts', n:'Контакты'}]},
   club:    {name:'Клуб', tabs:[
     {id:'sRes',     n:'Резиденты'},
     {id:'aSched',   n:'Встречи'},
     {id:'aReports', n:'Отчёты'},
     {id:'fines',    n:'Штрафы'},
     {id:'sFive',    n:'Пятёрки'},
-    {id:'contacts', n:'Контакты'},
     {id:'events',   n:'Мероприятия'}]},
   fin:     {name:'Учёт', tabs:[
     {id:'pl',       n:'PL и ДДС'},
@@ -4975,6 +5067,7 @@ function applyOrder(){
     tabs.forEach(function(t){ if(sorted.indexOf(t) < 0) sorted.push(t); });
     BLOCKS[bk].tabs = sorted;
   });
+  try{ initReorderBars(); }catch(e){}
   try{ renderSide(); }catch(e){}
 }
 function setupDrag(){
@@ -5033,6 +5126,57 @@ function subDrag(box){
       if(d < 0 && Math.abs(d) < min){ min = Math.abs(d); after = el; }
     });
     if(after) box.insertBefore(drag, after); else box.appendChild(drag);
+  });
+}
+// Кнопки над доской и нижняя панель добавления: порядок меняется перетаскиванием и хранится в bs_order
+var REORDER_BARS = [{key:'toolbar', sel:'#topBar .tbar'}, {key:'quick', sel:'#quickBar'}];
+function rbItems(bar){ return Array.from(bar.children).filter(function(x){ return x.dataset && x.dataset.rid; }); }
+function applyBarOrder(cfg){
+  var bar = document.querySelector(cfg.sel); if(!bar) return;
+  var ids = loadOrder()[cfg.key]; if(!Array.isArray(ids) || !ids.length) return;
+  var all = rbItems(bar), known = [];
+  ids.forEach(function(id){ var el = all.find(function(x){ return x.dataset.rid === id; }); if(el){ known.push(el); bar.appendChild(el); } });
+  all.forEach(function(el){ if(known.indexOf(el) < 0) bar.appendChild(el); });
+}
+function initReorderBars(){
+  REORDER_BARS.forEach(function(cfg){
+    var bar = document.querySelector(cfg.sel); if(!bar) return;
+    Array.from(bar.children).forEach(function(el){
+      var id = el.id || (el.dataset && el.dataset.q); if(!id) return;
+      el.dataset.rid = id; el.setAttribute('draggable', 'true');
+    });
+    applyBarOrder(cfg);
+    if(bar._rdnd) return;
+    bar._rdnd = 1;
+    var cur = function(){ return rbItems(bar).find(function(x){ return x.classList.contains('dragging'); }); };
+    bar.addEventListener('dragstart', function(e){
+      var it = e.target && e.target.closest ? e.target.closest('[data-rid]') : null;
+      if(!it || it.parentNode !== bar) return;
+      e.stopPropagation();
+      try{ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', it.dataset.rid); }catch(_){}
+      it.classList.add('dragging');
+    });
+    bar.addEventListener('dragover', function(e){
+      var drag = cur(); if(!drag) return;
+      e.preventDefault();
+      try{ e.dataTransfer.dropEffect = 'move'; }catch(_){}
+      var after = null, min = 1e9;
+      rbItems(bar).forEach(function(el){
+        if(el === drag || !el.offsetWidth) return;
+        var r = el.getBoundingClientRect(), d = e.clientX - (r.left + r.width / 2);
+        if(d < 0 && -d < min){ min = -d; after = el; }
+      });
+      if(after){ if(drag.nextSibling !== after) bar.insertBefore(drag, after); }
+      else if(bar.lastElementChild !== drag) bar.appendChild(drag);
+    });
+    bar.addEventListener('drop', function(e){ if(cur()) e.preventDefault(); });
+    bar.addEventListener('dragend', function(){
+      var it = cur(); if(!it) return;
+      it.classList.remove('dragging');
+      var ord = loadOrder();
+      ord[cfg.key] = rbItems(bar).map(function(x){ return x.dataset.rid; });
+      saveOrder(ord);
+    });
   });
 }
 function navOfMode(){
@@ -5655,10 +5799,13 @@ function renderKanban(){
         '<div class="kb-h"><span>'+col.n+'</span><span class="kb-cnt">'+cards.length+'</span></div>' +
         '<div class="kb-list">' + cards.map(function(c){
           var pc = c.pri==='high' ? '#FF4D4D' : (c.pri==='mid' ? 'var(--gold)' : 'var(--bd2)');
-          return '<div class="kb-card" draggable="true" ondragstart="dragCard(event,\''+c.id+'\')" ' +
+          var dn = c.col === 'done';
+          return '<div class="kb-card'+(dn?' done':'')+'" draggable="true" ondragstart="dragCard(event,\''+c.id+'\')" ' +
             'onclick="editCard(\''+c.id+'\')">' +
             '<div class="kb-bar" style="background:'+pc+'"></div>' +
-            '<div class="kb-t">'+esc(c.t)+'</div>' +
+            '<div class="kb-row"><span class="kb-ck'+(dn?' on':'')+'" title="'+(dn?'Вернуть в работу':'Готово')+'" ' +
+              'onclick="event.stopPropagation();kbToggleDone(\''+c.id+'\')"></span>' +
+            '<div class="kb-t">'+esc(c.t)+'</div></div>' +
             (c.who?'<div class="kb-w">'+esc(c.who)+'</div>':'') +
           '</div>';
         }).join('') + '</div>' +
@@ -5668,11 +5815,24 @@ function renderKanban(){
   pg.classList.add('on');
 }
 function dragCard(e, id){ e.dataTransfer.setData('id', id); }
+// Колонка карточки: из «Готово» карточка помнит, откуда пришла
+function kbMove(c, col){
+  if(!c || c.col === col) return;
+  if(col === 'done' && c.col !== 'done') c.prev = c.col;
+  c.col = col;
+  c.done = col === 'done';
+}
 function dropCard(e, col){
   e.preventDefault();
   var id = e.dataTransfer.getData('id');
   var c = KANBAN.cards.find(x=>x.id===id);
-  if(c){ c.col = col; saveKanban(); renderKanban(); }
+  if(c){ kbMove(c, col); saveKanban(); renderKanban(); }
+}
+function kbToggleDone(id){
+  var c = KANBAN.cards.find(x=>x.id===id); if(!c) return;
+  if(c.col === 'done'){ var back = c.prev && c.prev !== 'done' ? c.prev : 'work'; kbMove(c, back); }
+  else kbMove(c, 'done');
+  saveKanban(); renderKanban();
 }
 var kbEdit = null, kbPri = 'mid';
 function addCard(col){
@@ -5708,9 +5868,9 @@ function saveCard(){
   var col = document.getElementById('kbCol').value;
   if(kbEdit){
     var c = KANBAN.cards.find(x=>x.id===kbEdit);
-    if(c){ c.t=t; c.who=w; c.col=col; c.pri=kbPri; }
+    if(c){ c.t=t; c.who=w; kbMove(c, col); c.pri=kbPri; }
   } else {
-    KANBAN.cards.push({id:'k'+Date.now(), col:col, t:t, who:w, pri:kbPri});
+    KANBAN.cards.push({id:'k'+Date.now(), col:col, t:t, who:w, pri:kbPri, done:col==='done'});
   }
   saveKanban(); closeSheet('kbSheet'); renderKanban(); toast('Сохранено');
 }
@@ -8073,20 +8233,304 @@ var ORGAN_ART = {
     '<path d="M40 56l-6-10M60 48l-3-12M80 45V32M100 48l3-12M120 56l6-10" opacity=".7"/>',
   pulse: '<path d="M14 84h30l8-22 12 46 12-60 12 54 8-18h44"/><circle cx="80" cy="80" r="56" opacity=".35"/>'
 };
+// ── Обложки по смыслу названия: библиотека иллюстраций линиями и подбор по словам ──
+// Белые линии на тёмном, акцент: красный у диагнозов, белый у инструментов. Поле 200x150
+var CV_ART = (function(){
+  function person(x, y, s, cls){
+    s = s || 1;
+    return '<g class="' + (cls || '') + '" transform="translate(' + x + ' ' + y + ') scale(' + s + ')">' +
+      '<circle cx="0" cy="-9" r="7.5" class="k"/><path d="M-13 13c0-9 6-14 13-14s13 5 13 14" class="k"/></g>';
+  }
+  function gear(cx, cy, r, n, cls){
+    var p = '', ro = r, ri = r * 0.8, st = Math.PI * 2 / n;
+    for(var i = 0; i < n; i++){
+      var a = i * st;
+      [[a - st * 0.18, ri], [a - st * 0.1, ro], [a + st * 0.1, ro], [a + st * 0.18, ri], [a + st * 0.5, ri]].forEach(function(q, j){
+        p += (i === 0 && j === 0 ? 'M' : 'L') + (cx + Math.cos(q[0]) * q[1]).toFixed(1) + ' ' + (cy + Math.sin(q[0]) * q[1]).toFixed(1);
+      });
+    }
+    return '<path d="' + p + 'Z" class="' + (cls || 'k') + '"/><circle cx="' + cx + '" cy="' + cy + '" r="' + (r * 0.32).toFixed(1) + '"/>';
+  }
+  function flame(x, y, s, cls){
+    return '<path transform="translate(' + x + ' ' + y + ') scale(' + s + ')" class="' + (cls || 'a af2') + '" ' +
+      'd="M0 0C-13-5-15-20-6-31-6-24-1-21 2-25 3-34-1-40 3-48 14-40 20-25 15-12 19-15 20-19 20-23 26-14 24-3 14 1 9 3 4 2 0 0Z"/>';
+  }
+  function coin(x, y, r, cls){
+    return '<g class="' + (cls || '') + '"><circle cx="' + x + '" cy="' + y + '" r="' + r + '" class="k a"/>' +
+      '<circle cx="' + x + '" cy="' + y + '" r="' + (r * 0.68).toFixed(1) + '" class="a th" opacity=".7"/>' +
+      '<text x="' + x + '" y="' + (y + r * 0.36).toFixed(1) + '" class="tx a-t" font-size="' + (r * 1.05).toFixed(1) + '">₸</text></g>';
+  }
+  var A = {};
+  // Календарь: лист с кольцами, шапка акцентом, числа в клетках
+  A.calendar = (function(){
+    var o = '<rect x="36" y="22" width="128" height="114" rx="13" class="k"/>' +
+      '<path d="M49 22h102a13 13 0 0 1 13 13v15H36V35a13 13 0 0 1 13-13Z" class="af2"/>' +
+      '<path d="M36 50h128"/><path d="M68 12v18M132 12v18" class="th5"/>' +
+      '<text x="100" y="42" class="tx a-t" font-size="11">МАЙ</text>';
+    var n = 1;
+    for(var r = 0; r < 4; r++) for(var c = 0; c < 5; c++){
+      var x = 46 + c * 22.4, y = 58 + r * 19;
+      var hot = (r === 1 && c === 2), ring = (r === 2 && c === 4);
+      if(hot) o += '<rect x="' + (x - 1) + '" y="' + (y - 1) + '" width="20" height="16" rx="4" class="af"/>';
+      if(ring) o += '<circle cx="' + (x + 9) + '" cy="' + (y + 7) + '" r="10" class="a"/>';
+      o += '<text x="' + (x + 9) + '" y="' + (y + 11) + '" class="tx' + (hot ? ' dk' : '') + '" font-size="9" opacity="' + (hot || ring ? 1 : .72) + '">' + (n++) + '</text>';
+    }
+    return o;
+  })();
+  // Учёт и отчёт: таблица и график
+  A.report = '<rect x="30" y="14" width="98" height="122" rx="10" class="k"/>' +
+    '<path d="M44 32h48" class="a th5"/><path d="M44 45h32" class="dm"/>' +
+    '<path d="M42 62h74M42 78h74M42 94h74M42 110h74M72 56v62" class="dm th"/>' +
+    '<path d="M48 70h14M80 70h26M48 86h12M80 86h30M48 102h16M80 102h20" class="th"/>' +
+    '<rect x="102" y="58" width="76" height="72" rx="10" class="k"/>' +
+    '<rect x="114" y="104" width="10" height="16" rx="2" class="w"/><rect x="129" y="92" width="10" height="28" rx="2" class="w"/>' +
+    '<rect x="144" y="98" width="10" height="22" rx="2" class="w"/><rect x="159" y="76" width="10" height="44" rx="2" class="af"/>' +
+    '<path d="M112 121h60" class="th"/><path d="M116 84l14-8 14 6 20-14" class="a th"/>';
+  // Деньги: кошелёк, купюра, монеты
+  A.wallet = '<rect x="46" y="22" width="84" height="40" rx="6" class="f" transform="rotate(-9 88 42)"/>' +
+    '<circle cx="88" cy="41" r="9" class="th" transform="rotate(-9 88 42)"/>' +
+    '<rect x="24" y="46" width="120" height="82" rx="15" class="k"/><path d="M24 66h120" class="dm"/>' +
+    '<rect x="110" y="76" width="40" height="28" rx="9" class="k"/><circle cx="124" cy="90" r="5" class="af"/>' +
+    '<ellipse cx="166" cy="128" rx="20" ry="7" class="k a"/><path d="M146 128v-10M186 128v-10" class="a"/>' +
+    '<ellipse cx="166" cy="118" rx="20" ry="7" class="k a"/><path d="M146 118v-10M186 118v-10" class="a"/>' +
+    '<ellipse cx="166" cy="108" rx="20" ry="7" class="k a"/>' + coin(170, 66, 15);
+  // Кассовый разрыв: звено цепи лопнуло, искры, монеты падают
+  A.brokenchain = '<g transform="rotate(-12 100 70)">' +
+      '<rect x="2" y="54" width="66" height="32" rx="16" class="k th5"/>' +
+      '<path d="M94 54H66a16 16 0 0 0 0 32h28" class="th5"/>' +
+      '<path d="M108 54h28a16 16 0 0 1 0 32h-28" class="th5"/>' +
+      '<rect x="132" y="54" width="66" height="32" rx="16" class="k th5"/>' +
+      '<path d="M94 54l4 6M94 86l4-6M108 54l-4 6M108 86l-4-6" class="a th"/></g>' +
+    '<path d="M101 44V30M112 50l9-9M90 50l-9-9M101 100v12M112 94l9 9M90 94l-9 9" class="a th"/>' +
+    '<circle cx="101" cy="72" r="5" class="af"/>' +
+    coin(62, 124, 12) + coin(146, 132, 9, 'dm2');
+  // Воронка: много точек сверху, мало снизу
+  A.funnel = '<ellipse cx="100" cy="30" rx="70" ry="11" class="k"/>' +
+    '<path d="M30 30l52 56v36l36 12V86l52-56" class="th"/><path d="M30 30c0 6 31 11 70 11s70-5 70-11l-52 56H82Z" class="f"/>' +
+    '<path d="M54 56h92M68 72h64" class="dm th"/>' +
+    '<g class="w"><circle cx="62" cy="16" r="4"/><circle cx="80" cy="10" r="4"/><circle cx="98" cy="16" r="4"/><circle cx="118" cy="9" r="4"/><circle cx="136" cy="17" r="4"/><circle cx="72" cy="27" r="4" opacity=".6"/><circle cx="126" cy="27" r="4" opacity=".6"/></g>' +
+    '<circle cx="100" cy="142" r="6" class="af"/><path d="M100 124v8" class="a th"/>' +
+    '<text x="164" y="132" class="tx a-t" font-size="13">7%</text>';
+  // Звонки и скрипт: трубка и облако с текстом
+  A.phone = '<g transform="translate(14 46) scale(4.4)"><path vector-effect="non-scaling-stroke" class="k" d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></g>' +
+    '<path d="M78 74a14 14 0 0 1 10 10M80 58a30 30 0 0 1 24 24" class="a th"/>' +
+    '<path d="M104 14h66a12 12 0 0 1 12 12v34a12 12 0 0 1-12 12h-40l-16 14V72h-10a12 12 0 0 1-12-12V26a12 12 0 0 1 12-12Z" class="k"/>' +
+    '<path d="M108 32h46" class="a th5"/><path d="M108 45h62M108 57h38" class="th"/>' +
+    '<circle cx="170" cy="57" r="3" class="af"/>';
+  // Заявки и CRM: лоток и карточки
+  A.inbox = '<rect x="58" y="14" width="66" height="44" rx="7" class="k" transform="rotate(-10 91 36)"/>' +
+    '<path d="M68 30h30M68 40h44" class="th dm" transform="rotate(-10 91 36)"/>' +
+    '<rect x="80" y="30" width="66" height="44" rx="7" class="k a" transform="rotate(7 113 52)"/>' +
+    '<path d="M90 46h28" class="a th5" transform="rotate(7 113 52)"/><path d="M90 58h42" class="th" transform="rotate(7 113 52)"/>' +
+    '<path d="M24 94l20-28h112l20 28v30a8 8 0 0 1-8 8H32a8 8 0 0 1-8-8Z" class="k"/>' +
+    '<path d="M24 94h42l8 12h52l8-12h42"/>' +
+    '<circle cx="166" cy="28" r="14" class="af"/><text x="166" y="33" class="tx dk" font-size="13">+5</text>';
+  // Команда и найм: оргструктура
+  A.orgchart = '<rect x="72" y="8" width="56" height="46" rx="11" class="k a"/>' + person(100, 34, 1, 'acc') +
+    '<path d="M100 54v14M38 68h124M38 68v14M100 68v14M162 68v14" class="th"/>' +
+    '<rect x="14" y="82" width="48" height="42" rx="10" class="k"/>' + person(38, 106, .85) +
+    '<rect x="76" y="82" width="48" height="42" rx="10" class="k"/>' + person(100, 106, .85) +
+    '<rect x="138" y="82" width="48" height="42" rx="10" class="k dash"/>' +
+    '<path d="M162 96v18M153 105h18" class="a th5"/>';
+  // Делегирование: рука передаёт коробку другой руке
+  A.delegate = (function(){
+    var hand = '<rect x="6" y="100" width="22" height="26" rx="4" class="f"/>' +
+      '<path d="M28 104h46a7 7 0 0 1 0 14H58c-6 0-10 8-20 8H28Z" class="k"/>' +
+      '<path d="M40 104c2-9 8-13 16-13h4a4 4 0 0 1 0 8h-4" class="th"/><path d="M58 111h14" class="th dm"/>';
+    return hand + '<g transform="translate(200 0) scale(-1 1)">' + hand + '</g>' +
+      '<rect x="32" y="58" width="44" height="38" rx="5" class="k"/><path d="M32 70h44" class="dm"/><path d="M54 58v38" class="a th5"/>' +
+      '<rect x="124" y="58" width="44" height="38" rx="5" class="a th dash"/>' +
+      '<path d="M60 44c18-24 62-24 80 0" class="a th5"/><path d="M128 40l12 4-2 12" class="a th5"/>';
+  })();
+  // Регламент и процесс: планшет с галочками
+  A.checklist = (function(){
+    var o = '<rect x="46" y="18" width="108" height="124" rx="12" class="k"/><rect x="76" y="9" width="48" height="18" rx="6" class="f"/>';
+    for(var i = 0; i < 4; i++){
+      var y = 42 + i * 24, dn = i < 3;
+      o += '<rect x="60" y="' + y + '" width="15" height="15" rx="4" class="' + (dn ? 'a' : '') + '"/>' +
+        (dn ? '<path d="M63 ' + (y + 8) + 'l3.5 3.5 6-7" class="a th5"/>' : '') +
+        '<path d="M86 ' + (y + 7.5) + 'h' + [50, 38, 46, 30][i] + '" class="' + (dn ? 'th dm' : 'th') + '"/>';
+    }
+    return o + '<circle cx="160" cy="128" r="16" class="af"/><path d="M152 128l6 6 10-12" class="dkl th5"/>';
+  })();
+  // Стратегия и цель: мишень и стрела
+  A.target = '<circle cx="88" cy="82" r="56" class="k"/><circle cx="88" cy="82" r="40"/><circle cx="88" cy="82" r="24" class="a"/>' +
+    '<circle cx="88" cy="82" r="9" class="af"/>' +
+    '<path d="M88 82L172 16" class="th5"/><path d="M88 82l14-3-3 12Z" class="w"/>' +
+    '<path d="M172 16l-2 14M172 16l-14 2M162 24l-2 14M162 24l-14 2" class="a th"/>';
+  // Аналитика: монитор, датчик и линия
+  A.dashboard = '<rect x="18" y="14" width="164" height="104" rx="11" class="k"/><path d="M86 118v14M64 134h44" class="th"/>' +
+    '<path d="M32 84a28 28 0 0 1 56 0" class="th5 dm"/><path d="M32 84a28 28 0 0 1 44-23" class="a th5"/>' +
+    '<path d="M60 84l14-16" class="th"/><circle cx="60" cy="84" r="4" class="w"/>' +
+    '<text x="60" y="104" class="tx" font-size="10">72%</text>' +
+    '<path d="M102 32h30M102 42h18" class="th dm"/><path d="M142 30h26" class="a th5"/>' +
+    '<path d="M102 98l16-14 14 6 18-24 18-8" class="a th"/><circle cx="168" cy="58" r="4" class="af"/>' +
+    '<path d="M102 104h66" class="th dm"/>';
+  // Маркетинг: рупор и волны
+  A.megaphone = '<path d="M44 62l76-34v100L44 94Z" class="k"/><ellipse cx="120" cy="78" rx="11" ry="50" class="k"/>' +
+    '<rect x="26" y="60" width="20" height="36" rx="5" class="k"/>' +
+    '<path d="M64 98l8 30h15l-6-24" class="k"/>' +
+    '<path d="M142 58c10 12 10 28 0 40" class="a th5"/><path d="M156 44c18 20 18 48 0 68" class="a th"/><path d="M170 30c26 28 26 68 0 96" class="a th dm"/>';
+  // Контент и бренд: телефон с постами
+  A.phoneposts = '<rect x="62" y="8" width="76" height="134" rx="15" class="k"/><path d="M90 18h20" class="th5"/>' +
+    '<rect x="72" y="28" width="56" height="40" rx="6" class="af2"/><path d="M80 58l12-14 10 10 8-6 10 10" class="a th"/><circle cx="114" cy="38" r="4" class="af"/>' +
+    '<path d="M74 78h40M74 87h28" class="th dm"/>' +
+    '<rect x="72" y="96" width="56" height="34" rx="6" class="f"/>' +
+    '<path d="M166 40c-6-8-20-4-16 6 3 7 16 14 16 14s13-7 16-14c4-10-10-14-16-6Z" class="af"/>' +
+    '<path d="M22 86h30a8 8 0 0 1 8 8v12a8 8 0 0 1-8 8H38l-10 8v-8h-6a8 8 0 0 1-8-8V94a8 8 0 0 1 8-8Z" class="k"/><path d="M26 98h22M26 106h14" class="th dm"/>';
+  // Цена и средний чек: ценник
+  A.pricetag = '<path d="M34 76L92 18h62v62l-58 58Z" class="k"/><circle cx="134" cy="38" r="8"/>' +
+    '<path d="M134 38c10-12 30-16 46-6" class="th dm"/>' +
+    '<text x="96" y="96" class="tx a-t" font-size="42" transform="rotate(-45 96 84)">₸</text>' +
+    '<path d="M56 112l-12 12M70 124l-6 10" class="a th"/>';
+  // Продукт и отличие: коробка со звездой
+  A.productstar = '<path d="M100 44l52 20-52 20-52-20Z" class="f"/><path d="M48 64v52l52 20V84Z" class="k"/><path d="M152 64v52l-52 20V84Z" class="k"/>' +
+    '<path d="M100 44l52 20-52 20-52-20Z"/><path d="M74 54l52 20v14" class="a th5"/>' +
+    '<path d="M148 6l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2Z" class="af"/>' +
+    '<path d="M34 30l4 8M26 46h9M182 66l-8 4" class="a th"/>';
+  // Время и операционка: часы в огне
+  A.clockfire = flame(54, 66, 1.15) + flame(146, 60, 1.35) + flame(104, 34, .9) +
+    '<circle cx="98" cy="88" r="46" class="k"/><circle cx="98" cy="88" r="38" class="dm th"/>' +
+    '<path d="M98 54v6M98 116v6M64 88h6M126 88h6" class="th"/>' +
+    '<path d="M98 88V64M98 88l18 10" class="th5"/><circle cx="98" cy="88" r="4" class="af"/>';
+  // Энергия и выгорание: батарея на исходе
+  A.battery = '<rect x="30" y="46" width="124" height="62" rx="12" class="k th5"/><rect x="154" y="64" width="12" height="26" rx="4" class="w"/>' +
+    '<rect x="40" y="56" width="22" height="42" rx="5" class="af"/>' +
+    '<path d="M108 52l-18 26h15l-9 24 22-30h-15l9-20Z" class="w"/>' +
+    '<text x="58" y="132" class="tx a-t" font-size="13">10%</text>' +
+    '<path d="M150 24h12l-12 14h12M170 10h8l-8 9h8" class="th dm"/>';
+  // Окружение: круг людей, один в стороне
+  A.peoplecircle = (function(){
+    var o = '<circle cx="84" cy="78" r="46" class="dash dm"/>';
+    for(var i = 0; i < 6; i++){
+      var a = -Math.PI / 2 + i * Math.PI / 3;
+      o += person(84 + Math.cos(a) * 46, 80 + Math.sin(a) * 46, .82);
+    }
+    o += person(84, 80, 1.05, 'acc');
+    return o + '<path d="M136 80h22" class="a th dash"/>' + person(176, 82, .9, 'dm2');
+  })();
+  // Знает, но не делает: книга и стрелка к действию
+  A.bookarrow = '<rect x="40" y="38" width="74" height="98" rx="7" class="k"/><path d="M54 38v98" class="th"/>' +
+    '<path d="M66 60h34M66 72h26" class="th dm"/><rect x="66" y="88" width="34" height="22" rx="4" class="af2"/>' +
+    '<path d="M100 96L164 24" class="a th5"/><path d="M146 22h20v20" class="a th5"/>' +
+    '<circle cx="168" cy="96" r="18" class="k a"/><path d="M160 96l6 6 10-12" class="a th5"/>';
+  // Перепроизводство и запасы: штабель коробок
+  A.boxes = (function(){
+    var o = '';
+    [[22, 92], [76, 92], [130, 92], [49, 50], [103, 50], [76, 8]].forEach(function(b, i){
+      o += '<rect x="' + b[0] + '" y="' + b[1] + '" width="50" height="40" rx="4" class="k' + (i === 5 ? ' a' : '') + '"/>' +
+        '<path d="M' + (b[0] + 25) + ' ' + b[1] + 'v12" class="' + (i === 5 ? 'a ' : '') + 'th5"/>' +
+        '<path d="M' + (b[0] + 8) + ' ' + (b[1] + 30) + 'h14" class="th dm"/>';
+    });
+    return o + '<path d="M184 128V60M176 70l8-10 8 10" class="a th"/>';
+  })();
+  // Собственник в центре: всё замкнуто на одного
+  A.owner = (function(){
+    var o = '', pts = [[30, 30], [170, 30], [16, 96], [184, 96], [56, 138], [144, 138]];
+    pts.forEach(function(p){ o += '<path d="M100 78L' + p[0] + ' ' + p[1] + '" class="a th dm"/>'; });
+    pts.forEach(function(p){ o += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="11" class="k"/><circle cx="' + p[0] + '" cy="' + (p[1] - 2) + '" r="3.5" class="w"/>'; });
+    return o + '<circle cx="100" cy="78" r="30" class="k a th5"/>' + person(100, 82, 1.1, 'acc');
+  })();
+  // Книга: раскрытая книга с закладкой
+  A.openbook = '<path d="M100 40C80 26 50 24 22 30v92c28-6 58-4 78 10Z" class="k"/><path d="M100 40c20-14 50-16 78-10v92c-28-6-58-4-78 10Z" class="k"/>' +
+    '<path d="M100 40v92"/><path d="M36 50c16-3 34-2 50 4M36 64c16-3 34-2 50 4M36 78c16-3 34-2 50 4M36 92c16-3 26-2 36 1" class="th dm"/>' +
+    '<path d="M114 54c16-6 34-7 50-4M114 68c16-6 34-7 50-4M114 82c16-6 24-7 34-5" class="th dm"/>' +
+    '<path d="M148 26v42l9-7 9 7V26" class="af"/>';
+  // Рост выручки: столбцы и стрелка вверх
+  A.chartup = '<path d="M24 130h156" class="th"/>' +
+    '<rect x="34" y="96" width="22" height="34" rx="4" class="k"/><rect x="66" y="80" width="22" height="50" rx="4" class="k"/>' +
+    '<rect x="98" y="62" width="22" height="68" rx="4" class="k"/><rect x="130" y="40" width="22" height="90" rx="4" class="af"/>' +
+    '<path d="M30 78L70 52l26 12 54-44" class="a th5"/><path d="M134 18h18v18" class="a th5"/>';
+  // Юрист и риски: весы
+  A.scales = '<path d="M100 18v108M66 132h68" class="th5"/><circle cx="100" cy="18" r="6" class="af"/>' +
+    '<path d="M40 40h120" class="th5"/><path d="M40 40l-20 46M40 40l20 46M160 40l-20 38M160 40l20 38" class="th"/>' +
+    '<path d="M16 86h48a24 12 0 0 1-48 0Z" class="k"/><path d="M136 78h48a24 12 0 0 1-48 0Z" class="k a"/>';
+  // Автоматизация и система: шестерни
+  A.gears = gear(78, 82, 46, 10, 'k') + gear(148, 46, 28, 8, 'k a') + '<circle cx="78" cy="82" r="6" class="af"/><path d="M150 112c14 0 26-10 28-24M172 86l6 2 2-6" class="a th"/>';
+  // Идеи и решения: лампочка
+  A.bulb = '<path d="M100 18c-26 0-44 20-44 42 0 16 10 26 18 34 4 4 6 10 6 16h40c0-6 2-12 6-16 8-8 18-18 18-34 0-22-18-42-44-42Z" class="k"/>' +
+    '<path d="M82 120h36M86 130h28M92 140h16" class="th"/><path d="M90 108V78l10 10 10-10v30" class="a th"/>' +
+    '<path d="M100 2v8M44 24l6 6M156 24l-6 6M30 60h10M160 60h10" class="a th"/>';
+  // Отзывы и качество: звёзды и облако
+  A.stars = '<path d="M30 30h112a12 12 0 0 1 12 12v40a12 12 0 0 1-12 12H76l-22 18V94H30a12 12 0 0 1-12-12V42a12 12 0 0 1 12-12Z" class="k"/>' +
+    (function(){ var o = ''; for(var i = 0; i < 5; i++){ var x = 42 + i * 22; o += '<path transform="translate(' + x + ' 62)" d="M0-11l3.2 6.6 7.2 1-5.2 5.1 1.2 7.2L0 5.5-6.4 8.9-5.2 1.7-10.4-3.4-3.2-4.4Z" class="' + (i < 4 ? 'af' : 'th') + '"/>'; } return o; })() +
+    '<circle cx="168" cy="112" r="20" class="k"/><text x="168" y="118" class="tx" font-size="15">4.8</text>';
+  // Запуск и масштаб: ракета
+  A.rocket = '<path d="M100 12c22 16 30 44 26 78H74c-4-34 4-62 26-78Z" class="k"/><circle cx="100" cy="50" r="10" class="a th5"/>' +
+    '<path d="M74 70L54 96l22-2M126 70l20 26-22-2" class="k"/>' +
+    '<path d="M86 96c0 18 6 30 14 40 8-10 14-22 14-40Z" class="af2 a"/>' +
+    '<path d="M30 120h22M148 130h22M40 36h10M156 42h14" class="th dm"/>';
+  // Сроки и откладывание: песочные часы
+  A.hourglass = '<path d="M62 14h76M62 136h76" class="th5"/><path d="M70 14c0 34 26 44 26 61S70 102 70 136h60c0-34-26-44-26-61s26-27 26-61Z" class="k"/>' +
+    '<path d="M80 36h40l-20 26Z" class="af"/><path d="M78 128c4-12 14-18 22-20 8 2 18 8 22 20Z" class="af2"/><path d="M100 76v28" class="a th dash"/>' +
+    '<path d="M156 70a26 26 0 1 1-6-16" class="th dm"/><path d="M148 44l2 10 10-2" class="th dm"/>';
+  return A;
+})();
+var CV_RULES = [
+  [/книг/, 'openbook'],
+  [/календар/, 'calendar'],
+  [/разрыв/, 'brokenchain'],
+  [/чек-?лист|регламент|инструкц|стандарт/, 'checklist'],
+  [/учет|управленческ|отчет|p&l|(^|[^a-z])pl([^a-z]|$)|ддс|баланс/, 'report'],
+  [/воронк|конверси/, 'funnel'],
+  [/время|времени|операционк|пожар|туш|рутин|хаос/, 'clockfire'],
+  [/энерги|выгоран|устал|отдых/, 'battery'],
+  [/срок|дедлайн|откладыв|прокрастин|опаздыв/, 'hourglass'],
+  [/продаю только|только я|все на мне|собственник|владел/, 'owner'],
+  [/скрипт|звонок|звонк|прозвон|продаж|продава/, 'phone'],
+  [/заявк|(^|[^а-я])лид|crm|срм/, 'inbox'],
+  [/делегир/, 'delegate'],
+  [/найм|наним|команд|сотрудник|оргструктур|персонал|кадр|(^|[^a-z])hr/, 'orgchart'],
+  [/процесс/, 'checklist'],
+  [/стратеги|(^|[^а-я])цел[ьеия]|фокус|приоритет|миссия|видени/, 'target'],
+  [/аналитик|цифр|метрик|дашборд|kpi|показател|данн|ощущени|интуици|на глаз/, 'dashboard'],
+  [/контент|smm|бренд|инстаграм|соцсет|постинг|блог|reels/, 'phoneposts'],
+  [/отзыв|качеств|nps|сервис|лояльн|повторн/, 'stars'],
+  [/маркетинг|реклам|сарафан|клиент|трафик|продвижени|охват/, 'megaphone'],
+  [/цен[аыуео]([^а-я]|$)|ценообраз|прайс|(^|[^а-я])чек|средн|скидк|маржин|наценк/, 'pricetag'],
+  [/продукт|отличи|уникальн|оффер|ассортимент|упаковк/, 'productstar'],
+  [/окружени|одинок|нетворк|сообществ|знакомств/, 'peoplecircle'],
+  [/знает|делает|обучени|обуча|навык|знани|курс|учеб/, 'bookarrow'],
+  [/перепроизвод|запас|склад|остатк|закуп/, 'boxes'],
+  [/автоматиз|систем|конвейер|механизм/, 'gears'],
+  [/юрист|договор|риск|закон|суд/, 'scales'],
+  [/(^|[^а-я])иде[яийюе]|иннова|креатив|гипотез|решени/, 'bulb'],
+  [/запуск|старт|масштаб|экспанси|филиал|франшиз/, 'rocket'],
+  [/рост|выручк|оборот|доход/, 'chartup'],
+  [/касс|деньг|денег|финанс|прибыл|налог|сч[её]т|бюджет|долг|кредит|платеж|оплат/, 'wallet']
+];
+function coverKey(title){
+  var s = String(title || '').toLowerCase().replace(/ё/g, 'е');
+  for(var i = 0; i < CV_RULES.length; i++) if(CV_RULES[i][0].test(s)) return CV_RULES[i][1];
+  return '';
+}
+function coverArt(title, organ){
+  var k = coverKey(title);
+  if(!k || !CV_ART[k]) return '<div class="cv-art org">' + organArt(organ) + '</div>';
+  return '<div class="cv-art il" data-art="' + k + '"><svg class="cvi" viewBox="0 0 200 150" fill="none" stroke="currentColor" stroke-width="3" ' +
+    'stroke-linecap="round" stroke-linejoin="round">' + CV_ART[k] + '</svg></div>';
+}
 function organArt(organ, size){
   var k = ORGAN_ART_KEY[organ] || 'pulse';
   return '<svg class="oa" viewBox="0 0 160 160" width="'+(size||160)+'" height="'+(size||160)+'" fill="none" stroke="currentColor" ' +
     'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'+ORGAN_ART[k]+'</svg>';
+}
+// Длинное слово не рвётся посередине: шрифт заголовка уменьшается, чтобы слово влезло в строку
+function cvTitleFit(title){
+  var t = String(title || ''), n = t.length;
+  var L = t.split(/[\s\-]+/).reduce(function(m, w){ return Math.max(m, w.length); }, 0);
+  var f0 = n > 38 ? 13.5 : (n > 24 ? 16 : 19), maxC = 200 / f0;
+  return L > maxC ? ' style="--tf:' + Math.max(.55, maxC / L).toFixed(2) + '"' : '';
 }
 function coverHTML(organ, title, kind, big, chip){
   var om = (typeof ORG_MAP!=='undefined' ? ORG_MAP : []).find(function(o){ return o.n===organ; });
   var lab = om ? om.label : '';
   var isT = kind === 'tool';
   return '<div class="cv16 '+(isT?'tool':'diag')+(big?' big':'')+'">' +
-    '<div class="cv-glow"></div><div class="cv-art">'+organArt(organ)+'</div><div class="cv-shade"></div>' +
+    '<div class="cv-glow"></div>'+coverArt(title, organ)+'<div class="cv-shade"></div>' +
     '<div class="cv-top"><span class="cv-chip">'+(chip || (isT?'ИНСТРУМЕНТ':'ДИАГНОЗ'))+'</span>' +
       (organ ? '<span class="cv-org">'+esc((lab ? lab + ' · ' : '') + organ)+'</span>' : '') + '</div>' +
-    '<div class="cv-title'+(String(title||'').length > 38 ? ' xl' : (String(title||'').length > 24 ? ' long' : ''))+'">'+esc(title||'')+'</div>' +
+    '<div class="cv-title'+(String(title||'').length > 38 ? ' xl' : (String(title||'').length > 24 ? ' long' : ''))+'"'+cvTitleFit(title)+'>'+esc(title||'')+'</div>' +
   '</div>';
 }
 function nodeCover(organ, title, kind, libIdx){
@@ -9935,75 +10379,6 @@ function copyPrompt(i){
 // Цикл это заход. Отчёты дают серию. Задачи лечат органы. Пятёрка играет вместе
 
 
-function exportAllData(){
-  // Выгружает всё из браузера в один файл. Страховка до переноса на сервер
-  try{
-    var dump = {
-      version: 'bs-platform-export',
-      date: new Date().toISOString(),
-      boards: boards,
-      libs: {
-        diag: (typeof DIAG !== 'undefined') ? DIAG : [],
-        tools: (typeof TOOLS !== 'undefined') ? TOOLS : [],
-        qdb: (typeof QDB !== 'undefined') ? QDB : {},
-        resources: (typeof RESOURCES !== 'undefined') ? RESOURCES : [],
-        stickers: (typeof STICKERS !== 'undefined') ? STICKERS : [],
-        ach: (typeof ACHIEVEMENTS !== 'undefined') ? ACHIEVEMENTS : []
-      },
-      storage: {}
-    };
-    for(var i = 0; i < localStorage.length; i++){
-      var k = localStorage.key(i);
-      if(k && k.indexOf('bs_') === 0) dump.storage[k] = localStorage.getItem(k);
-    }
-
-    var txt = JSON.stringify(dump, null, 1);
-    var blob = new Blob([txt], {type:'application/json'});
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    var d = new Date();
-    a.download = 'bs-backup-' + d.getFullYear() + '-' +
-      String(d.getMonth()+1).padStart(2,'0') + '-' +
-      String(d.getDate()).padStart(2,'0') + '.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-
-    var kb = Math.round(txt.length/1024);
-    toast('Выгружено ' + boards.length + ' досок, ' + kb + ' КБ');
-  }catch(e){
-    toast('Ошибка выгрузки: ' + e.message);
-  }
-}
-
-function importAllData(){
-  // На сервере файл не заменяет данные, а дополняет их: ничего не теряется
-  if(window.BS_SERVER && window.BSSync) return BSSync.importFile();
-  var inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = '.json';
-  inp.onchange = function(){
-    var f = inp.files[0];
-    if(!f) return;
-    var rd = new FileReader();
-    rd.onload = function(){
-      try{
-        var d = JSON.parse(rd.result);
-        if(d.version !== 'bs-platform-export'){ toast('Не тот файл'); return; }
-        askConfirm('Загрузить копию?',
-          'Досок в файле: ' + (d.boards||[]).length + '. Текущие данные заменятся',
-          function(){
-            if(d.storage) Object.keys(d.storage).forEach(function(k){
-              try{ localStorage.setItem(k, d.storage[k]); }catch(e){}
-            });
-            toast('Загружено, перезагружаю');
-            setTimeout(function(){ location.reload(); }, 800);
-          }, 'Загрузить');
-      }catch(e){ toast('Файл повреждён'); }
-    };
-    rd.readAsText(f);
-  };
-  inp.click();
-}
-
 function renderGallup(){
   var el = pgSet('Gallup', 'Загрузите отчёт и получите разбор сильных сторон под ваш бизнес');
   var saved = null;
@@ -10756,7 +11131,28 @@ function ensureBooks(){
   });
   // У книг, добавленных раньше, обновляем правило сопоставления файлов
   BOOKS.forEach(function(b){ var t = TOOLS.find(function(x){ return x.title===b.title; }); if(t && !t.match){ t.match = b.match; add++; } });
+  if(attachBookFiles(true)) add++;
   if(add) saveToolLib();
+}
+// Файлы книг, которые сервер положил в документ клуба bs_bookfiles = [{id, name}]:
+// каждый встаёт к книге, чьё правило match подходит к имени файла, если у книги файла ещё нет
+function attachBookFiles(noSave){
+  var list = [];
+  try{ list = JSON.parse(localStorage.getItem('bs_bookfiles')||'[]'); }catch(e){ list = []; }
+  if(!Array.isArray(list) || !list.length) return 0;
+  var n = 0;
+  list.forEach(function(f){
+    if(!f || !f.id) return;
+    var id = String(f.id), name = String(f.name || '').toLowerCase();
+    if(TOOLS.some(function(t){ return String(t.file || '') === id; })) return;
+    var t = TOOLS.find(function(x){
+      if(!x.isBook || !x.match || x.file) return false;
+      try{ return new RegExp(x.match, 'i').test(name); }catch(e){ return false; }
+    });
+    if(t){ t.file = id; t.fileName = f.name || ''; n++; }
+  });
+  if(n && !noSave) saveToolLib();
+  return n;
 }
 // Файлы на сервере платформы: только для вошедших
 function uploadToolFile(inp){
@@ -11392,80 +11788,128 @@ function toggleHealth(){
   if(on) renderHealth();
 }
 
-var BODY_IMG = "data:image/png;base64,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";
-
-function drawBody(h){
-  function on(k){ return (h[k]||0) > 0; }
-  function C(k){ return on(k) ? hTone(h[k]) : 'rgba(255,255,255,.22)'; }
-  function G(k){ return on(k) ? 'filter:drop-shadow(0 0 8px '+rgba(hTone(h[k]),1)+') drop-shadow(0 0 16px '+rgba(hTone(h[k]),.5)+')' : ''; }
-  function O(k){ return on(k) ? '1' : '.5'; }
-
-  var box = document.getElementById('bodyBox');
+// Силуэт человека: правая половина точками, левая зеркально, сглаживание Catmull-Rom. Поле 520x600, ось x=260
+var BODY_SIL = (function(){
+  var R = [[15,110],[18,128],[48,140],[80,150],[96,170],[104,206],[109,246],[115,286],[121,322],[127,350],
+    [135,372],[137,394],[129,410],[115,406],[111,386],[105,356],[97,318],[89,280],[82,240],[75,212],
+    [64,236],[57,278],[59,318],[67,352],[69,392],[64,444],[56,494],[53,532],[49,566],[57,588],[22,594],[16,578],
+    [18,536],[16,492],[14,446],[9,410],[0,398]];
+  var pts = R.map(function(p){ return [260 + p[0], p[1]]; });
+  for(var i = R.length - 2; i >= 0; i--) pts.push([260 - R[i][0], R[i][1]]);
+  var n = pts.length, d = 'M' + pts[0][0] + ' ' + pts[0][1];
+  for(var j = 0; j < n; j++){
+    var p0 = pts[(j - 1 + n) % n], p1 = pts[j], p2 = pts[(j + 1) % n], p3 = pts[(j + 2) % n];
+    var c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    var c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += 'C' + c1x.toFixed(1) + ' ' + c1y.toFixed(1) + ' ' + c2x.toFixed(1) + ' ' + c2y.toFixed(1) + ' ' + p2[0] + ' ' + p2[1];
+  }
+  return d + 'Z';
+})();
+var BODY_N = 0;
+function drawBody(h, boxId){
+  var box = document.getElementById(boxId || 'bodyBox');
   if(!box) return;
-
-  // Мягкое свечение органов, которые уже есть на картинке
-  var Z = [
-    {k:'brain', x:50, y:3.4, rx:11, ry:2.8},
-    {k:'eyes',  x:50, y:7.6, rx:8,  ry:2},
-    {k:'heart', x:50, y:25,  rx:19, ry:5.5},
-    {k:'hands', x:50, y:44,  rx:18, ry:6}
+  var gid = 'bdG' + (++BODY_N);
+  function lv(k){ return hLevel(h[k]); }
+  function sc(k){ var v = Number(h[k]) || 0; return v ? String(v) : '-'; }
+  function grp(k, inner, halo){
+    var on = (Number(h[k]) || 0) > 0;
+    return '<g class="bo ' + lv(k) + '" data-o="' + k + '">' +
+      (on && halo ? '<ellipse cx="' + halo[0] + '" cy="' + halo[1] + '" rx="' + halo[2] + '" ry="' + (halo[3] || halo[2]) + '" class="bo-halo" filter="url(#' + gid + 'b)"/>' : '') +
+      '<g' + (on ? ' filter="url(#' + gid + ')"' : '') + '>' + inner + '</g></g>';
+  }
+  // ── Скелет (Команда): позвоночник, рёбра, ключицы, таз ──
+  var sk = '<path d="M260 146c-18-6-40-6-60 4M260 146c18-6 40-6 60 4" class="bo-s" stroke-width="3"/>';
+  for(var y = 120; y <= 338; y += 12.2){
+    var w = y < 150 ? 9 : (y > 270 ? 14 : 11);
+    sk += '<rect x="' + (260 - w / 2) + '" y="' + y.toFixed(1) + '" width="' + w + '" height="8.4" rx="3" class="bo-f"/>';
+  }
+  for(var i = 0; i < 6; i++){
+    var ry = 162 + i * 17, sp = 48 - Math.abs(i - 2) * 3 - (i > 3 ? 4 : 0), dy = 18 + i * 2;
+    sk += '<path d="M265 ' + ry + 'C' + (260 + sp * .7) + ' ' + (ry - 8) + ' ' + (260 + sp) + ' ' + (ry + 2) + ' ' + (260 + sp - 4) + ' ' + (ry + dy) + '" class="bo-s" stroke-width="3"/>' +
+      '<path d="M255 ' + ry + 'C' + (260 - sp * .7) + ' ' + (ry - 8) + ' ' + (260 - sp) + ' ' + (ry + 2) + ' ' + (260 - sp + 4) + ' ' + (ry + dy) + '" class="bo-s" stroke-width="3"/>';
+  }
+  sk += '<path d="M260 158v58" class="bo-s" stroke-width="4"/>' +
+    '<path d="M258 344c-16-8-44-8-56 8-10 14-2 32 16 36 14 3 28-4 36-14M262 344c16-8 44-8 56 8 10 14 2 32-16 36-14 3-28-4-36-14" class="bo-s" stroke-width="3"/>' +
+    '<circle cx="232" cy="372" r="6" class="bo-s" stroke-width="2"/><circle cx="288" cy="372" r="6" class="bo-s" stroke-width="2"/>';
+  // ── Кровь (Финансы): аорта, артерии к рукам и ногам, капли ──
+  var bl = '<path d="M268 212c4-26 0-46-10-58M268 212v128c0 10-10 20-26 32-8 8-10 30-10 60v100M268 340c0 10 10 20 26 32 8 8 10 30 10 60v100" class="bo-s" stroke-width="2.6"/>' +
+    '<path d="M258 154C230 148 196 156 184 172C172 200 166 240 162 280L143 354M262 154C290 148 324 156 336 172C348 200 354 240 358 280L377 354" class="bo-s" stroke-width="2"/>' +
+    '<path d="M232 400l-10 14M304 400l10 14M168 236l-10 8M352 236l10 8M268 260l12 6M268 300l-14 6M157 300l-8 2M363 300l8 2" class="bo-s" stroke-width="1.4" opacity=".75"/>' +
+    '<path d="M306 452c0 0-10 12-10 19a10 10 0 0 0 20 0c0-7-10-19-10-19Z" class="bo-fl"/>' +
+    '<path d="M214 446c0 0-7 8-7 13a7 7 0 0 0 14 0c0-5-7-13-7-13Z" class="bo-fl" opacity=".7"/>';
+  // ── ДНК (Процессы): спираль в животе ──
+  var dna = '', a1 = '', a2 = '';
+  for(var yy = 262; yy <= 332; yy += 2){
+    var t = (yy - 262) / 11;
+    a1 += (yy === 262 ? 'M' : 'L') + (234 + Math.sin(t) * 13).toFixed(1) + ' ' + yy;
+    a2 += (yy === 262 ? 'M' : 'L') + (234 - Math.sin(t) * 13).toFixed(1) + ' ' + yy;
+  }
+  for(var ry2 = 266; ry2 < 332; ry2 += 7){
+    var tt = (ry2 - 262) / 11, x1 = 234 + Math.sin(tt) * 13, x2 = 234 - Math.sin(tt) * 13;
+    dna += '<path d="M' + x1.toFixed(1) + ' ' + ry2 + 'H' + x2.toFixed(1) + '" class="bo-s" stroke-width="1.6" opacity=".7"/>';
+  }
+  dna = '<path d="' + a1 + '" class="bo-s" stroke-width="3"/><path d="' + a2 + '" class="bo-s" stroke-width="3" opacity=".8"/>' + dna;
+  // ── Мозг (Стратегия) ──
+  var br = '<g transform="translate(232 29) scale(.34)"><path vector-effect="non-scaling-stroke" class="bo-f2" stroke-width="2.4" d="M40 92C28 90 22 78 26 66 22 54 30 40 44 38 48 26 62 20 74 26 82 18 98 18 106 28 120 26 132 36 132 50 142 56 144 72 136 82 138 94 128 104 116 102 110 112 96 114 88 106 80 112 66 110 62 102 52 106 42 100 40 92Z"/>' +
+    '<path vector-effect="non-scaling-stroke" class="bo-s" stroke-width="1.6" d="M48 60c8-8 18-4 16 6M70 40c8 6 6 16 14 18M92 36c8 8 4 16 12 20M112 48c8 8 4 18 12 22M56 84c8-8 20-4 22 6M86 72c8-6 18-2 20 8M98 92c8-4 16 0 18 6M80 26c4 22-2 44 6 78"/></g>';
+  // ── Глаза (Аналитика) ──
+  var ey = '';
+  [246, 274].forEach(function(x){
+    ey += '<path d="M' + (x - 10) + ' 86c6-8 14-8 20 0-6 8-14 8-20 0Z" class="bo-s" stroke-width="2"/><circle cx="' + x + '" cy="86" r="3.6" class="bo-fl"/>';
+  });
+  // ── Сердце (Маркетинг) ──
+  var ht = '<g transform="translate(255 168) scale(.32)"><path vector-effect="non-scaling-stroke" class="bo-f2" stroke-width="2.4" d="M80 140C58 124 40 104 40 80c0-20 14-32 30-30 4 0 8 2 10 4 6-8 20-10 30-4 14 8 16 30 6 50-8 16-20 28-36 40Z"/>' +
+    '<path vector-effect="non-scaling-stroke" class="bo-s" stroke-width="2" d="M76 52c-2-12 0-22 10-26 10-4 18 2 18 10M86 26V12M96 24l4-12M70 70c8 14 6 30 14 46M96 64c-4 16 2 32-4 46"/></g>';
+  // ── Руки (Продажи): предплечья и кисти ──
+  var hd = '';
+  [-1, 1].forEach(function(s){
+    var ex = 260 + s * 104, wx = 260 + s * 121, hx = 260 + s * 124;
+    hd += '<path d="M' + ex + ' 278L' + wx + ' 350" class="bo-band"/>' +
+      '<path d="M' + ex + ' 278L' + wx + ' 350" class="bo-s" stroke-width="2.4"/>' +
+      '<ellipse cx="' + hx + '" cy="380" rx="9" ry="13" class="bo-f2" stroke-width="2.2"/>' +
+      '<path d="M' + (hx - 6 * s) + ' 392l' + (-2 * s) + ' 12M' + hx + ' 393v14M' + (hx + 5 * s) + ' 391l' + (3 * s) + ' 12M' + (hx - 8 * s) + ' 374l' + (-8 * s) + ' 6" class="bo-s" stroke-width="2.2"/>';
+  });
+  // ── Подписи с выносками ──
+  var PINS = [
+    {k:'brain', side:-1, y:34,  ax:236, ay:48},
+    {k:'eyes',  side:-1, y:104, ax:240, ay:88},
+    {k:'dna',   side:-1, y:268, ax:220, ay:296},
+    {k:'hands', side:-1, y:432, ax:136, ay:392},
+    {k:'heart', side:1,  y:160, ax:290, ay:190},
+    {k:'spine', side:1,  y:236, ax:306, ay:248},
+    {k:'blood', side:1,  y:456, ax:306, ay:470}
   ];
-  var glow = Z.filter(z=>on(z.k)).map(function(z){
-    var c = hTone(h[z.k]);
-    return '<div class="zone" style="left:'+z.x+'%;top:'+z.y+'%;width:'+(z.rx*2)+'%;height:'+(z.ry*2)+'%;' +
-      'background:radial-gradient(ellipse at center,'+rgba(c,.95)+' 0%,'+rgba(c,.55)+' 42%,transparent 74%);' +
-      'box-shadow:0 0 34px '+rgba(c,.5)+'"></div>';
+  var pins = PINS.map(function(p){
+    var o = ORG_MAP.find(function(x){ return x.k === p.k; }) || {n:p.k, label:''};
+    var W = 136, H = 48, px = p.side < 0 ? 6 : 520 - 6 - W, cy = p.y + H / 2;
+    var ex = p.side < 0 ? px + W : px, kx = ex - p.side * 16;
+    return '<g class="bo ' + lv(p.k) + ' bo-pin" data-pin="' + p.k + '">' +
+      '<path d="M' + p.ax + ' ' + p.ay + 'L' + kx + ' ' + cy + 'H' + ex + '" class="bo-ld"/>' +
+      '<circle cx="' + p.ax + '" cy="' + p.ay + '" r="3.4" class="bo-fl bo-dot"/>' +
+      '<rect x="' + px + '" y="' + p.y + '" width="' + W + '" height="' + H + '" rx="12" class="bo-card"/>' +
+      '<text x="' + (px + 14) + '" y="' + (p.y + 21) + '" class="bo-n">' + esc(o.n) + '</text>' +
+      '<text x="' + (px + 14) + '" y="' + (p.y + 37) + '" class="bo-l">' + esc(o.label) + '</text>' +
+      '<text x="' + (px + W - 13) + '" y="' + (p.y + 32) + '" class="bo-v">' + sc(p.k) + '</text>' +
+    '</g>';
   }).join('');
-
-  // Дорисованные системы поверх картинки, координаты в системе 325x900
-  var svg = '<svg class="fig-ov" viewBox="0 0 325 900" preserveAspectRatio="none">' +
-
-    // ── ПРОЦЕССЫ: рёбра вокруг лёгких ──
-    '<g style="'+G('dna')+'" opacity="'+O('dna')+'" fill="none" stroke="'+C('dna')+'" stroke-linecap="round">' +
-      '<path d="M162 182q-42 5-50 30M162 182q42 5 50 30" stroke-width="3.2"/>' +
-      '<path d="M162 208q-47 5-55 31M162 208q47 5 55 31" stroke-width="3.2"/>' +
-      '<path d="M162 234q-46 5-53 30M162 234q46 5 53 30" stroke-width="3"/>' +
-      '<path d="M162 260q-40 5-46 27M162 260q40 5 46 27" stroke-width="2.8"/>' +
-      '<path d="M162 286q-32 4-37 22M162 286q32 4 37 22" stroke-width="2.6"/>' +
-      '<g fill="'+C('dna')+'" stroke="none" opacity=".9">' +
-        '<circle cx="162" cy="176" r="2.8"/><circle cx="162" cy="202" r="2.8"/>' +
-        '<circle cx="162" cy="228" r="2.8"/><circle cx="162" cy="254" r="2.8"/>' +
-        '<circle cx="162" cy="280" r="2.8"/><circle cx="162" cy="306" r="2.8"/>' +
-      '</g>' +
-    '</g>' +
-
-    // ── ФИНАНСЫ: артерии и вены ──
-    '<g style="'+G('blood')+'" opacity="'+O('blood')+'" fill="none" stroke="'+C('blood')+'" stroke-linecap="round">' +
-      '<path d="M162 230q-45 12-56 40" stroke-width="3"/>' +
-      '<path d="M162 230q45 12 56 40" stroke-width="3"/>' +
-      '<path d="M106 270q-10 40-14 84" stroke-width="2.5"/>' +
-      '<path d="M218 270q10 40 14 84" stroke-width="2.5"/>' +
-      '<path d="M92 354q-3 26-4 42" stroke-width="2"/>' +
-      '<path d="M232 354q3 26 4 42" stroke-width="2"/>' +
-      '<path d="M100 310l-10 12M224 310l10 12" stroke-width="1.5" opacity=".7"/>' +
-      '<path d="M162 330v58" stroke-width="2.8"/>' +
-      '<path d="M162 388q-20 16-25 50M162 388q20 16 25 50" stroke-width="2.6"/>' +
-      '<path d="M137 438q-4 44-6 82M187 438q4 44 6 82" stroke-width="2.2"/>' +
-      '<path d="M133 500l-7 16M191 500l7 16" stroke-width="1.5" opacity=".65"/>' +
-      '<g fill="'+C('blood')+'" stroke="none">' +
-        '<circle cx="106" cy="270" r="3"/><circle cx="218" cy="270" r="3"/>' +
-        '<circle cx="137" cy="438" r="2.6"/><circle cx="187" cy="438" r="2.6"/>' +
-      '</g>' +
-    '</g>' +
-
-    // ── КОМАНДА: предплечья и голени ──
-    '<g style="'+G('spine')+'" opacity="'+O('spine')+'" fill="none" stroke="'+C('spine')+'" stroke-linecap="round">' +
-      '<path d="M88 370l-6 76" stroke-width="7"/>' +
-      '<path d="M236 370l6 76" stroke-width="7"/>' +
-      '<path d="M138 600l-4 148M186 600l4 148" stroke-width="8"/>' +
-      '<g fill="'+C('spine')+'" stroke="none">' +
-        '<circle cx="82" cy="450" r="5"/><circle cx="242" cy="450" r="5"/>' +
-        '<circle cx="134" cy="752" r="5.5"/><circle cx="190" cy="752" r="5.5"/>' +
-      '</g>' +
-    '</g>' +
+  box.innerHTML = '<svg class="bd-svg" viewBox="0 0 520 600" role="img" aria-label="Здоровье бизнеса: органы">' +
+    '<defs><filter id="' + gid + '" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3" result="b"/>' +
+      '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+      '<filter id="' + gid + 'b" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="12"/></filter>' +
+      '<linearGradient id="' + gid + 's" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="bd-s1"/><stop offset="1" class="bd-s2"/></linearGradient></defs>' +
+    '<ellipse cx="260" cy="594" rx="96" ry="7" class="bd-floor"/>' +
+    '<ellipse cx="260" cy="66" rx="34" ry="44" class="bd-sil" fill="url(#' + gid + 's)"/>' +
+    '<path d="' + BODY_SIL + '" class="bd-sil" fill="url(#' + gid + 's)"/>' +
+    grp('spine', sk, null) +
+    grp('blood', bl, null) +
+    grp('dna', dna, [234, 297, 22, 40]) +
+    grp('hands', hd, null) +
+    grp('heart', ht, [280, 196, 24]) +
+    grp('brain', br, [260, 54, 30, 24]) +
+    grp('eyes', ey, [260, 86, 26, 10]) +
+    pins +
   '</svg>';
-
-  box.innerHTML = '<img src="'+BODY_IMG+'" class="fig-img">' + glow + svg;
 }
 
 // ═══ Помощник ═══
@@ -12527,8 +12971,8 @@ function saveBoard(){
   if(i>=0) boards[i]=snap; else boards.unshift(snap);
   curBoard = snap; saveAll(); renderHist();
   var btn=document.getElementById('saveBtn') || document.querySelector('.btn.bg');
-  if(btn && !btn._busy){ btn._busy = 1; var old=btn.textContent; btn.textContent='Сохранено';
-    setTimeout(function(){ btn.textContent=old; btn._busy = 0; }, 1400); }
+  if(btn && !btn._busy){ btn._busy = 1; btn.classList.add('saved'); btn.title = 'Сохранено';
+    setTimeout(function(){ btn.classList.remove('saved'); btn.title = 'Сохранить'; btn._busy = 0; }, 1400); }
 }
 setTimeout(function(){ try{ pollCalls(); }catch(e){} }, 6000);
 function openBoard(id){
@@ -13023,8 +13467,6 @@ function renderSearch(){
     A.push(['up', 'Новый цикл', 'Действие · закрыть текущий цикл', function(){ goSection('board'); newCycle(); }]);
     A.push(['board', 'Доски резидентов', 'Раздел · список разборов', function(){ goSection('boards'); }]);
     A.push(['plus', 'Стикеры на доску', 'Действие · картинки и GIF', function(){ goSection('board'); openStickerPicker(); }]);
-    A.push(['file', 'Выгрузить все данные', 'Действие · копия в файл', function(){ exportAllData(); }]);
-    A.push(['up', 'Загрузить копию', 'Действие · из файла', function(){ importAllData(); }]);
   }
   if(!document.documentElement.classList.contains('res-user')){
     [['admin','Админ'],['res','Резидент'],['lead','Лид']].forEach(function(m){
@@ -13090,6 +13532,24 @@ function loadPack(){
   return STICKER_PACK;
 }
 function savePack(){ try{ localStorage.setItem('bs_stickerpack', JSON.stringify(STICKER_PACK||[])); }catch(e){} }
+// Набор целиком: сначала стикеры, которые положил сервер (bs_stickerpack_srv), потом свои, без повторов по id
+function allPack(){
+  loadPack();
+  var srv = [];
+  try{ srv = JSON.parse(localStorage.getItem('bs_stickerpack_srv')||'[]'); }catch(e){ srv = []; }
+  if(!Array.isArray(srv)) srv = [];
+  var seen = {}, out = [];
+  srv.forEach(function(p){ if(p && p.id && !seen[p.id]){ seen[p.id] = 1; out.push(Object.assign({srv:true}, p)); } });
+  STICKER_PACK.forEach(function(p){ if(p && p.id && !seen[p.id]){ seen[p.id] = 1; out.push(p); } });
+  return out;
+}
+// Набор обновился с сервера: открытый выбор стикеров и страница перерисовываются
+function loadStickerPack(){
+  loadPack();
+  var b = document.getElementById('skpBody');
+  if(b && document.getElementById('editSheet') && document.getElementById('editSheet').classList.contains('on')){ b.innerHTML = stkPickerBody(); fillStickerImgs(b); }
+  if(typeof section !== 'undefined' && section === 'stickers') renderStickers();
+}
 // Картинка с сервера: GET /files/<id> со входом команды, кешируется по id
 function stickerURL(id){
   if(STK_URL[id]) return STK_URL[id];
@@ -13138,12 +13598,12 @@ function renderImgSticker(n){
   fillStickerImgs(el);
 }
 function stkPickerBody(){
-  loadPack(); if(!STICKERS) loadStickers();
+  var pack = allPack(); if(!STICKERS) loadStickers();
   var adm = MODE === 'admin';
   return (adm ? '<label class="btn pf-b pf-p skp-up">Загрузить стикеры' +
       '<input type="file" multiple accept="image/png,image/gif,image/jpeg,image/webp" style="display:none" onchange="uploadStickers(this)"></label>' +
       '<div class="skp-hint">PNG, GIF, JPG или WEBP. Можно выбрать сразу несколько файлов</div>' : '') +
-    (STICKER_PACK.length ? '<div class="skp-grid">' + STICKER_PACK.map(function(p, i){
+    (pack.length ? '<div class="skp-grid">' + pack.map(function(p, i){
       return '<div class="skp-i" title="' + esc(p.name || '') + '" onclick="putImgSticker(' + i + ')">' +
         '<img data-fid="' + esc(p.id) + '" alt=""></div>';
     }).join('') + '</div>'
@@ -13163,7 +13623,7 @@ function openStickerPicker(){
   fillStickerImgs(document.getElementById('edBody'));
 }
 function putImgSticker(i){
-  var p = (STICKER_PACK || loadPack())[i]; if(!p) return;
+  var p = allPack()[i]; if(!p) return;
   closeSheet('editSheet');
   var w = 180;
   if(p.w && p.h && p.h > p.w * 1.4) w = 140;
@@ -13210,8 +13670,9 @@ function uploadStickers(inp){
     return ok;
   });
 }
-function delPackSticker(i){
+function delPackSticker(id){
   loadPack();
+  var i = STICKER_PACK.findIndex(function(p){ return p.id === id; });
   var p = STICKER_PACK[i]; if(!p) return;
   askConfirm('Убрать стикер из набора?', p.name || '', function(){
     STICKER_PACK.splice(i, 1); savePack(); renderStickers();
@@ -13219,17 +13680,17 @@ function delPackSticker(i){
 }
 // Страница «Стикеры» в Трекинге: набор картинок и классические
 function renderStickers(){
-  loadPack(); if(!STICKERS) loadStickers();
-  var el = pgSet('Стикеры', STICKER_PACK.length + ' картинок · ' + STICKERS.length + ' классических');
+  var pack = allPack(); if(!STICKERS) loadStickers();
+  var el = pgSet('Стикеры', pack.length + ' картинок · ' + STICKERS.length + ' классических');
   var adm = MODE === 'admin';
   el.innerHTML =
     (adm ? '<div class="pf-tools"><label class="btn pf-b pf-p" style="cursor:pointer">Загрузить стикеры' +
       '<input type="file" multiple accept="image/png,image/gif,image/jpeg,image/webp" style="display:none" onchange="uploadStickers(this)"></label>' +
       '<span class="pf-note">PNG, GIF, JPG. Набор общий для всей команды</span></div>' : '') +
-    (STICKER_PACK.length ? '<div class="skp-grid big">' + STICKER_PACK.map(function(p, i){
+    (pack.length ? '<div class="skp-grid big">' + pack.map(function(p, i){
       return '<div class="skp-i"><img data-fid="' + esc(p.id) + '" alt="">' +
         '<div class="skp-n">' + esc(p.name || 'Стикер') + '</div>' +
-        (adm ? '<div class="skp-x" title="Убрать из набора" onclick="event.stopPropagation();delPackSticker(' + i + ')">✕</div>' : '') + '</div>';
+        (adm && !p.srv ? '<div class="skp-x" title="Убрать из набора" onclick="event.stopPropagation();delPackSticker(\'' + esc(String(p.id)).replace(/'/g, '') + '\')">✕</div>' : '') + '</div>';
     }).join('') + '</div>' : '<div class="pf-empty">Картинок в наборе пока нет</div>') +
     '<div class="dh" style="margin-top:24px">Классические</div>' +
     (adm ? '<button class="btn bs" style="margin-bottom:12px" onclick="editSticker(null)">+ Добавить классический</button>' : '') +
@@ -13321,9 +13782,7 @@ function renderBoardsList(){
     '</div>' + (more && rbOpen[g.key] ? '<div class="rb-subs">' + g.boards.map(boardRow).join('') + '</div>' : '');
   }).join('');
   el.innerHTML =
-    (adm ? '<div class="pf-tools"><button class="btn pf-b pf-p" onclick="goSection(\'board\');newBoard()">+ Новый разбор</button>' +
-      '<button class="btn pf-b" onclick="exportAllData()">Выгрузить все данные</button>' +
-      '<button class="btn pf-b" onclick="importAllData()">Загрузить копию</button></div>' : '') +
+    (adm ? '<div class="pf-tools"><button class="btn pf-b pf-p" onclick="goSection(\'board\');newBoard()">+ Новый разбор</button></div>' : '') +
     '<div class="pf-tbl rb-tbl"><div class="rb-row rb-th"><span></span><span>Резидент</span><span>Цикл</span><span>Обновлено</span><span></span></div>' +
       (rows || '<div class="pf-empty">Резидентов пока нет</div>') + '</div>' +
     (data.none.length ? '<div class="dh" style="margin-top:22px">Без резидента</div><div class="pf-tbl rb-tbl rb-none">' +
@@ -13660,12 +14119,12 @@ function renderResHealth(){
   var h = (curBoard && curBoard.health) || {};
   var score = healthScore(h);
   el.innerHTML = '<div class="hsplit">' +
-      '<div><div id="bodyBox" class="body-page"></div></div>' +
+      '<div><div id="bodyBoxPg" class="body-page"></div></div>' +
       '<div><div class="card-sum hc-total"><div class="bs-l">Общая оценка</div>' +
         '<div class="hc-big" style="color:' + hText(score / 10) + '">' + score + '</div><div class="pf-sub">из 100 · ' + esc(hVerdict(score / 10)) + '</div></div>' +
         healthCardsHTML(h, false) + '</div>' +
     '</div>';
-  setTimeout(function(){ drawBody(h); }, 40);
+  setTimeout(function(){ drawBody(h, 'bodyBoxPg'); }, 40);
 }
 function renderLeadHealth(){
   var el = pgSet('Здоровье бизнеса', 'Оцените сами и следите за динамикой');
@@ -13839,7 +14298,7 @@ function voiceContext(){
     residents: boardsByResident().list.map(function(g){ return g.name; }),
     sections: sec,
     contact_categories: ctCats(),
-    sticker_pack: (STICKER_PACK || loadPack()).map(function(p){ return p.name; }),
+    sticker_pack: allPack().map(function(p){ return p.name; }),
     diag_library: DIAG.map(function(d){ return d.title; }), tool_library: TOOLS.map(function(d){ return d.title; })
   };
 }
@@ -13989,9 +14448,9 @@ function runVoiceActions(actions){
         case 'search':
           openSearch(); var ci = document.getElementById('ckIn'); if(ci){ ci.value = a.query || ''; renderSearch(); } break;
         case 'add_sticker':
-          loadPack();
-          var pi = vFind(STICKER_PACK.map(function(p){ return {title:p.name || ''}; }), a.query || '');
-          if(pi < 0 && STICKER_PACK.length && !a.query) pi = 0;
+          var apk = allPack();
+          var pi = vFind(apk.map(function(p){ return {title:p.name || ''}; }), a.query || '');
+          if(pi < 0 && apk.length && !a.query) pi = 0;
           if(pi >= 0){ ok = !!putImgSticker(pi); break; }
           if(!STICKERS) loadStickers();
           var si = vFind(STICKERS.map(function(s){ return {title:(s.n || '') + ' ' + (s.t || '')}; }), a.query || '');
@@ -14073,11 +14532,22 @@ function pf3Init(){
   checkMeetBanner();
 }
 
+// Прямая ссылка на раздел: platform.html#contacts
+function goHashSection(){
+  try{
+    var hs = (location.hash.match(/^#([A-Za-z][A-Za-z0-9]*)$/) || [])[1];
+    var nv = navOfMode();
+    if(hs && hs !== 'board' && nv && Array.from(nv.querySelectorAll('.nv')).some(function(x){
+      var b = BLOCKS[x.dataset.b]; return b && b.tabs.some(function(t){ return t.id === hs; }); })) goSection(hs);
+  }catch(e){}
+}
 // ═══ Старт ═══
 function bsBoot(){
   loadAll(); loadQ(); loadContacts(); loadLibs(); loadInbox(); loadPL(); loadKanban(); loadCDev(); loadSPlan(); loadCRM(); loadCrmCols(); loadScripts(); loadResLib(); loadUseful(); loadStickers(); loadMe(); loadMkt(); loadCal(); loadLead(); loadAchDefs(); loadTheme(); applyOrder(); startSync(); applyView();
   if(boards.length) openBoard(boards[0].id); else newBoard();
   goBlock('track');
+  goHashSection();
+  window.addEventListener('hashchange', goHashSection);
   setTimeout(fitAll, 140);
   try{ pf3Init(); }catch(e){ console.error(e); }
 }
