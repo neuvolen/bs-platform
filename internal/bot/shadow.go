@@ -73,8 +73,8 @@ func ReadGroupMessage(body []byte) (*GroupMessage, bool) {
 				LastName  string `json:"last_name"`
 				Username  string `json:"username"`
 			} `json:"from"`
-			Text      string          `json:"text"`
-			Reply     *struct {
+			Text  string `json:"text"`
+			Reply *struct {
 				MessageID int64 `json:"message_id"`
 			} `json:"reply_to_message"`
 			VideoNote json.RawMessage `json:"video_note"`

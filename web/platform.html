@@ -297,8 +297,26 @@ body.pres .pres-bar{display:flex;z-index:170;background:transparent;border:none}
 .bn2{font-size:8.5px;font-weight:700;letter-spacing:2.4px;color:var(--brand);margin-top:1px}
 .vline{width:1px;height:24px;background:var(--bd2);flex-shrink:0}
 .titlewrap{display:flex;align-items:center;gap:9px;flex-shrink:0}
+#callBar{bottom:74px}
+.call-sum{font-size:14px;line-height:1.6;color:var(--t2)}
+.call-ck{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd);font-size:14px}
+.call-ck:last-child{border-bottom:none}
+.call-ck i{width:18px;height:18px;border:1.5px solid var(--t2);border-radius:4px;flex-shrink:0;margin-top:2px}
+.call-ck b{margin-left:auto;color:var(--t3);font-weight:700;font-size:12px;white-space:nowrap}
+.ct-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.ct-g{font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--t3);margin:18px 0 8px}
+.ct-ls{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.ct-l{font-size:12px;font-weight:700;color:#fff;border:1px solid var(--bd2);border-radius:8px;padding:4px 9px;text-decoration:none}
+body.light .ct-l{color:#141414}
+.cyc-del{background:transparent;border:1px solid var(--bd2);color:var(--t2);border-radius:8px;padding:6px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;margin-left:8px;flex-shrink:0}
+.cyc-del:hover{border-color:#FF6B6F;color:#FF6B6F}
+.mat-box{border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+.mat-row{display:flex;gap:12px;padding:11px 14px;border-bottom:1px solid var(--bd);font-size:13.5px}
+.mat-row:last-child{border-bottom:none}
+.mat-l{width:74px;flex-shrink:0;color:var(--t3);font-weight:700}
+.mat-v{flex:1;min-width:0}
 .tin{background:transparent;border:none;color:#fff;font-size:14px;font-weight:700;
- font-family:inherit;outline:none;min-width:50px;max-width:150px;text-align:center}
+ font-family:inherit;outline:none;min-width:120px;max-width:360px;text-align:center;field-sizing:content}
 .tr{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .btn{border:none;font-family:inherit;font-weight:700;cursor:pointer;border-radius:9px;
  transition:opacity .15s,transform .1s}
@@ -1417,7 +1435,8 @@ body.light .sk-cap{background:rgba(255,255,255,.85);color:#141414}
     </div>
     <div class="board-only" style="display:flex;gap:8px;align-items:center">
       <div class="ic" onclick="openMe()" title="Кто работает" id="meBtn">◍</div>
-    <div class="ic board-mic" onclick="toggleVoice()" title="Голосовой ввод" id="micBtn">🎙</div>
+    <div class="ic board-mic" onclick="toggleVoice()" title="Голосовой помощник" id="micBtn">🎙</div>
+    <div class="ic admin-only" onclick="openCallMenu()" title="Онлайн-созвон: запись, расшифровка, итоги" id="callBtn">⏺</div>
     <div class="ic" onclick="toggleTheme()" title="Сменить тему" id="thBtn">◐</div>
     <div class="ic" onclick="undo()" title="Отменить (Cmd Z)">↶</div>
       <div class="ic" id="hltBtn" onclick="toggleHealth()" title="Здоровье бизнеса">◉</div>
@@ -1614,6 +1633,11 @@ body.light .sk-cap{background:rgba(255,255,255,.85);color:#141414}
 
 <div class="peerbar" id="peerBar"><span class="p-dot"></span><span id="peerText"></span></div>
 
+<div class="voicebar" id="callBar">
+  <span class="v-dot"></span>
+  <span id="callText">Запись созвона</span>
+  <button class="btn bs" style="padding:6px 14px;font-size:12px" onclick="stopCallRec()">Остановить и разобрать</button>
+</div>
 <div class="voicebar" id="voiceBar">
   <span class="v-dot"></span>
   <span id="voiceText">Слушаю</span>
@@ -1756,7 +1780,10 @@ body.light .sk-cap{background:rgba(255,255,255,.85);color:#141414}
           <input class="inp" id="ctPhone" placeholder="Телефон">
         </div>
         <div style="height:9px"></div>
-        <input class="inp" id="ctInsta" placeholder="Instagram">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+          <input class="inp" id="ctTg" placeholder="Telegram">
+          <input class="inp" id="ctInsta" placeholder="Instagram">
+        </div>
         <div style="height:9px"></div>
         <input class="inp" id="ctUse" placeholder="Чем полезен">
         <div style="height:12px"></div>
@@ -2769,6 +2796,15 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
       }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ j._status = r.status; return j; }); },
               function(){ return {error: 'net', detail: 'Нет связи с сервером'}; });
     },
+    // Запрос к серверу платформы с входом команды (файлы, ИИ)
+    api: function(method, path, body, headers){
+      var h = Object.assign({}, headers||{}, token ? {'Authorization':'Bearer ' + token} : {});
+      if(body && !(body instanceof Blob) && typeof body !== 'string' && !(body instanceof ArrayBuffer)){
+        h['Content-Type'] = 'application/json'; body = JSON.stringify(body);
+      }
+      return fetch(API + path, {method: method, headers: h, body: body || undefined});
+    },
+    online: function(){ return !!token; },
     tick: tick,
     _merge3: merge3, _mergeStr: mergeStr, _canon: canon
   };
@@ -2862,26 +2898,20 @@ window.addEventListener('mousemove', function(e){
     if(n){ n.x=drag.nx+(e.clientX-drag.sx)/view.k; n.y=drag.ny+(e.clientY-drag.sy)/view.k;
       var el=document.getElementById('n'+n.id);
       el.style.left=n.x+'px'; el.style.top=n.y+'px';
+      (drag.branch||[]).forEach(function(b){
+        var o=nodes.find(x=>x.id===b.id); if(!o) return;
+        o.x=b.x+(e.clientX-drag.sx)/view.k; o.y=b.y+(e.clientY-drag.sy)/view.k;
+        var eo=document.getElementById('n'+o.id); if(eo){ eo.style.left=o.x+'px'; eo.style.top=o.y+'px'; }
+      });
       // Близко к другому узлу. предлагаем связь. Далеко от связанного. предлагаем разрыв
       var near = nearestNode(n);
       document.querySelectorAll('.node').forEach(x=>x.classList.remove('magnet','breaking'));
       drag.magnet = null; drag.breakId = null;
-      // Сначала проверяем разрыв: если связанный узел отдалён, это важнее
-      var far0 = farLinked(n);
-      if(far0){
-        var f0=document.getElementById('n'+far0); if(f0) f0.classList.add('breaking');
-        var s0=document.getElementById('n'+n.id); if(s0) s0.classList.add('breaking');
-        drag.breakId = far0;
-      } else if(near && !hasLink(n.id, near.id)){
+      // Связь не рвётся от расстояния: ветку можно отвести как угодно далеко.
+      // Разорвать связь: нажать на линию
+      if(near && !hasLink(n.id, near.id) && !(drag.branch||[]).some(b=>b.id===near.id)){
         var t=document.getElementById('n'+near.id); if(t) t.classList.add('magnet');
         drag.magnet = near.id;
-      } else {
-        var far = farLinked(n);
-        if(far){
-          var f=document.getElementById('n'+far); if(f) f.classList.add('breaking');
-          var self=document.getElementById('n'+n.id); if(self) self.classList.add('breaking');
-          drag.breakId = far;
-        }
       }
       drawLinks(); }
   }
@@ -2906,6 +2936,27 @@ window.addEventListener('mouseup', function(){
   pan=null; drag=null; stage.classList.remove('grab');
 });
 
+// Ветка узла: всё, что дальше от центра разбора и связано через этот узел
+// Название доски всегда видно целиком (до 360px), ширина по тексту
+(function(){
+  var last=null;
+  setInterval(function(){
+    var i=document.getElementById('bName'); if(!i || i.value===last) return;
+    last=i.value; i.size=Math.max(10, Math.min(40, (i.value||'').length+2));
+  }, 400);
+})();
+function branchOf(id){
+  var root = nodes.find(x=>x.type==='root'); if(!root || root.id===id) return [];
+  var adj = {}; links.forEach(function(l){ (adj[l.a]=adj[l.a]||[]).push(l.b); (adj[l.b]=adj[l.b]||[]).push(l.a); });
+  var depth = {}; depth[root.id]=0; var q=[root.id];
+  while(q.length){ var c=q.shift(); (adj[c]||[]).forEach(function(o){ if(depth[o]===undefined){ depth[o]=depth[c]+1; q.push(o); } }); }
+  if(depth[id]===undefined) return [];
+  var out=[], seen={}; seen[id]=1; var st=[id];
+  while(st.length){ var c2=st.pop(); (adj[c2]||[]).forEach(function(o){
+    if(seen[o] || depth[o]===undefined || depth[o]<=depth[c2]) return;
+    seen[o]=1; out.push(o); st.push(o); }); }
+  return out;
+}
 function hasLink(a,b){
   return links.some(l=>(l.a===a&&l.b===b)||(l.a===b&&l.b===a));
 }
@@ -3106,7 +3157,10 @@ function renderNode(n){
   el.addEventListener('mousedown', function(e){
     if(drawMode || e.target.isContentEditable || e.target.closest('.nt') || e.target.closest('.n-more')) return;
     e.stopPropagation(); selectNode(n.id);
-    drag={id:n.id, sx:e.clientX, sy:e.clientY, nx:n.x, ny:n.y};
+    // Как в XMind: узел едет вместе со своей веткой. Alt: двигать только сам узел
+    var br = e.altKey ? [] : branchOf(n.id).map(function(id){
+      var o = nodes.find(x=>x.id===id); return o ? {id:id, x:o.x, y:o.y} : null; }).filter(Boolean);
+    drag={id:n.id, sx:e.clientX, sy:e.clientY, nx:n.x, ny:n.y, branch:br};
   });
   el.addEventListener('click', function(e){
     if(drawMode) return;
@@ -3643,6 +3697,22 @@ function toggleCheck(key, el){
     el.querySelector('.chk-b').textContent = curBoard.checks[key] ? '✓' : '';
   }
 }
+// Материалы карточки: ссылка, видео, образец, файл. Пустые видны как «пока нет»
+function matsHTML(d){
+  function row(lbl, val, kind){
+    var has = !!(val && String(val).trim());
+    var ti = TOOLS.indexOf(d);
+    var inner = (!has && kind==='file' && MODE==='admin' && ti>=0)
+      ? '<label style="cursor:pointer;color:#fff;text-decoration:underline">Загрузить PDF<input type="file" style="display:none" onchange="cardUpload('+ti+',this)"></label>'
+      : !has ? '<span style="color:var(--t3)">пока нет</span>'
+      : (kind==='file' ? '<a href="#" onclick="openFile(\''+esc(val)+'\');return false" style="color:#fff">'+esc(d.fileName||'Открыть файл')+'</a>'
+      : '<a href="'+esc(val)+'" target="_blank" rel="noopener" style="color:#fff;word-break:break-all">'+esc(val.replace(/^https?:\/\//,'').slice(0,60))+'</a>');
+    return '<div class="mat-row"><div class="mat-l">'+lbl+'</div><div class="mat-v">'+inner+'</div></div>';
+  }
+  return '<div class="dsec"><div class="dh">Материалы</div><div class="mat-box">' +
+    row('Ссылка', d.link) + row('Видео', d.video) + row('Образец', d.sample) +
+    (d.file || d.isBook ? row('Файл', d.file, 'file') : '') + '</div></div>';
+}
 function openCard(kind, i){
   var d = (kind==='diag'?DIAG:TOOLS)[i];
   if(!d) return;
@@ -3663,9 +3733,8 @@ function openCard(kind, i){
       h+='</div>';
     }
     if(d.risk) h+='<div class="dsec"><div class="dh">Чем грозит</div><div class="dbox">'+esc(d.risk)+'</div></div>';
-    h+='<div style="display:flex;gap:9px">' +
-      '<button class="btn bg" style="flex:1;padding:14px" onclick="closeSheet(\'cardSheet\');openLib(\'tool\')">Подобрать инструменты</button>' +
-      '<button class="btn bs" style="padding:14px 18px" onclick="makeCover(\'diag\','+i+')">Обложка</button></div>';
+    h+=matsHTML(d);
+    if(MODE==='admin') h+='<button class="btn bg" style="width:100%;padding:14px" onclick="closeSheet(\'cardSheet\');openLib(\'tool\')">Подобрать инструменты</button>';
   } else {
     h+='<div class="dsec"><div class="dh">Зачем</div><div class="dbox g">'+esc(d.why)+'</div></div>';
     if(d.how&&d.how.length){
@@ -3684,16 +3753,12 @@ function openCard(kind, i){
         }).join('') + '</div>';
     }
     if(d.time) h+='<div class="dsec"><div class="dh">Сколько занимает</div><div style="font-size:13.5px;color:var(--t2)">'+esc(d.time)+'</div></div>';
-    h += '<button class="btn bs" style="width:100%;padding:13px;margin-top:8px" ' +
-      'onclick="makeCover(\'tool\','+i+')">Сделать обложку для соцсетей</button>';
-    if(d.link) h+='<div class="dsec"><div class="dh">Материалы</div><div class="dli"><div class="ddot"></div><div>'+esc(d.link)+'</div></div><div class="dli"><div class="ddot"></div><div>Видео разбор инструмента</div></div></div>';
+    h+=matsHTML(d);
   }
+  if(MODE==='admin') h+='<button class="btn bs" style="width:100%;padding:13px;margin-top:8px" onclick="closeSheet(\'cardSheet\');'+(kind==='diag'?'editDiag':'editTool')+'('+i+')">Изменить и добавить материалы</button>';
   document.getElementById('cardBody').innerHTML=h;
   var cb = document.getElementById('coverBtn');
-  if(cb){
-    cb.style.display = '';
-    cb.onclick = function(){ makeCover(kind, i); };
-  }
+  if(cb) cb.style.display = 'none';
   openSheet('cardSheet');
 }
 
@@ -3860,6 +3925,9 @@ function editDiag(i){
     listHTML('Как проявляется', 'edSigns', d.signs, 'Признак') +
     listHTML('Вопросы для подтверждения', 'edQuest', d.questions, 'Вопрос') +
     fieldHTML('Чем грозит', 'edRisk', d.risk, 2) +
+    fieldHTML('Ссылка', 'edLink', d.link) +
+    fieldHTML('Видео', 'edVideo', d.video) +
+    fieldHTML('Образец (ссылка на пример)', 'edSample', d.sample) +
     '<div style="display:flex;gap:9px;margin-top:6px">' +
       '<button class="btn bg" style="flex:1;padding:14px" onclick="saveDiag()">Сохранить</button>' +
       (i!==null ? '<button class="btn bs" style="padding:14px 18px" onclick="delDiag()">Удалить</button>' : '') +
@@ -3874,8 +3942,11 @@ function saveDiag(){
   var obj = {organ:organ, color:TONE[organ]||'#FFFFFF', icon:'◆', title:t,
     desc:document.getElementById('edDesc').value.trim(),
     signs:getList('edSigns'), questions:getList('edQuest'),
-    risk:document.getElementById('edRisk').value.trim()};
-  if(edIdx!==null) DIAG[edIdx] = obj; else DIAG.push(obj);
+    risk:document.getElementById('edRisk').value.trim(),
+    link:document.getElementById('edLink').value.trim(),
+    video:document.getElementById('edVideo').value.trim(),
+    sample:document.getElementById('edSample').value.trim()};
+  if(edIdx!==null) DIAG[edIdx] = Object.assign({}, DIAG[edIdx], obj); else DIAG.push(obj);
   saveDiagLib(); closeSheet('editSheet'); renderDiagLib(); toast('Сохранено');
 }
 function delDiag(){
@@ -3900,6 +3971,11 @@ function editTool(i){
     listHTML('Чек-лист внедрения', 'edCheck', d.check, 'Пункт проверки') +
     fieldHTML('Ссылка на шаблон', 'edLink', d.link) +
     fieldHTML('Ссылка на видео', 'edVideo', d.video) +
+    fieldHTML('Образец (ссылка на пример)', 'edSample', d.sample) +
+    '<div class="field"><div class="lbl">Файл (PDF, книга, шаблон)</div>' +
+      '<div style="display:flex;gap:9px;align-items:center"><div id="edFileName" style="flex:1;font-size:13px;color:var(--t2)">'+
+        esc(d.fileName||'нет файла')+'</div>' +
+      '<label class="btn bs" style="padding:10px 14px;cursor:pointer">Загрузить<input type="file" id="edFile" style="display:none" onchange="uploadToolFile(this)"></label></div></div>' +
     '<div style="display:flex;gap:9px;margin-top:6px">' +
       '<button class="btn bg" style="flex:1;padding:14px" onclick="saveTool()">Сохранить</button>' +
       (i!==null ? '<button class="btn bs" style="padding:14px 18px" onclick="delTool()">Удалить</button>' : '') +
@@ -3919,8 +3995,10 @@ function saveTool(){
     time:document.getElementById('edTime').value.trim(),
     check:getList('edCheck'),
     link:document.getElementById('edLink').value.trim(),
-    video:document.getElementById('edVideo').value.trim()};
-  if(edIdx!==null) TOOLS[edIdx] = obj; else TOOLS.push(obj);
+    video:document.getElementById('edVideo').value.trim(),
+    sample:document.getElementById('edSample').value.trim()};
+  if(window._edFile){ obj.file=window._edFile.id; obj.fileName=window._edFile.name; window._edFile=null; }
+  if(edIdx!==null) TOOLS[edIdx] = Object.assign({}, TOOLS[edIdx], obj); else TOOLS.push(obj);
   saveToolLib(); closeSheet('editSheet'); renderToolLib(); toast('Сохранено');
 }
 function delTool(){
@@ -3929,15 +4007,22 @@ function delTool(){
   });
 }
 
+function ctCats(){
+  var m={}; CONTACTS.forEach(function(c){ if(c.cat) m[c.cat]=1; });
+  return Object.keys(m).sort(function(a,b){ return a.localeCompare(b,'ru'); });
+}
 function editContact(i){
   edIdx = i;
-  var c = i!==null ? CONTACTS[i] : {name:'',phone:'',insta:'',use:''};
+  var c = i!==null ? CONTACTS[i] : {name:'',cat:(window._ctCat&&window._ctCat!=='Все'?window._ctCat:''),phone:'',tg:'',insta:'',use:''};
   document.getElementById('edTitle').textContent = i!==null ? 'Контакт' : 'Новый контакт';
-  document.getElementById('edSub').textContent = '';
+  document.getElementById('edSub').textContent = c.cat || '';
   document.getElementById('edBody').innerHTML =
     fieldHTML('Имя', 'edName', c.name) +
+    '<div class="field"><div class="lbl">Категория</div><input class="inp" id="edCat" list="edCatList" value="'+esc(c.cat||'')+'" placeholder="Маркетинг · Дизайн">' +
+      '<datalist id="edCatList">'+ctCats().map(function(k){ return '<option value="'+esc(k)+'">'; }).join('')+'</datalist></div>' +
     fieldHTML('Телефон', 'edPhone', c.phone) +
-    fieldHTML('Instagram', 'edInsta', c.insta) +
+    fieldHTML('Telegram (ник или ссылка)', 'edTg', c.tg) +
+    fieldHTML('Instagram (ник или ссылка)', 'edInsta', c.insta) +
     fieldHTML('Чем полезен', 'edUse', c.use, 2) +
     '<div style="display:flex;gap:9px;margin-top:6px">' +
       '<button class="btn bg" style="flex:1;padding:14px" onclick="saveContact()">Сохранить</button>' +
@@ -3945,19 +4030,45 @@ function editContact(i){
     '</div>';
   openSheet('editSheet');
 }
+function ctHandle(v){ return String(v||'').trim().replace(/^https?:\/\/(www\.)?(t\.me|telegram\.me|instagram\.com)\//i,'').replace(/^@/,'').replace(/\/$/,''); }
 function saveContact(){
   var n = document.getElementById('edName').value.trim();
   if(!n) return;
-  var obj = {name:n, phone:document.getElementById('edPhone').value.trim(),
-    insta:document.getElementById('edInsta').value.trim(),
+  var obj = {name:n, cat:document.getElementById('edCat').value.trim(),
+    phone:document.getElementById('edPhone').value.trim(),
+    tg:ctHandle(document.getElementById('edTg').value),
+    insta:ctHandle(document.getElementById('edInsta').value),
     use:document.getElementById('edUse').value.trim()};
-  if(edIdx!==null) CONTACTS[edIdx] = obj; else CONTACTS.push(obj);
+  if(edIdx!==null) CONTACTS[edIdx] = Object.assign({}, CONTACTS[edIdx], obj); else CONTACTS.push(obj);
   saveContacts(); closeSheet('editSheet'); renderContPage(); toast('Сохранено');
 }
 function delContact2(){
   askConfirm('Удалить контакт?', CONTACTS[edIdx] ? CONTACTS[edIdx].name : '', function(){
     CONTACTS.splice(edIdx,1); saveContacts(); closeSheet('editSheet'); renderContPage(); toast('Удалено');
   });
+}
+// Контакты из карты нетворкинга (XMind): имена и категории. Телефоны добавляются потом
+var NETWORKING_SEED = [["Рифат Абдуроманов HrCapital", "HR"], ["Касымхан ED", "HR"], ["Рената Нуриева", "HR"], ["Искандер", "Юрист"], ["Павел патент", "Юрист"], ["Ербол Бажа", "Юрист"], ["Диана Юрист", "Юрист"], ["Марат Avtokomek", "Юрист"], ["Баян Абильхамит", "Услуги · Психология"], ["Казбек Фрейдман", "Услуги · Психология"], ["Бахтияр Базарбеков", "Услуги · Психология"], ["Руслан Томасов", "Услуги · Психология"], ["Мадина Shanyraq", "Услуги · Ассистент"], ["Эльдана Jastar", "Услуги · Ассистент"], ["Катя Цабинова", "Услуги · Кинетик"], ["Катя Кинтоп", "Услуги · Квартира"], ["Эльдар знакомый с Мясоеда", "Услуги · Квартира"], ["Жанар Нетворкинг", "Услуги · Квартира"], ["Темирлан", "Услуги · Бизнес-планы"], ["Сабина Гездер", "Услуги · Бизнес-планы"], ["Асем Болатова", "Услуги · Бизнес-планы"], ["Айгерим Женис", "Услуги · Бизнес-планы"], ["Лаура", "Услуги · Швея"], ["Евгений Зерен", "Услуги · Экология"], ["Айгерим AirVision", "Услуги · Экология"], ["Happy Money", "Услуги · Подарок"], ["Gasyr", "Услуги · Подарок"], ["Никита Муртазин 13 Group", "Продажи · Автоматизация бизнеса"], ["Дархан Скендир", "Продажи · Автоматизация бизнеса"], ["Евгений Фролов", "Продажи · Автоматизация бизнеса"], ["Адлет Даутов", "Продажи · Продажи"], ["Саги Достанбаев", "Продажи · Продажи"], ["Аргын Нугманов", "Продажи · Продажи"], ["Тогжан Сапарали", "Продажи · Продажи · B2B"], ["Гульнура SMM", "Маркетинг · SMM"], ["Владислав SMM Cloud", "Маркетинг · SMM"], ["Амир мобилограф", "Маркетинг · Мобилограф"], ["Ерасыл Shanyraq Jastar", "Маркетинг · Мобилограф"], ["Мухит Enactus", "Маркетинг · Мобилограф"], ["Ислам Имантай Волейбол", "Маркетинг · Мобилограф"], ["Данияр Denny", "Маркетинг · Маркетинг"], ["Эльдар Мардиев", "Маркетинг · Маркетинг"], ["Расул Абдуллаев", "Маркетинг · Маркетинг"], ["Борис Литвинов", "Маркетинг · Маркетинг"], ["Максим Стороженко", "Маркетинг · Маркетинг"], ["Нуралим", "Маркетинг · Маркетинг"], ["Аблай Юсупов", "Маркетинг · Маркетинг"], ["Сабина Бейс", "Маркетинг · Маркетинг"], ["Сабина Санбер", "Маркетинг · Маркетинг"], ["Мухаммед", "Маркетинг · Маркетинг"], ["Адам Балаев", "Маркетинг · Таргетинг"], ["Темирлан", "Маркетинг · Таргетинг"], ["Бернар Сапарали", "Маркетинг · Продюссер"], ["Степан Малаханов", "Маркетинг · Продюссер"], ["Кирилл Ким", "Маркетинг · Дизайн"], ["Султан", "Маркетинг · Дизайн"], ["Жанат БМ", "Маркетинг · Дизайн"], ["Николай Самышев", "Маркетинг · Дизайн"], ["Алижан Ибраимов", "Маркетинг · Дизайн"], ["Василий Сирота Enactus", "Маркетинг · Дизайн"], ["Даурен Шакарим", "Маркетинг · Дизайн"], ["Коля Аловацкий", "Маркетинг · Дизайн"], ["Айдана Омарова", "Маркетинг · Дизайн"], ["Сержан", "Маркетинг · Дизайн · 3D Дизайн"], ["Молдаахмет", "Маркетинг · Дизайн · 3D Дизайн"], ["Султан", "Маркетинг · Дизайн · 3D Дизайн"], ["Сике Бро", "Маркетинг · Дизайн · 3D Дизайн"], ["Сардор", "Маркетинг · SEO"], ["Адилет Асанов", "Финансы · Финансовый директор"], ["Гульдана Темиршот", "Финансы · Финансовый директор"], ["Батыр Елемес", "Финансы · Финансовая грамотность"], ["Алибек Жалгаспаев", "Финансы · Финансовая грамотность"], ["Багдат", "Финансы · Финансовая грамотность"], ["Диана Аязбаева", "Финансы · Бухгалтерия"], ["Акниет Айтбаева", "Финансы · Бухгалтерия"], ["Алия Налоги", "Финансы · Бухгалтерия · Налоги"], ["Дмитрий Казанцев", "Финансы · Бухгалтерия · Налоги"], ["Зоя Владимировна", "Финансы · Бухгалтерия · Налоги"], ["Диана Shanyraq", "Финансы · Трейдинг"], ["Эльхан Shanyraq", "Финансы · Трейдинг"], ["Нурлан Бейболат", "Финансы · Трейдинг"], ["Гани Shanyraq", "Финансы · Оценка бизнеса"], ["Фаиз Абдуллаев", "Финансы · Тендер"], ["Владимир Кущенко", "Предприниматели · Ораторское искусство"], ["Ильяс Батыров", "Предприниматели · Ораторское искусство"], ["Четко Ясно Понятно", "Предприниматели · Ораторское искусство"], ["Бекжан Китай", "Предприниматели · Китай доставка"], ["Кирилл Лен", "Предприниматели · Китай доставка"], ["Дамир Аманжолов", "Предприниматели · Нетворкинг"], ["Казыбек Батыр", "Предприниматели · Нетворкинг"], ["Ержан Нурмеков", "Предприниматели · ИИ"], ["Рустам Гамзатов", "Предприниматели · ИИ"], ["Ник Макфлай", "Предприниматели · ИИ"], ["Игорь Шин", "Предприниматели · Туризм"], ["Сергей Жаур", "Предприниматели · Туризм"], ["Темирлан Беркимбаев", "Предприниматели · Туризм"], ["Мирас Ахметкалиев", "Предприниматели · Туризм"], ["Асем Сванова", "Предприниматели · Товарный бизнес"], ["Бексултан Сейтов одежда", "Предприниматели · Товарный бизнес"], ["Хасан Shanyraq", "Предприниматели · Товарный бизнес"], ["Айдар Умбеталиев", "Предприниматели · Товарный бизнес · Маркетплейсы · Kaspi"], ["Амир Жумагулов", "Предприниматели · Товарный бизнес · Маркетплейсы · Kaspi"], ["Гоша Shanyraq", "Предприниматели · Товарный бизнес · Маркетплейсы · WildBerries"], ["Рамиль Mr Mandarin", "Предприниматели · Товарный бизнес · Маркетплейсы · WildBerries"], ["Медет Караганда", "Предприниматели · Строительство"], ["Салауат", "Предприниматели · Строительство"], ["Айтуар", "Предприниматели · Строительство"], ["Ернар Есмухамбетов", "Предприниматели · Строительство"], ["Тимур ВКО", "Предприниматели · Строительство"], ["Дмитрий Козлов 1Dom", "Предприниматели · Строительство"], ["Ануар Кабден", "Предприниматели · Строительство"], ["Даурен Урбо", "Предприниматели · Общепит · Кофейня"], ["Азат LoveCoffee", "Предприниматели · Общепит · Кофейня"], ["Аят Азимов Global Coffee", "Предприниматели · Общепит · Кофейня"], ["Ербол Shanyraq", "Предприниматели · Общепит · Кофейня"], ["Даулет Мясоед", "Предприниматели · Общепит · Ресторан"], ["Береке Ерниязов", "Предприниматели · Общепит · Ресторан"], ["Данияр ЧайЛа", "Предприниматели · Общепит · Ресторан"], ["Артем Миндаль", "Предприниматели · Общепит · Пекарня"], ["Ергали Chunky", "Предприниматели · Общепит · Пекарня"], ["Мика Shanyraq", "Предприниматели · Общепит · ПП питание"], ["Тимур 40М", "Предприниматели · Общепит"], ["Ержан муж Асемы", "Предприниматели · Машина"], ["Каир Ерасыл Корея", "Предприниматели · Машина"], ["Венера Нартай", "Предприниматели · Полиграфия"], ["Сержан знакомый", "Предприниматели · Полиграфия"], ["Алан Short", "Предприниматели · Полиграфия"], ["Заур Истамулов", "Предприниматели · Инфобизнес"], ["Айзат Алкенов", "Предприниматели · Одежда"], ["Марина Shanyraq", "Предприниматели · Одежда"], ["Мейрлан", "Предприниматели · Одежда"], ["Айдос Shanyraq", "Предприниматели · Мебель"], ["Руслан Shanyraq", "Предприниматели · Обои"], ["Данияр Абитаев ВКО", "Предприниматели · К/х"], ["Сулеке Ханская Баня", "Предприниматели · Баня"], ["Игорь Лагай", "Предприниматели · Охранное агенство"], ["Марат Толибаев", "Инвесторы"], ["Игорь Activate", "Инвесторы"], ["Imperius", "Инвесторы"], ["Азамат Инвестор", "Инвесторы"], ["Мухаммад 01", "Инвесторы"], ["Серик Шарипов Seedstars", "Инвесторы"], ["Адилет Асанов", "Инвесторы"], ["Максим Барышев", "Гос учреждения"], ["Юлия АТУ", "Гос учреждения · Университет · АТУ"], ["Владимир Попов", "Гос учреждения · Университет · КБТУ"], ["Мейрам Мухаметрохимович", "Гос учреждения · Университет · Сатпаев"], ["Ерболат Оразбеков", "Гос учреждения · Университет · Туран"], ["Ринат Ибраимов", "Гос учреждения · Школа · Тамос"], ["Алия Байбусинова", "Блогер · Спорт"], ["Нурбек Карабала", "Блогер · Спорт"], ["Ильдар Кудайбергенов", "Блогер · Спорт"], ["Жандарбек Naiza", "Блогер · Спорт"], ["Рашит Ильясов", "Блогер · Туризм"], ["Асет Мурзабаев", "Блогер · Туризм"], ["Шакентий Серик", "Блогер · Актер"], ["Айбар приговор", "Блогер · Актер"], ["Рауан Ахмедов", "Блогер · Актер"], ["Мурат Мутурганов", "Блогер · Актер"], ["Адильхан Казахстан подешевле", "Блогер · Паблики"], ["Дмитрий Захарович Якутия", "Россия"], ["Рауф", "Ислам · Лекции"], ["Ернар Бухари", "Ислам"]];
+function ensureNetworking(){
+  try{
+    if(localStorage.getItem('bs_ct_seed') === 'networking_v1') return;
+    var have = {}; CONTACTS.forEach(function(c){ have[(c.name||'').toLowerCase()+'|'+(c.cat||'')] = 1; });
+    var add = 0;
+    NETWORKING_SEED.forEach(function(x){
+      var k = x[0].toLowerCase()+'|'+x[1];
+      if(have[k]) return;
+      CONTACTS.push({name:x[0], cat:x[1], phone:'', tg:'', insta:'', use:''}); have[k]=1; add++;
+    });
+    if(add) saveContacts();
+    localStorage.setItem('bs_ct_seed', 'networking_v1');
+  }catch(e){}
+}
+function ctLinks(c){
+  var out = [];
+  if(c.phone) out.push('<a class="ct-l" href="tel:'+esc(c.phone.replace(/[^\d+]/g,''))+'" onclick="event.stopPropagation()">'+esc(c.phone)+'</a>');
+  if(c.tg) out.push('<a class="ct-l" target="_blank" rel="noopener" href="https://t.me/'+esc(ctHandle(c.tg))+'" onclick="event.stopPropagation()">Telegram</a>');
+  if(c.insta) out.push('<a class="ct-l" target="_blank" rel="noopener" href="https://instagram.com/'+esc(ctHandle(c.insta))+'" onclick="event.stopPropagation()">Instagram</a>');
+  return out.join('');
 }
 
 // ═══ Циклы ═══
@@ -3968,7 +4079,9 @@ function openCycles(){
   h += '<div class="row" onclick="closeSheet(\'cycSheet\');openBoard(\''+curBoard.id+'\')">' +
     '<div class="row-bar" style="background:var(--gold)"></div>' +
     '<div style="flex:1"><div class="row-t">Цикл '+cur+' · текущий</div>' +
-    '<div class="row-d">'+new Date(curBoard.updated).toLocaleDateString('ru',{day:'2-digit',month:'long',year:'numeric'})+'</div></div></div>';
+    '<div class="row-d">'+new Date(curBoard.updated).toLocaleDateString('ru',{day:'2-digit',month:'long',year:'numeric'})+'</div></div>' +
+    ((MODE==='admin' && (curBoard.history||[]).length) ? '<button class="cyc-del" title="Удалить текущий цикл и вернуть предыдущий" onclick="event.stopPropagation();delCycle(-1)">Удалить</button>' : '') +
+    '</div>';
   (curBoard.history||[]).slice().reverse().forEach(function(v, ri){
     var vi = (curBoard.history.length-1) - ri;
     var d = new Date(v.date);
@@ -3980,9 +4093,18 @@ function openCycles(){
       '<div class="row-d" style="color:var(--gold);font-weight:600">'+
       d.toLocaleDateString('ru',{day:'2-digit',month:'long',year:'numeric'})+
       ' в '+d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})+'</div></div>' +
-      '<div class="row-m">'+diag+' диагн · '+tasks+' задач</div></div>';
+      '<div class="row-m">'+diag+' диагн · '+tasks+' задач</div>' +
+      (MODE==='admin' ? '<button class="cyc-del" onclick="event.stopPropagation();delCycle('+vi+')">Удалить</button>' : '') +
+      '</div>';
   });
   if(!(curBoard.history||[]).length) h += '<div class="empt">Прошлых циклов пока нет</div>';
+  var calls = curBoard.calls || [];
+  if(calls.length){
+    h += '<div class="dh" style="margin-top:20px">Онлайн-созвоны</div>' + calls.slice().reverse().map(function(c){
+      return '<div class="row" onclick="closeSheet(\'cycSheet\');showCall(\''+c.id+'\')"><div class="row-bar" style="background:var(--bd2)"></div>' +
+        '<div style="flex:1"><div class="row-t">'+esc(c.title||'Созвон')+'</div><div class="row-d">'+esc(c.date||'')+'</div></div>' +
+        '<div class="row-m">'+(c.checklist||[]).length+' пунктов</div></div>'; }).join('');
+  }
   document.getElementById('cycBody').innerHTML = h;
   openSheet('cycSheet');
 }
@@ -9918,6 +10040,69 @@ function loadLibs(){
       localStorage.setItem('bs_libver', String(LIB_VERSION));
     }catch(e){}
   }
+  ensureBooks();
+}
+// Книги клуба в базе инструментов. Файл загружается один раз кнопкой в карточке
+var BOOKS = [
+  {organ:'Стратегия', icon:'▤', isBook:true, title:'Книга: «Принципы» · Рэй Далио',
+   short:'Как принимать решения и строить компанию как машину: цели, проблемы, диагноз, план, исполнение.',
+   why:'Даёт резиденту систему, а не разовые решения: каждую ошибку превращать в правило, а бизнес видеть как механизм, который можно настраивать.',
+   how:['Записать 3 главные цели на цикл','Выписать проблемы, которые мешают целям, без оправданий','Найти корневую причину каждой: человек или устройство процесса','Составить план изменений и назначить ответственных','Через 10 дней сверить результат и записать вывод как принцип'],
+   example:'Собственник каждую неделю тушит одни и те же пожары. После разбора по пяти шагам он записывает принцип «повторяющаяся проблема = сломанный процесс» и меняет процесс, а не людей.',
+   time:'Чтение 2 недели, внедрение пяти шагов: 1 цикл',
+   check:['Цели цикла записаны','Проблемы названы прямо','У каждой проблемы найдена причина','Есть план и ответственные','Записан хотя бы один новый принцип'],
+   link:'', video:'', sample:''},
+  {organ:'Продажи', icon:'▤', isBook:true, title:'Книга: «iПрезентация» · Кармин Галло',
+   short:'Уроки убеждения Стива Джобса: история, три главные мысли, простые слайды, репетиции.',
+   why:'Резидент продаёт идею клиенту, команде или инвестору. Книга учит говорить так, чтобы запомнили и купили.',
+   how:['Сформулировать главную мысль одной фразой до 140 символов','Оставить три ключевых сообщения','Показать «злодея» (проблему клиента) и «героя» (решение)','Сделать слайды из одной мысли и картинки, без текста абзацами','Отрепетировать вслух не меньше трёх раз'],
+   example:'Вместо 30 слайдов с таблицами резидент приходит на встречу с инвестором с одной фразой, тремя цифрами и историей клиента.',
+   time:'Чтение 1 неделя, подготовка выступления: 2-3 дня',
+   check:['Есть главная фраза до 140 символов','Три ключевых сообщения','Есть история клиента','Слайды без абзацев текста','Три репетиции вслух'],
+   link:'', video:'', sample:''}
+];
+function ensureBooks(){
+  var add = 0;
+  BOOKS.forEach(function(b){
+    if(TOOLS.some(function(t){ return t.title===b.title; })) return;
+    TOOLS.push(Object.assign({color:TONE[b.organ]||'#FFFFFF', file:'', fileName:''}, b)); add++;
+  });
+  if(add) saveToolLib();
+}
+// Файлы на сервере платформы: только для вошедших
+function uploadToolFile(inp){
+  var f = inp.files && inp.files[0]; if(!f) return;
+  if(!window.BSSync || !BSSync.api){ toast('Загрузка работает на сервере платформы'); return; }
+  var lbl = document.getElementById('edFileName'); if(lbl) lbl.textContent = 'Загружаем '+f.name+'...';
+  BSSync.api('POST','/files', f, {'Content-Type': f.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(f.name)})
+    .then(function(r){ return r.json(); }).then(function(j){
+      if(!j || !j.id){ throw new Error((j&&j.error)||'ошибка'); }
+      window._edFile = {id:j.id, name:f.name};
+      if(lbl) lbl.textContent = f.name + ' · загружен, нажмите «Сохранить»';
+    }).catch(function(e){ if(lbl) lbl.textContent = 'Не загрузилось: '+e.message; });
+}
+function cardUpload(i, inp){
+  var f = inp.files && inp.files[0]; if(!f || !TOOLS[i]) return;
+  if(!window.BSSync || !BSSync.api){ toast('Загрузка работает на сервере платформы'); return; }
+  toast('Загружаем '+f.name+'...');
+  BSSync.api('POST','/files', f, {'Content-Type': f.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(f.name)})
+    .then(function(r){ return r.json(); }).then(function(j){
+      if(!j || !j.id) throw new Error((j&&j.error)||'ошибка');
+      TOOLS[i].file = j.id; TOOLS[i].fileName = f.name; saveToolLib();
+      toast('Файл загружен'); openCard('tool', i);
+    }).catch(function(e){ toast('Не загрузилось: '+e.message); });
+}
+function openFile(id){
+  if(!window.BSSync || !BSSync.api){ toast('Файл открывается на сервере платформы'); return; }
+  var w = window.open('', '_blank');
+  if(w) w.document.write('<p style="font:16px sans-serif;padding:24px">Открываем файл...</p>');
+  BSSync.api('GET','/files/'+encodeURIComponent(id)).then(function(r){
+    if(!r.ok) throw new Error('файл не найден');
+    return r.blob();
+  }).then(function(b){
+    var u = URL.createObjectURL(b);
+    if(w) w.location.href = u; else window.open(u, '_blank');
+  }).catch(function(e){ if(w) w.close(); toast('Не открылся: '+e.message); });
 }
 function saveToolLib(){ try{ localStorage.setItem('bs_tools', JSON.stringify(TOOLS)); }catch(e){} }
 
@@ -9951,26 +10136,37 @@ function renderToolLib(){
         '<div class="row-t">'+esc(x.d.title)+'</div>' +
         '<div class="row-d">'+esc(x.d.short||'').slice(0,110)+'</div>' +
       '</div>' +
-      '<div class="row-m">'+((x.d.how||[]).length)+' шагов'+(x.d.link?' · материалы':'')+'</div>' +
+      '<div class="row-m">'+(x.d.isBook?'книга'+(x.d.file?' · файл':' · без файла'):((x.d.how||[]).length)+' шагов'+(x.d.link?' · материалы':''))+'</div>' +
     '</div>';
   }).join('') || '<div class="empt">Ничего не найдено</div>';
 }
 function renderContPage(){
   var q = (document.getElementById('ctSearch').value||'').toLowerCase();
-  var list = CONTACTS.map((c,i)=>({c:c,i:i})).filter(x=>
-    !q || (x.c.name||'').toLowerCase().indexOf(q)>=0 || (x.c.use||'').toLowerCase().indexOf(q)>=0);
+  var cat = window._ctCat || 'Все';
+  var tops = {}; CONTACTS.forEach(function(c){ var t=(c.cat||'Без категории').split(' · ')[0]; tops[t]=(tops[t]||0)+1; });
+  var list = CONTACTS.map((c,i)=>({c:c,i:i})).filter(function(x){
+    if(cat!=='Все' && (x.c.cat||'Без категории').split(' · ')[0]!==cat) return false;
+    return !q || [x.c.name,x.c.use,x.c.cat,x.c.phone,x.c.tg,x.c.insta].join(' ').toLowerCase().indexOf(q)>=0;
+  });
   document.getElementById('ctCount').textContent = CONTACTS.length + ' контактов';
-  document.getElementById('ctBody').innerHTML = list.map(function(x){
-    return '<div class="row" onclick="editContact('+x.i+')">' +
-      '<div class="row-bar" style="background:var(--gold)"></div>' +
-      '<div style="flex:1;min-width:0">' +
-        '<div class="row-t">'+esc(x.c.name)+'</div>' +
-        '<div class="row-d">'+esc(x.c.use||'')+'</div>' +
-        '<div class="row-o" style="color:var(--t3)">'+[x.c.phone,x.c.insta].filter(Boolean).map(esc).join(' · ')+'</div>' +
-      '</div>' +
-      '<div class="ct-b" onclick="event.stopPropagation();contactToBoard('+x.i+')">На доску</div>' +
-    '</div>';
-  }).join('') || '<div class="empt">Контактов пока нет</div>';
+  var chips = '<div class="ct-chips">' + ['Все'].concat(Object.keys(tops).sort((a,b)=>a.localeCompare(b,'ru'))).map(function(t){
+    return '<div class="tb'+(t===cat?' on':'')+'" onclick="window._ctCat=\''+t.replace(/'/g,"\\'")+'\';renderContPage()">'+esc(t)+
+      (t==='Все'?'':' <span style="opacity:.55">'+tops[t]+'</span>')+'</div>'; }).join('') + '</div>';
+  var groups = {}; list.forEach(function(x){ var g=x.c.cat||'Без категории'; (groups[g]=groups[g]||[]).push(x); });
+  var body = Object.keys(groups).sort((a,b)=>a.localeCompare(b,'ru')).map(function(g){
+    return '<div class="ct-g">'+esc(g)+' · '+groups[g].length+'</div>' + groups[g].map(function(x){
+      var empty = !x.c.phone && !x.c.tg && !x.c.insta;
+      return '<div class="row" onclick="editContact('+x.i+')">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="row-t">'+esc(x.c.name)+'</div>' +
+          (x.c.use?'<div class="row-d">'+esc(x.c.use)+'</div>':'') +
+          '<div class="ct-ls">'+(empty?'<span style="color:var(--t3);font-size:12px">телефон и соцсети не добавлены</span>':ctLinks(x.c))+'</div>' +
+        '</div>' +
+        '<div class="ct-b" onclick="event.stopPropagation();contactToBoard('+x.i+')">На доску</div>' +
+      '</div>';
+    }).join('');
+  }).join('');
+  document.getElementById('ctBody').innerHTML = chips + (body || '<div class="empt">Контактов не найдено</div>');
 }
 function renderCRM(){
   var q = (document.getElementById('crmSearch').value||'').toLowerCase();
@@ -10262,7 +10458,7 @@ function toggleVoice(){
   recOn = true;
   document.getElementById('micBtn').classList.add('on');
   document.getElementById('voiceBar').classList.add('on');
-  showVoice('Слушаю. Скажите: заметка, диагноз, задача, цель или штраф');
+  showVoice('Слушаю. Говорите как обычно: «добавь диагноз кассовые разрывы к финансам», «задача собрать отчёт до пятого», «открой доску Даулета»');
 }
 function openVoiceHelp(){
   document.getElementById('edTitle').textContent = 'Голосовой ввод';
@@ -10299,34 +10495,309 @@ function showVoice(t){
   var el = document.getElementById('voiceText');
   if(el) el.textContent = t;
 }
+// ═══ Онлайн-созвон: запись → расшифровка → итоги и чек-лист в историю разбора ═══
+var callRec = null;
+function openCallMenu(){
+  if(!curBoard){ saveBoardSilent(); }
+  var res = (curBoard&&curBoard.info&&curBoard.info.res) || (document.getElementById('bName')||{}).value || '';
+  var calls = (curBoard && curBoard.calls) || [];
+  document.getElementById('edTitle').textContent = 'Онлайн-созвон';
+  document.getElementById('edSub').textContent = res ? 'Разбор · ' + res : 'Разбор';
+  document.getElementById('edBody').innerHTML =
+    '<div class="dbox g" style="font-size:13px;margin-bottom:14px">Во время созвона в Google Meet нажмите «Начать запись». ' +
+    'Браузер спросит, что записывать: выберите вкладку с Meet и включите «Поделиться звуком вкладки». ' +
+    'После остановки запись расшифруется, ИИ соберёт итоги и чек-лист, и всё сохранится в историю этого разбора.</div>' +
+    '<button class="btn bg" style="width:100%;padding:14px;margin-bottom:9px" onclick="closeSheet(\'editSheet\');startCallRec()">Начать запись</button>' +
+    '<label class="btn bs" style="display:block;text-align:center;padding:13px;cursor:pointer">Загрузить готовую запись или расшифровку' +
+      '<input type="file" accept="audio/*,video/*,.txt,.vtt,.srt,text/plain" style="display:none" onchange="uploadCallFile(this)"></label>' +
+    (calls.length ? '<div class="dh" style="margin-top:22px">История созвонов</div>' + calls.slice().reverse().map(function(c){
+      return '<div class="row" onclick="showCall(\''+c.id+'\')"><div style="flex:1"><div class="row-t">'+esc(c.title||'Созвон')+'</div>' +
+        '<div class="row-d">'+esc(c.date||'')+' · '+((c.checklist||[]).length)+' пунктов</div></div></div>'; }).join('') : '');
+  openSheet('editSheet');
+}
+function startCallRec(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder){ toast('Запись работает в Chrome на компьютере'); return; }
+  var streams = [];
+  navigator.mediaDevices.getDisplayMedia({video:true, audio:true}).then(function(disp){
+    streams.push(disp);
+    return navigator.mediaDevices.getUserMedia({audio:true}).then(function(mic){ streams.push(mic); return [disp, mic]; },
+      function(){ return [disp, null]; });
+  }).then(function(pair){
+    var disp = pair[0], mic = pair[1];
+    var ac = new (window.AudioContext||window.webkitAudioContext)(), dest = ac.createMediaStreamDestination(), n = 0;
+    if(disp.getAudioTracks().length){ ac.createMediaStreamSource(new MediaStream(disp.getAudioTracks())).connect(dest); n++; }
+    if(mic){ ac.createMediaStreamSource(mic).connect(dest); n++; }
+    if(!n){ streams.forEach(st=>st.getTracks().forEach(t=>t.stop())); toast('Нет звука: включите «Поделиться звуком вкладки»'); return; }
+    if(!disp.getAudioTracks().length) toast('Звук вкладки не выбран: запишется только ваш микрофон');
+    var mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+    var mr = new MediaRecorder(dest.stream, {mimeType:mime, audioBitsPerSecond:32000});
+    var chunks = [];
+    mr.ondataavailable = function(e){ if(e.data && e.data.size) chunks.push(e.data); };
+    mr.onstop = function(){
+      streams.forEach(st=>st.getTracks().forEach(t=>t.stop())); try{ ac.close(); }catch(e){}
+      document.getElementById('callBar').classList.remove('on');
+      clearInterval(callRec && callRec.timer);
+      var blob = new Blob(chunks, {type:'audio/webm'}); callRec = null;
+      if(blob.size < 2000){ toast('Запись пустая'); return; }
+      sendCall(blob, 'audio/webm');
+    };
+    disp.getVideoTracks().forEach(function(t){ t.onended = function(){ if(callRec) stopCallRec(); }; });
+    mr.start(10000);
+    var t0 = Date.now();
+    callRec = {mr:mr, timer:setInterval(function(){
+      var sec = Math.round((Date.now()-t0)/1000);
+      document.getElementById('callText').textContent = 'Запись созвона · ' + Math.floor(sec/60) + ':' + ('0'+sec%60).slice(-2);
+    }, 1000)};
+    document.getElementById('callBar').classList.add('on');
+    toast('Запись началась');
+  }).catch(function(e){ streams.forEach(st=>st.getTracks().forEach(t=>t.stop())); toast('Запись не началась: ' + (e && e.message || 'доступ не дан')); });
+}
+function stopCallRec(){ if(callRec && callRec.mr.state!=='inactive') callRec.mr.stop(); }
+function uploadCallFile(inp){
+  var f = inp.files && inp.files[0]; if(!f) return;
+  closeSheet('editSheet');
+  var isText = /text|vtt|srt/.test(f.type) || /\.(txt|vtt|srt)$/i.test(f.name);
+  sendCall(f, isText ? 'text/plain; charset=utf-8' : (f.type || 'audio/webm'));
+}
+function sendCall(blob, ct){
+  if(!window.BSSync || !BSSync.api){ toast('Работает на сервере платформы'); return; }
+  if(!curBoard) saveBoardSilent();
+  var res = (curBoard.info&&curBoard.info.res) || curBoard.name || '';
+  var d = new Date(), date = ('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+d.getFullYear();
+  toast('Отправляем запись на расшифровку...');
+  BSSync.api('POST','/ai/call?board='+encodeURIComponent(curBoard.id)+'&resident='+encodeURIComponent(res)+'&date='+date, blob, {'Content-Type':ct})
+    .then(r=>r.json()).then(function(j){
+      if(!j || !j.id){ toast((j&&j.error)||'Не отправилось'); return; }
+      curBoard.pendingCalls = (curBoard.pendingCalls||[]).concat([j.id]); saveAll();
+      toast('Запись принята. Итоги появятся через несколько минут');
+      pollCalls();
+    }).catch(function(){ toast('Нет связи с сервером, запись не отправлена'); });
+}
+var callPoll = null;
+function pollCalls(){
+  clearTimeout(callPoll);
+  var pend = []; boards.forEach(function(b){ (b.pendingCalls||[]).forEach(function(id){ pend.push([b,id]); }); });
+  if(!pend.length || !window.BSSync || !BSSync.api) return;
+  Promise.all(pend.map(function(x){
+    return BSSync.api('GET','/ai/jobs/'+x[1]).then(r=>r.json()).then(function(j){
+      if(!j || (j.status!=='done' && j.status!=='error')) return;
+      var b = x[0]; b.pendingCalls = (b.pendingCalls||[]).filter(id=>id!==x[1]);
+      if(j.status==='error'){ toast('Созвон не разобран: ' + (j.error||'ошибка')); saveAll(); return; }
+      attachCall(b, j);
+    }).catch(function(){});
+  })).then(function(){ callPoll = setTimeout(pollCalls, 15000); });
+}
+function attachCall(b, j){
+  var r = j.result || {}, sm = r.summary || {};
+  if((b.calls||[]).some(c=>c.id===j.id)) return;
+  var call = {id:j.id, date:r.date||'', title:sm.title||('Созвон '+(r.date||'')), summary:sm.summary||'',
+    pointA:sm.pointA||'', pointB:sm.pointB||'', diagnoses:sm.diagnoses||[], decisions:sm.decisions||[],
+    checklist:(sm.checklist||[]).map(function(c){ return typeof c==='string' ? {text:c, due:''} : {text:c.text||'', due:c.due||''}; }),
+    questions:sm.questions||[], quote:sm.quote||'', transcript:r.transcript||'', audio:r.audio||''};
+  b.calls = (b.calls||[]).concat([call]);
+  if(curBoard && curBoard.id===b.id) curBoard.calls = b.calls;
+  saveAll();
+  toast('Итоги созвона готовы');
+  if(curBoard && curBoard.id===b.id) showCall(call.id);
+}
+function showCall(id){
+  var c = ((curBoard&&curBoard.calls)||[]).find(x=>x.id===id); if(!c) return;
+  var li = function(arr){ return (arr||[]).map(x=>'<div class="dli"><div class="ddot"></div><div>'+esc(x)+'</div></div>').join(''); };
+  document.getElementById('edTitle').textContent = c.title;
+  document.getElementById('edSub').textContent = 'Созвон ' + (c.date||'');
+  document.getElementById('edBody').innerHTML =
+    '<div class="dsec"><div class="dh">Итоги</div><div class="call-sum">'+esc(c.summary)+'</div></div>' +
+    ((c.pointA||c.pointB) ? '<div class="dsec"><div class="dh">Точки</div><div class="dli"><div class="ddot"></div><div>А: '+esc(c.pointA||'-')+'</div></div><div class="dli"><div class="ddot"></div><div>Б: '+esc(c.pointB||'-')+'</div></div></div>' : '') +
+    (c.diagnoses.length ? '<div class="dsec"><div class="dh">Диагнозы</div>'+li(c.diagnoses)+'</div>' : '') +
+    (c.decisions.length ? '<div class="dsec"><div class="dh">Договорились</div>'+li(c.decisions)+'</div>' : '') +
+    '<div class="dsec"><div class="dh">Чек-лист резидента</div>' + c.checklist.map(function(k){
+      return '<div class="call-ck"><i></i><div>'+esc(k.text)+'</div>'+(k.due?'<b>до '+esc(k.due)+'</b>':'')+'</div>'; }).join('') + '</div>' +
+    (c.questions.length ? '<div class="dsec"><div class="dh">Открытые вопросы</div>'+li(c.questions)+'</div>' : '') +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px">' +
+      '<button class="btn bg" style="padding:13px" onclick="callChecklistPNG(\''+c.id+'\')">Чек-лист картинкой</button>' +
+      '<button class="btn bs" style="padding:13px" onclick="callText(\''+c.id+'\')">Текст итогов</button>' +
+      (MODE==='admin' ? '<button class="btn bs" style="padding:13px" onclick="callToBoard(\''+c.id+'\')">Задачи на доску</button>' : '') +
+      (c.audio ? '<button class="btn bs" style="padding:13px" onclick="openFile(\''+c.audio+'\')">Запись созвона</button>' : '') +
+    '</div>';
+  openSheet('editSheet');
+}
+function callToBoard(id){
+  var c = ((curBoard&&curBoard.calls)||[]).find(x=>x.id===id); if(!c) return;
+  var root = nodes.find(n=>n.type==='root');
+  c.checklist.forEach(function(k){
+    var n = addNode({type:'task', title:k.text, task:{kind:'once', prio:'mid', rems:[], date:vDate(k.due)}});
+    if(n && root) makeLink(root.id, n.id);
+  });
+  closeSheet('editSheet'); toast('Задач на доске: ' + c.checklist.length);
+}
+function callText(id){
+  var c = ((curBoard&&curBoard.calls)||[]).find(x=>x.id===id); if(!c) return;
+  var L = [c.title, 'Дата: '+c.date, '', 'ИТОГИ', c.summary, ''];
+  if(c.pointA||c.pointB) L.push('Точка А: '+(c.pointA||'-'), 'Точка Б: '+(c.pointB||'-'), '');
+  if(c.diagnoses.length) L.push('ДИАГНОЗЫ', ...c.diagnoses.map(x=>'· '+x), '');
+  if(c.decisions.length) L.push('ДОГОВОРИЛИСЬ', ...c.decisions.map(x=>'· '+x), '');
+  L.push('ЧЕК-ЛИСТ', ...c.checklist.map(k=>'[ ] '+k.text+(k.due?' (до '+k.due+')':'')), '');
+  if(c.questions.length) L.push('ОТКРЫТЫЕ ВОПРОСЫ', ...c.questions.map(x=>'· '+x), '');
+  if(c.transcript) L.push('РАСШИФРОВКА', c.transcript);
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([L.join('\n')], {type:'text/plain;charset=utf-8'}));
+  a.download = (c.title||'Созвон').replace(/[\\/:*?"<>|]/g,'') + '.txt'; a.click();
+}
+// Чек-лист в стиле BS: 1080×1350, чёрный фон, белый текст, золото только в подписи
+function callChecklistPNG(id){
+  var c = ((curBoard&&curBoard.calls)||[]).find(x=>x.id===id); if(!c) return;
+  var W=1080, H=1350, cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  var x=cv.getContext('2d'), F='Manrope, Inter, Arial, sans-serif';
+  x.fillStyle='#000'; x.fillRect(0,0,W,H);
+  x.fillStyle='#fff'; x.font='800 34px '+F; x.fillText('business surgery', 80, 110);
+  x.fillStyle='#D4B886'; x.font='700 18px '+F; x.fillText('Б И З Н Е С - Т Р Е К И Н Г', 80, 142);
+  x.fillStyle='#9A9A9A'; x.font='600 26px '+F; x.fillText('Итоги разбора · '+(c.date||''), 80, 230);
+  function wrap(t, maxW){ var words=String(t).split(/\s+/), lines=[], cur=''; words.forEach(function(w){ var tt=cur?cur+' '+w:w; if(x.measureText(tt).width>maxW && cur){ lines.push(cur); cur=w; } else cur=tt; }); if(cur) lines.push(cur); return lines; }
+  x.fillStyle='#fff'; x.font='800 56px '+F;
+  var y=300; wrap(c.title, W-160).slice(0,2).forEach(function(l){ x.fillText(l, 80, y); y+=66; });
+  x.strokeStyle='#1F1F1F'; x.lineWidth=2; x.beginPath(); x.moveTo(80,y); x.lineTo(W-80,y); x.stroke(); y+=60;
+  x.fillStyle='#8C8C8C'; x.font='800 22px '+F; x.fillText('Ч Е К - Л И С Т', 80, y); y+=50;
+  var items = c.checklist.slice(0,9);
+  items.forEach(function(k){
+    x.font='600 32px '+F; var lines = wrap(k.text, W-260).slice(0,2);
+    x.strokeStyle='#fff'; x.lineWidth=3; x.strokeRect(80, y-28, 34, 34);
+    x.fillStyle='#fff'; lines.forEach(function(l,i){ x.fillText(l, 140, y+i*42); });
+    if(k.due){ x.fillStyle='#9A9A9A'; x.font='700 24px '+F; var t='до '+k.due; x.fillText(t, W-80-x.measureText(t).width, y); }
+    y += lines.length*42 + 34;
+  });
+  if(c.quote && y < H-200){ x.fillStyle='#fff'; x.fillRect(80, y+10, 4, 90); x.fillStyle='#D9D9D9'; x.font='italic 500 28px '+F; wrap('«'+c.quote+'»', W-200).slice(0,3).forEach(function(l,i){ x.fillText(l, 108, y+40+i*38); }); }
+  x.fillStyle='#6E6E6E'; x.font='600 22px '+F; x.fillText((curBoard&&curBoard.info&&curBoard.info.res)||'', 80, H-80);
+  cv.toBlob(function(b){ var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='Чек-лист '+(c.date||'')+'.png'; a.click(); }, 'image/png');
+}
+
+// ═══ Голосовой помощник ═══
+// Фраза уходит ИИ на сервере, он возвращает действия, платформа их выполняет.
+// Без ключа ИИ работают простые команды (заметка, задача, диагноз...)
+var voiceAI = null; // null = не проверяли, true/false
+function voiceAIReady(){
+  if(voiceAI !== null || !window.BSSync || !BSSync.api) return Promise.resolve(!!voiceAI);
+  return BSSync.api('GET','/ai/status').then(r=>r.json()).then(function(j){ voiceAI = !!(j && j.text); return voiceAI; })
+    .catch(function(){ voiceAI = false; return false; });
+}
+function voiceContext(){
+  var sec = []; Object.keys(BLOCKS).forEach(function(k){ (BLOCKS[k].tabs||[]).forEach(function(t){ sec.push(t.id+': '+BLOCKS[k].name+' / '+t.n); }); });
+  return {
+    mode: MODE, section: (typeof section!=='undefined'?section:''),
+    board: {name: (document.getElementById('bName')||{}).value||'', resident: (curBoard&&curBoard.info&&curBoard.info.res)||''},
+    selected: selId,
+    nodes: nodes.map(function(n){ return {id:n.id, type:n.type, role:n.role||'', title:String(n.title||'').slice(0,90), desc:String(n.desc||'').slice(0,80)}; }),
+    links: links.map(function(l){ return [l.a,l.b]; }),
+    residents: boards.map(function(b){ return (b.info&&b.info.res)||b.name; }).filter(Boolean),
+    sections: sec,
+    diag_library: DIAG.map(d=>d.title), tool_library: TOOLS.map(d=>d.title)
+  };
+}
 function handleVoice(text){
+  text = String(text||'').trim(); if(!text) return;
+  if(/^(стоп|хватит|выключи микрофон)\.?$/i.test(text)){ stopVoice(); return; }
+  voiceAIReady().then(function(ok){
+    if(!ok || MODE!=='admin'){ handleVoiceLocal(text); return; }
+    showVoice('Выполняю: ' + text);
+    BSSync.api('POST','/ai/command', {text:text, context:voiceContext()}).then(r=>r.json()).then(function(j){
+      if(j && j.error){ showVoice(j.error); handleVoiceLocal(text); return; }
+      var done = runVoiceActions((j && j.actions) || []);
+      var say = (j && j.say) || (done ? 'Готово' : 'Не понял команду');
+      showVoice(say); toast(say);
+    }).catch(function(){ handleVoiceLocal(text); });
+  });
+}
+function vFind(list, q){
+  q = String(q||'').toLowerCase().replace(/ё/g,'е'); if(!q) return -1;
+  var words = q.split(/[^а-яa-z0-9]+/).filter(w=>w.length>2), best=-1, bs=0;
+  list.forEach(function(d,i){
+    var t = String(d.title||d).toLowerCase().replace(/ё/g,'е'); var sc = t.indexOf(q)>=0 ? 100 : 0;
+    words.forEach(function(w){ if(t.indexOf(w.slice(0,Math.max(4,w.length-2)))>=0) sc += 10; });
+    if(sc>bs){ bs=sc; best=i; }
+  });
+  return bs>=10 ? best : -1;
+}
+function vDate(s){
+  var m = String(s||'').match(/(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?/); if(!m) return '';
+  var y = m[3] ? (m[3].length===2?'20'+m[3]:m[3]) : String(new Date().getFullYear());
+  return y+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+}
+function vRerender(n){ var el=document.getElementById('n'+n.id); if(el){ el.remove(); renderNode(n); drawLinks(); } }
+function runVoiceActions(actions){
+  var done = 0;
+  (actions||[]).forEach(function(a){
+    try{
+      var n, i;
+      switch(a.op){
+        case 'add_node':
+          var par = a.parent!=null ? nodes.find(x=>x.id===Number(a.parent)) : null;
+          var o = {type:a.type||'note', title:cap(a.title||'Заметка'), desc:a.desc||''};
+          if(par) o.near = par;
+          if(o.type==='task') o.task = {kind:'once', prio:'mid', rems:[], date:vDate(a.date)};
+          if(o.type==='goal') o.goal = {term:3};
+          n = addNode(o); if(n){ delete n.near; if(par) makeLink(par.id, n.id); done++; } break;
+        case 'edit_node':
+          n = nodes.find(x=>x.id===Number(a.id)); if(!n) break; pushUndo();
+          if(a.title) n.title = a.title; if(a.desc!=null && a.desc!=='') n.desc = a.desc; vRerender(n); done++; break;
+        case 'delete_node': if(nodes.some(x=>x.id===Number(a.id))){ delNode(Number(a.id)); done++; } break;
+        case 'link': makeLink(Number(a.a), Number(a.b)); done++; break;
+        case 'unlink': pushUndo(); links = links.filter(l=>!((l.a==a.a&&l.b==a.b)||(l.a==a.b&&l.b==a.a))); drawLinks(); done++; break;
+        case 'set_point':
+          n = nodes.find(x=>x.role===(a.which==='B'?'pointB':'pointA')); var f = document.getElementById(a.which==='B'?'fB':'fA');
+          if(f) f.value = a.text||'';
+          if(n){ pushUndo(); n.title = a.text||n.title; vRerender(n); } done++; break;
+        case 'set_strategy':
+          n = nodes.find(x=>x.role==='strategy') || nodes.find(x=>x.type==='strat');
+          if(n){ pushUndo(); n.desc = a.text||''; vRerender(n); } else addNode({type:'strat', title:'Стратегия', desc:a.text||''}); done++; break;
+        case 'pick_diag': i = vFind(DIAG, a.query); if(i>=0){ libMode='diag'; menuPos={x:0,y:0}; pickFromLib(i); done++; } else { addNode({type:'diag', title:cap(a.query)}); done++; } break;
+        case 'pick_tool': i = vFind(TOOLS, a.query); if(i>=0){ libMode='tool'; menuPos={x:0,y:0}; pickFromLib(i); done++; } break;
+        case 'task_done': n = nodes.find(x=>x.id===Number(a.id)); if(n && n.task){ pushUndo(); n.task.completed = true; vRerender(n); done++; } break;
+        case 'select': selectNode(Number(a.id)); done++; break;
+        case 'open_resident':
+          var b = boards.find(function(x){ var r=((x.info&&x.info.res)||x.name||'').toLowerCase(); return r && r.indexOf(String(a.name||'').toLowerCase().split(' ')[0])>=0; });
+          if(b){ goSection('board'); openBoard(b.id); done++; } break;
+        case 'open_section': goSection(a.id); done++; break;
+        case 'rename_board': var bn=document.getElementById('bName'); if(bn){ bn.value=a.title||bn.value; done++; } break;
+        case 'new_cycle': newCycle(); done++; break;
+        case 'presentation': if(!!a.on !== document.body.classList.contains('pres')) togglePres(); done++; break;
+        case 'save': saveBoard(); done++; break;
+        case 'undo': undo(); done++; break;
+        case 'fit': fitAll(); done++; break;
+        case 'add_contact':
+          CONTACTS.push({name:a.name||'Контакт', cat:a.category||'', phone:a.phone||'', tg:ctHandle(a.telegram), insta:ctHandle(a.instagram), use:''});
+          saveContacts(); done++; break;
+        case 'search': goSection('contacts'); var cs=document.getElementById('ctSearch'); if(cs){ cs.value=a.query||''; renderContPage(); } done++; break;
+      }
+    }catch(e){ console.error('voice action', a, e); }
+  });
+  return done;
+}
+function handleVoiceLocal(text){
   var t = text.toLowerCase().trim();
   // Команды создания
   var cmds = [
     {re:/^(заметка|запиши|note)\s+(.+)/i, fn:function(m){
       addNode({type:'note', title:cap(m[2])}); toast('Заметка добавлена'); }},
     {re:/^(задача|поставь задачу)\s+(.+)/i, fn:function(m){
-      addNode({type:'task', title:cap(m[2]), task:{kind:'once', prio:'mid', rems:[]}});
+      addNode({type:'task', title:cap(m[2]), task:{kind:'once', prio:'mid', rems:[], date:vDate(m[2])}});
       toast('Задача добавлена'); }},
     {re:/^(цель)\s+(.+)/i, fn:function(m){
       addNode({type:'goal', title:cap(m[2]), goal:{term:3}}); toast('Цель добавлена'); }},
     {re:/^(вопрос)\s+(.+)/i, fn:function(m){
       addNode({type:'quest', title:cap(m[2])}); toast('Вопрос добавлен'); }},
     {re:/^(диагноз|поставь диагноз)\s+(.+)/i, fn:function(m){
-      var q = m[2].toLowerCase();
-      var found = DIAG.find(function(d){ return d.title.toLowerCase().indexOf(q.slice(0,12)) >= 0; });
-      if(found){ libMode='diag'; menuPos={x:0,y:0}; pickFromLib(DIAG.indexOf(found));
-        toast('Диагноз: ' + found.title); }
-      else { addNode({type:'note', title:cap(m[2])}); toast('Не нашёл в базе, добавил заметкой'); } }},
+      runVoiceActions([{op:'pick_diag', query:m[2]}]); toast('Диагноз добавлен'); }},
     {re:/^(инструмент|назначь)\s+(.+)/i, fn:function(m){
-      var q = m[2].toLowerCase();
-      var found = TOOLS.find(function(d){ return d.title.toLowerCase().indexOf(q.slice(0,10)) >= 0; });
-      if(found){ libMode='tool'; menuPos={x:0,y:0}; pickFromLib(TOOLS.indexOf(found));
-        toast('Инструмент: ' + found.title); }
-      else toast('Не нашёл инструмент'); }},
+      if(!runVoiceActions([{op:'pick_tool', query:m[2]}])) toast('Не нашёл инструмент'); }},
+    {re:/^точка а\s+(.+)/i, fn:function(m){ runVoiceActions([{op:'set_point', which:'A', text:cap(m[1])}]); toast('Точка А'); }},
+    {re:/^точка б\s+(.+)/i, fn:function(m){ runVoiceActions([{op:'set_point', which:'B', text:cap(m[1])}]); toast('Точка Б'); }},
+    {re:/^стратегия\s+(.+)/i, fn:function(m){ runVoiceActions([{op:'set_strategy', text:cap(m[1])}]); toast('Стратегия'); }},
+    {re:/^(открой|покажи) (доску|разбор)\s+(.+)/i, fn:function(m){ if(!runVoiceActions([{op:'open_resident', name:m[3]}])) toast('Не нашёл доску'); }},
+    {re:/^(удали|удалить)( узел| выделенное)?$/i, fn:function(){ if(selId) delNode(selId); }},
+    {re:/^(отмени|отменить|назад)$/i, fn:function(){ undo(); }},
+    {re:/^(сохрани|сохранить)$/i, fn:function(){ saveBoard(); }},
+    {re:/^(презентация|показ)$/i, fn:function(){ togglePres(); }},
     {re:/^(мем)\s+(.+)/i, fn:function(m){
-      addNode({type:'meme', title:cap(m[2])}); toast('Мем добавлен'); }},
-    {re:/^(стоп|хватит|выключи микрофон)$/i, fn:function(){ stopVoice(); }}
+      addNode({type:'meme', title:cap(m[2])}); toast('Мем добавлен'); }}
   ];
   for(var i=0;i<cmds.length;i++){
     var m = t.match(cmds[i].re);
@@ -10337,8 +10808,7 @@ function handleVoice(text){
     var n = nodes.find(x=>x.id===selId);
     if(n && n.type!=='diag' && n.type!=='tool'){
       n.desc = ((n.desc||'') + ' ' + cap(text)).trim();
-      var el = document.getElementById('n'+n.id);
-      if(el){ el.remove(); renderNode(n); drawLinks(); }
+      vRerender(n);
       return;
     }
   }
@@ -10741,6 +11211,7 @@ function setReportNote(v){
 var CONTACTS = [];
 function loadContacts(){
   try{ CONTACTS = JSON.parse(localStorage.getItem('bs_contacts')||'[]'); }catch(e){ CONTACTS=[]; }
+  ensureNetworking();
 }
 function saveContacts(){ try{ localStorage.setItem('bs_contacts', JSON.stringify(CONTACTS)); }catch(e){} }
 function renderContacts(){
@@ -10754,7 +11225,7 @@ function renderContacts(){
       '<div style="flex:1;min-width:0">' +
         '<div class="ct-n">'+esc(c.name)+'</div>' +
         '<div class="ct-u">'+esc(c.use||'')+'</div>' +
-        '<div class="ct-c">'+[c.phone,c.insta].filter(Boolean).map(esc).join(' · ')+'</div>' +
+        '<div class="ct-c">'+[c.cat,c.phone,c.tg?'tg: '+c.tg:'',c.insta?'ig: '+c.insta:''].filter(Boolean).map(esc).join(' · ')+'</div>' +
       '</div>' +
       '<div class="ct-b" onclick="contactToBoard('+i+')">На доску</div>' +
       (MODE==='admin'?'<div class="qdel" onclick="delContact('+i+')">✕</div>':'') +
@@ -10765,16 +11236,17 @@ function addContact(){
   var n = document.getElementById('ctName').value.trim();
   if(!n) return;
   CONTACTS.push({name:n, phone:document.getElementById('ctPhone').value.trim(),
-    insta:document.getElementById('ctInsta').value.trim(),
+    tg:ctHandle(document.getElementById('ctTg').value),
+    insta:ctHandle(document.getElementById('ctInsta').value),
     use:document.getElementById('ctUse').value.trim()});
   saveContacts(); renderContacts();
-  ['ctName','ctPhone','ctInsta','ctUse'].forEach(id=>document.getElementById(id).value='');
+  ['ctName','ctPhone','ctTg','ctInsta','ctUse'].forEach(id=>document.getElementById(id).value='');
 }
 function delContact(i){ CONTACTS.splice(i,1); saveContacts(); renderContacts(); }
 function contactToBoard(i){
   var c = CONTACTS[i];
   closeSheet('contSheet');
-  addNode({type:'cont', title:c.name, desc:[c.use, c.phone, c.insta].filter(Boolean).join(' · ')});
+  addNode({type:'cont', title:c.name, desc:[c.use || c.cat, c.phone, c.tg?'Telegram @'+c.tg:'', c.insta?'Instagram @'+c.insta:''].filter(Boolean).join(' · ')});
 }
 
 // ═══ Штрафы ═══
@@ -11554,6 +12026,8 @@ function snapshot(){
     labs: curBoard && curBoard.labs ? curBoard.labs : [],
     wheelHist: curBoard && curBoard.wheelHist ? curBoard.wheelHist : [],
     diagHist: curBoard && curBoard.diagHist ? curBoard.diagHist : [],
+    calls: curBoard && curBoard.calls ? curBoard.calls : [],
+    pendingCalls: curBoard && curBoard.pendingCalls ? curBoard.pendingCalls : [],
     diagTests: curBoard && curBoard.diagTests ? curBoard.diagTests : [],
     gallup: curBoard && curBoard.gallup ? curBoard.gallup : null,
     checks: curBoard && curBoard.checks ? curBoard.checks : {},
@@ -11576,6 +12050,7 @@ function saveBoard(){
   var old=btn.textContent; btn.textContent='✓ Сохранено';
   setTimeout(()=>btn.textContent=old, 1400);
 }
+setTimeout(function(){ try{ pollCalls(); }catch(e){} }, 6000);
 function openBoard(id){
   var b = boards.find(x=>x.id===id); if(!b) return;
   viewingArchive = false;
@@ -11680,6 +12155,33 @@ function updateVer(){
     el.textContent = 'Цикл ' + curBoard.version;
     el.style.display = '';
   } else el.style.display = 'none';
+}
+// Удаление цикла. vi = индекс архива; -1 = текущий цикл (доска возвращается к предыдущему)
+function delCycle(vi){
+  if(!curBoard || MODE!=='admin' || viewingArchive) return;
+  var isCur = vi < 0;
+  var v = isCur ? null : (curBoard.history||[])[vi];
+  askConfirm(isCur ? 'Удалить текущий цикл '+(curBoard.version||1)+'?' : 'Удалить цикл '+(v&&v.version)+'?',
+    isCur ? 'Доска вернётся к предыдущему циклу.' : 'Архив этого цикла будет удалён.',
+    function(){
+      var hist = curBoard.history || [];
+      if(isCur){
+        var prev = hist.pop(); if(!prev) return;
+        document.querySelectorAll('.node,.sticker-node').forEach(el=>el.remove());
+        nodes = JSON.parse(JSON.stringify(prev.nodes||[]));
+        links = JSON.parse(JSON.stringify(prev.links||[]));
+        strokes = JSON.parse(JSON.stringify(prev.strokes||[]));
+        if(prev.tests) curBoard.tests = prev.tests;
+        if(prev.health) curBoard.health = prev.health;
+        seq = nodes.reduce(function(m,n){ return Math.max(m, Number(n.id)||0); }, 0) + 1;
+        nodes.forEach(renderNode); drawLinks(); setTimeout(redraw,60);
+      } else hist.splice(vi,1);
+      hist.forEach(function(h,k){ h.version = k+1; });
+      curBoard.history = hist;
+      curBoard.version = hist.length + 1;
+      saveBoardSilent(); updateVer(); renderHist();
+      closeSheet('cycSheet'); toast('Цикл удалён');
+    });
 }
 var viewingArchive = false;
 function openVersion(bid, vi){

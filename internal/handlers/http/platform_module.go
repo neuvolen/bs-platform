@@ -6,6 +6,7 @@ import (
 )
 
 type PlatformModule struct {
+	AI     *PlatformAI
 	h      *PlatformHandler
 	auth   *PlatformAuthHandler
 	secret []byte
@@ -13,7 +14,7 @@ type PlatformModule struct {
 
 func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte) *PlatformModule {
 	a.repo, a.names = h.repo, h.names
-	return &PlatformModule{h: h, auth: a, secret: secret}
+	return &PlatformModule{h: h, auth: a, secret: secret, AI: NewPlatformAI(h.repo, nil)}
 }
 
 func (m *PlatformModule) Register(r *gin.Engine) {
@@ -38,4 +39,11 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/boards/:id/versions/:version", m.h.BoardVersion)
 	g.PUT("/docs/:key", m.h.PutDoc)
 	g.POST("/import", m.h.Import)
+	g.POST("/files", m.AI.UploadFile)
+	g.GET("/files/:id", m.AI.GetFile)
+	g.GET("/ai/status", m.AI.Status)
+	g.POST("/ai/command", m.AI.Command)
+	g.POST("/ai/call", m.AI.Call)
+	g.GET("/ai/jobs/:id", m.AI.Job)
+	g.GET("/ai/jobs", m.AI.Jobs)
 }
