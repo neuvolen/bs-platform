@@ -137,6 +137,20 @@ func TestReportFeedback(t *testing.T) {
 	}
 	e.reset()
 
+	// No note: the team writes feedback, a resident answers someone, or writes after his report.
+	e.group(t, 453800951, 9, "Отлично, молодец", evening, "")
+	e.group(t, 1004, 9, "Спасибо!", evening, `,"reply_to_message":{"message_id":777}`)
+	e.group(t, 1001, 9, "Да, сделаю завтра", evening, "") // 1001 sent a report above
+	if m = e.calls("sendMessage"); len(m) != 0 {
+		t.Fatalf("short note to the team / a reply / after a report: %v", m)
+	}
+	// A plain topic message (reply_to = the topic itself) is not a reply: still warned.
+	e.group(t, 1004, 9, "Коротко", evening, `,"reply_to_message":{"message_id":9}`)
+	if m = e.calls("sendMessage"); len(m) != 1 || m[0].P["chat_id"].(float64) != 1004 {
+		t.Fatalf("topic message must be judged as before: %v", e.got)
+	}
+	e.reset()
+
 	e.group(t, 1004, 2, long, evening, "")
 	e.group(t, 555, 2, long, evening, "") // not a resident: no note
 	m = e.calls("sendMessage")

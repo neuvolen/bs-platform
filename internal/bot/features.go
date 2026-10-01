@@ -148,6 +148,31 @@ func (s *Service) react(ctx context.Context, chat, msgID int64, emoji string) er
 	return err
 }
 
+func (s *Service) isAdmin(id int64) bool {
+	for _, a := range s.admins {
+		if a == id {
+			return true
+		}
+	}
+	return false
+}
+
+// reportedToday: the sender already has a counted report for the message's day.
+func (s *Service) reportedToday(ctx context.Context, m *GroupMessage) bool {
+	a := m.Sent.In(club.Almaty)
+	day := time.Date(a.Year(), a.Month(), a.Day(), 0, 0, 0, 0, club.Almaty)
+	rows, err := s.repo.ServerReports(ctx, day)
+	if err != nil {
+		return true // unsure: better silent than a wrong warning
+	}
+	for _, r := range rows {
+		if r.TgID == m.FromID {
+			return true
+		}
+	}
+	return false
+}
+
 // feedback answers a group message the way the script used to, only at once.
 func (s *Service) feedback(ctx context.Context, m *GroupMessage, d Decision) {
 	if m.Media {
@@ -171,10 +196,16 @@ func (s *Service) feedback(ctx context.Context, m *GroupMessage, d Decision) {
 			}
 		}
 	case VerdictShort:
+		// A short message is often a conversation, not a failed report: the team
+		// gives feedback, a resident answers or writes after the day's report.
+		// Only a resident without a report today who writes on his own is warned.
+		if s.isAdmin(m.FromID) || m.IsReply() || s.reportedToday(ctx, m) {
+			return
+		}
 		if s.once(ctx, fmt.Sprintf("short:%d", m.FromID), shortNoticeEvery) {
 			_ = s.SendMessage(ctx, m.FromID, fmt.Sprintf("⚠️ Сообщение слишком короткое (%d симв.), как отчёт оно не засчитано.\n\n"+
 				"Нужно минимум 100 символов: что сделал, что не получилось, что завтра.\n"+
-				"Шаблон — команда /help. Отправьте полный отчёт, иначе ночью будет штраф.", d.Len))
+				"Шаблон: команда /help. Отправьте полный отчёт, иначе ночью будет штраф.", d.Len))
 		}
 	case VerdictWrongTopic:
 		if isRes && s.once(ctx, fmt.Sprintf("wrongtopic:%d", m.FromID), wrongNoticeEvery) {

@@ -46,6 +46,12 @@ type GroupMessage struct {
 	Username  string
 	Text      string // trimmed
 	Media     bool   // video note or video: never a report
+	ReplyTo   int64  // message answered; in a forum topic the topic's first message is not a reply
+}
+
+// IsReply: the person answers someone in the chat (not just writes into the topic).
+func (m *GroupMessage) IsReply() bool {
+	return m.ReplyTo != 0 && strconv.FormatInt(m.ReplyTo, 10) != m.Thread
 }
 
 // ReadGroupMessage returns the group message of an update, if it is one.
@@ -68,6 +74,9 @@ func ReadGroupMessage(body []byte) (*GroupMessage, bool) {
 				Username  string `json:"username"`
 			} `json:"from"`
 			Text      string          `json:"text"`
+			Reply     *struct {
+				MessageID int64 `json:"message_id"`
+			} `json:"reply_to_message"`
 			VideoNote json.RawMessage `json:"video_note"`
 			Video     json.RawMessage `json:"video"`
 		} `json:"message"`
@@ -88,6 +97,9 @@ func ReadGroupMessage(body []byte) (*GroupMessage, bool) {
 	}
 	if m.Thread != nil {
 		g.Thread = strconv.FormatInt(*m.Thread, 10)
+	}
+	if m.Reply != nil {
+		g.ReplyTo = m.Reply.MessageID
 	}
 	if m.Date == 0 {
 		g.Sent = time.Now().In(club.Almaty)
