@@ -244,6 +244,7 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string) []httpapi.Rou
 	if d.PlatformRepo != nil {
 		g.Boards = d.PlatformRepo
 		g.Library = d.PlatformRepo
+		g.Sync = d.PlatformRepo
 	}
 	g.Done = pg.NewClubRepo(d.DB)
 	g.Avatars = pg.NewClubRepo(d.DB)

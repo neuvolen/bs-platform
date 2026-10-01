@@ -58,6 +58,8 @@ type AppGateway struct {
 	Boards AppBoardSource
 	// Library: the platform's knowledge base and files for residents.
 	Library AppLibrarySource
+	// Sync writes app results (tests, calendar) into the platform storage.
+	Sync AppSyncSource
 	// Avatars: whose Telegram photos the app may show; TGBase for tests.
 	Avatars AppAvatarSource
 	TGBase  string
@@ -119,6 +121,9 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.POST("/api/v1/app/post", m.g.Post)
 	r.GET("/api/v1/app/myboard", m.g.MyBoard)
 	r.GET("/api/v1/app/library", m.g.Library_)
+	r.POST("/api/v1/app/mytests", m.g.MyTests)
+	r.GET("/api/v1/app/mycal", m.g.MyCal)
+	r.PUT("/api/v1/app/mycal", m.g.MyCal)
 	r.GET("/api/v1/app/file/:id", m.g.LibraryFile)
 	r.GET("/api/v1/app/avatar/:id", m.g.Avatar)
 }
