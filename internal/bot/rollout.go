@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -121,11 +120,7 @@ func (s *Service) refreshFeatures(ctx context.Context) ([]string, error) {
 		var old []string
 		_ = json.Unmarshal([]byte(prev), &old)
 		if msg := featureChangeText(old, list); msg != "" && prev != "" {
-			for _, id := range s.notify {
-				if err := s.SendMessage(ctx, id, msg); err != nil {
-					log.Printf("bot features notify: %v", err)
-				}
-			}
+			s.sysNote(msg)
 		}
 	}
 	return list, nil

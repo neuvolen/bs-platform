@@ -99,7 +99,7 @@ func TestAppHidesFinishedMeetings(t *testing.T) {
 
 	// markAttendance from the app hides Асет at once
 	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/api/v1/app/call?"+url.Values{"action": {"markAttendance"}, "_tg": {init},
-		"names": {"Асет"}, "date": {"29.09.2026"}}.Encode(), nil))
+		"names": {"Асет|Бакытжан"}, "date": {"29.09.2026"}}.Encode(), nil))
 	if got = scheduleOf(t, r, init); len(got) != 1 || got[0] != "Бакытжан 12:00" {
 		t.Fatalf("after attendance only tomorrow stays: %v", got)
 	}

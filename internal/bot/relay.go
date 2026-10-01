@@ -461,9 +461,13 @@ func (s *Service) checkAlert(ctx context.Context) {
 	_ = s.repo.SetMeta(ctx, metaAlertAt, time.Now().UTC().Format(time.RFC3339))
 	txt := fmt.Sprintf("⚠️ Сервер не может передать сообщения боту в таблице.\n\nЖдут отправки: %d (самое старое %d мин)\nНе доставлены после 10 попыток: %d\nОшибка: %s\n\nСообщения сохранены на сервере и уйдут, когда таблица ответит. Если это надолго: меню BS → «Переподключить бота напрямую».",
 		st.Waiting, st.OldestWaitingS/60, st.GaveUp72h, orDash(st.LastError))
-	for _, id := range s.admins {
-		_ = s.SendMessage(ctx, id, txt)
-	}
+	s.sysNote(txt)
+}
+
+// sysNote: system events (outages, self-repair, rollout changes) go to the log,
+// never to the team's Telegram. The bot only sends business messages.
+func (s *Service) sysNote(text string) {
+	log.Printf("bot system: %s", strings.ReplaceAll(text, "\n", " "))
 }
 
 func orDash(s string) string {

@@ -171,9 +171,7 @@ func (s *Service) maybeDailyCheck(ctx context.Context, now time.Time) (*DailyOut
 			fmt.Sprintf("Почему: за день ни одного отчёта (активных резидентов %d), или сервер получал сообщения бота не весь день.\n\n", res.Active) +
 			"Штрафовать вслепую нельзя: если бот не получает сообщения, резиденты не виноваты.\n\n" +
 			"Что сделать: в таблице меню BS → «Диагностика бота»."
-		for _, id := range s.admins {
-			_ = s.SendMessage(ctx, id, out.Summary)
-		}
+		s.sysNote(out.Summary)
 		_ = s.repo.SetMeta(ctx, key, "stopped")
 		return out, nil
 	}
@@ -187,9 +185,7 @@ func (s *Service) maybeDailyCheck(ctx context.Context, now time.Time) (*DailyOut
 	if len(fines) > 0 {
 		if err := s.ScriptCall(ctx, "addFines", map[string]any{"fines": fines}, &added); err != nil {
 			if s.once(ctx, "daily_fail:"+day.Format("2006-01-02"), 3*time.Hour) {
-				for _, id := range s.admins {
-					_ = s.SendMessage(ctx, id, "⚠️ Ночная проверка за "+res.Day+": штрафы не записались в таблицу ("+err.Error()+"). Сервер попробует ещё раз через 10 минут.")
-				}
+				s.sysNote("Ночная проверка за " + res.Day + ": штрафы не записались в таблицу (" + err.Error() + "), повтор через 10 минут")
 			}
 			return nil, err
 		}

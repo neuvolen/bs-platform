@@ -159,13 +159,12 @@ func TestReportFeedback(t *testing.T) {
 	}
 	e.reset()
 
-	// Reaction refused: the admins hear once a day.
+	// Reaction refused: a system event, it goes to the log, not to the team's chat.
 	e.fail["setMessageReaction"] = "Bad Request: not enough rights"
 	e.group(t, 1001, 9, long, evening, "")
 	e.group(t, 1001, 9, long, evening, "")
-	m = e.calls("sendMessage")
-	if len(m) != 1 || m[0].P["chat_id"].(float64) != 453800951 || !strings.Contains(m[0].P["text"].(string), "not enough rights") {
-		t.Fatalf("reaction warning %v", e.got)
+	if m = e.calls("sendMessage"); len(m) != 0 {
+		t.Fatalf("reaction warning must not reach the chat: %v", m)
 	}
 }
 
@@ -214,7 +213,7 @@ func TestEveningReminder(t *testing.T) {
 	e.reset()
 	sent, _ = e.s.maybeEveningReminder(ctx, at(22, 5))
 	m = e.calls("sendMessage")
-	if len(sent) != 0 || len(m) != 1 || m[0].P["chat_id"].(float64) != 453800951 || !strings.Contains(m[0].P["text"].(string), "не отправлено") {
+	if len(sent) != 0 || len(m) != 0 {
 		t.Fatalf("silent server: sent %v, calls %v", sent, m)
 	}
 }

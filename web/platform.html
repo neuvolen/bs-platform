@@ -1399,7 +1399,7 @@ body.light .sk-cap{background:rgba(255,255,255,.85);color:#141414}
     <div class="nv" draggable="true" data-b="rtask" onclick="goBlock('rtask')">Задачи</div>
     <div class="nv" draggable="true" data-b="rrep" onclick="goBlock('rrep')">Отчёт</div>
     <div class="nv" draggable="true" data-b="rcont" onclick="goBlock('rcont')">Контакты</div>
-    <div class="nv" draggable="true" data-b="rfive" onclick="goBlock('rfive')">Пятёрка</div>
+    <div class="nv" draggable="true" data-b="rfive" onclick="goBlock('rfive')">Участники</div>
     <div class="nv" draggable="true" data-b="rmeas" onclick="goBlock('rmeas')">Замеры</div>
     <div class="nv" draggable="true" data-b="rme" onclick="goBlock('rme')">Профиль</div>
   </div>
@@ -4048,8 +4048,8 @@ var BLOCKS = {
   rcont:   {name:'Контакты', tabs:[
     {id:'rResList', n:'Резиденты'},
     {id:'rRes2',    n:'Ресурсы'}]},
-  rfive:   {name:'Пятёрка', tabs:[
-    {id:'rFiveList',n:'Моя пятёрка'}]},
+  rfive:   {name:'Участники', tabs:[
+    {id:'rFiveList',n:'Участники'}]},
   rmeas:   {name:'Замеры', tabs:[
     {id:'bizWheel', n:'Колесо бизнеса'},
     {id:'rwheel',   n:'Колесо баланса'},
@@ -4295,7 +4295,7 @@ var STUBS = {
     items:['Кто, чем занимается, скидка','Кто рекомендовал']},
   rRes2:{t:'Ресурсы', s:'Что доступно резидентам',
     items:['Навыки других резидентов','Скидки партнёров','Общие доступы']},
-  rFiveList:{t:'Моя пятёрка', s:'Ваша мини-группа',
+  rFiveList:{t:'Участники клуба', s:'Ваша пятёрка и весь клуб',
     items:['Состав','Задачи каждого на цикл','Разборы участников','График встреч']},
   rDiag:{t:'Диагностика', s:'Тест по семи органам',
     items:['63 утверждения','Результат по органам','Динамика по циклам']},
@@ -6677,22 +6677,27 @@ function delRes(i){
 }
 
 function renderMyTeam(){
-  var el = pgSet('Моя пятёрка', 'Ваша мини-группа');
+  // Резидент видит всех участников клуба. Своя пятёрка сверху, если назначена
+  var el = pgSet('Участники клуба', 'Ваша пятёрка и весь клуб');
   var teams = loadTeams();
   var me = (curBoard && curBoard.info && curBoard.info.res) || '';
-  var my = teams.find(t=>t.members.some(m=>me && m.indexOf(me.split(' ')[0])>=0)) || teams[0];
-  if(!my){ el.innerHTML = '<div class="empt">Пятёрка не назначена</div>'; return; }
-  el.innerHTML = '<div class="card-sum">' +
-    '<div class="bs-l" style="margin-bottom:12px">'+esc(my.n)+'</div>' +
-    my.members.map(function(nm){
-      var r = RESIDENTS.find(x=>x.name===nm) || {};
-      var v = (SDATA.visits||[]).find(x=>x.name===nm) || {};
-      return '<div class="tm-row"><div class="tm-n">'+esc(nm)+(nm===me?' <span style="color:var(--gold);font-size:11px">· вы</span>':'')+'</div>' +
-        '<div class="tm-m">'+(v.done||0)+' встреч</div>' +
-        '<div class="tm-m">'+esc(r.format||'')+'</div></div>';
-    }).join('') + '</div>' +
-    '<div class="dbox g" style="margin-top:14px;font-size:13px">' +
-      'Пятёрка встречается между трекингами. Обмениваетесь опытом и держите друг друга в тонусе.</div>';
+  var first = me ? me.split(' ')[0] : '';
+  var my = first ? teams.find(t=>t.members.some(m=>m.indexOf(first)>=0)) : null;
+  function row(nm){
+    var r = RESIDENTS.find(x=>x.name===nm) || {};
+    return '<div class="tm-row"><div class="tm-n">'+esc(nm)+(nm===me?' <span style="color:var(--t3);font-size:11px">· вы</span>':'')+'</div>' +
+      '<div class="tm-m">'+esc(r.format||'')+'</div></div>';
+  }
+  var inFive = my ? my.members : [];
+  var all = RESIDENTS.map(x=>x.name).filter(n=>inFive.indexOf(n)<0)
+    .sort((x,y)=>x.localeCompare(y,'ru'));
+  el.innerHTML =
+    (my ? '<div class="card-sum" style="margin-bottom:14px">' +
+      '<div class="bs-l" style="margin-bottom:12px">Моя пятёрка · '+esc(my.n)+'</div>' +
+      my.members.map(row).join('') + '</div>' : '') +
+    '<div class="card-sum">' +
+      '<div class="bs-l" style="margin-bottom:12px">Все участники · '+fmtN(RESIDENTS.length)+'</div>' +
+      (all.length ? all.map(row).join('') : '<div class="empt">Список пуст</div>') + '</div>';
 }
 
 function renderResDiag(){

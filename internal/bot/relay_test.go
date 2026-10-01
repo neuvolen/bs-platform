@@ -95,15 +95,14 @@ func TestAlertWhenUpdatesPileUp(t *testing.T) {
 	if len(sent) != 0 {
 		t.Fatalf("alarm on a fresh update: %v", sent)
 	}
-	// Stuck for 20 minutes: both admins told.
+	// Stuck for 20 minutes: a system event, logged, the chat stays quiet.
 	_, _ = db.Pool.Exec(ctx, `UPDATE bot_updates SET received_at = now() - interval '20 minutes', relay_error = 'script answered 500'`)
 	s.checkAlert(ctx)
-	if len(sent) != 2 || !strings.Contains(sent[0]["text"].(string), "script answered 500") {
-		t.Fatalf("alarm: %v", sent)
+	if len(sent) != 0 {
+		t.Fatalf("alarm reached the chat: %v", sent)
 	}
-	// Still stuck a minute later: silence.
 	s.checkAlert(ctx)
-	if len(sent) != 2 {
+	if len(sent) != 0 {
 		t.Fatalf("repeated alarm: %d", len(sent))
 	}
 }

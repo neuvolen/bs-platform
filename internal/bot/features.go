@@ -167,10 +167,7 @@ func (s *Service) feedback(ctx context.Context, m *GroupMessage, d Decision) {
 		if err := s.react(ctx, m.ChatID, m.MessageID, "🔥"); err != nil {
 			log.Printf("bot feedback: reaction: %v", err)
 			if s.once(ctx, "reactwarn", reactionWarnEvery) {
-				for _, id := range s.admins {
-					_ = s.SendMessage(ctx, id, "Бот не смог поставить реакцию на отчёт.\nПричина: "+err.Error()+
-						"\n\nПроверьте, что бот админ группы")
-				}
+				s.sysNote("Бот не смог поставить реакцию на отчёт: " + err.Error())
 			}
 		}
 	case VerdictShort:
@@ -228,9 +225,7 @@ func (s *Service) maybeEveningReminder(ctx context.Context, now time.Time) ([]st
 	// would be wrong, so the owner is told instead.
 	if st, err := s.repo.Stats(ctx); err != nil || st.LastReceivedAt == nil || now.Sub(*st.LastReceivedAt) > 6*time.Hour {
 		if s.once(ctx, "evening-skip:"+day.Format("2006-01-02"), 20*time.Hour) {
-			for _, id := range s.admins {
-				_ = s.SendMessage(ctx, id, "⚠️ Напоминание 22:00 не отправлено: сервер 6 часов не получал сообщений бота и не знает, кто сдал отчёт.\n\nМеню BS → «Диагностика бота».")
-			}
+			s.sysNote("Напоминание 22:00 не отправлено: сервер 6 часов не получал сообщений бота")
 		}
 		return nil, nil
 	}

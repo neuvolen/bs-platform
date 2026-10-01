@@ -61,7 +61,8 @@ func (g *AppGateway) noteDone(action string, p map[string]string) {
 			}
 		}
 	case "markAttendance":
-		for _, n := range strings.Split(p["names"], ",") {
+		// the app joins names with "|"; "," kept for old builds
+		for _, n := range strings.FieldsFunc(p["names"], func(r rune) bool { return r == '|' || r == ',' }) {
 			if strings.TrimSpace(n) != "" && ddmm(p["date"]) != "" {
 				g.done[doneKey(n, p["date"], "*")] = now
 			}
