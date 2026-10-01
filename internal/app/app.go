@@ -243,6 +243,7 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string) []httpapi.Rou
 	g.Admins = httpapi.ParsePlatformTeam(os.Getenv("PLATFORM_TEAM"))
 	if d.PlatformRepo != nil {
 		g.Boards = d.PlatformRepo
+		g.Library = d.PlatformRepo
 	}
 	g.Done = pg.NewClubRepo(d.DB)
 	g.Avatars = pg.NewClubRepo(d.DB)

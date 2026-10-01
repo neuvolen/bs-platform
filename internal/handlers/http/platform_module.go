@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"github.com/bnursik/business_surgery_backend/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
@@ -14,7 +15,11 @@ type PlatformModule struct {
 
 func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte) *PlatformModule {
 	a.repo, a.names = h.repo, h.names
-	return &PlatformModule{h: h, auth: a, secret: secret, AI: NewPlatformAI(h.repo, nil)}
+	m := &PlatformModule{h: h, auth: a, secret: secret, AI: NewPlatformAI(h.repo, nil)}
+	if h.repo != nil {
+		go m.AI.EventsLoop(context.Background())
+	}
+	return m
 }
 
 func (m *PlatformModule) Register(r *gin.Engine) {
@@ -46,4 +51,5 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/ai/call", m.AI.Call)
 	g.GET("/ai/jobs/:id", m.AI.Job)
 	g.GET("/ai/jobs", m.AI.Jobs)
+	g.POST("/ai/events", m.AI.RefreshEvents)
 }

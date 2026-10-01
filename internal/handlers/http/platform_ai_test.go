@@ -25,6 +25,9 @@ func fakeGemini(t *testing.T, calls *[]string) *httptest.Server {
 		s := string(b)
 		answer := ""
 		switch {
+		case strings.Contains(s, "google_search"):
+			*calls = append(*calls, "events")
+			answer = `Нашёл: {"items":[{"title":"Бизнес-завтрак","date":"2099-01-10","time":"09:00","place":"Алматы","url":"https://ex.kz/a","source":"ex.kz"},{"title":"Старое","date":"2000-01-01","url":"https://ex.kz/b"},{"title":"Без ссылки","date":"2099-01-11"}]}`
 		case strings.Contains(s, "inline_data"):
 			*calls = append(*calls, "transcribe")
 			answer = "Трекер: Сколько оборот?\nРезидент: Пять миллионов, кассовые разрывы."
@@ -54,6 +57,7 @@ func TestPlatformFilesAndAI(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = db.Pool.Exec(ctx, `TRUNCATE platform_files, platform_ai_jobs`)
+	_, _ = db.Pool.Exec(ctx, `DELETE FROM platform_docs WHERE key = 'bs_events_feed'`)
 	var calls []string
 	gm := fakeGemini(t, &calls)
 	defer gm.Close()
@@ -150,6 +154,21 @@ func TestPlatformFilesAndAI(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &job)
 	if strings.Join(calls, ",") != "summary" {
 		t.Fatalf("text call: %v", calls)
+	}
+
+	// Events feed: only future events with a link are kept, stored as a club doc.
+	r.POST("/ai/events", h.RefreshEvents)
+	w = do("POST", "/ai/events", "", nil, nil)
+	if !strings.Contains(w.Body.String(), `"found":1`) {
+		t.Fatalf("events: %s", w.Body.String())
+	}
+	d, _ := repo.GetDoc(ctx, "club", "bs_events_feed")
+	if d == nil || !strings.Contains(d.Value, "Бизнес-завтрак") || strings.Contains(d.Value, "Старое") {
+		t.Fatalf("events doc: %+v", d)
+	}
+	w = do("POST", "/ai/events", "", nil, nil) // second run updates the same doc
+	if !strings.Contains(w.Body.String(), `"found":1`) {
+		t.Fatalf("events again: %s", w.Body.String())
 	}
 
 	// No key: a clear message, nothing queued.

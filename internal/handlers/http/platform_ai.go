@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -110,32 +111,45 @@ func (h *PlatformAI) Status(c *gin.Context) { c.JSON(http.StatusOK, h.AI.Status(
 
 // ── Voice assistant ──
 
-const commandSystem = `Ты голосовой помощник платформы Business Surgery: трекер ведёт разбор бизнеса резидента на доске.
-Доска: узлы (root = резидент, point A/B = точки А и Б, strat = стратегия, diag = диагноз, tool = инструмент, task = задача,
-goal = цель, quest = вопрос, note = заметка, cont = контакт) и связи между ними.
-Переведи фразу трекера в действия. Отвечай ТОЛЬКО JSON без пояснений:
-{"actions":[...], "say":"короткий ответ по-русски, что сделано"}
-Действия (используй только их):
-{"op":"add_node","type":"diag|tool|task|goal|quest|note|strat|cont","title":"...","desc":"...","parent":<id узла или null>,"date":"ДД.ММ или пусто"}
-{"op":"edit_node","id":<id>,"title":"...","desc":"..."}
-{"op":"delete_node","id":<id>}
-{"op":"link","a":<id>,"b":<id>}
-{"op":"unlink","a":<id>,"b":<id>}
-{"op":"set_point","which":"A|B","text":"..."}
-{"op":"set_strategy","text":"..."}
-{"op":"pick_diag","query":"название диагноза из базы"}
-{"op":"pick_tool","query":"название инструмента из базы"}
-{"op":"task_done","id":<id>}
-{"op":"select","id":<id>}
-{"op":"open_resident","name":"..."}
-{"op":"open_section","id":"<id раздела из списка>"}
-{"op":"rename_board","title":"..."}
-{"op":"new_cycle"} {"op":"presentation","on":true|false} {"op":"save"} {"op":"undo"} {"op":"fit"}
-{"op":"add_contact","name":"...","phone":"...","category":"...","telegram":"...","instagram":"..."}
-{"op":"search","query":"..."}
-Правила: id бери только из списка узлов. Если узел упомянут по смыслу («к кассовым разрывам»), найди его id.
-Новый диагноз/инструмент сначала ищи в базе (pick_diag/pick_tool), если похожего нет: add_node.
-Если фраза не команда, а мысль во время разбора: add_node type note.`
+const commandSystem = `Ты голосовой помощник платформы Business Surgery. Трекер (Рустам или Береке) ведёт разбор бизнеса резидента на доске и говорит вслух.
+Твоя задача: понять фразу (речь распознана автоматически, возможны ошибки, отсутствие знаков препинания, слова-паразиты) и вернуть действия.
+
+ДОСКА. Узлы: root (резидент в центре), point с role pointA/pointB (точки А и Б), strat (стратегия), diag (диагноз), tool (инструмент),
+task (задача), goal (цель), quest (вопрос), note (заметка), cont (контакт), dna. Узлы образуют дерево от root. У каждого узла в контексте есть id, type, title и parent.
+Органы бизнеса: Стратегия (мозг), Маркетинг (сердце), Продажи (руки), Команда (костяк), Финансы (кровь), Процессы (ДНК), Аналитика (зрение).
+
+ОТВЕТ: только JSON {"actions":[...], "say":"коротко по-русски, что сделано или что уточнить"}.
+ДЕЙСТВИЯ:
+{"op":"add_node","type":"task|note|goal|quest|strat|cont|diag|tool","title":"...","desc":"...","parent":<id|null>,"date":"ДД.ММ"}
+{"op":"edit_node","id":<id>,"title":"...","desc":"..."}   {"op":"delete_node","id":<id>}
+{"op":"link","a":<id>,"b":<id>}   {"op":"unlink","a":<id>,"b":<id>}
+{"op":"set_point","which":"A|B","text":"..."}   {"op":"set_strategy","text":"..."}
+{"op":"pick_diag","query":"название из diag_library","parent":<id|null>}   {"op":"pick_tool","query":"название из tool_library","parent":<id|null>}
+{"op":"task_done","id":<id>}   {"op":"select","id":<id>}
+{"op":"set_info","field":"name|last|birth|city|biz|fam|a|q|b","value":"..."}
+{"op":"open_resident","name":"..."}   {"op":"open_section","id":"<id из sections>"}   {"op":"open_panel","tab":"data|tests|prep|summary|tasks|reports|calls"}
+{"op":"rename_board","title":"..."}   {"op":"new_cycle"}   {"op":"presentation","on":true|false}   {"op":"save"}   {"op":"undo"}   {"op":"redo"}
+{"op":"fit"}   {"op":"zoom","dir":"in|out"}   {"op":"theme"}   {"op":"health","on":true|false}   {"op":"draw","on":true|false}
+{"op":"start_call"}   {"op":"stop_call"}   {"op":"mode","value":"admin|res|lead"}
+{"op":"add_contact","name":"...","phone":"...","category":"...","telegram":"...","instagram":"..."}   {"op":"search","query":"..."}   {"op":"add_sticker","query":"..."}
+
+ПРАВИЛА:
+1. id бери только из контекста. Узел, упомянутый по смыслу («к кассовым разрывам», «к этому», «к нему»), найди по title; «это/этот/выделенный» = selected; «последний/только что» = последний из recent.
+2. Диагноз или инструмент сначала ищи в библиотеке (pick_diag/pick_tool, query = точное название из библиотеки). Если похожего нет: add_node с type diag/tool.
+3. Задачу без указания родителя вешай на выделенный узел, если он диагноз или инструмент; иначе parent null. Дату переводи в ДД.ММ («до пятницы», «пятого октября»: вычисли от today).
+4. Несколько команд в одной фразе = несколько действий по порядку.
+5. Если фраза не команда, а мысль, наблюдение или цитата резидента: add_node type note, title = мысль коротко и грамотно.
+6. Исправляй ошибки распознавания по смыслу («касовые разрывы» = Кассовые разрывы, «точка а» = pointA).
+7. Не выдумывай действий. Если непонятно, верни пустой actions и в say короткий вопрос.
+
+ПРИМЕРЫ:
+«поставь диагноз кассовые разрывы» → {"actions":[{"op":"pick_diag","query":"Кассовые разрывы","parent":null}],"say":"Диагноз «Кассовые разрывы» на доске"}
+«к нему инструмент платёжный календарь и задача заполнить до пятого» (selected=12, диагноз) → {"actions":[{"op":"pick_tool","query":"Платёжный календарь","parent":12},{"op":"add_node","type":"task","title":"Заполнить платёжный календарь","parent":12,"date":"05.10"}],"say":"Добавил инструмент и задачу до 05.10"}
+«точка а оборот пять миллионов прибыль шестьсот тысяч» → {"actions":[{"op":"set_point","which":"A","text":"Оборот 5 млн, прибыль 600 тыс"}],"say":"Точка А записана"}
+«открой доску даулета» → {"actions":[{"op":"open_resident","name":"Даулет"}],"say":"Открываю доску Даулета"}
+«клиенты жалуются что долго отвечаем» → {"actions":[{"op":"add_node","type":"note","title":"Клиенты жалуются на долгий ответ"}],"say":"Заметка добавлена"}
+«удали это» (selected=7) → {"actions":[{"op":"delete_node","id":7}],"say":"Удалил"}
+«покажи подготовку к встрече» → {"actions":[{"op":"open_panel","tab":"prep"}],"say":"Открыл подготовку"}`
 
 type commandReq struct {
 	Text    string          `json:"text"`
@@ -153,7 +167,8 @@ func (h *PlatformAI) Command(c *gin.Context) {
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
-	ans, err := h.AI.Text(ctx, commandSystem, "Состояние платформы:\n"+string(r.Context)+"\n\nФраза трекера: «"+r.Text+"»")
+	today := time.Now().In(time.FixedZone("Almaty", 5*3600)).Format("02.01.2006, Monday")
+	ans, err := h.AI.JSON(ctx, commandSystem, "today: "+today+"\nСостояние платформы:\n"+string(r.Context)+"\n\nФраза трекера: «"+r.Text+"»")
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"error": err.Error(), "noKey": err == ai.ErrNoKey})
 		return
@@ -273,4 +288,64 @@ func (h *PlatformAI) Jobs(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"jobs": list})
+}
+
+// ── Almaty events feed ──
+// Twice a day the server looks for business events in Almaty and keeps them
+// in the club document bs_events_feed; the platform shows it in Мероприятия.
+
+const eventsFeedKey = "bs_events_feed"
+
+func (h *PlatformAI) refreshEvents(ctx context.Context) (int, error) {
+	loc := time.FixedZone("Almaty", 5*3600)
+	items, err := h.AI.FindEvents(ctx, 21, time.Now().In(loc))
+	if err != nil {
+		return 0, err
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Date+items[i].Time < items[j].Date+items[j].Time })
+	val, _ := json.Marshal(map[string]any{"updated": time.Now().UTC().Format(time.RFC3339), "items": items})
+	for try := 0; try < 3; try++ {
+		base := 0
+		if d, err := h.repo.GetDoc(ctx, "club", eventsFeedKey); err == nil && d != nil {
+			base = d.Version
+		}
+		if _, err = h.repo.PutDoc(ctx, "club", eventsFeedKey, base, string(val), false, "server:events"); err == nil {
+			return len(items), nil
+		}
+	}
+	return 0, err
+}
+
+// EventsLoop refreshes the feed at start and every 12 hours.
+func (h *PlatformAI) EventsLoop(ctx context.Context) {
+	t := time.NewTimer(2 * time.Minute)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		if h.AI.Status()["text"] != "" {
+			c, cancel := context.WithTimeout(ctx, 5*time.Minute)
+			n, err := h.refreshEvents(c)
+			cancel()
+			log.Printf("platform events: %d found, err=%v", n, err)
+		}
+		t.Reset(12 * time.Hour)
+	}
+}
+
+// RefreshEvents: POST /ai/events (team) refreshes the feed now.
+func (h *PlatformAI) RefreshEvents(c *gin.Context) {
+	if !teamOnly(c) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
+	defer cancel()
+	n, err := h.refreshEvents(ctx)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"found": n})
 }

@@ -87,6 +87,14 @@ func (c *Client) Text(ctx context.Context, system, prompt string) (string, error
 	return "", ErrNoKey
 }
 
+// JSON answers a prompt expecting a JSON object (Gemini is put into JSON mode).
+func (c *Client) JSON(ctx context.Context, system, prompt string) (string, error) {
+	if c.Anthropic == "" && c.Gemini != "" {
+		return c.geminiCfg(ctx, system, []map[string]any{{"text": prompt}}, map[string]any{"responseMimeType": "application/json", "temperature": 0.2})
+	}
+	return c.Text(ctx, system, prompt)
+}
+
 // Transcribe turns a recording into text with speakers where the model can tell them.
 func (c *Client) Transcribe(ctx context.Context, audio []byte, mime string) (string, error) {
 	if mime == "" {
@@ -161,11 +169,19 @@ func (c *Client) claude(ctx context.Context, system, prompt string) (string, err
 }
 
 func (c *Client) gemini(ctx context.Context, system string, parts []map[string]any) (string, error) {
+	return c.geminiCfg(ctx, system, parts, nil)
+}
+
+func (c *Client) geminiCfg(ctx context.Context, system string, parts []map[string]any, cfg map[string]any) (string, error) {
 	url := fmt.Sprintf("%s/v1beta/models/%s:generateContent?key=%s", c.GeminiBase, c.GeminiModel, c.Gemini)
-	r := jsonReq("POST", url, map[string]any{
+	body := map[string]any{
 		"system_instruction": map[string]any{"parts": []map[string]any{{"text": system}}},
 		"contents":           []map[string]any{{"role": "user", "parts": parts}},
-	})
+	}
+	if cfg != nil {
+		body["generationConfig"] = cfg
+	}
+	r := jsonReq("POST", url, body)
 	b, err := c.do(ctx, r)
 	if err != nil {
 		return "", err
@@ -302,4 +318,105 @@ func JSONFrom(s string) string {
 		return ""
 	}
 	return s[i : j+1]
+}
+
+// Event is one business event found on the web.
+type Event struct {
+	Title  string   `json:"title"`
+	Date   string   `json:"date"` // YYYY-MM-DD
+	Time   string   `json:"time,omitempty"`
+	Place  string   `json:"place,omitempty"`
+	URL    string   `json:"url,omitempty"`
+	Price  string   `json:"price,omitempty"`
+	Source string   `json:"source,omitempty"`
+	Tags   []string `json:"tags,omitempty"`
+}
+
+const eventsPrompt = `Найди в интернете бизнес-мероприятия в Алматы на ближайшие %d дней, начиная с %s: конференции, форумы, нетворкинги, бизнес-завтраки, мастер-классы и лекции для предпринимателей, выставки.
+Источники: ticketon.kz, sxodim.com, afisha, сайты организаторов, Telegram-каналы с анонсами, Astana Hub, Atameken, Forbes Kazakhstan, бизнес-клубы.
+Верни ТОЛЬКО JSON: {"items":[{"title":"...","date":"YYYY-MM-DD","time":"HH:MM","place":"...","url":"ссылка на страницу события","price":"бесплатно или цена","source":"домен","tags":["нетворкинг|конференция|обучение|выставка|завтрак|IT|маркетинг|финансы|продажи"]}]}
+Только реальные события с датой и ссылкой, которые ты нашёл в поиске. Не выдумывай. До 30 событий.`
+
+// FindEvents searches the web for Almaty business events (needs a model with web search).
+func (c *Client) FindEvents(ctx context.Context, days int, from time.Time) ([]Event, error) {
+	prompt := fmt.Sprintf(eventsPrompt, days, from.Format("2006-01-02"))
+	var ans string
+	var err error
+	switch {
+	case c.Gemini != "":
+		url := fmt.Sprintf("%s/v1beta/models/%s:generateContent?key=%s", c.GeminiBase, c.GeminiModel, c.Gemini)
+		r := jsonReq("POST", url, map[string]any{
+			"contents": []map[string]any{{"role": "user", "parts": []map[string]any{{"text": prompt}}}},
+			"tools":    []map[string]any{{"google_search": map[string]any{}}},
+		})
+		var b []byte
+		if b, err = c.do(ctx, r); err == nil {
+			var out struct {
+				Candidates []struct {
+					Content struct {
+						Parts []struct {
+							Text string `json:"text"`
+						} `json:"parts"`
+					} `json:"content"`
+				} `json:"candidates"`
+			}
+			_ = json.Unmarshal(b, &out)
+			for _, cnd := range out.Candidates {
+				for _, p := range cnd.Content.Parts {
+					ans += p.Text
+				}
+				break
+			}
+		}
+	case c.Anthropic != "":
+		r := jsonReq("POST", c.AnthropicBase+"/v1/messages", map[string]any{
+			"model": c.ClaudeModel, "max_tokens": 8000,
+			"tools":    []map[string]any{{"type": "web_search_20250305", "name": "web_search", "max_uses": 8}},
+			"messages": []map[string]any{{"role": "user", "content": prompt}},
+		})
+		r.Header.Set("x-api-key", c.Anthropic)
+		r.Header.Set("anthropic-version", "2023-06-01")
+		var b []byte
+		if b, err = c.do(ctx, r); err == nil {
+			var out struct {
+				Content []struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"content"`
+			}
+			_ = json.Unmarshal(b, &out)
+			for _, p := range out.Content {
+				if p.Type == "text" {
+					ans += p.Text
+				}
+			}
+		}
+	default:
+		return nil, errors.New("поиск мероприятий работает с GEMINI_API_KEY или ANTHROPIC_API_KEY")
+	}
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Items []Event `json:"items"`
+	}
+	if js := JSONFrom(ans); js == "" || json.Unmarshal([]byte(js), &out) != nil {
+		return nil, errors.New("ИИ не вернул список мероприятий")
+	}
+	today := from.Format("2006-01-02")
+	var keep []Event
+	seen := map[string]bool{}
+	for _, e := range out.Items {
+		e.Title, e.URL = strings.TrimSpace(e.Title), strings.TrimSpace(e.URL)
+		if e.Title == "" || len(e.Date) != 10 || e.Date < today || !strings.HasPrefix(e.URL, "http") {
+			continue
+		}
+		k := strings.ToLower(e.Title) + e.Date
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		keep = append(keep, e)
+	}
+	return keep, nil
 }

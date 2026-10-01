@@ -56,6 +56,8 @@ type AppGateway struct {
 
 	// Boards lets the app show a resident their board from the platform.
 	Boards AppBoardSource
+	// Library: the platform's knowledge base and files for residents.
+	Library AppLibrarySource
 	// Avatars: whose Telegram photos the app may show; TGBase for tests.
 	Avatars AppAvatarSource
 	TGBase  string
@@ -116,6 +118,8 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.GET("/api/v1/app/call", m.g.Call)
 	r.POST("/api/v1/app/post", m.g.Post)
 	r.GET("/api/v1/app/myboard", m.g.MyBoard)
+	r.GET("/api/v1/app/library", m.g.Library_)
+	r.GET("/api/v1/app/file/:id", m.g.LibraryFile)
 	r.GET("/api/v1/app/avatar/:id", m.g.Avatar)
 }
 

@@ -30,6 +30,7 @@ type appBoardNode struct {
 	Desc  string `json:"desc,omitempty"`
 	Organ string `json:"organ,omitempty"`
 	Done  bool   `json:"done,omitempty"`
+	Due   string `json:"due,omitempty"`
 }
 
 type AppBoard struct {
@@ -44,6 +45,9 @@ type AppBoard struct {
 	Diagnoses  []appBoardNode `json:"diagnoses"`
 	Tools      []appBoardNode `json:"tools"`
 	Tasks      []appBoardNode `json:"tasks"`
+	// Measurements made on the platform: Gallup, the 7-organ test, health.
+	Tests  json.RawMessage `json:"tests,omitempty"`
+	Health json.RawMessage `json:"health,omitempty"`
 }
 
 // Placeholders of a fresh board are not content.
@@ -67,6 +71,8 @@ func SummarizeBoard(b *pg.PlatformBoard) AppBoard {
 		Updated string            `json:"updated"`
 		Info    map[string]string `json:"info"`
 		History []json.RawMessage `json:"history"`
+		Tests   json.RawMessage   `json:"tests"`
+		Health  json.RawMessage   `json:"health"`
 		Nodes   []struct {
 			Type  string `json:"type"`
 			Role  string `json:"role"`
@@ -74,7 +80,8 @@ func SummarizeBoard(b *pg.PlatformBoard) AppBoard {
 			Desc  string `json:"desc"`
 			Organ string `json:"organ"`
 			Task  *struct {
-				Completed bool `json:"completed"`
+				Completed bool   `json:"completed"`
+				Date      string `json:"date"`
 			} `json:"task"`
 			Done bool `json:"done"`
 		} `json:"nodes"`
@@ -84,6 +91,7 @@ func SummarizeBoard(b *pg.PlatformBoard) AppBoard {
 		Resident: b.Resident, Name: d.Name, Updated: d.Updated, Cycle: len(d.History) + 1,
 		PointA: strings.TrimSpace(d.Info["a"]), PointB: strings.TrimSpace(d.Info["b"]),
 		Diagnoses: []appBoardNode{}, Tools: []appBoardNode{}, Tasks: []appBoardNode{},
+		Tests: nonEmptyJSON(d.Tests), Health: nonEmptyJSON(d.Health),
 	}
 	join := func(title, desc string) string {
 		t, s := clean(title), clean(desc)
@@ -108,6 +116,9 @@ func SummarizeBoard(b *pg.PlatformBoard) AppBoard {
 			}
 		case "task":
 			node.Done = n.Done || (n.Task != nil && n.Task.Completed)
+			if n.Task != nil {
+				node.Due = strings.TrimSpace(n.Task.Date)
+			}
 			if node.Title != "" {
 				out.Tasks = append(out.Tasks, node)
 			}
@@ -128,6 +139,14 @@ func SummarizeBoard(b *pg.PlatformBoard) AppBoard {
 		}
 	}
 	return out
+}
+
+func nonEmptyJSON(b json.RawMessage) json.RawMessage {
+	t := strings.TrimSpace(string(b))
+	if t == "" || t == "null" || t == "{}" || t == "[]" {
+		return nil
+	}
+	return b
 }
 
 // latestBoardOf picks the most recently changed board of a resident.
@@ -182,5 +201,5 @@ func (g *AppGateway) MyBoard(c *gin.Context) {
 		return
 	}
 	s := SummarizeBoard(b)
-	c.JSON(http.StatusOK, gin.H{"board": s, "resident": name})
+	c.JSON(http.StatusOK, gin.H{"board": s, "resident": name, "tests": s.Tests, "health": s.Health})
 }
