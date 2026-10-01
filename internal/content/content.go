@@ -17,3 +17,10 @@ func ChecklistsVersion() string {
 	s := sha256.Sum256(Checklists)
 	return hex.EncodeToString(s[:6])
 }
+
+// Marketing: the club's marketing analysis (ЦА, JTBD, ценность, лестница
+// Бена Ханта, конкуренты, позиционирование), the first version of the club
+// document bs_mkt_analysis. The team edits it on the platform afterwards.
+//
+//go:embed marketing.json
+var Marketing []byte

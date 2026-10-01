@@ -337,9 +337,9 @@ const eventsPrompt = `Найди в интернете бизнес-меропр
 Верни ТОЛЬКО JSON: {"items":[{"title":"...","date":"YYYY-MM-DD","time":"HH:MM","place":"...","url":"ссылка на страницу события","price":"бесплатно или цена","source":"домен","tags":["нетворкинг|конференция|обучение|выставка|завтрак|IT|маркетинг|финансы|продажи"]}]}
 Только реальные события с датой и ссылкой, которые ты нашёл в поиске. Не выдумывай. До 30 событий.`
 
-// FindEvents searches the web for Almaty business events (needs a model with web search).
-func (c *Client) FindEvents(ctx context.Context, days int, from time.Time) ([]Event, error) {
-	prompt := fmt.Sprintf(eventsPrompt, days, from.Format("2006-01-02"))
+// Search asks a model that can search the web (Gemini with google_search, or
+// Claude with web_search) and returns its text answer.
+func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
 	var ans string
 	var err error
 	switch {
@@ -392,8 +392,14 @@ func (c *Client) FindEvents(ctx context.Context, days int, from time.Time) ([]Ev
 			}
 		}
 	default:
-		return nil, errors.New("поиск мероприятий работает с GEMINI_API_KEY или ANTHROPIC_API_KEY")
+		return "", errors.New("поиск в интернете работает с GEMINI_API_KEY или ANTHROPIC_API_KEY")
 	}
+	return ans, err
+}
+
+// FindEvents searches the web for Almaty business events (needs a model with web search).
+func (c *Client) FindEvents(ctx context.Context, days int, from time.Time) ([]Event, error) {
+	ans, err := c.Search(ctx, fmt.Sprintf(eventsPrompt, days, from.Format("2006-01-02")))
 	if err != nil {
 		return nil, err
 	}

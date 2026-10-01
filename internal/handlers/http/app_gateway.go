@@ -63,6 +63,8 @@ type AppGateway struct {
 	Sync AppSyncSource
 	// Ops keeps the journal of every change of club data.
 	Ops AppOpsLog
+	// Funnel: checklist progress and the lead's way to разбор.
+	Funnel *LeadFunnel
 	// Avatars: whose Telegram photos the app may show; TGBase for tests.
 	Avatars AppAvatarSource
 	TGBase  string
@@ -127,6 +129,7 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.POST("/api/v1/app/mytests", m.g.MyTests)
 	r.POST("/api/v1/app/message", m.g.Message)
 	r.GET("/api/v1/app/checklists", m.g.Checklists)
+	r.POST("/api/v1/app/ckprogress", m.g.CkProgress)
 	r.GET("/api/v1/app/mycal", m.g.MyCal)
 	r.PUT("/api/v1/app/mycal", m.g.MyCal)
 	r.GET("/api/v1/app/file/:id", m.g.LibraryFile)

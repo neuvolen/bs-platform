@@ -56,8 +56,9 @@ type Service struct {
 	topic     string  // the group's ОТЧЁТЫ topic
 	notify    []int64 // who gets the daily comparison
 
-	mu       sync.RWMutex
-	relayURL string
+	mu        sync.RWMutex
+	relayURL  string
+	startHook StartHook
 }
 
 type Options struct {
@@ -339,6 +340,12 @@ func (s *Service) worker(ctx context.Context) {
 }
 
 func (s *Service) relayOne(ctx context.Context, u *pg.BotUpdate) {
+	if u.Kind == "message" && u.Tries <= 1 && s.takeStart(ctx, u.Body) {
+		if e := s.repo.MarkRelayed(ctx, u.UpdateID, 204, 0); e != nil {
+			log.Printf("bot relay: mark %d: %v", u.UpdateID, e)
+		}
+		return
+	}
 	url := s.RelayURL()
 	start := time.Now()
 	status, err := s.post(ctx, url, u.Body)

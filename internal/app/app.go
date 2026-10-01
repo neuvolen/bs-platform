@@ -240,7 +240,7 @@ func BuildBot(d *Deps, token, team, apiBase, publicURL, notify string) (*bot.Ser
 }
 
 // BuildAppGateway: the Telegram app's calls go through the server.
-func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string) []httpapi.RoutesRegistrar {
+func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.Service) []httpapi.RoutesRegistrar {
 	g := httpapi.NewAppGateway(token, os.Getenv("APP_SCRIPT_URL"))
 	g.Admins = httpapi.ParsePlatformTeam(os.Getenv("PLATFORM_TEAM"))
 	if d.PlatformRepo != nil {
@@ -250,6 +250,18 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string) []httpapi.Rou
 	}
 	g.Done = pg.NewClubRepo(d.DB)
 	g.Ops = pg.NewClubRepo(d.DB)
+	if d.PlatformRepo != nil && botSvc != nil && botSvc.Enabled() {
+		var admins []int64
+		for id := range g.Admins {
+			admins = append(admins, id)
+		}
+		f := httpapi.NewLeadFunnel(d.PlatformRepo, botSvc.SendMessageKB, admins)
+		g.Funnel = f
+		if os.Getenv("LEAD_FUNNEL") != "off" {
+			botSvc.SetStartHook(f.HandleStart)
+			go f.WarmLoop(context.Background())
+		}
+	}
 	g.Avatars = pg.NewClubRepo(d.DB)
 	repo := pg.NewBotRepo(d.DB)
 	var once sync.Once
