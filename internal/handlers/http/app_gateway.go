@@ -130,6 +130,7 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.POST("/api/v1/app/message", m.g.Message)
 	r.GET("/api/v1/app/checklists", m.g.Checklists)
 	r.POST("/api/v1/app/ckprogress", m.g.CkProgress)
+	r.GET("/api/v1/public/leadmagnet/:key", m.g.LeadMagnet)
 	r.GET("/api/v1/app/mycal", m.g.MyCal)
 	r.PUT("/api/v1/app/mycal", m.g.MyCal)
 	r.GET("/api/v1/app/file/:id", m.g.LibraryFile)
