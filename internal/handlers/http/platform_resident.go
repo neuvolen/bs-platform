@@ -26,7 +26,7 @@ var residentReadableKeys = map[string]bool{
 	"bs_diag": true, "bs_tools": true, "bs_libver": true,
 	"bs_questions": true, "bs_qver": true,
 	"bs_reslib": true, "bs_stickers": true, "bs_useful": true,
-	"bs_achdefs": true, "bs_teams": true,
+	"bs_achdefs": true, "bs_teams": true, "bs_checklists": true, "bs_stickerpack_srv": true, "bs_bookfiles": true,
 }
 
 // Written only by the server (seed data cut out of the page).

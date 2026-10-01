@@ -295,7 +295,7 @@ func (h *PlatformAI) Jobs(c *gin.Context) {
 }
 
 // ── Almaty events feed ──
-// Twice a day the server looks for business events in Almaty and keeps them
+// Every morning the server looks for business events in Almaty and keeps them
 // in the club document bs_events_feed; the platform shows it in Мероприятия.
 
 const eventsFeedKey = "bs_events_feed"
@@ -320,7 +320,18 @@ func (h *PlatformAI) refreshEvents(ctx context.Context) (int, error) {
 	return 0, err
 }
 
-// EventsLoop refreshes the feed at start and every 12 hours.
+// untilNextMorning: time left until the next 08:00 in Almaty (the daily refresh).
+func untilNextMorning(now time.Time) time.Duration {
+	loc := time.FixedZone("Almaty", 5*3600)
+	a := now.In(loc)
+	next := time.Date(a.Year(), a.Month(), a.Day(), 8, 0, 0, 0, loc)
+	if !next.After(a) {
+		next = next.AddDate(0, 0, 1)
+	}
+	return next.Sub(a)
+}
+
+// EventsLoop refreshes the feed at start and every morning at 08:00 Almaty.
 func (h *PlatformAI) EventsLoop(ctx context.Context) {
 	t := time.NewTimer(2 * time.Minute)
 	for {
@@ -335,7 +346,7 @@ func (h *PlatformAI) EventsLoop(ctx context.Context) {
 			cancel()
 			log.Printf("platform events: %d found, err=%v", n, err)
 		}
-		t.Reset(12 * time.Hour)
+		t.Reset(untilNextMorning(time.Now()))
 	}
 }
 

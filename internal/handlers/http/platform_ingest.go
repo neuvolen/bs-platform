@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/bnursik/business_surgery_backend/internal/bsfiles"
+	"github.com/bnursik/business_surgery_backend/internal/content"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
@@ -186,4 +187,30 @@ func (h *PlatformAI) attachBook(ctx context.Context, id, name string) string {
 		}
 	}
 	return ""
+}
+
+// SeedChecklists writes the shipped checklists into the club document
+// bs_checklists = {"version": "...", "items": [...]}, once per shipped version.
+func (h *PlatformAI) SeedChecklists(ctx context.Context) {
+	if h.repo == nil {
+		return
+	}
+	ver := content.ChecklistsVersion()
+	for try := 0; try < 3; try++ {
+		base := 0
+		if d, err := h.repo.GetDoc(ctx, "club", "bs_checklists"); err == nil && d != nil {
+			base = d.Version
+			var cur struct {
+				Version string `json:"version"`
+			}
+			if json.Unmarshal([]byte(d.Value), &cur) == nil && cur.Version == ver && !d.Deleted {
+				return
+			}
+		}
+		val := `{"version":"` + ver + `","items":` + string(content.Checklists) + `}`
+		if _, err := h.repo.PutDoc(ctx, "club", "bs_checklists", base, val, false, "server:content"); err == nil {
+			log.Printf("checklists: version %s stored", ver)
+			return
+		}
+	}
 }

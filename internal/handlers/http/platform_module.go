@@ -19,6 +19,9 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 	if h.repo != nil {
 		go m.AI.EventsLoop(context.Background())
 		go m.AI.LoadEmbedded(context.Background(), a.botToken)
+		go m.AI.SeedChecklists(context.Background())
+		go m.AI.ThreadsLoop(context.Background())
+		go m.AI.SetupWhatsApp(context.Background())
 	}
 	return m
 }
@@ -32,6 +35,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	// Resident list from the Google Sheet, signed with the bot token.
 	pub.POST("/residents/sync", m.auth.SyncResidents)
 	pub.POST("/ingest", m.AI.Ingest)
+	r.POST("/api/v1/wa/webhook/:secret", m.AI.WAWebhook)
 
 	g := r.Group("/api/v1/platform")
 	g.Use(middleware.AuthJWT(m.secret))
@@ -55,4 +59,9 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/ai/jobs", m.AI.Jobs)
 	g.POST("/ai/events", m.AI.RefreshEvents)
 	g.GET("/ops", m.AI.OpsList)
+	g.POST("/threads/publish", m.AI.ThreadsNow)
+	g.GET("/crm/wa/status", m.AI.WAStatus)
+	g.GET("/crm/chats", m.AI.WAChats)
+	g.GET("/crm/chats/:phone", m.AI.WAMessages)
+	g.POST("/crm/chats/:phone/send", m.AI.WASend)
 }
