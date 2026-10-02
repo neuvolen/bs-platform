@@ -34,7 +34,7 @@ func TestDue24(t *testing.T) {
 	if s := whenRu(at(5, 11, 0)); s != "пн, 5 октября, 11:00" {
 		t.Fatal(s)
 	}
-	if s := tenge(30000); s != "30 000 ₸" {
+	if s := tenge(50000); s != "50 000 ₸" {
 		t.Fatal(s)
 	}
 }
@@ -59,6 +59,7 @@ func TestBooking(t *testing.T) {
 		return time.Date(x.Year(), x.Month(), x.Day(), h, 0, 0, 0, almaty).Format(time.RFC3339)
 	}
 	s1, _ := parseSlotTime(day(3, 11))
+	// В доке старая цена 30 000: сервер отдаёт новую, 50 000.
 	slots := map[string]any{"price": 30000, "slots": []any{
 		map[string]any{"id": "s2", "start": day(5, 15), "dur": 60, "format": "офлайн", "place": "Алматы, Абая 10", "link": "", "status": "free"},
 		map[string]any{"id": "s1", "start": day(3, 11), "dur": 60, "format": "онлайн", "place": "", "link": "https://meet.example/x", "status": "free"},
@@ -96,7 +97,7 @@ func TestBooking(t *testing.T) {
 	}
 
 	code, out := call("GET", "/api/v1/app/slots", 7001, nil)
-	if code != 200 || ids(out) != "s1,s2" || out["mine"] != nil || out["price"] != float64(30000) || out["kaspiLink"] != bot.KaspiLink {
+	if code != 200 || ids(out) != "s1,s2" || out["mine"] != nil || out["price"] != float64(50000) || out["kaspiLink"] != bot.KaspiLink {
 		t.Fatalf("slots: %d %v", code, out)
 	}
 	if b, _ := json.Marshal(out); strings.Contains(string(b), "booking") || strings.Contains(string(b), "meet.example") || strings.Contains(string(b), "Другой") {
@@ -136,7 +137,7 @@ func TestBooking(t *testing.T) {
 		t.Fatalf("nobody got the slot: %v", codes)
 	}
 	bk := codes[winner]["booking"].(map[string]any)
-	if bk["price"] != float64(30000) || bk["kaspiLink"] != bot.KaspiLink || bk["slot"].(map[string]any)["link"] != "https://meet.example/x" {
+	if bk["price"] != float64(50000) || bk["kaspiLink"] != bot.KaspiLink || bk["slot"].(map[string]any)["link"] != "https://meet.example/x" {
 		t.Fatalf("booking answer: %v", bk)
 	}
 	m := e.msgsTo(winner)

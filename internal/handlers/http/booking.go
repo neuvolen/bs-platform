@@ -16,7 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Запись на разбор: экспресс-диагностика, 60 минут с обоими основателями, 30 000 ₸.
+// Запись на разбор: экспресс-диагностика, 60 минут с обоими основателями, 50 000 ₸.
 //
 // Club doc bs_slots = {price, kaspiLink, slots:[{id, start, dur, format,
 // place, link, status: free|booked|blocked, booking:{tgId, name, username,
@@ -24,10 +24,13 @@ import (
 // правит команда на платформе; сервер только записывает, отменяет и напоминает.
 
 const (
-	slotsDoc       = "bs_slots"
-	razborPrice    = 30000
-	slotsAhead     = 21 * 24 * time.Hour
-	bookRemindTick = 5 * time.Minute
+	slotsDoc    = "bs_slots"
+	razborPrice = 50000
+	// legacyRazborPrice: цена до октября 2026. Если она осталась в bs_slots,
+	// считаем её устаревшей и берём razborPrice.
+	legacyRazborPrice = 30000
+	slotsAhead        = 21 * 24 * time.Hour
+	bookRemindTick    = 5 * time.Minute
 )
 
 func parseSlotTime(s string) (time.Time, bool) {
@@ -131,7 +134,7 @@ func (s slot) public(withLink bool) gin.H {
 
 func slotsPrice(doc map[string]any) (int64, string) {
 	p := anyInt(doc["price"])
-	if p <= 0 {
+	if p <= 0 || p == legacyRazborPrice {
 		p = razborPrice
 	}
 	k, _ := doc["kaspiLink"].(string)

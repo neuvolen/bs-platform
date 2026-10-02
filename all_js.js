@@ -9705,7 +9705,7 @@ document.addEventListener('visibilitychange', function(){
 var V15_WD = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
 var V15_WDL = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
 var V15_MG = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-var V15_PRICE = 30000;
+var V15_PRICE = 50000;
 window._bk = window._bk || {st: 'idle', data: null, at: 0, day: '', slotId: '', form: null, busy: false, q: ''};
 function v15nb(n){ return v2money(n).replace(/ /g, ' '); }
 function v15t(iso){

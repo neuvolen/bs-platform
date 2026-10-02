@@ -20,6 +20,9 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		go m.AI.EventsLoop(context.Background())
 		go m.AI.LoadEmbedded(context.Background(), a.botToken)
 		go m.AI.SeedGuides(context.Background())
+		go m.AI.MigrateRazborPrice(context.Background()) // price_migrate.go
+		go m.AI.LibExtLoop(context.Background())         // library_ext.go
+		go m.AI.RecsLoop(context.Background())           // ai_recs.go
 		go m.AI.SeedMarketing(context.Background())
 		go m.AI.ThreadsLoop(context.Background())
 		go m.AI.SetupWhatsApp(context.Background())
@@ -61,7 +64,11 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/ai/jobs/:id", m.AI.Job)
 	g.GET("/ai/jobs", m.AI.Jobs)
 	g.POST("/ai/events", m.AI.RefreshEvents)
+	g.POST("/ai/recs", m.AI.RecsNow)
+	g.POST("/ai/recs/:id", m.AI.RecAction)
 	g.POST("/ai/marketing", m.AI.Marketing)
+	g.POST("/ai/gallup", m.AI.Gallup) // platform_gallup.go: 34 talents from a Gallup report
+	g.POST("/tts", m.AI.TTS)          // platform_tts.go: voice guide (onboarding)
 	g.GET("/guide/:id", m.AI.GuideForPlatform)
 	g.GET("/ops", m.AI.OpsList)
 	g.POST("/threads/publish", m.AI.ThreadsNow)
