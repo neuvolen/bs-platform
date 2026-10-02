@@ -40,6 +40,9 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	pub.POST("/residents/sync", m.auth.SyncResidents)
 	pub.POST("/ingest", m.AI.Ingest)
 	r.POST("/api/v1/wa/webhook/:secret", m.AI.WAWebhook)
+	// R25: the branded template of a library tool by an open link (library_rich.go)
+	r.GET("/t/:file", PublicTemplate)
+	r.HEAD("/t/:file", PublicTemplate)
 
 	g := r.Group("/api/v1/platform")
 	g.Use(middleware.AuthJWT(m.secret))
@@ -75,6 +78,9 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/tts", m.AI.TTS)          // platform_tts.go: voice guide (onboarding)
 	g.POST("/tts/warm", m.AI.TTSWarm) // platform_tts_warm.go: the tour phrases made ahead of time
 	g.GET("/guide/:id", m.AI.GuideForPlatform)
+	g.GET("/library/rich", LibraryRich)               // library_rich.go
+	g.GET("/library/template/:file", LibraryTemplate) // <id>.pdf
+	g.GET("/library/templates.zip", LibraryTemplatesZip)
 	g.GET("/ops", m.AI.OpsList)
 	g.POST("/threads/publish", m.AI.ThreadsNow)
 	g.GET("/crm/wa/status", m.AI.WAStatus)

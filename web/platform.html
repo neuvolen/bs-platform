@@ -25040,5 +25040,749 @@ function bind(box, r){
 })();
 </script>
 
+<style id="r25Style">
+/* ═══ R25: богатая библиотека инструментов и диагнозов, фирменные шаблоны ═══ */
+.lb2-sh .gu-cover{grid-template-columns:minmax(0,1.5fr) minmax(250px,.8fr)}
+.lb2-sh .gu-k{color:#BDBDBD}
+.lb2-prom{margin-top:20px;padding-left:16px;border-left:2px solid #fff;font-size:15px;line-height:1.6;color:#E6E6E6;max-width:640px}
+.lb2-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:26px;position:relative;z-index:1}
+.lb2-acts .btn.pf-b{text-decoration:none;display:inline-flex;align-items:center;gap:8px;height:40px}
+.lb2-acts.sec{margin-top:10px}
+.lb2-acts.sec .btn.pf-b{height:34px;font-size:12.5px;padding:0 12px}
+.lb2-when{list-style:none;margin:18px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.lb2-wi{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;font-size:15.5px;line-height:1.6;align-items:start}
+.lb2-wi::before{content:'';width:18px;height:18px;border-radius:6px;border:1.5px solid var(--ptx);margin-top:3px;box-sizing:border-box;background:linear-gradient(var(--ptx),var(--ptx)) center/6px 6px no-repeat}
+.lb2-ba{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:24px}
+.lb2-bab{border:1px solid var(--pb);border-radius:16px;overflow:hidden}
+.lb2-bab.b{border-color:var(--ptx)}
+.lb2-bab .gu-lbl{padding:13px 16px;border-bottom:1px solid var(--ph)}
+.lb2-bi{padding:12px 16px;border-bottom:1px solid var(--ph);display:flex;flex-direction:column;gap:3px}
+.lb2-bi:last-child{border-bottom:none}
+.lb2-bl{font-size:12px;color:var(--pm);font-weight:700;line-height:1.35}
+.lb2-bv{font-size:16px;font-weight:800;letter-spacing:-.2px;line-height:1.3}
+.lb2-do{font-size:16px;line-height:1.75;margin:18px 0 0}
+.lb2-ex{margin-top:18px;padding:16px 20px;border-radius:14px;background:var(--ph);font-size:14.5px;line-height:1.7}
+.lb2-ex .gu-lbl,.lb2-mis .gu-lbl{margin-bottom:6px}
+.lb2-mis{margin-top:12px;padding:14px 20px;border-radius:14px;border:1px dashed var(--pi);font-size:14px;line-height:1.65;color:var(--pm)}
+.lb2-mis .gu-lbl{color:var(--ptx)}
+.lb2-met{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:22px}
+.lb2-mi{border:1px solid var(--pb);border-radius:16px;padding:16px 18px;font-size:14px;line-height:1.55;font-weight:600;display:flex;gap:12px;align-items:flex-start}
+.lb2-mn{font-style:normal;width:26px;height:26px;border-radius:8px;background:var(--pon);color:var(--pontx);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lb2-team{margin-top:20px;border:1px solid var(--pb);border-radius:16px;padding:18px 20px}
+.lb2-tol{margin:10px 0 0;padding-left:20px;font-size:14.5px;line-height:1.65}
+.lb2-tp{margin:10px 0 0;font-size:14.5px;line-height:1.65}
+/* Превью шаблона: лист A4 */
+.lb2-pw{margin-top:22px;position:relative}
+.lb2-paper{background:#fff;color:#111;border-radius:6px;box-shadow:0 20px 50px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.08);overflow:hidden;font-family:'Manrope',sans-serif;max-height:760px;position:relative}
+body.light .lb2-paper{box-shadow:0 18px 40px rgba(0,0,0,.12),0 0 0 1px rgba(0,0,0,.1)}
+.lb2-pw.open .lb2-paper{max-height:none}
+.lb2-pw:not(.open) .lb2-paper::after{content:'';position:absolute;left:0;right:0;bottom:0;height:140px;background:linear-gradient(rgba(255,255,255,0),#fff)}
+.lb2-pp-band{background:#0C0C0C;color:#fff;padding:22px 28px 20px;position:relative;overflow:hidden}
+.lb2-pp-band::after{content:'';position:absolute;right:-70px;top:-60px;width:230px;height:230px;border-radius:50%;border:1px solid #2C2C2C;box-shadow:0 0 0 30px rgba(255,255,255,.015),0 0 0 31px #262626}
+.lb2-pp-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;position:relative;z-index:1}
+.lb2-pp-logo{height:30px;width:auto;display:block}
+.lb2-pp-br{text-align:right;font-size:8.5px;font-weight:700;letter-spacing:.8px;color:#9A9A9A;line-height:1.6}
+.lb2-pp-brb{display:block;color:#fff;font-size:10px;letter-spacing:0}
+.lb2-pp-org{display:inline-block;margin-top:16px;border:1px solid #fff;border-radius:20px;padding:3px 10px;font-size:8.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;position:relative;z-index:1}
+.lb2-pp-t{font-size:24px;font-weight:800;letter-spacing:-.6px;line-height:1.15;margin-top:10px;position:relative;z-index:1}
+.lb2-pp-s{font-size:11px;color:#C8C8C8;margin-top:6px;font-weight:600;position:relative;z-index:1}
+.lb2-pp-in{padding:18px 28px 22px}
+.lb2-pp-intro{background:#F3F3F3;border-left:3px solid #0C0C0C;padding:10px 14px;font-size:11.5px;line-height:1.55;color:#222}
+.lb2-pp-ib{display:block;font-size:8px;letter-spacing:1px;color:#777;font-weight:800;margin-bottom:3px}
+.lb2-pp-h{display:flex;align-items:center;gap:9px;margin:20px 0 10px;font-size:14px;font-weight:800;letter-spacing:-.2px}
+.lb2-pp-hn{font-style:normal;width:20px;height:20px;border-radius:5px;background:#0C0C0C;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lb2-pp-he{font-style:normal;margin-left:auto;font-size:9px;color:#999;font-weight:600;letter-spacing:0}
+.lb2-pp-f{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px}
+.lb2-pp-f.one{grid-template-columns:1fr}
+.lb2-pp-fd{font-size:9.5px;color:#777;font-weight:600;padding-bottom:16px;border-bottom:1px solid #C8C8C8;margin-bottom:8px}
+.lb2-pp-tw{overflow-x:auto}
+.lb2-pp-tb{width:100%;border-collapse:collapse;font-size:9.5px}
+.lb2-pp-th{background:#0C0C0C;color:#fff;text-align:left;font-weight:700;padding:6px 7px;vertical-align:top}
+.lb2-pp-td{border:1px solid #D2D2D2;padding:6px 7px;height:14px;color:#999;background:#fff;vertical-align:top}
+.lb2-pp-td.s{background:#FAFAFA}
+.lb2-pp-td.l{border-bottom:1.5px solid #0C0C0C}
+.lb2-pp-ci{display:flex;gap:10px;align-items:flex-start;font-size:11px;line-height:1.45;padding:6px 0;border-bottom:1px solid #E6E6E6}
+.lb2-pp-ci::before{content:'';width:11px;height:11px;border:1.5px solid #0C0C0C;border-radius:2px;flex-shrink:0;margin-top:1px}
+.lb2-pp-si{display:flex;align-items:center;gap:10px;justify-content:space-between;font-size:10.5px;font-weight:700;padding:6px 0;border-bottom:1px solid #E6E6E6}
+.lb2-pp-ss{display:flex;gap:4px;flex-shrink:0}
+.lb2-pp-sn{font-style:normal;width:17px;height:17px;border-radius:50%;border:1px solid #C8C8C8;font-size:8px;color:#777;display:flex;align-items:center;justify-content:center}
+.lb2-pp-nl{height:22px;border-bottom:1px solid #C8C8C8}
+.lb2-pp-m{margin-top:18px;border:1.5px solid #0C0C0C;padding:10px 14px}
+.lb2-pp-mb{display:block;font-size:8px;letter-spacing:1px;color:#777;font-weight:800;margin-bottom:5px}
+.lb2-pp-mi{font-size:10.5px;line-height:1.5;padding-left:12px;position:relative}
+.lb2-pp-mi::before{content:'';position:absolute;left:0;top:6px;width:5px;height:5px;background:#0C0C0C}
+.lb2-pp-ft{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #E2E2E2;margin-top:18px;padding-top:8px;font-size:8.5px;color:#888}
+.lb2-pmore{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:2;height:36px;padding:0 16px;border-radius:10px;border:1px solid #0C0C0C;background:#fff;color:#0C0C0C;font:800 12.5px 'Manrope',sans-serif;cursor:pointer}
+.lb2-pw.open .lb2-pmore{position:static;transform:none;margin:14px auto 0;display:block}
+.lb2-tplacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.lb2-tplacts .btn.pf-b{text-decoration:none;display:inline-flex;align-items:center;gap:8px;height:40px}
+.lb2-file{display:flex;align-items:center;gap:14px;margin-top:16px;padding:14px 16px;border:1px solid var(--pb);border-radius:14px;text-decoration:none;color:var(--ptx)}
+.lb2-file:hover{border-color:var(--ptx)}
+.lb2-fi{font-style:normal;width:40px;height:44px;border-radius:7px;background:var(--pon);color:var(--pontx);font-size:10px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:7px;box-sizing:border-box;flex-shrink:0;letter-spacing:.5px}
+.lb2-fb{display:block;font-size:14.5px;font-weight:800}
+.lb2-fs{display:block;font-size:12.5px;color:var(--pm);margin-top:2px}
+/* Диагноз */
+.lb2-cost{margin-top:20px;padding:20px 22px;border-radius:16px;border-left:3px solid var(--ptx);background:var(--ph);font-size:15px;line-height:1.75}
+.lb2-causes{counter-reset:c;list-style:none;margin:18px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.lb2-cli{counter-increment:c;display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;font-size:15px;line-height:1.6;padding:14px 16px;border:1px solid var(--pb);border-radius:14px}
+.lb2-cli::before{content:counter(c);font-size:22px;font-weight:800;letter-spacing:-1px;line-height:1;color:transparent;-webkit-text-stroke:1.2px var(--ptx)}
+.lb2-test{margin-top:22px;border:1px solid var(--pb);border-radius:16px;overflow:hidden}
+.lb2-th{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 18px;border-bottom:1px solid var(--ph)}
+.lb2-thn{font-size:12px;font-weight:800;color:var(--pm)}
+.lb2-q{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--ph);font-size:14.5px;line-height:1.5}
+.lb2-q:last-of-type{border-bottom:none}
+.lb2-qn{font-style:normal;font-size:12px;font-weight:800;color:var(--pdim)}
+.lb2-yn{display:flex;gap:6px}
+.lb2-b{height:32px;min-width:52px;padding:0 12px;border-radius:9px;border:1px solid var(--pi);background:transparent;color:var(--ptx);font:800 12.5px 'Manrope',sans-serif;cursor:pointer}
+.lb2-b:hover{border-color:var(--ptx)}
+.lb2-b.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.lb2-res{padding:18px 20px;border-top:1px solid var(--pb);display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:center;background:var(--ph)}
+.lb2-rs{font-size:44px;font-weight:800;letter-spacing:-2px;line-height:1}
+.lb2-rss{font-size:15px;letter-spacing:0;color:var(--pm);margin-left:4px}
+.lb2-res .lb2-rl{font-size:18px;font-weight:800;letter-spacing:-.3px}
+.lb2-res .lb2-rt{font-size:13.5px;color:var(--pm);line-height:1.55;margin-top:4px}
+.lb2-res .lb2-rb{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.lb2-res.hi{background:var(--pon);color:var(--pontx)}
+.lb2-res.hi .lb2-rt,.lb2-res.hi .lb2-rss{color:inherit;opacity:.75}
+.lb2-res.hi .btn.pf-b{border-color:currentColor;color:inherit;background:transparent}
+.lb2-scale{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.lb2-sci{font-size:11.5px;font-weight:700;color:var(--pm);border:1px solid var(--pb);border-radius:8px;padding:4px 9px}
+.lb2-sci.on{color:var(--ptx);border-color:var(--ptx)}
+.lb2-case{margin-top:22px;border:1px solid var(--pb);border-radius:16px;overflow:hidden}
+.lb2-cs{padding:18px 20px}
+.lb2-cs.r{border-top:1px solid var(--ph);background:var(--ph)}
+.lb2-cp{margin:8px 0 0;font-size:15px;line-height:1.7}
+.lb2-cure{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:22px}
+.lb2-cc{border:1px solid var(--pb);border-radius:16px;padding:16px 18px;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,transform .15s}
+.lb2-cc:hover{border-color:var(--ptx);transform:translateY(-2px)}
+.lb2-cct{font-size:15.5px;font-weight:800;letter-spacing:-.2px;line-height:1.3}
+.lb2-ccs{font-size:12.5px;color:var(--pm);line-height:1.5}
+.lb2-cce{font-style:normal;font-size:11.5px;font-weight:800;margin-top:auto;padding-top:6px}
+.lb2-first{counter-reset:f;list-style:none;margin:18px 0 0;padding:0;display:flex;flex-direction:column;gap:12px}
+.lb2-fli{counter-increment:f;display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;font-size:15px;line-height:1.6}
+.lb2-fli::before{content:counter(f);width:26px;height:26px;border-radius:8px;background:var(--pon);color:var(--pontx);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+.lb2-risk{margin-top:20px;border-radius:20px;background:#000;color:#fff;border:1px solid #1F1F1F;padding:24px 26px;font-size:16px;line-height:1.65;font-weight:600}
+.lb2-risk .gu-lbl{color:#8C8C8C;margin-bottom:8px}
+.lb2-signs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:18px}
+.lb2-si{border:1px solid var(--pb);border-radius:14px;padding:13px 15px;font-size:14px;line-height:1.5;display:flex;gap:10px}
+.lb2-si::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--ptx);flex-shrink:0;margin-top:7px}
+/* Списки: подзаголовок и насыщенность */
+.lb2-hint{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.lb2-hs{font-size:10.5px;font-weight:800;letter-spacing:.2px;color:var(--pm);border:1px solid var(--pb);border-radius:6px;padding:2px 6px;white-space:nowrap}
+.row .lb2-hint{margin-top:7px}
+.lcard .lb2-hint{margin-top:8px}
+.lb2-zip{white-space:nowrap}
+/* Маркетинг → Стратегия: документ SMM */
+.lb2-doc{display:flex;align-items:center;gap:16px;padding:16px 18px;border:1px solid var(--pb);border-radius:16px;margin:0 0 18px;background:var(--pc)}
+.lb2-dic{font-style:normal;width:44px;height:52px;border-radius:8px;background:var(--pon);color:var(--pontx);font-size:11px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;box-sizing:border-box;flex-shrink:0;letter-spacing:.5px}
+.lb2-dbd{flex:1;min-width:0}
+.lb2-dt{display:block;font-size:15.5px;font-weight:800;letter-spacing:-.2px}
+.lb2-ds{display:block;font-size:12.5px;color:var(--pm);margin-top:3px;line-height:1.5}
+.lb2-doc .btn.pf-b{text-decoration:none;display:inline-flex;align-items:center;height:36px;white-space:nowrap}
+.lb2-dn{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:1100px){.lb2-sh .gu-cover{grid-template-columns:1fr}}
+@media(max-width:700px){.lb2-ba,.lb2-met,.lb2-cure,.lb2-signs{grid-template-columns:1fr}.lb2-q{grid-template-columns:22px minmax(0,1fr)}.lb2-yn{grid-column:2}.lb2-res{grid-template-columns:1fr}
+  .lb2-pp-band{padding:16px 16px 14px}.lb2-pp-in{padding:14px 16px 18px}.lb2-pp-t{font-size:19px}.lb2-pp-f{grid-template-columns:1fr}.lb2-doc{flex-wrap:wrap}.lb2-dn{width:100%}
+  .lb2-acts .btn.pf-b{flex:1 1 auto;justify-content:center}}
+</style>
+<script id="r25Script">
+// ═══ R25: богатая библиотека ═══
+// Сервер отдаёт карточки: GET /library/rich {version, tools:[...], diag:[...]} (internal/content/library_rich).
+// Карточка ищется по id пункта, потом по названию. Тексты команды из bs_tools / bs_diag не перезаписываются:
+// поле карточки «_seed» хранит хэш исходного текста; если текст в базе клуба другой, его правила команда, и он главнее.
+// Шаблон инструмента: /library/template/<id>.pdf (вход) и /t/<id>.pdf (открытая ссылка).
+var LIB2 = {data:null, load:null, err:'', byId:{}, byT:{tool:{}, diag:{}}, cur:null, exp:{}, pickQ:''};
+var LIB2_SMM = {file:'/dl/BS_SMM_Strategiya.pdf', title:'Стратегия SMM Business Surgery (PDF)'};
+function lib2N(s){ return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^0-9a-zа-я]+/g, ' ').trim(); }
+// Хэш как в сборке библиотеки (scratchpad build_rich.py): djb2 с xor по кодам UTF-16
+function lib2Hash(v){
+  if(v == null) v = '';
+  if(Array.isArray(v)) v = v.map(String).join(' | ');
+  var s = String(v).replace(/\s+/g, ' ').trim(), x = 5381;
+  for(var i = 0; i < s.length; i++) x = (Math.imul(x, 33) ^ s.charCodeAt(i)) >>> 0;
+  return x.toString(16);
+}
+function lib2Index(d){
+  LIB2.byId = {}; LIB2.byT = {tool:{}, diag:{}};
+  (d.tools || []).concat(d.diag || []).forEach(function(r){
+    if(!r || !r.id) return;
+    LIB2.byId[r.id] = r;
+    var k = r.kind === 'diag' ? 'diag' : 'tool';
+    LIB2.byT[k][lib2N(r.title)] = r;
+  });
+}
+function lib2Load(){
+  if(LIB2.data) return Promise.resolve(LIB2.data);
+  if(LIB2.load) return LIB2.load;
+  if(!window.BSSync || !BSSync.api) return Promise.resolve(null);
+  LIB2.err = '';
+  LIB2.load = r6Api('GET', '/library/rich').then(function(j){
+    LIB2.load = null;
+    if(j && Array.isArray(j.tools) && Array.isArray(j.diag)){ LIB2.data = j; lib2Index(j); lib2Refresh(); return j; }
+    LIB2.err = (j && j.error) || 'Библиотека не загрузилась';
+    return null;
+  });
+  return LIB2.load;
+}
+// После загрузки: списки на экране показывают подзаголовки
+function lib2Refresh(){
+  try{
+    if(typeof section === 'undefined') return;
+    if(section === 'toolLib') renderToolLib();
+    else if(section === 'diagLib') renderDiagLib();
+    else if(document.getElementById('r15kGrid')) r15KitGrid();
+    var ls = document.getElementById('libSheet'); if(ls && ls.classList.contains('on')) renderLib();
+  }catch(e){}
+}
+function lib2Find(kind, d){
+  if(!LIB2.data || !d) return null;
+  var r = d.id ? LIB2.byId[d.id] : null;
+  if(r && (r.kind === 'diag') === (kind === 'diag')) return r;
+  return LIB2.byT[kind === 'diag' ? 'diag' : 'tool'][lib2N(d.title)] || null;
+}
+// Поле команды правлено, если его текст отличается от исходного (хэш в _seed). Пустое поле не считается правкой
+function lib2Edited(d, r, f){
+  if(!d || !r || !r._seed || r._seed[f] === undefined) return false;
+  var v = d[f];
+  if(v == null || (Array.isArray(v) ? !v.filter(Boolean).length : !String(v).trim())) return false;
+  return lib2Hash(v) !== r._seed[f];
+}
+function lib2View(kind, d, r){
+  var e = function(f){ return lib2Edited(d, r, f); };
+  var v = Object.assign({}, r);
+  v.title = (d && d.title) || r.title; v.organ = String((d && d.organ) || r.organ || '').replace(/^[^А-Яа-яA-Za-z]+/, '').trim();
+  v.team = {};
+  if(kind === 'diag'){
+    if(e('desc')) v.desc = d.desc;
+    if(e('signs')) v.signs = d.signs;
+    if(e('risk')) v.risk = d.risk;
+    if(e('questions')) v.team.questions = d.questions;
+  } else {
+    if(e('short')) v.subtitle = d.short;
+    if(e('why')) v.promise = d.why;
+    if(e('time')) v.time = d.time;
+    if(e('how')) v.team.how = d.how;
+    if(e('example')) v.team.example = d.example;
+    if(d && Array.isArray(d.check) && d.check.length) v.check = d.check;
+  }
+  var f = (d && d.file && /^\/dl\//.test(String(d.file))) ? d.file : r.file;
+  if(f){ v.file = f; v.fileLabel = (d && d.fileLabel) || r.fileLabel || 'Скачать файл'; }
+  return v;
+}
+function lib2Tpl(id){ return '/api/v1/platform/library/template/' + encodeURIComponent(id) + '.pdf'; }
+function lib2Pub(id){ return '/t/' + encodeURIComponent(id) + '.pdf'; }
+function lib2Host(){ return /^https?:/.test(location.origin) ? location.origin : GD_HOST; }
+function lib2FileName(t){ return 'BS_' + String(t || 'shablon').replace(/[^0-9A-Za-zА-Яа-яЁё]+/g, '_').replace(/^_+|_+$/g, '') + '.pdf'; }
+// Скачать шаблон: с входом через API (файл с именем), без сервера по открытой ссылке
+function lib2Download(id, title){
+  var r = LIB2.byId[id]; title = title || (r && r.template && r.template.title) || (r && r.title) || id;
+  if(!window.BSSync || !BSSync.api){ window.open(lib2Pub(id), '_blank'); return Promise.resolve(false); }
+  toast('Готовим шаблон PDF');
+  return Promise.resolve(BSSync.api('GET', '/library/template/' + encodeURIComponent(id) + '.pdf')).then(function(res){
+    if(!res || !res.ok) throw new Error('сервер ответил ' + (res ? res.status : 'без ответа'));
+    // имя файла латиницей от сервера: браузеры не всегда принимают кириллицу в download
+    var m = String(res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/);
+    if(m) title = m[1];
+    return res.blob();
+  }).then(function(b){
+    var u = URL.createObjectURL(b), a = document.createElement('a');
+    a.href = u; a.download = /\.pdf$/.test(title) ? title : lib2FileName(title); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 4000);
+    LIB2.lastDl = {id:id, size:b.size, type:b.type};
+    toast('Шаблон скачан: ' + a.download);
+    return true;
+  }).catch(function(e){ toast('Шаблон не скачался: ' + e.message); return false; });
+}
+function lib2ZipDownload(){
+  if(!window.BSSync || !BSSync.api){ toast('Архив скачивается на сервере платформы'); return; }
+  toast('Собираем архив шаблонов, это до 10 секунд');
+  Promise.resolve(BSSync.api('GET', '/library/templates.zip')).then(function(res){
+    if(!res || !res.ok) throw new Error('сервер ответил ' + (res ? res.status : 'без ответа'));
+    return res.blob();
+  }).then(function(b){
+    var u = URL.createObjectURL(b), a = document.createElement('a');
+    a.href = u; a.download = 'BS_shablony_instrumentov.zip'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 4000);
+    toast('Архив скачан');
+  }).catch(function(e){ toast('Архив не скачался: ' + e.message); });
+}
+var LIB2_IC = {
+  dl:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+  task:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></svg>',
+  link:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>'
+};
+function lib2LvBars(l){
+  var n = {'базовый':1, 'средний':2, 'продвинутый':3}[String(l || '').toLowerCase().trim()] || 0;
+  if(!l) return '';
+  return '<span class="gu-lv" title="Уровень">' + [1, 2, 3].map(function(k){ return '<i' + (k <= n ? ' class="on"' : '') + '></i>'; }).join('') + '<em>' + esc(l) + '</em></span>';
+}
+function lib2Sheet(){
+  var sh = document.getElementById('lb2Sheet');
+  if(sh) return sh;
+  sh = document.createElement('div');
+  sh.className = 'sheet gu-sh lb2-sh'; sh.id = 'lb2Sheet';
+  sh.onclick = function(e){ if(e.target === sh) lib2Close(); };
+  sh.innerHTML = '<div class="si gu-si"><div class="gu-tb" id="lb2Top"></div>' +
+    '<div class="gu-scroll" id="lb2Scroll" onscroll="lib2Spy()"><div class="gu-wrap" id="lb2Body"></div></div>' +
+    '<div class="gu-pick" id="lb2Pick" onclick="if(event.target===this)lib2PickClose()"><div class="gu-pin">' +
+      '<div class="gu-ph"><div><b>Добавить в задачи резиденту</b><span>Инструмент встанет на текущую доску резидента, и у него появится задача «Внедрить» со сроком 10 дней</span></div><div class="x" onclick="lib2PickClose()">✕</div></div>' +
+      '<input class="inp" id="lb2PickQ" placeholder="Имя резидента" oninput="LIB2.pickQ=this.value;lib2PickPaint()">' +
+      '<div class="gu-pl" id="lb2PickL"></div></div></div></div>';
+  document.body.appendChild(sh);
+  return sh;
+}
+function lib2Close(){
+  lib2PickClose();
+  var sh = document.getElementById('lb2Sheet'); if(sh) sh.classList.remove('on');
+  LIB2.cur = null;
+}
+// Открыть читалку. i: индекс в DIAG / TOOLS (или -1, когда карточка есть только в библиотеке)
+function lib2Open(kind, i, r){
+  var list = kind === 'diag' ? DIAG : TOOLS, d = i >= 0 ? list[i] : null;
+  if(!r) r = lib2Find(kind, d);
+  if(!r) return false;
+  LIB2.cur = {kind:kind, i:i, id:r.id};
+  var sh = lib2Sheet();
+  try{ ['cardSheet', 'libSheet'].forEach(function(s){ var e = document.getElementById(s); if(e) e.classList.remove('on'); }); }catch(e){}
+  sh.classList.add('on');
+  lib2Paint();
+  var sc = document.getElementById('lb2Scroll'); if(sc) sc.scrollTop = 0;
+  return true;
+}
+function lib2OpenTitle(title){
+  var k = lib2N(title), i = TOOLS.findIndex(function(t){ return t && lib2N(t.title) === k; });
+  var r = LIB2.byT.tool[k];
+  if(i >= 0 && (r || lib2Find('tool', TOOLS[i]))) return lib2Open('tool', i, r || null);
+  if(r) return lib2Open('tool', -1, r);
+  if(i >= 0){ lib2Close(); openCard('tool', i); return true; }
+  toast('Инструмент «' + title + '» не найден в базе');
+  return false;
+}
+function lib2Spy(){
+  var sc = document.getElementById('lb2Scroll'), toc = document.getElementById('lb2Toc'); if(!sc || !toc) return;
+  var top = sc.getBoundingClientRect().top + 140, cur = '';
+  sc.querySelectorAll('.gu-sec[data-k]').forEach(function(s){ if(s.getBoundingClientRect().top <= top) cur = s.dataset.k; });
+  if(!cur){ var f = sc.querySelector('.gu-sec[data-k]'); cur = f ? f.dataset.k : ''; }
+  if(sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4){ var all = sc.querySelectorAll('.gu-sec[data-k]'); if(all.length) cur = all[all.length - 1].dataset.k; }
+  toc.querySelectorAll('.gu-ti').forEach(function(a){ a.classList.toggle('on', a.dataset.k === cur); });
+}
+function lib2Go(k){
+  var sc = document.getElementById('lb2Scroll'), s = document.getElementById('lb2S-' + k); if(!sc || !s) return;
+  sc.scrollTop = s.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 16;
+  lib2Spy();
+}
+function lib2Sec(k, label, title, inner){
+  return '<section class="gu-sec" id="lb2S-' + k + '" data-k="' + k + '"><div class="gu-sk">' + esc(label) + '</div>' +
+    (title ? '<h2 class="gu-h2">' + gdE(title) + '</h2>' : '') + inner + '</section>';
+}
+function lib2Paint(){
+  var c = LIB2.cur; if(!c) return;
+  var r = LIB2.byId[c.id]; if(!r) return;
+  var list = c.kind === 'diag' ? DIAG : TOOLS, d = c.i >= 0 ? list[c.i] : null;
+  var v = lib2View(c.kind, d, r);
+  var adm = MODE === 'admin';
+  var back = c.kind === 'diag' ? 'Диагнозы' : 'Инструменты';
+  document.getElementById('lb2Top').innerHTML =
+    '<div class="gu-crumb"><span class="gu-back" onclick="lib2Close()">← ' + back + '</span><i>/</i><span>' + gdE(v.organ) + '</span><i>/</i><b>' + gdE(v.title) + '</b></div>' +
+    (c.kind === 'tool' && r.template ? '<button class="btn pf-b" data-act="tpl-top" onclick="lib2Download(\'' + escA(r.id) + '\')">Шаблон PDF</button>' : '') +
+    '<div class="x" onclick="lib2Close()" title="Закрыть">✕</div>';
+  document.getElementById('lb2Body').innerHTML = c.kind === 'diag' ? lib2DiagHTML(v, r, d, c.i, adm) : lib2ToolHTML(v, r, d, c.i, adm);
+  lib2Spy();
+}
+function lib2Cols(toc, secs){
+  return '<div class="gu-cols"><aside class="gu-toc"><nav class="gu-tocl" id="lb2Toc">' + toc.map(function(x){
+      return '<a class="gu-ti" data-k="' + x.k + '" onclick="lib2Go(this.dataset.k)"><span class="gu-tin">' + gdE(x.n) + '</span><em>' + gdE(x.t) + '</em><small></small></a>';
+    }).join('') + '</nav></aside><article class="gu-art">' + secs + '</article></div>';
+}
+// ── Инструмент ──
+function lib2ToolHTML(v, r, d, i, adm){
+  var h = v.hero || {}, steps = Array.isArray(v.steps) ? v.steps : [];
+  var heroLine = [h.name, h.business, h.city].filter(Boolean).join(' · ');
+  var file = v.file ? '<a class="btn pf-b" data-act="file" href="' + escA(v.file) + '" download>' + LIB2_IC.dl + esc(v.fileLabel) + '</a>' : '';
+  var acts = '<div class="lb2-acts">' +
+      (r.template ? '<button class="btn pf-b pf-p" data-act="tpl" onclick="lib2Download(\'' + escA(r.id) + '\')">' + LIB2_IC.dl + 'Скачать шаблон PDF</button>' : '') + file +
+      (adm ? '<button class="btn pf-b" data-act="assign" onclick="lib2PickOpen()">' + LIB2_IC.task + 'Добавить в задачи резиденту</button>' : '') +
+    '</div>' +
+    (adm ? '<div class="lb2-acts sec">' +
+      (r.template ? '<button class="btn pf-b" data-act="copy" onclick="r6Copy(lib2Host()+lib2Pub(\'' + escA(r.id) + '\'))">' + LIB2_IC.link + 'Ссылка на шаблон для клиента</button>' : '') +
+      (i >= 0 ? '<button class="btn pf-b" data-act="edit" onclick="lib2Close();editTool(' + i + ')">Изменить</button>' : '') +
+    '</div>' : '');
+  var cover = '<div class="gu-cover"><div style="position:relative;z-index:1">' +
+      '<div class="gu-k"><span>Инструмент</span><span>·</span><span>' + gdE(v.organ) + '</span>' + (r.template ? '<span>·</span><span>шаблон PDF</span>' : '') + '</div>' +
+      '<h1 class="gu-h1">' + gdE(v.title) + '</h1>' +
+      (v.subtitle ? '<div class="gu-sub">' + gdE(v.subtitle) + '</div>' : '') +
+      (v.promise ? '<div class="lb2-prom">' + gdE(v.promise) + '</div>' : '') + acts +
+    '</div>' +
+    '<div class="gu-pass">' +
+      (v.time ? '<div><span>Время</span><b>' + gdE(v.time) + '</b></div>' : '') +
+      (v.level ? '<div><span>Уровень</span><b>' + lib2LvBars(v.level) + '</b></div>' : '') +
+      (steps.length ? '<div><span>Шагов</span><b>' + steps.length + (r.template ? ' · шаблон на ' + r.template.blocks.length + ' ' + gdPl(r.template.blocks.length, 'блок', 'блока', 'блоков') : '') + '</b></div>' : '') +
+      (v.source ? '<div><span>Метод</span><b>' + gdE(v.source) + '</b></div>' : '') +
+      (heroLine ? '<div><span>Герой</span><b>' + gdE(h.name || '') + '</b><em>' + gdE([h.business, h.city].filter(Boolean).join(', ')) + '</em></div>' : '') +
+    '</div></div>';
+  var toc = [], secs = '';
+  if(Array.isArray(v.when) && v.when.length){
+    toc.push({k:'when', n:'?', t:'Когда нужен'});
+    secs += lib2Sec('when', 'Когда нужен', 'Узнай свою ситуацию', '<ul class="lb2-when">' + v.when.map(function(x){ return '<li class="lb2-wi"><span>' + gdE(x) + '</span></li>'; }).join('') + '</ul>');
+  }
+  if(h.story){
+    toc.push({k:'hero', n:'А', t:'История: ' + (h.name || 'герой')});
+    var bef = Array.isArray(h.before) ? h.before : [], aft = Array.isArray(h.after) ? h.after : [];
+    secs += lib2Sec('hero', 'История из практики', heroLine || 'История', gdP(h.story) +
+      (bef.length || aft.length ? '<div class="lb2-ba">' +
+        '<div class="lb2-bab"><div class="gu-lbl">До · точка А</div>' + bef.map(function(b){ return '<div class="lb2-bi"><span class="lb2-bl">' + gdE(b.label) + '</span><b class="lb2-bv">' + gdE(b.value) + '</b></div>'; }).join('') + '</div>' +
+        '<div class="lb2-bab b"><div class="gu-lbl">После · точка Б</div>' + aft.map(function(b){ return '<div class="lb2-bi"><span class="lb2-bl">' + gdE(b.label) + '</span><b class="lb2-bv">' + gdE(b.value) + '</b></div>'; }).join('') + '</div>' +
+      '</div>' : ''));
+  }
+  if(v.team.how || v.team.example){
+    toc.push({k:'team', n:'К', t:'Как внедряем в клубе'});
+    secs += lib2Sec('team', 'Записи команды клуба', 'Как внедряем в клубе',
+      '<div class="lb2-team">' + (v.team.how ? '<div class="gu-lbl">Шаги команды</div><ol class="lb2-tol">' + v.team.how.map(function(x){ return '<li>' + gdE(x) + '</li>'; }).join('') + '</ol>' : '') +
+      (v.team.example ? '<div class="gu-lbl" style="margin-top:14px">Пример из практики</div><p class="lb2-tp">' + gdE(v.team.example) + '</p>' : '') + '</div>');
+  }
+  steps.forEach(function(s, si){
+    var k = 's' + si;
+    toc.push({k:k, n:String(si + 1), t:s.title});
+    secs += '<section class="gu-sec gu-step" id="lb2S-' + k + '" data-k="' + k + '">' +
+      '<div class="gu-sth"><span class="gu-stn">' + (si < 9 ? '0' : '') + (si + 1) + '</span><div class="gu-sthm"><div class="gu-sk">Шаг ' + (si + 1) + ' из ' + steps.length + '</div><h3 class="gu-h3">' + gdE(s.title) + '</h3></div></div>' +
+      (s.do ? '<p class="lb2-do">' + gdE(s.do) + '</p>' : '') +
+      (s.example ? '<div class="lb2-ex"><div class="gu-lbl">Пример</div>' + gdNumB(gdE(s.example)) + '</div>' : '') +
+      (s.mistake ? '<div class="lb2-mis"><div class="gu-lbl">Типичная ошибка</div>' + gdE(s.mistake) + '</div>' : '') +
+    '</section>';
+  });
+  if(Array.isArray(v.metrics) && v.metrics.length){
+    toc.push({k:'met', n:'Ц', t:'Что отслеживать'});
+    secs += lib2Sec('met', 'Контрольные цифры', 'Что отслеживать', '<div class="lb2-met">' + v.metrics.map(function(m, mi){ return '<div class="lb2-mi"><i class="lb2-mn">' + (mi + 1) + '</i><span>' + gdE(m) + '</span></div>'; }).join('') + '</div>');
+  }
+  if(d && Array.isArray(v.check) && v.check.length){
+    toc.push({k:'chk', n:'✓', t:'Чек-лист внедрения'});
+    secs += lib2Sec('chk', 'Чек-лист внедрения', '', '<div class="gu-ck">' + v.check.map(function(x, ci){
+      var key = 'chk_' + i + '_' + ci, done = (typeof curBoard !== 'undefined' && curBoard && curBoard.checks && curBoard.checks[key]);
+      return '<div class="gu-ci' + (done ? ' on' : '') + '" onclick="lib2Check(\'' + key + '\',this)"><span class="gu-cb"></span><span class="gu-cit">' + gdE(x) + '</span></div>';
+    }).join('') + '</div>');
+  }
+  if(r.template){
+    toc.push({k:'tpl', n:'Ш', t:'Шаблон'});
+    secs += lib2Sec('tpl', 'Шаблон в фирменном стиле', r.template.title, '<p class="gu-p">' + gdE(r.template.intro || 'Распечатай или заполни на компьютере.') + '</p>' +
+      lib2Paper(v, r) +
+      '<div class="lb2-tplacts"><button class="btn pf-b pf-p" data-act="tpl2" onclick="lib2Download(\'' + escA(r.id) + '\')">' + LIB2_IC.dl + 'Скачать шаблон PDF</button>' + file + '</div>' +
+      (v.file ? '<a class="lb2-file" href="' + escA(v.file) + '" download><i class="lb2-fi">' + esc((String(v.file).split('.').pop() || 'file').toUpperCase().slice(0, 4)) + '</i><div><b class="lb2-fb">' + esc(v.fileLabel) + '</b><span class="lb2-fs">Электронная версия с формулами: ' + esc(String(v.file).split('/').pop()) + '</span></div></a>' : ''));
+  }
+  if(d && (d.link || d.video || d.sample || (d.file && !/^\/dl\//.test(String(d.file))) || d.isBook)){
+    toc.push({k:'mat', n:'М', t:'Материалы'});
+    secs += '<section class="gu-sec" id="lb2S-mat" data-k="mat">' + matsHTML(d) + '</section>';
+  }
+  secs += '<div class="gu-end"><b>Шаблон Business Surgery</b><span>Каждый шаблон оформлен в стиле клуба: логотип, bxclub.kz и подпись на каждой странице. Его можно распечатать, заполнить и отправить команде</span>' +
+    '<div class="lb2-acts">' + (r.template ? '<button class="btn pf-b pf-p" data-act="tpl3" onclick="lib2Download(\'' + escA(r.id) + '\')">' + LIB2_IC.dl + 'Скачать шаблон PDF</button>' : '') + file + '</div></div>';
+  return cover + lib2Cols(toc, secs);
+}
+function lib2Check(key, el){
+  if(typeof curBoard === 'undefined' || !curBoard){ toast('Отметки чек-листа сохраняются на доске резидента'); return; }
+  toggleCheck(key, null);
+  if(el) el.classList.toggle('on', !!(curBoard.checks && curBoard.checks[key]));
+}
+// Превью листа шаблона: как в PDF, белый лист в любой теме
+function lib2Paper(v, r){
+  var t = r.template, logo = (document.querySelector('img.logo') || {}).src || '';
+  var n = 0;
+  var blocks = t.blocks.map(function(b){
+    n++;
+    var hint = b.type === 'table' && (b.rows || []).length ? '<em class="lb2-pp-he">серые строки: пример заполнения</em>' : (b.type === 'scale' ? '<em class="lb2-pp-he">обведи оценку ' + (b.min || 1) + '-' + (b.max || 10) + '</em>' : '');
+    var head = '<div class="lb2-pp-h"><i class="lb2-pp-hn">' + n + '</i>' + gdE(b.title || '') + hint + '</div>';
+    if(b.type === 'fields'){
+      var one = (b.fields || []).some(function(f){ return String(f).length > 44; });
+      return head + '<div class="lb2-pp-f' + (one ? ' one' : '') + '">' + (b.fields || []).map(function(f){ return '<div class="lb2-pp-fd">' + gdE(f) + '</div>'; }).join('') + '</div>';
+    }
+    if(b.type === 'table'){
+      var cols = b.columns || [], empty = Math.min(3, b.empty_rows || 3);
+      return head + '<div class="lb2-pp-tw"><table class="lb2-pp-tb"><thead><tr>' + cols.map(function(c){ return '<th class="lb2-pp-th">' + gdE(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        (b.rows || []).map(function(rw){ return '<tr>' + cols.map(function(c, ci){ return '<td class="lb2-pp-td s">' + gdE(rw[ci] || '') + '</td>'; }).join('') + '</tr>'; }).join('') +
+        new Array(empty).join('<tr>' + cols.map(function(){ return '<td class="lb2-pp-td"></td>'; }).join('') + '</tr>') + '<tr>' + cols.map(function(){ return '<td class="lb2-pp-td l"></td>'; }).join('') + '</tr>' + '</tbody></table></div>';
+    }
+    if(b.type === 'checklist') return head + '<div class="lb2-pp-c">' + (b.items || []).map(function(x){ return '<div class="lb2-pp-ci">' + gdE(x) + '</div>'; }).join('') + '</div>';
+    if(b.type === 'scale'){
+      var lo = b.min || 1, hi = b.max || 10, nums = '';
+      for(var k = lo; k <= hi; k++) nums += '<i class="lb2-pp-sn">' + k + '</i>';
+      return head + '<div class="lb2-pp-sc">' + (b.items || []).map(function(x){ return '<div class="lb2-pp-si">' + gdE(x) + '<span class="lb2-pp-ss">' + nums + '</span></div>'; }).join('') + '</div>';
+    }
+    if(b.type === 'note') return head + '<div class="lb2-pp-n">' + new Array(Math.min(b.lines || 4, 6) + 1).join('<div class="lb2-pp-nl"></div>') + '</div>';
+    return '';
+  }).join('');
+  var open = !!LIB2.exp['tpl:' + r.id];
+  return '<div class="lb2-pw' + (open ? ' open' : '') + '" id="lb2Pw"><div class="lb2-paper">' +
+    '<div class="lb2-pp-band"><div class="lb2-pp-top">' + (logo ? '<img class="lb2-pp-logo" src="' + escA(logo) + '" alt="Business Surgery">' : '<b>Business Surgery</b>') +
+      '<div class="lb2-pp-br">ШАБЛОН · ИНСТРУМЕНТ КЛУБА<b class="lb2-pp-brb">Business Surgery · bxclub.kz</b></div></div>' +
+      '<span class="lb2-pp-org">' + gdE(v.organ) + '</span><div class="lb2-pp-t">' + gdE(t.title) + '</div><div class="lb2-pp-s">Инструмент: ' + gdE(v.title) + '</div></div>' +
+    '<div class="lb2-pp-in">' + (t.intro ? '<div class="lb2-pp-intro"><b class="lb2-pp-ib">КАК ЗАПОЛНЯТЬ</b>' + gdE(t.intro) + '</div>' : '') + blocks +
+      (Array.isArray(r.metrics) && r.metrics.length ? '<div class="lb2-pp-m"><b class="lb2-pp-mb">КОНТРОЛЬНЫЕ ЦИФРЫ · ЦЕЛИ ИНСТРУМЕНТА</b>' + r.metrics.map(function(m){ return '<div class="lb2-pp-mi">' + gdE(m) + '</div>'; }).join('') + '</div>' : '') +
+      '<div class="lb2-pp-ft"><span>© Business Surgery · bxclub.kz · инструмент из библиотеки клуба</span><span>стр. 1</span></div>' +
+    '</div></div>' +
+    '<button class="lb2-pmore" onclick="lib2PaperTog(\'' + escA(r.id) + '\')">' + (open ? 'Свернуть шаблон' : 'Показать шаблон целиком') + '</button></div>';
+}
+function lib2PaperTog(id){
+  LIB2.exp['tpl:' + id] = !LIB2.exp['tpl:' + id];
+  var sc = document.getElementById('lb2Scroll'), st = sc ? sc.scrollTop : 0;
+  lib2Paint(); if(sc) sc.scrollTop = st;
+}
+// ── Диагноз ──
+function lib2Scale(s){
+  var out = [];
+  String(s || '').split(',').forEach(function(p){
+    p = p.trim(); var m;
+    if((m = p.match(/^(\d+)\s*-\s*(\d+)\s+(.+)$/))) out.push({lo:+m[1], hi:+m[2], l:m[3]});
+    else if((m = p.match(/^(\d+)\s*\+\s*(.+)$/))) out.push({lo:+m[1], hi:999, l:m[2]});
+  });
+  return out.length ? out : [{lo:0, hi:2, l:'норма'}, {lo:3, hi:5, l:'риск'}, {lo:6, hi:999, l:'диагноз подтверждён'}];
+}
+function lib2TestState(id){
+  var all = null; try{ all = JSON.parse(localStorage.getItem('bsl_lib2_test') || 'null'); }catch(e){}
+  all = all && typeof all === 'object' ? all : {};
+  return {all:all, cur:all[id] && typeof all[id] === 'object' ? all[id] : {}};
+}
+function lib2TestScore(r, st){
+  var qs = (r.test && r.test.questions) || [], score = 0, ans = 0;
+  qs.forEach(function(q, qi){ if(st[qi] === 1 || st[qi] === 0){ ans++; if(st[qi] === 1) score += Number(q.yes) || 1; } });
+  var bands = lib2Scale(r.test && r.test.scale), band = null;
+  bands.forEach(function(b, bi){ if(score >= b.lo && score <= b.hi) band = Object.assign({i:bi}, b); });
+  return {score:score, ans:ans, total:qs.length, done:qs.length > 0 && ans === qs.length, band:band, bands:bands};
+}
+function lib2Ans(qi, val){
+  var c = LIB2.cur; if(!c) return;
+  var s = lib2TestState(c.id);
+  s.cur[qi] = s.cur[qi] === val ? null : val;
+  s.all[c.id] = s.cur;
+  try{ localStorage.setItem('bsl_lib2_test', JSON.stringify(s.all)); }catch(e){}
+  var box = document.getElementById('lb2Test'), r = LIB2.byId[c.id];
+  if(box && r) box.outerHTML = lib2TestHTML(r);
+}
+function lib2TestReset(){
+  var c = LIB2.cur; if(!c) return;
+  var s = lib2TestState(c.id); delete s.all[c.id];
+  try{ localStorage.setItem('bsl_lib2_test', JSON.stringify(s.all)); }catch(e){}
+  var box = document.getElementById('lb2Test'), r = LIB2.byId[c.id];
+  if(box && r) box.outerHTML = lib2TestHTML(r);
+}
+function lib2TestHTML(r){
+  var qs = (r.test && r.test.questions) || [], st = lib2TestState(r.id).cur, sc = lib2TestScore(r, st);
+  var txt = ['Похоже, этой болезни у бизнеса нет. Вернись к тесту через квартал или если появятся признаки выше.',
+    'Есть риск. Начни с первых шагов ниже, пока это не стало привычкой бизнеса.',
+    'Диагноз подтверждён. Назначь лечение: инструменты ниже, начни с первого.'];
+  var res = '';
+  if(sc.done && sc.band){
+    var hi = sc.band.i >= sc.bands.length - 1;
+    res = '<div class="lb2-res' + (hi ? ' hi' : '') + '" data-band="' + sc.band.i + '"><b class="lb2-rs">' + sc.score + '<small class="lb2-rss">из ' + qs.length + '</small></b><div>' +
+      '<div class="lb2-rl">' + gdE(sc.band.l.charAt(0).toUpperCase() + sc.band.l.slice(1)) + '</div>' +
+      '<div class="lb2-rt">' + gdE(txt[Math.min(sc.band.i, 2)]) + '</div>' +
+      '<div class="lb2-rb">' + (sc.band.i > 0 ? '<button class="btn pf-b" onclick="lib2Go(\'cure\')">К лечению</button>' : '') + '<button class="btn pf-b" onclick="lib2TestReset()">Пройти заново</button></div></div></div>';
+  }
+  return '<div class="lb2-test" id="lb2Test"><div class="lb2-th"><div class="gu-lbl">Ответь честно: да или нет</div><span class="lb2-thn">Ответов ' + sc.ans + ' из ' + qs.length + '</span></div>' +
+    qs.map(function(q, qi){
+      return '<div class="lb2-q" data-q="' + qi + '"><i class="lb2-qn">' + (qi + 1) + '</i><span>' + gdE(q.q) + '</span><div class="lb2-yn">' +
+        '<button class="lb2-b' + (st[qi] === 1 ? ' on' : '') + '" data-a="yes" onclick="lib2Ans(' + qi + ',1)">Да</button>' +
+        '<button class="lb2-b' + (st[qi] === 0 ? ' on' : '') + '" data-a="no" onclick="lib2Ans(' + qi + ',0)">Нет</button></div></div>';
+    }).join('') + res + '</div>' +
+    '<div class="lb2-scale">' + sc.bands.map(function(b, bi){ return '<span class="lb2-sci' + (sc.done && sc.band && sc.band.i === bi ? ' on' : '') + '">' + (b.hi >= 999 ? b.lo + '+' : b.lo + '-' + b.hi) + ': ' + gdE(b.l) + '</span>'; }).join('') + '</div>';
+}
+function lib2DiagHTML(v, r, d, i, adm){
+  var qs = (r.test && r.test.questions) || [], cure = Array.isArray(v.cure) ? v.cure : [];
+  var cover = '<div class="gu-cover"><div style="position:relative;z-index:1">' +
+      '<div class="gu-k"><span>Диагноз</span><span>·</span><span>' + gdE(v.organ) + '</span></div>' +
+      '<h1 class="gu-h1">' + gdE(v.title) + '</h1>' +
+      (v.subtitle ? '<div class="gu-sub">' + gdE(v.subtitle) + '</div>' : '') +
+      (v.desc ? '<div class="lb2-prom">' + gdE(v.desc) + '</div>' : '') +
+      '<div class="lb2-acts">' + (qs.length ? '<button class="btn pf-b pf-p" data-act="test" onclick="lib2Go(\'test\')">Пройти тест: ' + qs.length + ' ' + gdPl(qs.length, 'вопрос', 'вопроса', 'вопросов') + '</button>' : '') +
+        (cure.length ? '<button class="btn pf-b" onclick="lib2Go(\'cure\')">Лечение</button>' : '') +
+        (adm && i >= 0 ? '<button class="btn pf-b" data-act="edit" onclick="lib2Close();editDiag(' + i + ')">Изменить</button>' : '') + '</div>' +
+    '</div><div class="gu-pass">' +
+      ((v.signs || []).length ? '<div><span>Признаков</span><b>' + v.signs.length + '</b></div>' : '') +
+      (qs.length ? '<div><span>Тест</span><b>' + qs.length + ' ' + gdPl(qs.length, 'вопрос', 'вопроса', 'вопросов') + '</b><em>' + gdE((r.test && r.test.scale) || '') + '</em></div>' : '') +
+      (cure.length ? '<div><span>Лечение</span><b>' + cure.length + ' ' + gdPl(cure.length, 'инструмент', 'инструмента', 'инструментов') + '</b></div>' : '') +
+      (v.case && v.case.name ? '<div><span>Кейс</span><b>' + gdE(v.case.name) + '</b><em>' + gdE(v.case.business || '') + '</em></div>' : '') +
+    '</div></div>';
+  var toc = [], secs = '';
+  if((v.signs || []).length){ toc.push({k:'signs', n:'1', t:'Как проявляется'});
+    secs += lib2Sec('signs', 'Симптомы', 'Как проявляется', '<div class="lb2-signs">' + v.signs.map(function(s){ return '<div class="lb2-si">' + gdE(s) + '</div>'; }).join('') + '</div>'); }
+  if((v.causes || []).length){ toc.push({k:'causes', n:'2', t:'Почему так происходит'});
+    secs += lib2Sec('causes', 'Причины', 'Почему так происходит', '<ol class="lb2-causes">' + v.causes.map(function(s){ return '<li class="lb2-cli"><span>' + gdE(s) + '</span></li>'; }).join('') + '</ol>'); }
+  if(v.cost){ toc.push({k:'cost', n:'₸', t:'Сколько это стоит'});
+    secs += lib2Sec('cost', 'Цена болезни', 'Сколько это стоит', '<div class="lb2-cost">' + gdNumB(gdE(v.cost)) + '</div>'); }
+  if(qs.length){ toc.push({k:'test', n:'Т', t:'Тест'});
+    secs += lib2Sec('test', 'Тест', 'Проверь свой бизнес', lib2TestHTML(r)); }
+  if(v.team.questions){ toc.push({k:'team', n:'К', t:'Вопросы команды'});
+    secs += lib2Sec('team', 'Записи команды клуба', 'Вопросы для подтверждения', '<div class="lb2-team"><ol class="lb2-tol">' + v.team.questions.map(function(x){ return '<li>' + gdE(x) + '</li>'; }).join('') + '</ol></div>'); }
+  if(v.case && v.case.story){ toc.push({k:'case', n:'К', t:'Кейс'});
+    secs += lib2Sec('case', 'Кейс', [v.case.name, v.case.business].filter(Boolean).join(' · '),
+      '<div class="lb2-case"><div class="lb2-cs"><div class="gu-lbl">Что было</div><p class="lb2-cp">' + gdNumB(gdE(v.case.story)) + '</p></div>' + (v.case.result ? '<div class="lb2-cs r"><div class="gu-lbl">Что изменилось после лечения</div><p class="lb2-cp">' + gdNumB(gdE(v.case.result)) + '</p></div>' : '') + '</div>'); }
+  if(cure.length){ toc.push({k:'cure', n:'+', t:'Лечение'});
+    secs += lib2Sec('cure', 'Лечение', 'Чем лечим', '<div class="lb2-cure">' + cure.map(function(t){
+      var tr = LIB2.byT.tool[lib2N(t)];
+      return '<div class="lb2-cc" data-cure="' + escA(t) + '" onclick="lib2OpenTitle(this.dataset.cure)"><b class="lb2-cct">' + gdE(t) + '</b>' + (tr && tr.subtitle ? '<span class="lb2-ccs">' + gdE(tr.subtitle) + '</span>' : '') +
+        '<em class="lb2-cce">' + (tr && tr.template ? 'Открыть инструмент и шаблон →' : 'Открыть инструмент →') + '</em></div>';
+    }).join('') + '</div>'); }
+  if((v.first_steps || []).length){ toc.push({k:'first', n:'!', t:'Первые шаги'});
+    secs += lib2Sec('first', 'На этой неделе', 'Первые шаги', '<ol class="lb2-first">' + v.first_steps.map(function(s){ return '<li class="lb2-fli"><span>' + gdE(s) + '</span></li>'; }).join('') + '</ol>'); }
+  if(v.risk){ toc.push({k:'risk', n:'Р', t:'Если не лечить'});
+    secs += lib2Sec('risk', 'Прогноз', 'Если не лечить', '<div class="lb2-risk"><div class="gu-lbl">Через год</div>' + gdE(v.risk) + '</div>'); }
+  if(d && (d.link || d.video || d.sample)){ toc.push({k:'mat', n:'М', t:'Материалы'}); secs += '<section class="gu-sec" id="lb2S-mat" data-k="mat">' + matsHTML(d) + '</section>'; }
+  return cover + lib2Cols(toc, secs);
+}
+// ── Добавить в задачи резиденту: инструмент на доску, задача «Внедрить» ставится сама (ensureToolTask) ──
+function lib2PickOpen(){
+  if(MODE !== 'admin' || !LIB2.cur) return;
+  LIB2.pickQ = '';
+  document.getElementById('lb2Pick').classList.add('on');
+  var q = document.getElementById('lb2PickQ'); if(q){ q.value = ''; setTimeout(function(){ try{ q.focus(); }catch(e){} }, 30); }
+  lib2PickPaint();
+}
+function lib2PickClose(){ var b = document.getElementById('lb2Pick'); if(b) b.classList.remove('on'); }
+function lib2PickPaint(){
+  var box = document.getElementById('lb2PickL'); if(!box) return;
+  var q = ckNm(LIB2.pickQ);
+  var list = boardsByResident().list.filter(function(r){ return !q || ckNm(r.name).indexOf(q) >= 0; });
+  box.innerHTML = list.length ? list.map(function(r){
+    var b = r.latest;
+    return '<div class="gu-pr" data-k="' + escA(r.key) + '" onclick="lib2SendTo(this.dataset.k)"><i class="pf-av sm">' + esc((r.name || '?').charAt(0).toUpperCase()) + '</i>' +
+      '<div><b>' + esc(r.name) + '</b><span>' + (b ? esc((b.name || 'Разбор') + ' · цикл ' + (b.version || 1) + ' · ' + pfAgo(b.updated || b.date)) : 'Доски ещё нет, создадим новый разбор') + '</span></div>' +
+      '<span class="gu-pra">Добавить</span></div>';
+  }).join('') : '<div class="pf-empty" style="padding:18px 20px">Резидент не найден</div>';
+}
+function lib2ToolNode(){
+  var c = LIB2.cur, r = c && LIB2.byId[c.id]; if(!r) return null;
+  var d = c.i >= 0 ? TOOLS[c.i] : null, v = lib2View('tool', d, r);
+  var o = {type:'tool', title:v.title, organ:((d && d.icon) || '◇') + ' ' + v.organ, color:(d && d.color) || TONE[v.organ] || '#FFFFFF',
+    desc:(v.subtitle || '') + (r.template ? '\n\nШаблон PDF: ' + lib2Host() + lib2Pub(r.id) : '')};
+  if(c.i >= 0) o.libIdx = c.i;
+  return o;
+}
+function lib2SendTo(key){
+  if(MODE !== 'admin') return null;
+  var r = boardsByResident().list.find(function(x){ return x.key === key; }); if(!r) return null;
+  var node = lib2ToolNode(); if(!node) return null;
+  lib2Close();
+  var put = function(){
+    var n = addNode(node);
+    // задачу «Внедрить» ставит обёртка addNode (ensureToolTask), как при назначении инструмента на доске
+    if(n) setTimeout(function(){ try{ saveBoardSilent(); }catch(e){} }, 40);
+    return n;
+  };
+  if(r.latest){ openBoard(r.latest.id); goSection('board'); return put(); }
+  newBoardFor(r.name); setTimeout(put, 260);
+  return null;
+}
+// ── Подмена карточки: где была старая карточка, открывается читалка ──
+(function(){
+  var _oc = openCard;
+  openCard = function(kind, i){
+    var list = kind === 'diag' ? DIAG : TOOLS, d = list[i];
+    if(d && !d.isBook){
+      if(LIB2.data){ if(lib2Open(kind, i)) return; }
+      else if(window.BSSync && BSSync.api){
+        return lib2Load().then(function(j){
+          if(j && lib2Open(kind, i)) return;
+          _oc(kind, i);
+        });
+      }
+    }
+    return _oc.apply(this, arguments);
+  };
+})();
+// ── Списки: подзаголовок карточки и насыщенность ──
+function lib2Hint(kind, r){
+  if(!r) return '';
+  var a = [];
+  if(kind === 'diag'){
+    var q = (r.test && r.test.questions || []).length;
+    if(q) a.push('тест ' + q + ' ' + gdPl(q, 'вопрос', 'вопроса', 'вопросов'));
+    if((r.cure || []).length) a.push('лечение ' + r.cure.length);
+    if(r.case) a.push('кейс');
+  } else {
+    if((r.steps || []).length) a.push(r.steps.length + ' ' + gdPl(r.steps.length, 'шаг', 'шага', 'шагов'));
+    if(r.hero) a.push('история');
+    if(r.template) a.push('шаблон PDF');
+    if(r.file) a.push(/\.xlsx?$/i.test(r.file) ? 'Excel' : 'файл');
+  }
+  return '<div class="lb2-hint">' + a.map(function(x){ return '<span class="lb2-hs">' + esc(x) + '</span>'; }).join('') + '</div>';
+}
+function lib2Decorate(box, kind, sel, attr, mkRe, reopen){
+  if(!box || !LIB2.data) return;
+  var list = kind === 'diag' ? DIAG : TOOLS;
+  box.querySelectorAll(sel).forEach(function(el){
+    var m = String(el.getAttribute(attr) || '').match(mkRe); if(!m) return;
+    var i = Number(m[1]), d = list[i], r = lib2Find(kind, d); if(!r) return;
+    var v = lib2View(kind, d, r);
+    var dd = el.querySelector('.row-d, .lc-d, .r15k-d');
+    if(dd && v.subtitle) dd.textContent = v.subtitle;
+    // справа вместо старого счётчика: уровень инструмента или число признаков диагноза
+    var rm = el.querySelector('.row-m');
+    if(rm) rm.textContent = kind === 'diag' ? ((v.signs || []).length + ' ' + gdPl((v.signs || []).length, 'признак', 'признака', 'признаков')) : (v.level || '');
+    if(!el.querySelector('.lb2-hint')){
+      var host = el.querySelector('.lc-in, .r15-gb') || (dd ? dd.parentNode : null);
+      if(host) host.insertAdjacentHTML('beforeend', lib2Hint(kind, r));
+    }
+    el.dataset.rich = r.id;
+    if(reopen) el.setAttribute('onclick', 'openCard(\'' + reopen + '\',' + i + ')');
+  });
+}
+(function(){
+  var _rt = renderToolLib, _rd = renderDiagLib, _rl = renderLib, _rk = r15KitGrid;
+  renderToolLib = function(){
+    var x = _rt.apply(this, arguments);
+    var box = document.getElementById('tlBody');
+    // строка с карточкой библиотеки открывает читалку (там же «Изменить»), остальные: прежний редактор
+    if(box) lib2Decorate(box, 'tool', '.row', 'onclick', /editTool\((\d+)\)/, 'tool');
+    var ph = document.querySelector('#pg-toolLib .ph');
+    if(ph && MODE === 'admin' && !document.getElementById('lb2Zip')){
+      var b = document.createElement('button'); b.className = 'btn bs lb2-zip admin-only'; b.id = 'lb2Zip'; b.type = 'button';
+      b.textContent = 'Скачать все шаблоны (ZIP)'; b.onclick = lib2ZipDownload;
+      var add = ph.querySelector('.btn.bg'); if(add) ph.insertBefore(b, add); else ph.appendChild(b);
+    }
+    if(!LIB2.data) lib2Load();
+    return x;
+  };
+  renderDiagLib = function(){
+    var x = _rd.apply(this, arguments);
+    var box = document.getElementById('dlBody');
+    if(box) lib2Decorate(box, 'diag', '.row', 'onclick', /editDiag\((\d+)\)/, 'diag');
+    if(!LIB2.data) lib2Load();
+    return x;
+  };
+  renderLib = function(){
+    var x = _rl.apply(this, arguments);
+    if(libMode === 'diag' || libMode === 'tool') lib2Decorate(document.getElementById('libGrid'), libMode, '.lcard', 'onclick', /pickFromLib\((\d+)\)/);
+    if(!LIB2.data) lib2Load();
+    return x;
+  };
+  r15KitGrid = function(){
+    var x = _rk.apply(this, arguments);
+    lib2Decorate(document.getElementById('r15kGrid'), 'tool', '.gu-card', 'onclick', /openCard\('tool',(\d+)\)/);
+    if(!LIB2.data) lib2Load();
+    return x;
+  };
+})();
+// ── Маркетинг → Стратегия: документ SMM в начале «Итога» ──
+function lib2SmmCard(){
+  return '<div class="lb2-doc" id="lb2Smm"><i class="lb2-dic">PDF</i><div class="lb2-dbd"><b class="lb2-dt">' + esc(LIB2_SMM.title) + '</b><span class="lb2-ds">Готовый документ стратегии для команды и подрядчиков: позиционирование, аудитория, рубрики и воронки в фирменном стиле</span></div>' +
+    '<nav class="lb2-dn"><a class="btn pf-b" href="' + LIB2_SMM.file + '?inline=1" target="_blank" rel="noopener">Открыть</a><a class="btn pf-b pf-p" href="' + LIB2_SMM.file + '" download>Скачать PDF</a></nav></div>';
+}
+(function(){
+  var _ms = maSection;
+  maSection = function(t){
+    var h = _ms.apply(this, arguments);
+    var known = ['competitors', 'ladder', 'audience', 'value', 'positioning', 'insights', 'funnels', 'rubrics'];
+    if(known.indexOf(t) >= 0 || h.indexOf('lb2Smm') >= 0) return h;
+    var k = h.indexOf('<div class="ma-hero">');
+    return k >= 0 ? h.slice(0, k) + lib2SmmCard() + h.slice(k) : lib2SmmCard() + h;
+  };
+})();
+document.addEventListener('keydown', function(e){
+  if(e.key !== 'Escape') return;
+  var pk = document.getElementById('lb2Pick'), sh = document.getElementById('lb2Sheet');
+  if(pk && pk.classList.contains('on')){ pk.classList.remove('on'); return; }
+  if(sh && sh.classList.contains('on')) lib2Close();
+});
+// Библиотека подгружается после входа, чтобы списки сразу были с подзаголовками
+setTimeout(function(){ if(window.BSSync && BSSync.api) lib2Load(); }, 2500);
+</script>
+
 </body>
 </html>

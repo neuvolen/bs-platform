@@ -15,11 +15,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
-	_ "embed"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"mime"
 	"net/http"
+	"net/url"
+	"path"
 	"regexp"
 	"strings"
 
@@ -32,6 +35,71 @@ var platformHTML []byte
 
 //go:embed login.html
 var loginHTML []byte
+
+// Files the library hands out as they are (Excel plans, PDF strategies):
+// web/dl/<name> is served at /dl/<name> to anyone signed in to the platform.
+//
+//go:embed all:dl
+var dlFS embed.FS
+
+var dlTypes = map[string]string{
+	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	".xls":  "application/vnd.ms-excel",
+	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+	".pdf":  "application/pdf",
+	".csv":  "text/csv; charset=utf-8",
+	".zip":  "application/zip",
+}
+
+// DLFile returns one downloadable file by name (no folders, no hidden files).
+func DLFile(name string) ([]byte, string, bool) {
+	if name == "" || strings.HasPrefix(name, ".") || strings.ContainsAny(name, "/\\") || path.Clean(name) != name {
+		return nil, "", false
+	}
+	b, err := dlFS.ReadFile("dl/" + name)
+	if err != nil {
+		return nil, "", false
+	}
+	ext := strings.ToLower(path.Ext(name))
+	ct := dlTypes[ext]
+	if ct == "" {
+		ct = mime.TypeByExtension(ext)
+	}
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	return b, ct, true
+}
+
+func serveDL(c *gin.Context, secret []byte, cookie string) {
+	name := c.Param("name")
+	b, ct, ok := DLFile(name)
+	if !ok {
+		c.String(http.StatusNotFound, "Файл не найден")
+		return
+	}
+	if !validSession(c, secret, cookie) {
+		c.String(http.StatusUnauthorized, "Войдите в платформу Business Surgery, чтобы скачать файл")
+		return
+	}
+	sum := sha256.Sum256(b)
+	etag := `"dl-` + hex.EncodeToString(sum[:8]) + `"`
+	h := c.Writer.Header()
+	disp := "attachment"
+	if c.Query("inline") == "1" {
+		disp = "inline"
+	}
+	h.Set("Content-Disposition", disp+`; filename="`+name+`"; filename*=UTF-8''`+url.PathEscape(name))
+	h.Set("ETag", etag)
+	h.Set("Cache-Control", "private, max-age=600")
+	h.Set("X-Content-Type-Options", "nosniff")
+	if m := c.GetHeader("If-None-Match"); m != "" && strings.Contains(m, etag) {
+		c.Status(http.StatusNotModified)
+		return
+	}
+	c.Data(http.StatusOK, ct, b)
+}
 
 // Marks the page as served by the server: the page then logs in and keeps
 // its data on the server instead of only in this browser.
@@ -184,4 +252,5 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	r.GET("/", h)
 	r.HEAD("/", h)
 	r.GET("/platform", h)
+	r.GET("/dl/:name", func(c *gin.Context) { serveDL(c, secret, sessionCookie) })
 }
