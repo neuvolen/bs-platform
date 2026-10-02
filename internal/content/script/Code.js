@@ -122,7 +122,15 @@ function forceRefreshApp(){
 
 var BOT_TOKEN        = "__BS_BOT_TOKEN__";
 var ADMIN_ID         = "453800951";
-var ADMIN_IDS        = ["453800951","1285596249"]; // Добавьте ID партнёра и ассистента сюда
+var ADMIN_IDS        = ["453800951","1285596249"];
+// Похоже ли сообщение на отчёт: минимум два «отчётных» слова или одно слово и список пунктов
+function bsLooksLikeReport(t){
+  var low=String(t||"").toLowerCase();
+  var re=/(отч[её]т|сделал|сделано|выполнил|выполнено|не успел|не получилось|план на завтра|на завтра|завтра|итог[иа]? дня|за день|сегодня)/g, m, seen={}, n=0;
+  while((m=re.exec(low))){ if(!seen[m[0]]){ seen[m[0]]=1; n++; } }
+  var items=(String(t||"").match(/^\s*(\d+[.)]|[-•*✅❌☑️✔️🔹▪️])\s*\S/gm)||[]).length;
+  return n>=2||(n>=1&&items>=2);
+} // Добавьте ID партнёра и ассистента сюда
 var SS_ID            = "1D-D4P5G9cmX1tdyluWe88sNTVGGqJqQWA4NvrvTbrYE";
 var ORIG_SS_ID       = "1vqF9tCd8TziHu_2FRfgInEztnV-2Y16d0IlY2WigtdU";
 var FINE_AMT         = 10000;
@@ -2745,7 +2753,7 @@ function _alert(m){
 // ═══════════════════════════════════════════════════════════════
 // Месяц, с которого считается касса. 3 = апрель, счёт был обнулён
 var CASH_START_MONTH = 3;
-var BS_VERSION = "2026-10-02-34";
+var BS_VERSION = "2026-10-02-35";
 
 // ═══════════════════════════════════════════════════════════════
 // КАРТА КОЛОНОК ЛИСТА РЕЗИДЕНТОВ
@@ -12611,7 +12619,9 @@ function _upd(u){
     // Длинный текст от резидента в чужом топике. молча терять нельзя:
     // человек считает, что отчёт сдан, а ночью получает штраф
     if(!okT){
-      if(rawText.length>=100 && !bsServerOwns("report_feedback")){
+      // Только текст, похожий на отчёт, и только от резидента (не команды, не ответ в переписке)
+      if(rawText.length>=100 && !bsServerOwns("report_feedback") && bsLooksLikeReport(rawText) &&
+         ADMIN_IDS.indexOf(String(from.id))<0 && !(msg.reply_to_message && String(msg.reply_to_message.message_id)!==tidStr)){
         try{
           var _wrongSs=SpreadsheetApp.openById(SS_ID);
           var _wrongWs=_wrongSs.getSheetByName("BS - резиденты дебет");

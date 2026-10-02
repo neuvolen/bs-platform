@@ -17,6 +17,10 @@ func gm(text, thread string, sent time.Time, from int64) *GroupMessage {
 
 var long = strings.Repeat("Сделал три встречи. ", 6) // 120 символов
 
+// A report in the wrong topic, and a long chat message that is not a report.
+var wrongReport = "Отчёт за день:\n1. Сделал три встречи с клиентами\n2. Закрыл сделку\nНа завтра: звонки по базе и план продаж на неделю"
+var chatLong = strings.Repeat("Коллеги, кто был на конференции, поделитесь впечатлениями. ", 3)
+
 func lookupIDs(ids map[int64]string) ResidentLookup {
 	return func(tg int64, full string) (string, bool) {
 		n, ok := ids[tg]
@@ -41,7 +45,8 @@ func TestDecideReportRules(t *testing.T) {
 		{"в 06:00 уже не поздний, за новый день", gm(long, "9", at(6, 0), 7), VerdictReport, true, "28.09", false},
 		{"99 символов — короткий", gm(strings.Repeat("я", 99), "9", at(20, 0), 7), VerdictShort, true, "", false},
 		{"ровно 100 — отчёт", gm(strings.Repeat("я", 100), "9", at(20, 0), 7), VerdictReport, true, "28.09", false},
-		{"другой топик, длинный", gm(long, "2", at(20, 0), 7), VerdictWrongTopic, true, "", false},
+		{"другой топик, похоже на отчёт", gm(wrongReport, "2", at(20, 0), 7), VerdictWrongTopic, true, "", false},
+		{"другой топик, длинное общение, не отчёт", gm(chatLong, "2", at(20, 0), 7), "", false, "", false},
 		{"другой топик, короткий — не пишем", gm("спасибо", "2", at(20, 0), 7), "", false, "", false},
 		{"команда", gm("/help", "9", at(20, 0), 7), "", false, "", false},
 		{"не резидент", gm(long, "9", at(20, 0), 99), VerdictNotResident, true, "", false},

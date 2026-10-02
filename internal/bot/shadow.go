@@ -3,6 +3,7 @@ package bot
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -127,6 +128,22 @@ func (m *GroupMessage) FullName() string {
 	return strings.TrimSpace(m.FirstName + " " + m.LastName)
 }
 
+var (
+	reportWordsRe = regexp.MustCompile(`(?i)(отч[её]т|сделал|сделано|выполнил|выполнено|не успел|не получилось|план на завтра|на завтра|завтра|итог[иа]? дня|за день|сегодня)`)
+	reportListRe  = regexp.MustCompile(`(?m)^\s*(\d+[.)]|[-•*✅❌☑️✔️🔹▪️])\s*\S`)
+)
+
+// LooksLikeReport: the text reads like a daily report, not a chat message:
+// at least two report words, or one report word and a list of items.
+func LooksLikeReport(text string) bool {
+	words := map[string]bool{}
+	for _, w := range reportWordsRe.FindAllString(strings.ToLower(text), -1) {
+		words[w] = true
+	}
+	items := len(reportListRe.FindAllString(text, -1))
+	return len(words) >= 2 || (len(words) >= 1 && items >= 2)
+}
+
 // Decide applies the report rules to one group message.
 func Decide(m *GroupMessage, topic string, lookup ResidentLookup) Decision {
 	d := Decision{Len: JSLen(m.Text)}
@@ -136,8 +153,10 @@ func Decide(m *GroupMessage, topic string, lookup ResidentLookup) Decision {
 	name, isRes := lookup(m.FromID, m.FullName())
 	d.Resident = name
 	if topic != "" && m.Thread != topic {
-		// The script warns a resident whose long text went to another topic.
-		if d.Len >= MinReportLen {
+		// A resident whose report went to another topic is warned. Plain
+		// conversation in «Общение» is long too, so only a text that reads like
+		// a report (report words, a list of done/plan) counts.
+		if d.Len >= MinReportLen && LooksLikeReport(m.Text) {
 			d.Record, d.Verdict = true, VerdictWrongTopic
 		}
 		return d

@@ -78,7 +78,7 @@ func TestShadowDayEndToEnd(t *testing.T) {
 	feed := []string{
 		msg(1, 1001, "Альтаир", 9, long, day.Add(21*time.Hour)),              // отчёт
 		msg(2, 1002, "Асет", 9, "Сделал обзвон", day.Add(22*time.Hour)),      // короткий
-		msg(3, 1004, "Марат", 2, long, day.Add(20*time.Hour)),                // не тот топик
+		msg(3, 1004, "Марат", 2, wrongReport, day.Add(20*time.Hour)),         // не тот топик
 		msg(4, 1004, "Марат", 9, long, day.Add(24*time.Hour+30*time.Minute)), // после полуночи
 		msg(5, 777, "Даниил Раскрутов", 9, long, day.Add(19*time.Hour)),      // без Chat ID, по имени
 		msg(6, 555, "Гость", 9, long, day.Add(18*time.Hour)),                 // не резидент
@@ -136,12 +136,12 @@ func TestShadowDayEndToEnd(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 	mu.Lock()
-	if len(sent) != 1 || sent[0]["chat_id"].(float64) != 453800951 || !strings.Contains(sent[0]["text"].(string), "✅ Совпадает") {
+	if len(sent) != 0 { // a matching day is not reported to the team
 		t.Fatalf("sent %v", sent)
 	}
 	mu.Unlock()
 	// Once a day only.
-	if r, _ := s.maybeDailyShadow(ctx, now.Add(time.Hour)); r != nil || len(sent) != 1 {
+	if r, _ := s.maybeDailyShadow(ctx, now.Add(time.Hour)); r != nil || len(sent) != 0 {
 		t.Fatal("compared twice")
 	}
 }

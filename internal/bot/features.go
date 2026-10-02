@@ -208,6 +208,11 @@ func (s *Service) feedback(ctx context.Context, m *GroupMessage, d Decision) {
 				"Шаблон: команда /help. Отправьте полный отчёт, иначе ночью будет штраф.", d.Len))
 		}
 	case VerdictWrongTopic:
+		// Never the team, never a reply in a conversation, never someone whose
+		// report for today is already counted.
+		if s.isAdmin(m.FromID) || m.IsReply() || s.reportedToday(ctx, m) {
+			return
+		}
 		if isRes && s.once(ctx, fmt.Sprintf("wrongtopic:%d", m.FromID), wrongNoticeEvery) {
 			_ = s.SendMessage(ctx, m.FromID, "⚠️ Это похоже на отчёт, но он не в том разделе.\n\n"+
 				"Отчёт засчитывается только в топике «ОТЧЁТЫ».\n"+

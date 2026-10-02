@@ -151,8 +151,10 @@ func TestReportFeedback(t *testing.T) {
 	}
 	e.reset()
 
-	e.group(t, 1004, 2, long, evening, "")
-	e.group(t, 555, 2, long, evening, "") // not a resident: no note
+	e.group(t, 1004, 2, wrongReport, evening, "")
+	e.group(t, 555, 2, wrongReport, evening, "")       // not a resident: no note
+	e.group(t, 1005, 2, chatLong, evening, "")         // long talk in «Общение»: no note
+	e.group(t, 453800951, 2, wrongReport, evening, "") // the team: no note
 	m = e.calls("sendMessage")
 	if len(m) != 1 || m[0].P["chat_id"].(float64) != 1004 || !strings.Contains(m[0].P["text"].(string), "не в том разделе") {
 		t.Fatalf("wrong topic note %v", e.got)
