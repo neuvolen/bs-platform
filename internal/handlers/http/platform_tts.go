@@ -23,8 +23,10 @@ import (
 
 const ttsMaxRunes = 1200
 
-// ttsStyle is the spoken-manner instruction given to the model.
-const ttsStyle = "Говори как ИИ-ассистент дворецкий: спокойно, уверенно, чуть иронично, низким голосом. Произнеси по-русски только этот текст:"
+// ttsStyle: no spoken-manner instruction is sent. The TTS model read the
+// instruction aloud instead of following it; the manner comes from the voice.
+// "v2" also retires every phrase cached with the old instruction.
+const ttsStyle = "v2"
 
 // Deep male prebuilt voices of Gemini TTS.
 var ttsVoices = map[string]bool{"Charon": true, "Orus": true, "Fenrir": true, "Iapetus": true, "Algenib": true, "Alnilam": true, "Rasalgethi": true, "Schedar": true}
@@ -113,7 +115,7 @@ func (h *PlatformAI) TTS(c *gin.Context) {
 	}
 	sctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
-	wav, err := h.AI.Speak(sctx, text, voice, ttsStyle)
+	wav, err := h.AI.Speak(sctx, text, voice, "")
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "tts_failed", "detail": err.Error()})
 		return

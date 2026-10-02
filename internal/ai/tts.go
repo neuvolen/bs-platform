@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Speech synthesis for the platform's voice guide (onboarding tour).
@@ -99,6 +100,9 @@ func (c *Client) newestTTS(ctx context.Context, skip string) string {
 
 // Speak turns text into a WAV recording read by a prebuilt Gemini voice.
 // style is a short spoken-manner instruction put in front of the text.
+// TTSBackoff is shortened in tests.
+var TTSBackoff = func(d time.Duration) time.Duration { return d }
+
 func (c *Client) Speak(ctx context.Context, text, voice, style string) ([]byte, error) {
 	if c.Gemini == "" {
 		return nil, errors.New("нет ключа для озвучки: добавьте GEMINI_API_KEY")
@@ -116,11 +120,26 @@ func (c *Client) Speak(ctx context.Context, text, voice, style string) ([]byte, 
 		},
 	}
 	model := c.TTSModel(ctx)
+	rl := 0
 	for try := 0; ; try++ {
 		url := fmt.Sprintf("%s/v1beta/models/%s:generateContent?key=%s", c.GeminiBase, model, c.Gemini)
 		b, err := c.do(ctx, jsonReq("POST", url, body))
 		if err == nil {
 			return speechWAV(b)
+		}
+		// Rate limit: the free TTS quota is a few requests a minute. Wait and
+		// retry rather than fail, so the tour keeps one voice.
+		var he *HTTPError
+		if errors.As(err, &he) && (he.Status == 429 || he.Status == 503) && rl < 6 {
+			rl++
+			wait := time.Duration(4+rl*5) * time.Second
+			select {
+			case <-ctx.Done():
+				return nil, err
+			case <-time.After(TTSBackoff(wait)):
+			}
+			try--
+			continue
 		}
 		_, retired := retiredModel(err)
 		if try > 0 || !retired || os.Getenv("AI_GEMINI_TTS_MODEL") != "" {

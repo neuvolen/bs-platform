@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/ai"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
@@ -44,6 +45,7 @@ type fakeTTS struct {
 	gens   []string // model of each generateContent call
 	bodies []string
 	pcm    []byte
+	limit  int // answer 429 this many times first
 }
 
 func (f *fakeTTS) server() *httptest.Server {
@@ -62,6 +64,17 @@ func (f *fakeTTS) server() *httptest.Server {
 		f.gens = append(f.gens, model)
 		f.bodies = append(f.bodies, string(b))
 		f.mu.Unlock()
+		f.mu.Lock()
+		lim := f.limit
+		if lim > 0 {
+			f.limit--
+		}
+		f.mu.Unlock()
+		if lim > 0 {
+			w.WriteHeader(429)
+			_, _ = w.Write([]byte(`{"error":{"code":429,"message":"quota"}}`))
+			return
+		}
 		if !strings.Contains(model, "tts") {
 			w.WriteHeader(400)
 			_, _ = w.Write([]byte(`{"error":{"message":"model does not support audio"}}`))
@@ -121,10 +134,14 @@ func TestPlatformTTS(t *testing.T) {
 		t.Fatalf("model: %v", f.gens)
 	}
 	body := f.bodies[0]
-	for _, want := range []string{`"responseModalities":["AUDIO"]`, `"voiceName":"Charon"`, "дворецкий", text} {
+	for _, want := range []string{`"responseModalities":["AUDIO"]`, `"voiceName":"Charon"`, `"text":"` + text + `"`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("request lacks %q: %s", want, body)
 		}
+	}
+	// Only the phrase itself goes to the model: an instruction would be read aloud.
+	if strings.Contains(body, "дворецкий") || strings.Contains(body, "Говори") {
+		t.Fatalf("instruction sent to TTS: %s", body)
 	}
 
 	// 2. The same phrase again: served from storage, the model is not called.
@@ -141,6 +158,15 @@ func TestPlatformTTS(t *testing.T) {
 	jb3, _ := json.Marshal(map[string]string{"text": text, "voice": "<script>"})
 	if w = call(string(jb3)); w.Code != 200 || w.Header().Get("X-TTS-Cache") != "hit" || len(f.gens) != 2 {
 		t.Fatalf("unknown voice: %d %s %v", w.Code, w.Header().Get("X-TTS-Cache"), f.gens)
+	}
+
+	// 3b. Rate limit: the server waits and retries instead of failing.
+	ai.TTSBackoff = func(time.Duration) time.Duration { return 10 * time.Millisecond }
+	defer func() { ai.TTSBackoff = func(d time.Duration) time.Duration { return d } }()
+	f.limit = 3
+	jb4, _ := json.Marshal(map[string]string{"text": "Шаг девять после лимита."})
+	if w = call(string(jb4)); w.Code != 200 || w.Header().Get("X-TTS-Cache") != "miss" {
+		t.Fatalf("429 retry: %d %s", w.Code, w.Body.String())
 	}
 
 	// 4. Bad input.

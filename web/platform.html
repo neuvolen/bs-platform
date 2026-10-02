@@ -22438,25 +22438,39 @@ var Voice = (function(){
   function muted(){ return !!obRead().mute; }
   function setMuted(m){ var st = obRead(); st.mute = !!m; obWrite(st); if(m) stop(); emit(); }
   function emit(){ listeners.forEach(function(f){ try{ f(); }catch(e){} }); }
-  function fetchAudio(text){
+  // serverDown: на сервере нет озвучки (503). Тогда весь тур говорит голосом браузера,
+  // чтобы голос не менялся посреди обучения
+  var serverDown = false;
+  function fetchAudio(text, again){
     if(cache[text]) return cache[text];
-    if(!online() || fails >= 3) return Promise.resolve(null);
+    if(!online() || serverDown) return Promise.resolve(null);
     var p = Promise.resolve().then(function(){ return BSSync.api('POST', '/tts', {text: text}); }).then(function(r){
+      if(r && r.status === 503){ serverDown = true; throw new Error('down'); }
       if(!r || !r.ok) throw new Error('tts ' + (r && r.status));
       return r.blob();
     }).then(function(b){
       if(!b || !b.size) throw new Error('empty');
       fails = 0; return URL.createObjectURL(b);
-    }).catch(function(){ fails++; delete cache[text]; return null; });
+    }).catch(function(){
+      fails++; delete cache[text];
+      // сервер сам ждёт лимит Gemini; один повтор на случай сбоя сети
+      if(!again && !serverDown) return new Promise(function(r){ setTimeout(r, 3000); }).then(function(){ return fetchAudio(text, true); });
+      return null;
+    });
     cache[text] = p;
     return p;
   }
+  // Все фразы тура по одной, по очереди: так лимит Gemini не срывает озвучку
+  var pq = [], prun = false;
   function prefetch(list){
-    // по две фразы одновременно, чтобы первая озвучка не ждала остальные
     if(muted()) return;
-    var q = list.filter(function(t){ return t && !cache[t]; }), run = 0;
-    function next(){ if(!q.length || run >= 2 || muted()) return; run++; fetchAudio(q.shift()).then(function(){ run--; next(); }); next(); }
-    next();
+    list.forEach(function(t){ if(t && !cache[t] && pq.indexOf(t) < 0) pq.push(t); });
+    if(prun) return;
+    prun = true;
+    (function next(){
+      if(!pq.length || muted() || serverDown){ prun = false; return; }
+      fetchAudio(pq.shift()).then(next);
+    })();
   }
   function stop(){
     token++;
@@ -22490,14 +22504,15 @@ var Voice = (function(){
     function one(){
       if(my !== token || i >= texts.length) return;
       var text = texts[i++], settled = false;
-      var timer = setTimeout(function(){ if(settled) return; settled = true; if(my === token) browserSay(text, my, one); }, 5000);
+      // Ждём голос сервера (он сам переждёт лимит). Голос браузера только если озвучки на сервере нет совсем
+      var timer = setTimeout(function(){ if(settled) return; settled = true; if(my === token){ if(serverDown) browserSay(text, my, one); else one(); } }, 60000);
       fetchAudio(text).then(function(url){
         if(settled || my !== token) return;
         settled = true; clearTimeout(timer);
-        if(!url){ browserSay(text, my, one); return; }
+        if(!url){ if(serverDown) browserSay(text, my, one); else one(); return; }
         var a = new Audio(url); cur = a;
         a.onended = function(){ if(my === token){ cur = null; emit(); one(); } };
-        a.onerror = function(){ if(my === token){ cur = null; browserSay(text, my, one); } };
+        a.onerror = function(){ if(my === token){ cur = null; one(); } };
         var pr = a.play();
         emit();
         if(pr && pr.catch) pr.catch(function(){
@@ -22709,7 +22724,7 @@ function render(){
   } else { placeCenter(card); card.style.opacity = ''; }
   try{ card.focus({preventScroll:true}); }catch(e){}
   Voice.say((T.prefix || []).concat([s.d])); T.prefix = null;
-  var nx = T.steps[T.i + 1]; if(nx) Voice.prefetch([nx.d]);
+  Voice.prefetch(T.steps.slice(T.i + 1).map(function(x){ return x.d; }));
 }
 function placeCenter(card){
   var W = window.innerWidth, H = window.innerHeight, cw = card.offsetWidth || 360, ch = card.offsetHeight || 200;
