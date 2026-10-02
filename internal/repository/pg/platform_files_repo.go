@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -101,10 +102,133 @@ func (r *PlatformRepo) AIJobsOf(ctx context.Context, boardID string) ([]AIJob, e
 	return out, rows.Err()
 }
 
-// FailStaleAIJobs marks jobs that a restart interrupted.
+// FailStaleAIJobs marks jobs that a restart interrupted and that cannot be
+// resumed (no stored recording). Jobs with a recording are resumed by the
+// server (ClaimStaleCallJobs), never failed for a restart.
 func (r *PlatformRepo) FailStaleAIJobs(ctx context.Context) {
 	_, _ = r.db.Pool.Exec(ctx, `UPDATE platform_ai_jobs SET status='error', error='сервер перезапустился, загрузите запись ещё раз', updated_at=now()
-		WHERE status IN ('queued','running') AND updated_at < now() - interval '40 minutes'`)
+		WHERE status IN ('queued','running') AND updated_at < now() - interval '40 minutes'
+		  AND COALESCE(result->>'file','') = '' AND COALESCE(result->>'audio','') = ''`)
+}
+
+// SetAIJobBoard ties a job (a recovered recording) to a board.
+func (r *PlatformRepo) SetAIJobBoard(ctx context.Context, id, board, resident string) (bool, error) {
+	t, err := r.db.Pool.Exec(ctx, `UPDATE platform_ai_jobs SET board_id=$2, resident=COALESCE(NULLIF($3,''), resident) WHERE id=$1`, id, board, resident)
+	return t.RowsAffected() > 0, err
+}
+
+// TouchAIJob: the job is alive (a heartbeat while a long call is processed).
+func (r *PlatformRepo) TouchAIJob(ctx context.Context, id string) {
+	_, _ = r.db.Pool.Exec(ctx, `UPDATE platform_ai_jobs SET updated_at=now() WHERE id=$1 AND status IN ('queued','running')`, id)
+}
+
+// ClaimStaleCallJobs takes call jobs nobody works on (a restart or a deploy
+// stopped them): queued or running and silent for longer than idle.
+func (r *PlatformRepo) ClaimStaleCallJobs(ctx context.Context, idle time.Duration) ([]string, error) {
+	rows, err := r.db.Pool.Query(ctx, `UPDATE platform_ai_jobs SET status='queued', updated_at=now()
+		WHERE kind='call' AND status IN ('queued','running') AND updated_at < now() - make_interval(secs => $1)
+		RETURNING id`, idle.Seconds())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// CallJobs: the latest call jobs of every board, without transcripts (a list).
+func (r *PlatformRepo) CallJobs(ctx context.Context, limit int) ([]AIJob, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT id, kind, board_id, resident, status, error,
+		CASE WHEN result IS NULL THEN NULL ELSE result - 'transcript' END, created_at, updated_at
+		FROM platform_ai_jobs WHERE kind='call' ORDER BY created_at DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []AIJob{}
+	for rows.Next() {
+		var j AIJob
+		var res []byte
+		if err := rows.Scan(&j.ID, &j.Kind, &j.BoardID, &j.Resident, &j.Status, &j.Error, &res, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			return nil, err
+		}
+		j.Result = res
+		out = append(out, j)
+	}
+	return out, rows.Err()
+}
+
+// CallFiles: stored call recordings and transcripts (no content), newest first.
+func (r *PlatformRepo) CallFiles(ctx context.Context, limit int) ([]PlatformFile, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT id, name, mime, size, created_at FROM platform_files
+		WHERE name LIKE 'Созвон %' OR name LIKE 'Запись разбора %' OR name LIKE 'Расшифровка разбора %'
+		ORDER BY created_at DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PlatformFile{}
+	for rows.Next() {
+		var f PlatformFile
+		if err := rows.Scan(&f.ID, &f.Name, &f.Mime, &f.Size, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+// ResidentTgByName finds the Telegram id of an active resident by name: the
+// full name, else the first name when only one resident has it.
+func (r *PlatformRepo) ResidentTgByName(ctx context.Context, name string) (int64, string, error) {
+	norm := func(s string) string { return strings.Join(strings.Fields(strings.ToLower(strings.ReplaceAll(s, "ё", "е"))), " ") }
+	want := norm(name)
+	if want == "" {
+		return 0, "", nil
+	}
+	rows, err := r.db.Pool.Query(ctx, `SELECT tg_id, name FROM platform_residents WHERE active`)
+	if err != nil {
+		return 0, "", err
+	}
+	defer rows.Close()
+	type rr struct {
+		id   int64
+		name string
+	}
+	var all []rr
+	for rows.Next() {
+		var x rr
+		if err := rows.Scan(&x.id, &x.name); err != nil {
+			return 0, "", err
+		}
+		all = append(all, x)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, "", err
+	}
+	for _, x := range all {
+		if norm(x.name) == want {
+			return x.id, x.name, nil
+		}
+	}
+	first := strings.Fields(want)[0]
+	var hit []rr
+	for _, x := range all {
+		if f := strings.Fields(norm(x.name)); len(f) > 0 && f[0] == first {
+			hit = append(hit, x)
+		}
+	}
+	if len(hit) == 1 {
+		return hit[0].id, hit[0].name, nil
+	}
+	return 0, "", nil
 }
 
 // FileExists checks a file without loading its content.

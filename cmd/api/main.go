@@ -84,6 +84,7 @@ func main() {
 	}
 	botSvc, botModule := app.BuildBot(deps, cfg.TelegramBotToken, cfg.PlatformTeam, cfg.TelegramAPIBase, cfg.PublicURL, cfg.BotShadowNotify)
 	modules = append(modules, botModule)
+	app.WireCalls(platformMod, botSvc, cfg.PlatformTeam)
 	modules = append(modules, app.BuildContent(deps, platformMod, botSvc, cfg.JWTSecret, cfg.PlatformTeam))
 	modules = append(modules, app.BuildAppGateway(deps, cfg.TelegramBotToken, cfg.JWTSecret, web.Seed(), botSvc)...)
 	botCtx, botStop := context.WithCancel(context.Background())

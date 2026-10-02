@@ -63,6 +63,8 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/ai/call", m.AI.Call)
 	g.GET("/ai/jobs/:id", m.AI.Job)
 	g.GET("/ai/jobs", m.AI.Jobs)
+	g.POST("/ai/jobs/:id/retry", m.AI.RetryCall) // platform_calls.go: записи разборов
+	g.GET("/ai/calls", m.AI.Calls)
 	g.POST("/ai/events", m.AI.RefreshEvents)
 	g.POST("/ai/recs", m.AI.RecsNow)
 	g.POST("/ai/recs/:id", m.AI.RecAction)

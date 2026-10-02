@@ -31,10 +31,16 @@ type AppBundleSource interface {
 }
 
 const (
-	auxMaxAge      = 24 * time.Hour   // the script's part is served up to a day old
-	auxWait        = 25 * time.Second // the first open waits this long for the script's part
+	auxMaxAge      = 24 * time.Hour // the script's part is served up to a day old
 	bundleLoadSpan = 31 * 24 * time.Hour
 )
+
+// scriptBudget is how long an open of the app waits for the script when the
+// server has the data itself (R22: the app opened slowly). After it the
+// server's own data answers and the script's answer is kept for the next
+// open. The sections only the script has are then listed in "_partial": the
+// app keeps its own copy of them and asks again shortly.
+var scriptBudget = 1500 * time.Millisecond
 
 // What the app gets for a section the script did not give (as the script's
 // own fallbacks).
@@ -140,10 +146,10 @@ func (g *AppGateway) serveServerBundle(c *gin.Context, q url.Values, u *platform
 	}
 	// The script is asked only for sections the server does not build.
 	var aux []byte
-	for k := range auxDefaults {
-		if _, ok := srv[k]; !ok {
-			aux = g.auxFor(ctx, q, u, force)
-			break
+	if len(missingAux(srv)) > 0 {
+		aux = g.auxFor(ctx, q, u, force)
+		if aux == nil {
+			markPartial(srv)
 		}
 	}
 	body := mergeBundle(srv, aux, g.now())
@@ -191,9 +197,11 @@ func (g *AppGateway) auxFor(ctx context.Context, q url.Values, u *platformTgUser
 		g.refreshAux(key, q, u)
 		close(done)
 	}()
+	t := time.NewTimer(scriptBudget)
+	defer t.Stop()
 	select {
 	case <-done:
-	case <-time.After(auxWait):
+	case <-t.C:
 	case <-ctx.Done():
 	}
 	g.mu.Lock()
@@ -232,4 +240,143 @@ func (g *AppGateway) ServerStats() (served, fallbacks int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.srvStats.served, g.srvStats.fallbacks
+}
+
+// missingAux: the sections the server did not build (the script has them).
+func missingAux(srv map[string]json.RawMessage) []string {
+	var out []string
+	for _, k := range club.BundleKeys {
+		if _, def := auxDefaults[k]; def {
+			if _, ok := srv[k]; !ok {
+				out = append(out, k)
+			}
+		}
+	}
+	for k := range auxDefaults { // keys outside the bundle's order
+		if _, ok := srv[k]; !ok && !contains(out, k) {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// markPartial lists in "_partial" the sections answered with placeholders
+// because the script's part is not here yet.
+func markPartial(srv map[string]json.RawMessage) {
+	if m := missingAux(srv); len(m) > 0 {
+		b, _ := json.Marshal(m)
+		srv["_partial"] = b
+	}
+}
+
+// scriptCall is one fetch of the script's bundle for a person; done closes
+// when it ends. Opens that come meanwhile share it.
+type scriptCall struct {
+	done chan struct{}
+	body []byte
+	err  error
+	gen  int
+}
+
+// scriptFetch fetches the script's bundle in the background, so an open that
+// stops waiting does not lose it: the answer is kept for the next open
+// (unless the data changed meanwhile).
+func (g *AppGateway) scriptFetch(key string, q url.Values, u *platformTgUser) *scriptCall {
+	g.mu.Lock()
+	if g.calls == nil {
+		g.calls = map[string]*scriptCall{}
+	}
+	if sc := g.calls[key]; sc != nil && sc.gen == g.gen {
+		g.mu.Unlock()
+		return sc
+	}
+	sc := &scriptCall{done: make(chan struct{}), gen: g.gen}
+	g.calls[key] = sc
+	g.mu.Unlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), appScriptTimout)
+		defer cancel()
+		body, err := g.get(ctx, q)
+		g.note(err == nil, u.ID)
+		g.mu.Lock()
+		sc.body, sc.err = body, err
+		if err == nil && sc.gen == g.gen {
+			g.bundles[key] = &cachedBundle{body: body, at: g.now()}
+		}
+		if g.calls[key] == sc {
+			delete(g.calls, key)
+		}
+		g.mu.Unlock()
+		close(sc.done)
+	}()
+	return sc
+}
+
+// interimOK: in stage shadow the server has the club's data (imported, and
+// every app write goes to it first), so an open need not wait for the script.
+func (g *AppGateway) interimOK(ctx context.Context) bool {
+	return g.Stage != nil && g.Club != nil && g.Stage(ctx) == StageShadow
+}
+
+// serveInterim answers getBotCache from the server while the script is slow;
+// false: the server could not build it.
+func (g *AppGateway) serveInterim(c *gin.Context, u *platformTgUser) bool {
+	ctx := c.Request.Context()
+	srv, _, err := g.ServerBundle(ctx, u.ID)
+	if err != nil {
+		log.Printf("app bundle, the server's while the script is slow: %v", err)
+		return false
+	}
+	markPartial(srv)
+	body := mergeBundle(srv, nil, g.now())
+	g.mu.Lock()
+	g.srvStats.interim++
+	g.mu.Unlock()
+	c.Header("X-BS-Bundle-Source", "server-interim")
+	c.Header("X-BS-Bundle-Age", "0")
+	c.Data(http.StatusOK, "application/json; charset=utf-8", g.forUser(u.ID, hideDone(body, g.doneSet(ctx), g.now())))
+	return true
+}
+
+// serverRole answers checkUserRole from the server's club data (stages
+// shadow and server): a resident is on the debet sheet with this Telegram ID
+// and not former. The team is left to the script, which knows its admins.
+func (g *AppGateway) serverRole(c *gin.Context, u *platformTgUser) bool {
+	ctx := c.Request.Context()
+	if g.Stage == nil || g.Club == nil || g.Stage(ctx) == StageSheet {
+		return false
+	}
+	if _, team := g.Admins[u.ID]; team {
+		return false
+	}
+	snap, err := g.Club.LoadBundle(ctx, g.now())
+	if err != nil || snap == nil || len(snap.Residents) == 0 {
+		return false
+	}
+	role, former := "lead", false
+	for _, r := range snap.Residents {
+		if r.TgID != u.ID || r.Archived {
+			continue
+		}
+		if r.Former {
+			former = true
+		} else {
+			role = "resident"
+		}
+	}
+	out := gin.H{"role": role, "source": "server"}
+	if role == "lead" && former {
+		out["former"] = true
+	}
+	c.JSON(http.StatusOK, out)
+	return true
 }

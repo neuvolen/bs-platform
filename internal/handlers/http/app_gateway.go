@@ -82,7 +82,9 @@ type AppGateway struct {
 	Club     AppBundleSource
 	aux      map[string]*cachedBundle
 	auxBusy  map[string]bool
-	srvStats struct{ served, fallbacks int }
+	calls    map[string]*scriptCall // the script's bundle being fetched, per person
+	gen      int                    // bumped when data changes: older fetches are not kept
+	srvStats struct{ served, fallbacks, interim int }
 
 	// Done tells which meetings already happened (from the import).
 	Done    AppDoneSource
@@ -135,25 +137,25 @@ type AppGatewayModule struct{ g *AppGateway }
 func NewAppGatewayModule(g *AppGateway) *AppGatewayModule { return &AppGatewayModule{g: g} }
 
 func (m *AppGatewayModule) Register(r *gin.Engine) {
-	r.GET("/api/v1/app/call", m.g.Call)
+	r.GET("/api/v1/app/call", appGzip, m.g.Call)
 	r.POST("/api/v1/app/post", m.g.Post)
-	r.GET("/api/v1/app/myboard", m.g.MyBoard)
-	r.GET("/api/v1/app/library", m.g.Library_)
+	r.GET("/api/v1/app/myboard", appGzip, m.g.MyBoard)
+	r.GET("/api/v1/app/library", appGzip, m.g.Library_)
 	r.POST("/api/v1/app/mytests", m.g.MyTests)
 	r.POST("/api/v1/app/message", m.g.Message)
-	r.GET("/api/v1/app/checklists", m.g.Guides)
-	r.GET("/api/v1/app/guides", m.g.Guides)
-	r.GET("/api/v1/app/guide/:id", m.g.Guide)
+	r.GET("/api/v1/app/checklists", appGzip, m.g.Guides)
+	r.GET("/api/v1/app/guides", appGzip, m.g.Guides)
+	r.GET("/api/v1/app/guide/:id", appGzip, m.g.Guide)
 	r.POST("/api/v1/app/guide/:id/send", m.g.SendGuide)
 	r.GET("/api/v1/public/guide/:id", m.g.PublicGuidePDF)
 	r.POST("/api/v1/app/ckprogress", m.g.CkProgress)
 	r.GET("/api/v1/public/leadmagnet/:key", m.g.LeadMagnet)
-	r.GET("/api/v1/app/mycal", m.g.MyCal)
+	r.GET("/api/v1/app/mycal", appGzip, m.g.MyCal)
 	r.PUT("/api/v1/app/mycal", m.g.MyCal)
 	r.GET("/api/v1/app/file/:id", m.g.LibraryFile)
 	r.GET("/api/v1/app/avatar/:id", m.g.Avatar)
-	r.GET("/api/v1/app/referral", m.g.Referral)
-	r.GET("/api/v1/app/slots", m.g.Slots)
+	r.GET("/api/v1/app/referral", appGzip, m.g.Referral)
+	r.GET("/api/v1/app/slots", appGzip, m.g.Slots)
 	r.POST("/api/v1/app/book", m.g.Book)
 	r.POST("/api/v1/app/book/cancel", m.g.BookCancel)
 }
@@ -337,6 +339,9 @@ func (g *AppGateway) Call(c *gin.Context) {
 		g.bundle(c, q, u, in.Get("fresh") == "1")
 		return
 	}
+	if action == "checkUserRole" && g.serverRole(c, u) {
+		return
+	}
 	if pg.ClubWriteActions[action] && g.Writes != nil {
 		// Club data: the server first, then the sheet (app_writes.go)
 		_, team := g.Admins[u.ID]
@@ -356,7 +361,8 @@ func (g *AppGateway) Call(c *gin.Context) {
 		return
 	}
 	// Anything but a read may have changed the data every bundle is built from.
-	if !strings.HasPrefix(action, "get") && !strings.HasPrefix(action, "check") {
+	// The Telegram photo the app saves on every open changes no club data.
+	if !strings.HasPrefix(action, "get") && !strings.HasPrefix(action, "check") && action != "saveAvatar" {
 		g.dropBundles()
 		g.logOp(c.Request.Context(), "app", u, action, q, body)
 	}
@@ -369,6 +375,7 @@ func (g *AppGateway) Call(c *gin.Context) {
 func (g *AppGateway) dropBundles() {
 	g.mu.Lock()
 	g.bundles = map[string]*cachedBundle{}
+	g.gen++
 	for _, a := range g.aux { // the script's part is refreshed on the next open
 		a.stale = true
 	}
@@ -425,8 +432,33 @@ func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, for
 		}
 		return
 	}
-	fresh, err := g.get(c.Request.Context(), q)
-	g.note(err == nil, u.ID)
+	// No copy to hand out: the script is asked in the background; in stage
+	// shadow the server's own data answers if the script takes longer than
+	// scriptBudget, and the script's answer is kept for the next open.
+	ctx := c.Request.Context()
+	call := g.scriptFetch(key, q, u)
+	var budget <-chan time.Time
+	interim := g.interimOK(ctx)
+	if interim {
+		t := time.NewTimer(scriptBudget)
+		defer t.Stop()
+		budget = t.C
+	}
+	select {
+	case <-call.done:
+	case <-budget:
+		if g.serveInterim(c, u) {
+			return
+		}
+		select {
+		case <-call.done:
+		case <-ctx.Done():
+			return
+		}
+	case <-ctx.Done():
+		return
+	}
+	fresh, err := call.body, call.err
 	if err != nil {
 		// The script is slow or down: an old bundle beats an empty screen.
 		g.mu.Lock()
@@ -434,17 +466,17 @@ func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, for
 		g.mu.Unlock()
 		if old != nil {
 			c.Header("X-BS-Bundle-Age", strconv.Itoa(int(g.now().Sub(old.at).Seconds())))
-			c.Data(http.StatusOK, "application/json; charset=utf-8", g.forUser(u.ID, hideDone(old.body, g.doneSet(c.Request.Context()), g.now())))
+			c.Data(http.StatusOK, "application/json; charset=utf-8", g.forUser(u.ID, hideDone(old.body, g.doneSet(ctx), g.now())))
+			return
+		}
+		if interim && g.serveInterim(c, u) {
 			return
 		}
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
-	g.mu.Lock()
-	g.bundles[key] = &cachedBundle{body: fresh, at: g.now()}
-	g.mu.Unlock()
 	c.Header("X-BS-Bundle-Age", "0")
-	c.Data(http.StatusOK, "application/json; charset=utf-8", g.forUser(u.ID, hideDone(fresh, g.doneSet(c.Request.Context()), g.now())))
+	c.Data(http.StatusOK, "application/json; charset=utf-8", g.forUser(u.ID, hideDone(fresh, g.doneSet(ctx), g.now())))
 }
 
 // Post godoc

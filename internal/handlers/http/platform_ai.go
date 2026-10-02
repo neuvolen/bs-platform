@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"mime"
@@ -42,6 +41,10 @@ type PlatformAI struct {
 		Ops(ctx context.Context, limit int) ([]pg.ClubOp, error)
 	}
 	AI *ai.Client
+	// Notify sends a Telegram message (the bot); Owner is the first id of
+	// PLATFORM_TEAM. Both are set in app.WireCalls (platform_calls.go).
+	Notify func(ctx context.Context, chatID int64, text string) error
+	Owner  int64
 	// queueOwns: the content queue has a Threads post on that day, so the
 	// daily «Полезное» post is not made (content_engine.go).
 	queueOwns atomic.Pointer[func(ctx context.Context, day time.Time) bool]
@@ -79,6 +82,7 @@ func (h *PlatformAI) UploadFile(c *gin.Context) {
 	if !teamOnly(c) {
 		return
 	}
+	longBody(c)
 	data, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, platformFileMax))
 	if err != nil {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "too_big", "max": platformFileMax})
@@ -115,6 +119,7 @@ func (h *PlatformAI) GetFile(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
+	longBody(c)
 	c.Header("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": f.Name}))
 	c.Header("Cache-Control", "private, max-age=86400")
 	c.Data(http.StatusOK, f.Mime, f.Data)
@@ -193,89 +198,6 @@ func (h *PlatformAI) Command(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, out)
-}
-
-// ── Call summary ──
-
-const summarySystem = `Ты помощник трекеров Business Surgery (Рустам и Береке). По расшифровке онлайн-разбора бизнеса резидента
-составь итог встречи. Отвечай ТОЛЬКО JSON:
-{"title":"короткое название встречи","summary":"связный текст 5-10 предложений: с чем пришёл, что выяснили, к чему пришли",
-"pointA":"где резидент сейчас (цифры, если звучали)","pointB":"куда идёт","diagnoses":["корневые проблемы"],
-"decisions":["о чём договорились"],"checklist":[{"text":"конкретное действие резидента","due":"ДД.ММ или пусто"}],
-"questions":["что осталось открытым"],"quote":"одна сильная фраза резидента или трекера"}
-Пиши по-русски, коротко и конкретно, без воды. Чек-лист: 3-10 действий, каждое начинается с глагола.`
-
-func (h *PlatformAI) Call(c *gin.Context) {
-	if !teamOnly(c) {
-		return
-	}
-	data, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, platformCallMax))
-	if err != nil || len(data) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "recording_required"})
-		return
-	}
-	mt := c.GetHeader("Content-Type")
-	isText := strings.HasPrefix(mt, "text/")
-	st := h.AI.Status()
-	if st["text"] == "" || (!isText && st["speech"] == "") {
-		c.JSON(http.StatusOK, gin.H{"error": "Нет ключа ИИ. Добавьте GEMINI_API_KEY в переменные Railway", "noKey": true})
-		return
-	}
-	resident := c.Query("resident")
-	job := pg.AIJob{ID: newID(), Kind: "call", BoardID: c.Query("board"), Resident: resident, Status: "queued"}
-	ctx := c.Request.Context()
-	if err := h.repo.CreateAIJob(ctx, job, platformUser(c)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "store_failed"})
-		return
-	}
-	// The recording is kept: it can be listened to again or re-processed.
-	var audioID string
-	if !isText {
-		audioID = newID()
-		name := fmt.Sprintf("Созвон %s %s.webm", resident, time.Now().Format("02.01.2006"))
-		if err := h.repo.PutFile(ctx, pg.PlatformFile{ID: audioID, Name: name, Mime: mt, Data: data}, platformUser(c)); err != nil {
-			audioID = ""
-		}
-	}
-	date := c.Query("date")
-	h.Run(func() { h.runCall(job.ID, data, mt, isText, resident, date, audioID) })
-	c.JSON(http.StatusOK, gin.H{"id": job.ID, "status": "queued"})
-}
-
-func (h *PlatformAI) runCall(id string, data []byte, mt string, isText bool, resident, date, audioID string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	fail := func(err error) {
-		log.Printf("platform ai call %s: %v", id, err)
-		_ = h.repo.UpdateAIJob(ctx, id, "error", err.Error(), nil)
-	}
-	_ = h.repo.UpdateAIJob(ctx, id, "running", "", nil)
-	transcript := string(data)
-	if !isText {
-		t, err := h.AI.Transcribe(ctx, data, mt)
-		if err != nil {
-			fail(err)
-			return
-		}
-		transcript = t
-	}
-	if strings.TrimSpace(transcript) == "" {
-		fail(fmt.Errorf("в записи не слышно речи"))
-		return
-	}
-	ans, err := h.AI.Text(ctx, summarySystem, "Резидент: "+resident+"\nДата: "+date+"\n\nРасшифровка:\n"+transcript)
-	if err != nil {
-		fail(err)
-		return
-	}
-	var sum map[string]any
-	if js := ai.JSONFrom(ans); js == "" || json.Unmarshal([]byte(js), &sum) != nil {
-		sum = map[string]any{"summary": strings.TrimSpace(ans)}
-	}
-	res, _ := json.Marshal(map[string]any{
-		"resident": resident, "date": date, "transcript": transcript, "audio": audioID, "summary": sum,
-	})
-	_ = h.repo.UpdateAIJob(ctx, id, "done", "", res)
 }
 
 func (h *PlatformAI) Job(c *gin.Context) {

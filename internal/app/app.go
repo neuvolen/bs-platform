@@ -221,6 +221,20 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) *htt
 	return m
 }
 
+// WireCalls: записи разборов. Готовые итоги уходят владельцу (первый id
+// PLATFORM_TEAM) и резиденту через бота, прерванные перезапуском задачи
+// сервер продолжает сам.
+func WireCalls(pm *httpapi.PlatformModule, botSvc *bot.Service, team string) {
+	if pm == nil || pm.AI == nil {
+		return
+	}
+	pm.AI.Owner = httpapi.FirstTeamID(team)
+	if botSvc != nil && botSvc.Enabled() {
+		pm.AI.Notify = botSvc.SendMessage
+	}
+	go pm.AI.ResumeCalls(context.Background(), 45*time.Second, 2*time.Minute, 3*time.Minute)
+}
+
 // BuildContent wires the content engine (bs_content): planning, the owner's
 // morning preview in the bot, publishing to Threads and the Telegram channel.
 func BuildContent(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, jwtSecret, team string) httpapi.RoutesRegistrar {

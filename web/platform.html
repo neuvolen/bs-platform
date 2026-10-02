@@ -3900,7 +3900,7 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
 <div class="zoom">
   <div class="zb" onclick="zoomBy(1.2)">+</div>
   <div class="zb" onclick="zoomBy(.83)">−</div>
-  <div class="zb" onclick="fitAll()" style="font-size:13px">⊡</div>
+  <div class="zb" id="fitBtn" onclick="fitToggle()" title="Вся доска на экране. Ещё раз: вернуть как было" style="font-size:13px">⊡</div>
 </div>
 
 <div class="menu" id="menu">
@@ -5281,7 +5281,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
               if(el && el !== document.activeElement) el.value = inf[map[fid]] || '';
             });
             var bn = document.getElementById('bName');
-            if(bn && bn !== document.activeElement) bn.value = nb.name || 'Разбор';
+            if(bn && bn !== document.activeElement && String(nb.name || '').trim().length >= 2) bn.value = nb.name;
             if(whoName && window.showPeer) window.showPeer(whoName + ': доска обновлена');
           }
         } else if(removed && removed[window.curBoard.id]){
@@ -5674,6 +5674,20 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
         h['Content-Type'] = 'application/json'; body = JSON.stringify(body);
       }
       return fetch(API + path, {method: method, headers: h, body: body || undefined});
+    },
+    // R21: загрузка большого файла с прогрессом (запись разбора). onp(доля 0..1)
+    upload: function(path, blob, headers, onp){
+      return new Promise(function(res, rej){
+        var x = new XMLHttpRequest();
+        x.open('POST', API + path);
+        Object.keys(headers || {}).forEach(function(k){ x.setRequestHeader(k, headers[k]); });
+        if(token) x.setRequestHeader('Authorization', 'Bearer ' + token);
+        x.upload.onprogress = function(e){ if(e.lengthComputable && onp) onp(e.loaded / e.total); };
+        x.onload = function(){ var j = null; try{ j = JSON.parse(x.responseText); }catch(e){} res({status: x.status, j: j || {}}); };
+        x.onerror = function(){ var e = new Error('net'); e.net = true; rej(e); };
+        x.ontimeout = x.onerror;
+        x.send(blob);
+      });
     },
     online: function(){ return !!token; },
     // Данные с сервера уже на месте: страница запущена и первая сверка прошла.
@@ -6091,12 +6105,11 @@ function renderNode(n){
     '<div class="n-bar" style="background:'+c+'"></div>' +
     '<div class="n-tools">' +
       '<div class="nt" title="Фокус" onclick="focusOn('+n.id+',event)">◎</div>' +
-      '<div class="nt" title="По размеру текста" onclick="compactNode('+n.id+',event)">⇲</div>' +
-      '<div class="nt" title="Подтема" onclick="addChild('+n.id+',event)">+</div>' +
-      '<div class="nt lnk" title="Связать" onclick="startLink('+n.id+',event)">↗</div>' +
+      '<div class="nt'+(n.fitPrev?' on':'')+'" title="'+(n.fitPrev?'Вернуть прежний размер':'По размеру текста')+'" onclick="compactNode('+n.id+',event)">⇲</div>' +
       (n.type==='diag' ? '<div class="nt" title="Назначить лечение" onclick="prescribe('+n.id+',event)">💊</div>' : '') +
       (n.type==='note' ?
         '<div class="nt'+(n.insight?' on':'')+'" title="Инсайт" onclick="toggleInsight('+n.id+',event)">✦</div>' : '') +
+      (viewingArchive ? '' : '<div class="nt nt-add" title="Новая заметка рядом (Tab)" onclick="addChild('+n.id+',event)">+</div>') +
       ((n.role || n.type==='root') ? '' :
         ((MODE==='admin' || n.author==='res') ?
         '<div class="nt" title="Удалить" onclick="delNode('+n.id+',event)">✕</div>' : '')) +
@@ -6263,7 +6276,6 @@ function renderSticker(n){
            : stickerSVG(n.sticker||'facepalm', size)) +
     (n.title ? '<div class="sk-cap">'+esc(n.title)+'</div>' : '') +
     '<div class="sk-tools">' +
-      '<div class="nt" title="Связать" onclick="startLink('+n.id+',event)">↗</div>' +
       '<div class="nt" title="Удалить" onclick="delNode('+n.id+',event)">✕</div>' +
     '</div>' +
     '<div class="n-rz rz-se" onmousedown="startResize(event,'+n.id+',\'se\')"></div>';
@@ -6395,13 +6407,21 @@ window.addEventListener('mouseup', function(){ rz = null; });
 function compactNode(id, e){
   if(e) e.stopPropagation();
   var n = nodes.find(x=>x.id===id); if(!n) return;
+  var el = document.getElementById('n'+n.id);
+  // Второе нажатие возвращает размер, который был до подгонки
+  if(n.fitPrev && n.w === n.fitPrev.fitW){
+    var pv = n.fitPrev; delete n.fitPrev;
+    n.w = pv.w || null; n.h = pv.h || null;
+    if(el){ el.remove(); renderNode(n); selectNode(n.id); }
+    drawLinks(); toast('Прежний размер'); return;
+  }
   // Подгоняем ширину под длину текста
   var len = String(n.title||'').length + String(n.desc||'').length/2;
-  n.w = Math.max(160, Math.min(320, Math.round(110 + len*3.4)));
-  n.h = null;
-  var el = document.getElementById('n'+n.id);
-  if(el){ el.style.width = n.w+'px'; el.style.height = 'auto'; }
-  drawLinks(); toast('Подогнано по размеру');
+  var fw = Math.max(160, Math.min(320, Math.round(110 + len*3.4)));
+  n.fitPrev = {w: n.w || null, h: n.h || null, fitW: fw};
+  n.w = fw; n.h = null;
+  if(el){ el.remove(); renderNode(n); selectNode(n.id); }
+  drawLinks(); toast('Подогнано по размеру. Ещё раз вернёт прежний');
 }
 
 function focusOn(id, e){
@@ -7263,7 +7283,8 @@ var BLOCKS = {
     {id:'rInvite',  n:'Пригласить друзей'}]},
   rtrack:  {name:'Трекинг', tabs:[
     {id:'board',    n:'Мой разбор'},
-    {id:'rHistory', n:'История разборов'}]},
+    {id:'rHistory', n:'История разборов'},
+    {id:'rCalls',   n:'Записи разборов'}]},
   rtask:   {name:'Задачи', tabs:[
     {id:'rtasks',   n:'Задания'},
     {id:'rsched',   n:'Расписание'},
@@ -7280,8 +7301,8 @@ var BLOCKS = {
   rfive:   {name:'Участники', tabs:[
     {id:'rFiveList',n:'Участники'}]},
   rmeas:   {name:'Замеры', tabs:[
-    {id:'bizWheel', n:'Колесо бизнеса'},
     {id:'rwheel',   n:'Колесо баланса'},
+    {id:'bizWheel', n:'Колесо бизнеса'},
     {id:'rDiag',    n:'Диагностика'},
     {id:'rGallup',  n:'Gallup'},
     {id:'rHealth',  n:'Здоровье бизнеса'},
@@ -7301,8 +7322,8 @@ var BLOCKS = {
     {id:'lDiag',    n:'Мои диагнозы'},
     {id:'lTools',   n:'Инструменты'}]},
   lmeas:   {name:'Замеры', tabs:[
-    {id:'bizWheel', n:'Колесо бизнеса'},
     {id:'rwheel',   n:'Колесо баланса'},
+    {id:'bizWheel', n:'Колесо бизнеса'},
     {id:'rDiag',    n:'Диагностика'},
     {id:'lHealth',  n:'Здоровье бизнеса'}]},
   lup:     {name:'Резидентство', tabs:[
@@ -7538,7 +7559,7 @@ function goSection(s){
               rStats:renderStats, rFines:renderResFines, mycal:renderMyCal, rInvite:renderInvite, rOnboard:renderOnboard, rNumbers:renderNumbers, aNumbers:renderNumbers, rHist:renderReportHistory, rAch:renderAch, diagMap:renderDiagMap, rLabs:renderLabs, rAnalysis:renderMeasAnalysis,
               lDiag:renderLeadDiag, lTools:renderLeadTools, lHealth:renderLeadHealth, lUpgrade:renderUpgrade, lWeek:renderLeadWeek, lSignal:renderLeadSignal,
               mNotes:renderMktNotes, mktA:renderMktA, smm:renderSMM, content:renderContent, useful:renderUseful, guides:renderGuides, events:renderEvents, aiRec:renderAIRec, rtasks:renderRTasks, rreport:renderRReport,
-               rwheel:renderLifeWheel, bizWheel:renderBizWheel, rprofile:renderRProfile}[s];
+               rwheel:renderLifeWheel, bizWheel:renderBizWheel, rprofile:renderRProfile, rCalls:function(){ renderRCalls(); }}[s];
     if(fn) fn(); else renderStub(s);
   }
   // Панели доски закрываются при уходе с доски
@@ -8507,7 +8528,7 @@ function wheelClick(e, kind, ax){
   setWheel(kind, ax, Math.max(0, Math.min(10, v)));
 }
 function renderBizWheel(){
-  wheelPage('dna','Колесо баланса бизнеса','Восемь направлений бизнеса','#FFFFFF');
+  wheelPage('dna','Колесо бизнеса','Восемь направлений бизнеса. Сфера «Бизнес» в колесе баланса считается отсюда','#FFFFFF');
   addWheelSave('dna');
 }
 function addWheelSave(kind){
@@ -15071,6 +15092,25 @@ function collectTestHistory(id){
   if(curBoard.tests && curBoard.tests[id]) out.push({version:curBoard.version||1, data:curBoard.tests[id]});
   return out;
 }
+// ── 9. Название доски: короче 2 символов не сохраняется без Enter в поле названия ──
+function boardNameRepair(b){
+  var nm = String((b && b.name) || '').trim();
+  if(nm.length >= 2) return nm;
+  var res = String((b && b.info && (b.info.res || [b.info.name, b.info.last].filter(Boolean).join(' '))) || '').trim();
+  if(res.length >= 2) return res;
+  var root = b && (b.nodes || []).find(function(n){ return n.role === 'center' || n.type === 'root'; });
+  var rt = root ? String(root.title || '').trim() : '';
+  return rt.length >= 2 && rt !== 'Имя резидента' ? rt : 'Разбор';
+}
+function boardNameForSave(){
+  var bn = document.getElementById('bName');
+  var v = bn ? String(bn.value || '').trim() : '';
+  var prev = curBoard ? boardNameRepair(curBoard) : 'Новый разбор';
+  if(v.length >= 2 || (v && window._bnOk === v)) return v;
+  // Короткое или пустое название без подтверждения: остаётся прежнее
+  if(bn && document.activeElement !== bn) bn.value = prev;
+  return prev;
+}
 function saveBoardSilent(){
   if(viewingArchive) return;
   var snap = snapshot();
@@ -15093,7 +15133,7 @@ function val(id){ var el = document.getElementById(id); return el ? el.value : '
 function snapshot(){
   return {
     id: curBoard ? curBoard.id : uid(),
-    name: document.getElementById('bName').value,
+    name: boardNameForSave(),
     date: curBoard && curBoard.date ? curBoard.date : new Date().toISOString(),
     updated: new Date().toISOString(),
     version: curBoard && curBoard.version ? curBoard.version : 1,
@@ -15140,7 +15180,8 @@ function openBoard(id){
   document.getElementById('archBar').classList.remove('on');
   document.body.classList.remove('arch');
   curBoard=b;
-  document.getElementById('bName').value=b.name||'Разбор';
+  document.getElementById('bName').value = boardNameRepair(b);
+  window._bnAuto = null; window._bnOk = null;
   var inf=b.info||{};
   var map={fName:'name',fLast:'last',fBirth:'birth',fCity:'city',fBiz:'biz',
            fFam:'fam',fA:'a',fQ:'q',fB:'b'};
@@ -15293,7 +15334,7 @@ function newBoard(){
   document.getElementById('archBar').classList.remove('on');
   document.body.classList.remove('arch');
   curBoard=null;
-  document.getElementById('bName').value='Новый разбор';
+  document.getElementById('bName').value='Новый разбор'; window._bnAuto = null; window._bnOk = null;
   ['fName','fLast','fBirth','fCity','fBiz','fFam','fA','fQ','fB'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
@@ -15337,10 +15378,15 @@ function syncCenter(){
   }
   var pn = document.getElementById('presName');
   if(pn) pn.textContent = nm || 'Разбор';
-  // Название разбора подставляется из имени
-  if(nm){
-    var bn = document.getElementById('bName');
-    if(bn && (bn.value === 'Новый разбор' || bn.value.indexOf('Разбор ·') === 0)) bn.value = nm;
+  // Название разбора подставляется из имени, пока название автоматическое.
+  // R21: раньше первая буква имени («А») становилась названием, и следующая буква
+  // уже не совпадала с «Новый разбор», так доска оставалась с названием из 1 буквы
+  var bn = document.getElementById('bName');
+  if(bn && document.activeElement !== bn){
+    var cur = bn.value.trim();
+    var auto = cur === '' || cur === 'Новый разбор' || cur.indexOf('Разбор ·') === 0 ||
+      (window._bnAuto != null && cur === window._bnAuto) || cur.length < 2;
+    if(auto && nm.length >= 2){ bn.value = nm; window._bnAuto = nm; }
   }
 }
 function syncPoints(){}
@@ -15483,7 +15529,7 @@ setInterval(function(){ try{ pfCrumb(); }catch(e){} }, 30000);
 // ═══ Панель «Резидент» справа ═══
 var PF_RP_SHEET = {infoSheet:'data', testSheet:'tests', prepSheet:'prep', rtSheet:'tasks', roSheet:'reps'};
 var PF_RP_TABS = [['data','Данные'],['tests','Замеры'],['prep','Подготовка',1],['sum','Саммари',1],
-  ['tasks','Задачи'],['reps','Отчёты'],['calls','Созвоны']];
+  ['tasks','Задачи'],['reps','Отчёты'],['calls','Записи']];
 var rpTab = 'data';
 (function(){
   // Содержимое прежних листов переезжает во вкладки панели: id полей и контейнеров те же
@@ -15778,7 +15824,6 @@ function renderImgSticker(n){
   el.style.width = (n.w || 180) + 'px';
   el.innerHTML = '<img class="sk-img" data-fid="' + esc(n.file || '') + '" draggable="false" alt="">' +
     '<div class="sk-tools">' +
-      '<div class="nt" title="Связать" onclick="startLink(' + n.id + ',event)">↗</div>' +
       ((MODE === 'admin' || n.author === 'res') ? '<div class="nt" title="Удалить" onclick="delNode(' + n.id + ',event)">✕</div>' : '') +
     '</div>' +
     '<div class="n-rz rz-se" onmousedown="startResize(event,' + n.id + ',\'se\')"></div>';
@@ -16671,7 +16716,8 @@ function runVoiceActions(actions){
           syncCenter(); saveBoardSilent(); try{ rpHead(); }catch(e){}
           break;
         case 'rename_board':
-          var bn = document.getElementById('bName'); if(bn){ bn.value = a.title || a.name || bn.value; } else ok = false; break;
+          var bn = document.getElementById('bName'), nt = String(a.title || a.name || '').trim();
+          if(bn && nt.length >= 2){ bn.value = nt; window._bnOk = nt; window._bnAuto = null; } else ok = false; break;
         case 'new_cycle':
           if(viewingArchive){ ok = false; break; }
           if(boardChanged()) saveBoard(); doNewCycle(); break;
@@ -16681,7 +16727,7 @@ function runVoiceActions(actions){
         case 'save': saveBoard(); break;
         case 'undo': undo(); break;
         case 'redo': redo(); break;
-        case 'fit': fitAll(); break;
+        case 'fit': fitToggle(); break;
         case 'zoom':
           var zin = String(a.dir || (String(a.op || '') === 'zoom_out' ? 'out' : 'in')).toLowerCase();
           zoomBy(zin === 'out' ? .8 : 1.25); break;
@@ -23448,5 +23494,857 @@ window.renderGallupResult = function(g){
 })();
 </script>
 <!-- /R16 -->
+<style id="r21Style">
+/* R21 · 8: Здоровье прокручивается целиком при любой высоте окна (после автооценки статус мог занять всю высоту) */
+.health{overflow-y:auto;overscroll-behavior:contain}
+.health .hlt-top{position:sticky;top:0;z-index:3;background:inherit}
+body:not(.light) .health .hlt-top{background:#0D0D0D}
+body.light .health .hlt-top{background:var(--bg)}
+.health .hlt-body{flex:0 0 auto;overflow:visible}
+.health .hlt-act{flex:0 0 auto}
+/* R21 · 4: «+» у края, слева от ✕, выделен */
+.n-tools .nt.nt-add{background:var(--tx);color:var(--bg);border-color:var(--tx);font-weight:900}
+.n-tools .nt.nt-add:hover{filter:brightness(.88)}
+/* R21 · 3: органы видны все сразу, сеткой, с иконками */
+#libTabs.r21-org{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:7px;overflow:visible;padding-bottom:12px}
+#libTabs.r21-org .tb{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap;padding:8px 10px;border-radius:10px}
+#libTabs.r21-org .tb svg{flex:0 0 auto}
+#libTabs.r21-org .tb span{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+#libTabs.r21-org .tb b{font-size:11px;font-weight:800;opacity:.55}
+#libTabs.r21-org .tb.on b{opacity:.8}
+.r21-found{font-size:12px;color:var(--t3);margin:-4px 0 10px}
+/* R21 · 7: диагнозы доски в один клик */
+.dx-btn{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 13px;border-radius:10px;border:1px solid var(--bd2);background:transparent;color:var(--tx);font:inherit;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap}
+.dx-btn i{width:7px;height:7px;border-radius:50%;background:#FF6B6F;flex:0 0 auto}
+.dx-btn b{font-weight:900}
+.dx-btn.zero i{background:var(--t3)}
+.dx-btn.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.dxp{position:fixed;top:calc(var(--th, 60px) + 8px);right:calc(var(--rp, 0px) + 14px);width:min(400px,calc(100vw - 28px));max-height:calc(100vh - var(--th, 60px) - 30px);
+  overflow-y:auto;z-index:120;background:var(--pc, #111);border:1px solid var(--bd2);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.45);display:none}
+.dxp.on{display:block}
+.dxp-h{position:sticky;top:0;display:flex;align-items:center;gap:10px;padding:14px 16px 12px;background:inherit;border-bottom:1px solid var(--bd);z-index:1}
+.dxp-t{font-size:15px;font-weight:900;flex:1}
+.dxp-x{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;color:var(--t2)}
+.dxp-x:hover{background:rgba(127,127,127,.14)}
+.dxp-e{padding:22px 16px;color:var(--t3);font-size:13px}
+.dxi{display:flex;gap:11px;padding:12px 16px;border-bottom:1px solid var(--bd);cursor:pointer}
+.dxi:last-child{border-bottom:0}
+.dxi:hover{background:rgba(127,127,127,.08)}
+.dxi-d{width:9px;height:9px;border-radius:50%;background:#FF6B6F;margin-top:5px;flex:0 0 auto}
+.dxi-b{flex:1;min-width:0}
+.dxi-t{font-size:14px;font-weight:800;line-height:1.3;color:#FF6B6F}
+body.light .dxi-t{color:#E5484D}
+.dxi-m{font-size:11.5px;color:var(--t3);margin-top:3px;letter-spacing:.2px}
+.dxi-s{display:inline-block;font-size:10px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;padding:2px 7px;border-radius:6px;border:1px solid var(--bd2);color:var(--t2);margin-left:6px}
+.dxi-s.hi{border-color:rgba(255,107,111,.5);color:#FF6B6F}
+.dxi-tl{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.dxi-tl span{font-size:11.5px;padding:3px 8px;border-radius:7px;border:1px solid var(--bd2);color:var(--t2)}
+.dxi-tl em{font-style:normal;font-size:11.5px;color:var(--t3)}
+.node.r21-flash{box-shadow:0 0 0 3px #FF6B6F,0 0 34px rgba(255,107,111,.45)!important;transition:box-shadow .3s}
+/* R21 · 1, 2: запись разбора без демонстрации экрана, компактная плашка внизу */
+#callBar{display:none!important}
+.recpill{position:fixed;left:calc(var(--sw, 0px) + 16px);bottom:22px;z-index:118;display:none;align-items:center;gap:9px;height:40px;padding:0 6px 0 13px;
+  border-radius:20px;background:var(--pc, #111);border:1px solid var(--bd2);box-shadow:0 8px 26px rgba(0,0,0,.35);font-size:12.5px;font-weight:800;color:var(--tx)}
+.recpill.on{display:flex}
+.recpill .rp-dot{width:9px;height:9px;border-radius:50%;background:var(--tx);animation:r21p 1.4s ease-in-out infinite}
+.recpill.paused .rp-dot{animation:none;opacity:.35}
+@keyframes r21p{0%,100%{opacity:1}50%{opacity:.25}}
+.recpill .rp-tm{font-variant-numeric:tabular-nums;min-width:38px}
+.recpill .rp-lv{width:34px;height:4px;border-radius:2px;background:rgba(127,127,127,.25);overflow:hidden}
+.recpill .rp-lv i{display:block;height:100%;width:0;background:var(--tx);transition:width .12s}
+.recpill button{height:28px;padding:0 11px;border-radius:14px;border:1px solid var(--bd2);background:transparent;color:var(--tx);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.recpill button.st{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+body.rec-on .callban,body.rec-on .peerbar,body.rec-on .hintbar{display:none!important}
+.reccard{position:fixed;right:16px;bottom:22px;z-index:119;width:min(360px,calc(100vw - 32px));display:none;flex-direction:column;gap:8px}
+.reccard.on{display:flex}
+.rc-i{background:var(--pc, #111);border:1px solid var(--bd2);border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.rc-i.err{border-color:rgba(255,107,111,.55)}
+.rc-h{display:flex;align-items:center;gap:8px}
+.rc-t{flex:1;min-width:0;font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-x{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;color:var(--t3);font-size:12px}
+.rc-x:hover{background:rgba(127,127,127,.14)}
+.rc-s{font-size:12.5px;color:var(--t2);margin-top:5px;line-height:1.4}
+.rc-i.err .rc-s{color:#FF6B6F}
+.rc-bar{height:4px;border-radius:2px;background:rgba(127,127,127,.22);margin-top:9px;overflow:hidden;position:relative}
+.rc-bar i{position:absolute;left:0;top:0;bottom:0;background:var(--tx);border-radius:2px;transition:width .25s}
+.rc-bar.ind i{width:32%!important;animation:r21ind 1.3s ease-in-out infinite}
+@keyframes r21ind{0%{left:-32%}100%{left:100%}}
+.rc-steps{display:flex;gap:5px;margin-top:9px;font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--t3)}
+.rc-steps span{flex:1;padding-top:6px;border-top:2px solid rgba(127,127,127,.25)}
+.rc-steps span.on{color:var(--tx);border-top-color:var(--tx)}
+.rc-a{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
+.rc-a .btn{flex:1;padding:8px 10px;font-size:12px;min-width:0}
+/* Записи разборов: список и карточка */
+.rl-i{display:flex;gap:11px;align-items:flex-start;padding:12px 2px;border-bottom:1px solid var(--bd);cursor:pointer}
+.rl-i:last-child{border-bottom:0}
+.rl-ic{width:34px;height:34px;flex:0 0 auto;border-radius:10px;border:1px solid var(--bd2);display:flex;align-items:center;justify-content:center;color:var(--tx)}
+.rl-b{flex:1;min-width:0}
+.rl-t{font-size:14px;font-weight:800;line-height:1.3}
+.rl-d{font-size:12px;color:var(--t3);margin-top:3px;line-height:1.4}
+.rl-d.err{color:#FF6B6F}
+.rl-a{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.rl-a .btn{padding:6px 11px;font-size:11.5px}
+.rl-h{font-size:10.5px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin:18px 0 6px}
+.rl-sent{display:inline-flex;gap:6px;margin-left:4px}
+.cl-audio{width:100%;margin:6px 0 2px;height:38px;color-scheme:dark}
+body.light .cl-audio{color-scheme:light}
+.cl-tr{margin-top:6px;border:1px solid var(--bd);border-radius:12px;padding:10px 12px}
+.cl-tr summary{cursor:pointer;font-size:12.5px;font-weight:800;color:var(--t2)}
+.cl-tr pre{white-space:pre-wrap;font:inherit;font-size:12.5px;line-height:1.55;color:var(--t2);margin:10px 0 0;max-height:360px;overflow:auto}
+.cl-sent{font-size:12px;color:var(--t3);margin:-2px 0 12px}
+.cl-dg .ddot{background:#FF6B6F}
+.cm-mode{display:flex;gap:8px;margin:0 0 12px}
+.cm-mode label{flex:1;display:flex;gap:9px;align-items:flex-start;border:1px solid var(--bd2);border-radius:12px;padding:11px 12px;cursor:pointer;font-size:12.5px;line-height:1.4;color:var(--t2)}
+.cm-mode label b{display:block;color:var(--tx);font-size:13px;margin-bottom:2px}
+.cm-mode input{margin-top:3px;accent-color:var(--tx)}
+@media(max-width:600px){.recpill{left:12px;bottom:84px}.reccard{right:12px;bottom:84px}.dx-btn span{display:none}}
+</style>
+<script id="r21Script">
+// ═══ R21: разбор онлайн. Запись без демонстрации экрана, видимая упаковка и доставка итогов,
+// органы сеткой, диагнозы в один клик, инструменты в задачи, свободное место для новых узлов,
+// подгонка туда-обратно, защита названия доски, колесо баланса в замерах ═══
+
+(function(){
+  var bn = document.getElementById('bName'); if(!bn) return;
+  var before = '';
+  bn.addEventListener('focus', function(){ before = bn.value; window._bnOk = null; });
+  bn.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); window._bnOk = bn.value.trim(); window._bnAuto = null; bn.blur(); }
+    else if(e.key === 'Escape'){ bn.value = before; bn.blur(); }
+  });
+  bn.addEventListener('blur', function(){
+    var v = bn.value.trim();
+    if(v === before.trim()) return;
+    if(v.length < 2 && window._bnOk !== v){
+      bn.value = before || 'Разбор';
+      toast('Название из ' + (v.length ? 'одного символа' : 'пустоты') + ' не сохранено. Чтобы оставить его, нажмите Enter в поле названия');
+      return;
+    }
+    window._bnAuto = null;
+    try{ if(curBoard) saveBoardSilent(); }catch(e){}
+  });
+})();
+
+// ── 5. Вся доска на экране: второе нажатие возвращает прежний вид ──
+var FIT_PREV = null;
+function fitToggle(){
+  var btn = document.getElementById('fitBtn');
+  if(FIT_PREV && FIT_PREV.after && Math.abs(view.k - FIT_PREV.after.k) < 1e-6 &&
+     Math.abs(view.x - FIT_PREV.after.x) < 1 && Math.abs(view.y - FIT_PREV.after.y) < 1){
+    view.x = FIT_PREV.x; view.y = FIT_PREV.y; view.k = FIT_PREV.k; FIT_PREV = null;
+    applyView(); if(btn) btn.classList.remove('on'); toast('Прежний масштаб'); return;
+  }
+  var prev = {x: view.x, y: view.y, k: view.k};
+  fitAll();
+  FIT_PREV = prev; FIT_PREV.after = {x: view.x, y: view.y, k: view.k};
+  if(btn) btn.classList.add('on');
+}
+
+// ── 4. Новые узлы: свободное место рядом с выделенным или последним узлом, иначе у центра экрана ──
+function r21Box(n){
+  var el = document.getElementById('n' + n.id);
+  var w = el ? el.offsetWidth : (n.w || 230), h = el ? el.offsetHeight : (n.h || 110);
+  return {x: n.x, y: n.y, w: w || 230, h: h || 110};
+}
+function r21Visible(n){
+  var r = r21Box(n), k = view.k;
+  var sx = r.x * k + view.x, sy = r.y * k + view.y;
+  return sx + r.w * k > 0 && sy + r.h * k > 0 && sx < stage.clientWidth && sy < stage.clientHeight;
+}
+function freeSpot(near, size){
+  var W = (size && size.w) || 240, H = (size && size.h) || 120, GAP = 36;
+  var boxes = nodes.map(r21Box);
+  function free(x, y){
+    for(var i = 0; i < boxes.length; i++){
+      var b = boxes[i];
+      if(x < b.x + b.w + GAP && x + W + GAP > b.x && y < b.y + b.h + GAP && y + H + GAP > b.y) return false;
+    }
+    return true;
+  }
+  var k = view.k, vx0 = -view.x / k, vy0 = -view.y / k, vx1 = vx0 + stage.clientWidth / k, vy1 = vy0 + stage.clientHeight / k;
+  function inView(x, y){ return x >= vx0 + 10 && y >= vy0 + 10 && x + W <= vx1 - 10 && y + H <= vy1 - 10; }
+  var anchor = near || null;
+  if(!anchor && selId){ var s = nodes.find(function(n){ return n.id === selId; }); if(s && r21Visible(s)) anchor = s; }
+  if(!anchor && recentIds && recentIds.length){
+    var r0 = nodes.find(function(n){ return n.id === recentIds[0]; }); if(r0 && r21Visible(r0)) anchor = r0;
+  }
+  var cands = [];
+  if(anchor){
+    var a = r21Box(anchor);
+    // Справа, снизу, слева, сверху от узла, затем по кругу дальше
+    for(var ring = 0; ring < 6; ring++){
+      var d = GAP + 30 + ring * (H + GAP);
+      cands.push([a.x + a.w + d, a.y], [a.x + a.w + d, a.y + a.h + GAP + ring * 40], [a.x + a.w + d, a.y - H - GAP - ring * 40],
+        [a.x, a.y + a.h + d], [a.x - W - d, a.y], [a.x, a.y - H - d],
+        [a.x + a.w + d, a.y + (a.h + GAP) * 2], [a.x - W - d, a.y + a.h + GAP]);
+    }
+  }
+  var vc = viewCenter(), cx = vc.x - W / 2, cy = vc.y - H / 2;
+  cands.push([cx, cy]);
+  for(var r = 1; r < 14; r++){
+    var R = r * 120, cnt = 8 + r * 4;
+    for(var i = 0; i < cnt; i++){
+      var ang = (Math.PI * 2 * i) / cnt;
+      cands.push([cx + Math.cos(ang) * R * 1.5, cy + Math.sin(ang) * R]);
+    }
+  }
+  var best = null;
+  for(var c = 0; c < cands.length; c++){
+    var x = Math.round(cands[c][0]), y = Math.round(cands[c][1]);
+    if(!free(x, y)) continue;
+    if(inView(x, y)) return {x: x, y: y};
+    if(!best) best = {x: x, y: y};
+  }
+  if(best) return best;
+  var maxX = boxes.reduce(function(m, b){ return Math.max(m, b.x + b.w); }, cx);
+  return {x: Math.round(maxX + GAP * 2), y: Math.round(cy)};
+}
+function addChild(id, e){
+  // Новая заметка рядом с узлом, на свободном месте, и сразу связана с ним
+  if(e) e.stopPropagation();
+  var p = nodes.find(function(x){ return x.id === id; }); if(!p) return;
+  var pos = freeSpot(p);
+  var n = addNode({type:'note', title:'Заметка', desc:'', parent:id, x:pos.x, y:pos.y});
+  if(!n) return;
+  links.push({a:id, b:n.id});
+  drawLinks();
+}
+
+// ── 6. Каждый инструмент на доске = задача резидента ──
+function r21Iso(days){
+  var d = new Date(); d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+function toolTaskOf(toolId){ return nodes.find(function(n){ return n.type === 'task' && n.task && n.task.fromTool === toolId; }); }
+function ensureToolTask(toolId, quiet){
+  if(viewingArchive) return null;
+  var t = nodes.find(function(n){ return n.id === toolId && n.type === 'tool'; }); if(!t) return null;
+  var title = 'Внедрить: ' + String(t.title || 'инструмент').trim();
+  var ex = toolTaskOf(toolId) || nodes.find(function(n){ return n.type === 'task' && String(n.title || '').trim().toLowerCase() === title.toLowerCase(); });
+  if(ex){
+    ex.task = ex.task || {}; if(!ex.task.fromTool) ex.task.fromTool = toolId;
+    if(ex.task.toolGone){ delete ex.task.toolGone; var e0 = document.getElementById('n' + ex.id); if(e0){ e0.remove(); renderNode(ex); } }
+    if(!links.some(function(l){ return (l.a === toolId && l.b === ex.id) || (l.b === toolId && l.a === ex.id); })) links.push({a: toolId, b: ex.id});
+    return ex;
+  }
+  var diag = null;
+  links.forEach(function(l){
+    var o = l.a === toolId ? l.b : (l.b === toolId ? l.a : null);
+    if(o != null && !diag){ var dn = nodes.find(function(n){ return n.id === o && n.type === 'diag'; }); if(dn) diag = dn; }
+  });
+  var pos = freeSpot(t, {w: 230, h: 100});
+  var n = {id: seq++, type: 'task', title: title, desc: diag ? 'Лечение: ' + diag.title : '', x: pos.x, y: pos.y,
+    author: 'admin', task: {kind: 'once', prio: 'mid', rems: [], date: r21Iso(10), times: 3, price: '', done: 0,
+      fromTool: toolId, fromDiag: diag ? diag.id : null, auto: true}};
+  nodes.push(n); renderNode(n);
+  links.push({a: toolId, b: n.id});
+  drawLinks();
+  // Подсказка не перебивает другое сообщение (например, «Чек-лист на доске»)
+  if(!quiet){ var tEl = document.getElementById('toast'), msg = 'Задача резиденту: ' + title + ', срок через 10 дней';
+    if(tEl && tEl.classList.contains('on')) setTimeout(function(){ if(!tEl.classList.contains('on')) toast(msg); }, 1700); else toast(msg); }
+  return n;
+}
+(function(){
+  var _add = addNode;
+  addNode = function(o){
+    var n = _add.apply(this, arguments);
+    if(n && n.type === 'tool') setTimeout(function(){ ensureToolTask(n.id); try{ saveBoardSilent(); }catch(e){} }, 0);
+    return n;
+  };
+  var _del = delNode;
+  delNode = function(id, e){
+    var n = nodes.find(function(x){ return x.id === id; });
+    var tk = n && n.type === 'tool' ? toolTaskOf(id) : null;
+    var r = _del.apply(this, arguments);
+    if(tk && nodes.indexOf(tk) >= 0){
+      var tt = tk.task || {}, touched = tt.completed || tt.done || tt.quality || tt.report;
+      if(!touched){ nodes = nodes.filter(function(x){ return x.id !== tk.id; }); links = links.filter(function(l){ return l.a !== tk.id && l.b !== tk.id; });
+        var el = document.getElementById('n' + tk.id); if(el) el.remove(); drawLinks(); toast('Инструмент и его задача удалены'); }
+      else { tt.toolGone = true; var el2 = document.getElementById('n' + tk.id); if(el2){ el2.remove(); renderNode(tk); } drawLinks(); toast('Задача по инструменту осталась: по ней уже есть отметки'); }
+    }
+    return r;
+  };
+  // Доски, где инструменты стояли до R21: задачи добавляются при открытии (админ)
+  var _ob = openBoard;
+  openBoard = function(){
+    var r = _ob.apply(this, arguments);
+    try{
+      if(MODE === 'admin' && !viewingArchive && curBoard && !curBoard.toolTasks){
+        var made = 0;
+        nodes.filter(function(n){ return n.type === 'tool'; }).forEach(function(t){ if(!toolTaskOf(t.id)){ if(ensureToolTask(t.id, true)) made++; } });
+        curBoard.toolTasks = 1;
+        if(made){ saveBoardSilent(); toast('Инструменты добавлены в задачи резидента: ' + made); }
+      }
+    }catch(e){}
+    try{ r21MigrateWheel(curBoard); }catch(e){}
+    FIT_PREV = null;
+    return r;
+  };
+})();
+// snapshot() не знает о флаге: переносим его
+(function(){
+  var _snap = snapshot;
+  snapshot = function(){ var s = _snap.apply(this, arguments); if(curBoard && curBoard.toolTasks) s.toolTasks = curBoard.toolTasks; return s; };
+})();
+
+// ── 3. Выбор диагноза: все органы сеткой с иконками, поиск по всем диагнозам ──
+function renderLib(){
+  var src = libMode==='diag' ? DIAG : (libMode==='tool' ? TOOLS : CONTACTS.map(function(c){
+    return {organ:'Контакт', color:'#FFFFFF', icon:'◎', title:c.name, short:[c.use, c.phone].filter(Boolean).join(' · '), _c:c};
+  }));
+  var titles = {diag:'База диагнозов', tool:'Инструменты лечения', cont:'Контакты'};
+  var subs = {diag:'Что болит. Ставим как трекеры', tool:'Чем лечим. Назначаем резиденту', cont:'Полезные люди в базе клуба'};
+  document.getElementById('libTitle').textContent = titles[libMode];
+  document.getElementById('libSub').textContent = subs[libMode];
+  var si = document.getElementById('libSearch');
+  if(si) si.placeholder = libMode === 'diag' ? 'Поиск по всем диагнозам' : (libMode === 'tool' ? 'Поиск по всем инструментам' : 'Поиск');
+  var cnt = {}; src.forEach(function(d){ cnt[d.organ] = (cnt[d.organ] || 0) + 1; });
+  var organs = ['Все'].concat(Array.from(new Set(src.map(function(d){ return d.organ; }))));
+  var q = ((si || {}).value || '').trim().toLowerCase();
+  var tabs = document.getElementById('libTabs');
+  tabs.classList.toggle('r21-org', libMode !== 'cont');
+  tabs.innerHTML = libMode === 'cont' ? '' : organs.map(function(o){
+    var on = !q && o === libOrgan;
+    return '<div class="tb' + (on ? ' on' : '') + '" data-o="' + esc(o) + '" onclick="setLibOrgan(this.dataset.o)" title="' + esc(o) + '">' +
+      (o === 'Все' ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg>'
+        : organIcon(o, 'currentColor', 18)) +
+      '<span>' + esc(o) + '</span><b>' + (o === 'Все' ? src.length : cnt[o]) + '</b></div>';
+  }).join('');
+  // Поиск всегда по всем органам: забытый фильтр не прячет диагноз
+  var list = q ? src : (libOrgan === 'Все' ? src : src.filter(function(d){ return d.organ === libOrgan; }));
+  if(q) list = list.filter(function(d){
+    return [d.title, d.short, d.desc, d.organ, (d.signs || []).join(' ')].join(' ').toLowerCase().indexOf(q) >= 0;
+  });
+  var MD = libMode === 'cont' ? ['az','new'] : ['az','organ','new'], md = bslMode('lib_' + libMode, MD);
+  var gr = bslApply(list, md, {t:function(d){ return d.title; }, g:function(d){ return d.organ; }, n:function(d){ return src.indexOf(d); }});
+  document.getElementById('libGrid').innerHTML = (q ? '<div class="r21-found">Найдено ' + list.length + ' по всем органам</div>' : '') +
+    bslBar('lib_' + libMode, MD, md, 'renderLib') + (list.length ? bslRender(gr, function(d){
+    var gi = src.indexOf(d);
+    return '<div class="lcard" onclick="pickFromLib('+gi+')">' +
+      '<div class="lc-top" style="background:linear-gradient(135deg,'+d.color+'22,'+d.color+'08)">'+d.icon+'</div>' +
+      '<div class="lc-in"><div class="lc-o" style="color:'+d.color+'">'+esc(d.organ)+'</div>' +
+        '<div class="lc-t">'+esc(d.title)+'</div><div class="lc-d">'+esc(d.short||d.desc||'').slice(0,88)+'</div></div></div>';
+  }) : '<div class="pf-empty">Ничего не найдено</div>');
+}
+function setLibOrgan(o){ libOrgan = o; var si = document.getElementById('libSearch'); if(si) si.value = ''; renderLib(); }
+
+// ── 7. Кнопка «Диагнозы (N)» на доске ──
+(function(){
+  var hb = document.getElementById('hltBtn'); if(!hb) return;
+  var b = document.createElement('button');
+  b.type = 'button'; b.id = 'dxBtn'; b.className = 'dx-btn zero'; b.title = 'Все диагнозы доски';
+  b.innerHTML = '<i></i><span>Диагнозы</span><b id="dxCnt">0</b>';
+  b.onclick = function(){ toggleDx(); };
+  hb.parentNode.insertBefore(b, hb);
+  var p = document.createElement('div'); p.className = 'dxp'; p.id = 'dxPanel'; document.body.appendChild(p);
+  var last = -1;
+  setInterval(function(){
+    var n = (typeof nodes !== 'undefined' && nodes) ? nodes.filter(function(x){ return x.type === 'diag'; }).length : 0;
+    if(n !== last){ last = n; var c = document.getElementById('dxCnt'); if(c) c.textContent = n; b.classList.toggle('zero', !n);
+      if(p.classList.contains('on')) renderDx(); }
+  }, 700);
+})();
+function dxSeverity(d){
+  var org = String(d.organ || '').replace(/^[^A-Za-zА-Яа-яЁё]+/, '').trim();
+  var key = (typeof HLT_ORG !== 'undefined' && HLT_ORG[org]) || null;
+  var v = key && curBoard && curBoard.health ? curBoard.health[key] : null;
+  if(v === null || v === undefined || v === '') return null;
+  v = Number(v);
+  return {v: v, l: v <= 3 ? 'Острое' : (v <= 6 ? 'Среднее' : 'Лёгкое'), hi: v <= 3};
+}
+function renderDx(){
+  var p = document.getElementById('dxPanel'); if(!p) return;
+  var ds = nodes.filter(function(n){ return n.type === 'diag'; });
+  p.innerHTML = '<div class="dxp-h"><div class="dxp-t">Диагнозы доски · ' + ds.length + '</div>' +
+    '<div class="dxp-x" onclick="toggleDx(false)" title="Закрыть"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div></div>' +
+    (ds.length ? ds.map(function(d){
+      var tl = [];
+      links.forEach(function(l){
+        var o = l.a === d.id ? l.b : (l.b === d.id ? l.a : null);
+        var t = o != null && nodes.find(function(n){ return n.id === o && n.type === 'tool'; });
+        if(t) tl.push(t.title);
+      });
+      var sv = dxSeverity(d), org = String(d.organ || '').replace(/^[^A-Za-zА-Яа-яЁё]+/, '').trim();
+      return '<div class="dxi" onclick="focusDx(' + d.id + ')"><div class="dxi-d"></div><div class="dxi-b">' +
+        '<div class="dxi-t">' + esc(d.title) + '</div>' +
+        '<div class="dxi-m">' + esc(org || 'Без органа') + (sv ? '<span class="dxi-s' + (sv.hi ? ' hi' : '') + '">' + sv.l + ' · ' + sv.v + '/10</span>' : '') + '</div>' +
+        '<div class="dxi-tl">' + (tl.length ? tl.map(function(t){ return '<span>' + esc(t) + '</span>'; }).join('') : '<em>Лечение не назначено</em>') + '</div>' +
+      '</div></div>';
+    }).join('') : '<div class="dxp-e">На доске пока нет диагнозов. Нажмите «+ Диагноз» внизу.</div>');
+}
+function toggleDx(on){
+  var p = document.getElementById('dxPanel'), b = document.getElementById('dxBtn'); if(!p) return;
+  if(on === undefined) on = !p.classList.contains('on');
+  if(on) renderDx();
+  p.classList.toggle('on', on); if(b) b.classList.toggle('on', on);
+}
+function focusDx(id){
+  var n = nodes.find(function(x){ return x.id === id; }); if(!n) return;
+  if(section !== 'board') goSection('board');
+  var r = r21Box(n);
+  if(view.k < .55) view.k = .8;
+  view.x = stage.clientWidth / 2 - (r.x + r.w / 2) * view.k;
+  view.y = stage.clientHeight / 2 - (r.y + r.h / 2) * view.k;
+  applyView(); selectNode(id); FIT_PREV = null;
+  var el = document.getElementById('n' + id);
+  if(el){ el.classList.add('r21-flash'); setTimeout(function(){ el.classList.remove('r21-flash'); }, 1600); }
+  if(innerWidth < 700) toggleDx(false);
+}
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') toggleDx(false); });
+
+// ── 10. Колесо баланса: расширенный список сфер (WHEEL_LIFE), старые названия переносятся ──
+var R21_WHEEL_MAP = {'деньги':'Личные финансы', 'финансы':'Личные финансы', 'личные финансы':'Личные финансы',
+  'развитие':'Личностное развитие', 'саморазвитие':'Личностное развитие', 'личностное развитие':'Личностное развитие',
+  'карьера':'Бизнес', 'работа':'Бизнес', 'бизнес':'Бизнес', 'карьера/бизнес':'Бизнес', 'друзья':'Окружение', 'окружение':'Окружение',
+  'духовность':'Смысл', 'смысл':'Смысл', 'здоровье':'Здоровье', 'спорт':'Спорт', 'семья':'Семья', 'хобби':'Хобби', 'энергия':'Энергия', 'отдых':'Отдых'};
+function r21MigrateWheel(b){
+  if(!b || !b.tests || !b.tests.wheel) return false;
+  var w = b.tests.wheel, out = {}, ch = false;
+  Object.keys(w).forEach(function(k){
+    var to = WHEEL_LIFE.indexOf(k) >= 0 ? k : R21_WHEEL_MAP[String(k).trim().toLowerCase()];
+    if(!to){ out[k] = w[k]; return; }
+    if(to !== k) ch = true;
+    if(out[to] === undefined || !Number(out[to])) out[to] = w[k];
+  });
+  if(ch){ b.tests.wheel = out; try{ saveBoardSilent(); }catch(e){} }
+  return ch;
+}
+(function(){
+  var _rl = renderLifeWheel;
+  renderLifeWheel = function(){ try{ r21MigrateWheel(curBoard); }catch(e){} return _rl.apply(this, arguments); };
+})();
+
+// ═══ 1, 2. Записи разборов ═══
+// Пишем только звук: микрофон (по умолчанию, без полос «идёт демонстрация» в Chrome) или микрофон и звук вкладки Meet.
+// Куски записи сразу сохраняются в браузере (IndexedDB): закрытая вкладка или обрыв связи не теряют разбор.
+var REC = null, REC_ITEMS = [], REC_POLL = null, REC_MODE = 'mic';
+try{ REC_MODE = localStorage.getItem('bs_rec_mode') || 'mic'; }catch(e){}
+var RDB = {
+  db: null,
+  open: function(){
+    if(RDB.db) return Promise.resolve(RDB.db);
+    return new Promise(function(res, rej){
+      if(!window.indexedDB) return rej(new Error('no idb'));
+      var q = indexedDB.open('bs_rec', 1);
+      q.onupgradeneeded = function(){ var d = q.result; d.createObjectStore('recs', {keyPath:'id'}); d.createObjectStore('chunks', {keyPath:'k'}); };
+      q.onsuccess = function(){ RDB.db = q.result; res(RDB.db); };
+      q.onerror = function(){ rej(q.error); };
+    });
+  },
+  tx: function(stores, mode, fn){
+    return RDB.open().then(function(d){ return new Promise(function(res, rej){
+      var t = d.transaction(stores, mode), out = fn(t);
+      t.oncomplete = function(){ res(out && out.result !== undefined ? out.result : out); };
+      t.onerror = function(){ rej(t.error); }; t.onabort = function(){ rej(t.error); };
+    }); });
+  },
+  putRec: function(r){ return RDB.tx(['recs'], 'readwrite', function(t){ t.objectStore('recs').put(r); }).catch(function(){}); },
+  putChunk: function(id, i, blob){ return RDB.tx(['chunks'], 'readwrite', function(t){ t.objectStore('chunks').put({k: id + ':' + ('00000' + i).slice(-6), rec: id, blob: blob}); }).catch(function(){}); },
+  recs: function(){ return RDB.tx(['recs'], 'readonly', function(t){ return t.objectStore('recs').getAll(); }).catch(function(){ return []; }); },
+  blob: function(id, mime){
+    return RDB.tx(['chunks'], 'readonly', function(t){ return t.objectStore('chunks').getAll(IDBKeyRange.bound(id + ':', id + ':￿')); })
+      .then(function(list){ return new Blob((list || []).map(function(c){ return c.blob; }), {type: mime || 'audio/webm'}); });
+  },
+  drop: function(id){
+    return RDB.tx(['recs', 'chunks'], 'readwrite', function(t){ t.objectStore('recs').delete(id); t.objectStore('chunks').delete(IDBKeyRange.bound(id + ':', id + ':￿')); }).catch(function(){});
+  }
+};
+function recDate(){ var d = new Date(); return ('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+d.getFullYear(); }
+function recRes(){ return (curBoard && curBoard.info && curBoard.info.res) || (curBoard && curBoard.name) || ''; }
+function recClock(ms){ var s = Math.max(0, Math.round(ms / 1000)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ':' + ('0' + m).slice(-2) : m) + ':' + ('0' + s % 60).slice(-2); }
+function recPl(n, a, b, c){ var m = n % 10, h = n % 100; return n + ' ' + (m === 1 && h !== 11 ? a : (m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c)); }
+function recDay(iso){ var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '.' + m[2] + '.' + m[1] : String(iso || ''); }
+function recMB(b){ return b < 1048576 ? Math.max(1, Math.round(b / 1024)) + ' КБ' : (b / 1048576).toFixed(b < 10485760 ? 1 : 0).replace('.', ',') + ' МБ'; }
+
+function openCallMenu(){
+  if(!curBoard){ saveBoardSilent(); }
+  var res = recRes();
+  document.getElementById('edTitle').textContent = 'Запись разбора';
+  document.getElementById('edSub').textContent = res ? 'Разбор · ' + res : 'Разбор';
+  var m = function(v, t, d){ return '<label><input type="radio" name="recMode" value="' + v + '"' + (REC_MODE === v ? ' checked' : '') + ' onchange="REC_MODE=this.value;try{localStorage.setItem(\'bs_rec_mode\',this.value)}catch(e){}"><span><b>' + t + '</b>' + d + '</span></label>'; };
+  document.getElementById('edBody').innerHTML =
+    '<div class="cm-mode">' +
+      m('mic', 'Только микрофон', 'Без демонстрации экрана и полос Chrome сверху. Голос резидента пишется из колонок') +
+      m('tab', 'Микрофон и звук Meet', 'Chrome спросит вкладку с Meet и покажет полосу доступа. Для разбора в наушниках') +
+    '</div>' +
+    (REC ? '<button class="btn bg" style="width:100%;padding:14px;margin-bottom:9px" onclick="closeSheet(\'editSheet\');stopCallRec()">Остановить и упаковать</button>'
+         : '<button class="btn bg" style="width:100%;padding:14px;margin-bottom:9px" onclick="closeSheet(\'editSheet\');startCallRec()">Начать запись</button>') +
+    '<label class="btn bs" style="display:block;text-align:center;padding:13px;cursor:pointer">Загрузить готовую запись или расшифровку' +
+      '<input type="file" accept="audio/*,video/*,.txt,.vtt,.srt,text/plain" style="display:none" onchange="uploadCallFile(this)"></label>' +
+    '<div class="dbox g" style="font-size:12.5px;margin-top:12px;line-height:1.5">После остановки запись загружается на сервер, расшифровывается и упаковывается: ' +
+      'ключевые проблемы, диагнозы, решения, задачи и следующие шаги. Итоги придут вам и резиденту в Telegram и появятся в «Записях разборов» этой доски.</div>' +
+    '<div class="rl-h">Записи разборов</div><div id="cmList"></div>';
+  openSheet('editSheet');
+  renderCallList('cmList');
+}
+
+function startCallRec(){
+  if(REC){ toast('Запись уже идёт'); return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){ recCardErr(null, 'Запись работает в Chrome на компьютере'); return; }
+  if(!curBoard) saveBoardSilent();
+  var streams = [], wantTab = REC_MODE === 'tab';
+  var micP = navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true}});
+  var tabP = wantTab && navigator.mediaDevices.getDisplayMedia
+    ? navigator.mediaDevices.getDisplayMedia({video: true, audio: true, selfBrowserSurface: 'exclude', surfaceSwitching: 'exclude', systemAudio: 'include'}).catch(function(){ return null; })
+    : Promise.resolve(null);
+  Promise.all([micP.catch(function(e){ return {err: e}; }), tabP]).then(function(pr){
+    var mic = pr[0] && !pr[0].err ? pr[0] : null, tab = pr[1];
+    if(tab && !tab.getAudioTracks().length){ tab.getTracks().forEach(function(t){ t.stop(); }); tab = null; toast('Звук вкладки не выбран: пишется микрофон'); }
+    if(mic) streams.push(mic); if(tab) streams.push(tab);
+    if(!mic && !tab){
+      var e = pr[0] && pr[0].err;
+      recCardErr(null, e && /NotAllowed|Permission/i.test(e.name + e.message) ? 'Нет доступа к микрофону: разрешите его в адресной строке Chrome и нажмите запись ещё раз' : 'Микрофон не найден');
+      return;
+    }
+    var ac = new (window.AudioContext || window.webkitAudioContext)(), dest = ac.createMediaStreamDestination(), an = ac.createAnalyser();
+    an.fftSize = 512;
+    streams.forEach(function(st){ var src = ac.createMediaStreamSource(new MediaStream(st.getAudioTracks())); src.connect(dest); src.connect(an); });
+    var mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+    var mr = new MediaRecorder(dest.stream, {mimeType: mime, audioBitsPerSecond: 32000});
+    var id = 'r' + Date.now().toString(36), i = 0;
+    REC = callRec = {id: id, mr: mr, ac: ac, an: an, streams: streams, t0: Date.now(), paused: 0, pauseAt: 0, bytes: 0, mem: [],
+      boardId: curBoard.id, res: recRes(), date: recDate(), mime: 'audio/webm', mode: tab ? 'tab' : 'mic'};
+    RDB.putRec({id: id, boardId: REC.boardId, res: REC.res, date: REC.date, started: REC.t0, mime: REC.mime, state: 'recording'});
+    var REC0 = REC;
+    mr.ondataavailable = function(e){
+      if(!e.data || !e.data.size) return;
+      REC0.mem.push(e.data); REC0.bytes += e.data.size; RDB.putChunk(id, i++, e.data);
+    };
+    mr.onstop = function(){ recFinish(REC0); };
+    if(tab) tab.getVideoTracks().forEach(function(t){ t.onended = function(){ if(REC && REC.id === id) stopCallRec(); }; });
+    mr.start(5000);
+    recPill(true);
+    document.body.classList.add('rec-on');
+    try{ checkMeetBanner(); }catch(e){}
+    toast(tab ? 'Запись: микрофон и звук Meet' : 'Запись началась: пишется звук, экран не захватывается');
+  });
+}
+function recPill(on){
+  var p = document.getElementById('recPill');
+  if(!p){
+    p = document.createElement('div'); p.id = 'recPill'; p.className = 'recpill';
+    p.innerHTML = '<span class="rp-dot"></span><span class="rp-tm" id="recTm">0:00</span><span class="rp-lv" title="Уровень звука"><i id="recLv"></i></span>' +
+      '<button type="button" id="recPause" onclick="pauseCallRec()">Пауза</button><button type="button" class="st" onclick="stopCallRec()">Стоп</button>';
+    document.body.appendChild(p);
+  }
+  p.classList.toggle('on', !!on);
+  clearInterval(recPill._t);
+  if(on){
+    var buf = new Uint8Array(256);
+    recPill._t = setInterval(function(){
+      if(!REC) return;
+      var ms = (REC.pauseAt || Date.now()) - REC.t0 - REC.paused;
+      document.getElementById('recTm').textContent = recClock(ms);
+      try{ REC.an.getByteTimeDomainData(buf); var mx = 0; for(var i = 0; i < buf.length; i++) mx = Math.max(mx, Math.abs(buf[i] - 128)); document.getElementById('recLv').style.width = Math.min(100, mx * 1.6) + '%'; }catch(e){}
+    }, 250);
+  }
+}
+function pauseCallRec(){
+  if(!REC) return;
+  var b = document.getElementById('recPause'), p = document.getElementById('recPill');
+  if(REC.mr.state === 'recording'){ REC.mr.pause(); REC.pauseAt = Date.now(); b.textContent = 'Дальше'; p.classList.add('paused'); }
+  else if(REC.mr.state === 'paused'){ REC.mr.resume(); REC.paused += Date.now() - REC.pauseAt; REC.pauseAt = 0; b.textContent = 'Пауза'; p.classList.remove('paused'); }
+}
+function stopCallRec(){ if(REC && REC.mr.state !== 'inactive') REC.mr.stop(); }
+function recFinish(r){
+  if(!r) return;
+  r.streams.forEach(function(st){ st.getTracks().forEach(function(t){ t.stop(); }); });
+  try{ r.ac.close(); }catch(e){}
+  var dur = (r.pauseAt || Date.now()) - r.t0 - r.paused;
+  if(REC && REC.id === r.id){ REC = callRec = null; }
+  recPill(false); document.body.classList.remove('rec-on');
+  var blob = new Blob(r.mem, {type: 'audio/webm'});
+  RDB.putRec({id: r.id, boardId: r.boardId, res: r.res, date: r.date, started: r.t0, dur: dur, mime: 'audio/webm', state: 'stopped', size: blob.size});
+  if(blob.size < 2000){ RDB.drop(r.id); recCardErr(null, 'Запись пустая: микрофон не дал звука'); return; }
+  sendCall(blob, 'audio/webm', {local: r.id, boardId: r.boardId, res: r.res, date: r.date, dur: dur});
+}
+function uploadCallFile(inp){
+  var f = inp.files && inp.files[0]; if(!f) return;
+  closeSheet('editSheet');
+  if(!curBoard) saveBoardSilent();
+  var isText = /text|vtt|srt/.test(f.type) || /\.(txt|vtt|srt)$/i.test(f.name);
+  sendCall(f, isText ? 'text/plain; charset=utf-8' : (f.type || 'audio/webm'), {boardId: curBoard.id, res: recRes(), date: recDate(), name: f.name});
+}
+
+// Карточка состояния: загрузка %, расшифровка, упаковка, готово
+function recItem(o){ REC_ITEMS.push(o); recCard(); return o; }
+function recCardErr(item, msg){
+  if(!item) item = recItem({title: 'Запись разбора'});
+  item.state = 'error'; item.msg = msg; recCard(); return item;
+}
+var REC_STEPS = [['upload','Загрузка'],['transcribe','Расшифровка'],['summary','Упаковка'],['done','Готово']];
+function recCard(){
+  var c = document.getElementById('recCard');
+  if(!c){ c = document.createElement('div'); c.id = 'recCard'; c.className = 'reccard'; c.setAttribute('role', 'status'); c.setAttribute('aria-live', 'polite'); document.body.appendChild(c); }
+  REC_ITEMS = REC_ITEMS.filter(function(x){ return !x.closed; });
+  c.classList.toggle('on', REC_ITEMS.length > 0);
+  c.innerHTML = REC_ITEMS.map(function(it, k){
+    var st = it.state || 'upload', step = st === 'queued' ? 'transcribe' : (st === 'deliver' ? 'summary' : st);
+    var si = REC_STEPS.findIndex(function(s){ return s[0] === step; });
+    var txt = it.msg || ({upload: 'Загрузка на сервер ' + Math.round((it.pct || 0) * 100) + '%' + (it.size ? ' из ' + recMB(it.size) : ''),
+      queued: 'В очереди на расшифровку', transcribe: 'Расшифровка записи. Час разговора занимает 2-5 минут',
+      summary: 'Упаковка итогов: проблемы, диагнозы, решения, задачи, следующие шаги', deliver: 'Отправка итогов в Telegram',
+      done: recSentText(it.sent), local: 'Запись сохранена в этом браузере и ещё не отправлена'}[st] || '');
+    var acts = '';
+    if(st === 'done') acts = '<button class="btn pf-b pf-p" onclick="recOpen(' + k + ')">Открыть итоги</button>';
+    if(st === 'error' && it.jobId) acts = '<button class="btn pf-b pf-p" onclick="recRetry(' + k + ')">Обработать снова</button>';
+    if((st === 'error' || st === 'local') && !it.jobId && it.local) acts = '<button class="btn pf-b pf-p" onclick="recResend(' + k + ')">Отправить</button>' +
+      '<button class="btn pf-b" onclick="recDropAsk(' + k + ')">Удалить</button>';
+    var busy = st === 'queued' || st === 'transcribe' || st === 'summary' || st === 'deliver';
+    return '<div class="rc-i' + (st === 'error' ? ' err' : '') + '"><div class="rc-h"><div class="rc-t">' + esc(it.title || 'Запись разбора') + '</div>' +
+      (busy || st === 'upload' ? '' : '<div class="rc-x" onclick="recClose(' + k + ')" title="Скрыть">✕</div>') + '</div>' +
+      '<div class="rc-s">' + esc(txt) + '</div>' +
+      (st === 'upload' || busy ? '<div class="rc-bar' + (busy ? ' ind' : '') + '"><i style="width:' + Math.round((it.pct || 0) * 100) + '%"></i></div>' : '') +
+      (si >= 0 && st !== 'error' ? '<div class="rc-steps">' + REC_STEPS.map(function(s, j){ return '<span class="' + (j <= si ? 'on' : '') + '">' + s[1] + '</span>'; }).join('') + '</div>' : '') +
+      (acts ? '<div class="rc-a">' + acts + '</div>' : '') + '</div>';
+  }).join('');
+}
+function recSentText(s){
+  if(!s) return 'Итоги готовы и лежат в «Записях разборов» доски';
+  var a = [];
+  a.push(s.owner ? 'вам в Telegram отправлено' : 'вам не отправлено' + (s.ownerWhy ? ' (' + s.ownerWhy + ')' : ''));
+  a.push(s.resident ? 'резиденту отправлено' : 'резиденту не отправлено' + (s.residentWhy ? ': ' + s.residentWhy : ''));
+  return 'Готово: ' + a.join(', ');
+}
+function recClose(k){ var it = REC_ITEMS[k]; if(it){ it.closed = true; recCard(); } }
+function recOpen(k){
+  var it = REC_ITEMS[k]; if(!it) return;
+  if(curBoard && curBoard.id !== it.boardId){ var b = boards.find(function(x){ return x.id === it.boardId; }); if(b){ goSection('board'); openBoard(b.id); } }
+  showCall(it.jobId); it.closed = true; recCard();
+}
+function recRetry(k){
+  var it = REC_ITEMS[k]; if(!it || !it.jobId) return;
+  it.state = 'queued'; it.msg = ''; recCard();
+  BSSync.api('POST', '/ai/jobs/' + it.jobId + '/retry').then(function(r){ return r.json(); }).then(function(j){
+    if(j && j.error){ recCardErr(it, j.error); return; }
+    recTrack(it);
+  }).catch(function(){ recCardErr(it, 'Нет связи с сервером'); });
+}
+function recResend(k){
+  var it = REC_ITEMS[k]; if(!it || !it.local) return;
+  it.closed = true;
+  RDB.blob(it.local, 'audio/webm').then(function(blob){
+    if(!blob.size){ recCardErr(null, 'Запись в браузере пустая'); RDB.drop(it.local); return; }
+    sendCall(blob, 'audio/webm', {local: it.local, boardId: it.boardId, res: it.res, date: it.date, dur: it.dur});
+  });
+}
+function recDropAsk(k){
+  var it = REC_ITEMS[k]; if(!it) return;
+  askConfirm('Удалить запись?', 'Запись разбора ' + (it.res || '') + ' из этого браузера. На сервер она не попала', function(){ RDB.drop(it.local); it.closed = true; recCard(); }, 'Удалить');
+}
+
+function sendCall(blob, ct, o){
+  o = o || {};
+  if(!window.BSSync || !BSSync.upload){ recCardErr(null, 'Работает на сервере платформы'); return; }
+  var b = boards.find(function(x){ return x.id === o.boardId; }) || curBoard;
+  var res = o.res || ((b && b.info && b.info.res) || (b && b.name) || '');
+  var it = recItem({title: 'Запись разбора' + (res ? ' · ' + res : ''), boardId: b ? b.id : '', res: res, date: o.date || recDate(),
+    local: o.local, dur: o.dur, size: blob.size, state: 'upload', pct: 0});
+  var q = '/ai/call?board=' + encodeURIComponent(it.boardId) + '&resident=' + encodeURIComponent(res) + '&date=' + encodeURIComponent(it.date);
+  if(o.local) RDB.putRec({id: o.local, boardId: it.boardId, res: res, date: it.date, dur: o.dur, mime: 'audio/webm', state: 'uploading', size: blob.size});
+  BSSync.upload(q, blob, {'Content-Type': ct}, function(p){ it.pct = p; recCard(); }).then(function(r){
+    var j = r.j || {};
+    if(r.status === 401){ recCardErr(it, 'Вход истёк. Войдите заново: запись сохранена в браузере'); return; }
+    if(!j.id){ recCardErr(it, (j.error || ('Сервер не принял запись: ' + r.status)) + (o.local ? '. Запись сохранена в браузере' : '')); return; }
+    it.jobId = j.id;
+    if(o.local) RDB.drop(o.local);
+    if(b){ b.pendingCalls = (b.pendingCalls || []).concat([j.id]); if(curBoard && curBoard.id === b.id) curBoard.pendingCalls = b.pendingCalls; saveAll(); }
+    if(j.error){ recCardErr(it, j.error); return; }
+    it.state = 'queued'; recCard(); recTrack(it);
+  }).catch(function(){ recCardErr(it, 'Нет связи с сервером. Запись сохранена' + (o.local ? ' в браузере: нажмите «Отправить», когда связь вернётся' : '')); });
+}
+// Слежение за задачей на сервере
+function recTrack(it){ if(REC_ITEMS.indexOf(it) < 0) REC_ITEMS.push(it); clearTimeout(REC_POLL); REC_POLL = setTimeout(pollCalls, 1500); }
+function pollCalls(){
+  clearTimeout(REC_POLL);
+  if(!window.BSSync || !BSSync.api) return;
+  // Задачи из pendingCalls всех досок (после перезагрузки страницы тоже)
+  (boards || []).forEach(function(b){ (b.pendingCalls || []).forEach(function(id){
+    if(!REC_ITEMS.some(function(x){ return x.jobId === id; })) REC_ITEMS.push({jobId: id, boardId: b.id, res: (b.info && b.info.res) || b.name || '', title: 'Запись разбора · ' + ((b.info && b.info.res) || b.name || ''), state: 'queued'});
+  }); });
+  var act = REC_ITEMS.filter(function(x){ return x.jobId && /^(queued|transcribe|summary|deliver|running)$/.test(x.state || 'queued'); });
+  recCard();
+  if(!act.length) return;
+  Promise.all(act.map(function(it){
+    return BSSync.api('GET', '/ai/jobs/' + it.jobId).then(function(r){ return r.status === 404 ? {status: 'gone'} : r.json(); }).then(function(j){
+      if(!j) return;
+      var m = {}; try{ m = typeof j.result === 'string' ? JSON.parse(j.result) : (j.result || {}); }catch(e){}
+      if(j.status === 'gone'){ recDropPending(it.boardId, it.jobId); it.closed = true; return; }
+      if(j.status === 'error'){ recDropPending(it.boardId, it.jobId); recCardErr(it, j.error || 'ошибка'); return; }
+      if(j.status === 'done'){
+        recDropPending(it.boardId, it.jobId);
+        it.state = 'done'; it.sent = m.sent || null; it.msg = '';
+        var b = boards.find(function(x){ return x.id === it.boardId; });
+        if(b) attachCall(b, j);
+        return;
+      }
+      it.state = m.stage && m.stage !== 'error' ? m.stage : 'queued';
+    }).catch(function(){});
+  })).then(function(){ recCard(); REC_POLL = setTimeout(pollCalls, 4000); });
+}
+function recDropPending(boardId, id){
+  var b = boards.find(function(x){ return x.id === boardId; }); if(!b) return;
+  var n = (b.pendingCalls || []).filter(function(x){ return x !== id; });
+  if(n.length !== (b.pendingCalls || []).length){ b.pendingCalls = n; if(curBoard && curBoard.id === b.id) curBoard.pendingCalls = n; saveAll(); }
+}
+function callFromJob(j){
+  var r = j.result || {}; if(typeof r === 'string'){ try{ r = JSON.parse(r); }catch(e){ r = {}; } }
+  var sm = r.summary || {};
+  var arr = function(v){ return (Array.isArray(v) ? v : (v ? [v] : [])).map(function(x){ return typeof x === 'string' ? x : (x && x.text) || ''; }).filter(Boolean); };
+  return {id: j.id, date: r.date || '', title: sm.title || ('Разбор ' + (r.date || '')), summary: sm.summary || '',
+    pointA: sm.pointA || '', pointB: sm.pointB || '', problems: arr(sm.problems), diagnoses: arr(sm.diagnoses), decisions: arr(sm.decisions),
+    checklist: (sm.checklist || []).map(function(c){ return typeof c === 'string' ? {text: c, due: ''} : {text: c.text || '', due: c.due || ''}; }),
+    next: arr(sm.next), questions: arr(sm.questions), quote: sm.quote || '', transcript: r.transcript || '', audio: r.audio || '', file: r.file || '', sent: r.sent || null};
+}
+function attachCall(b, j){
+  var call = callFromJob(j);
+  var cur = (b.calls || []).find(function(c){ return c.id === j.id; });
+  if(cur){ if(!cur.sent && call.sent){ cur.sent = call.sent; saveAll(); } return cur; }
+  b.calls = (b.calls || []).concat([call]);
+  if(curBoard && curBoard.id === b.id) curBoard.calls = b.calls;
+  saveAll();
+  try{ if(document.documentElement.classList.contains('rp-open') && rpTab === 'calls') rpRenderCalls(); }catch(e){}
+  return call;
+}
+setTimeout(function(){ try{ pollCalls(); recLeftovers(); }catch(e){} }, 3000);
+// Записи, которые остались в браузере (вкладку закрыли во время записи или загрузка не прошла)
+function recLeftovers(){
+  RDB.recs().then(function(list){
+    (list || []).forEach(function(r){
+      if(REC && REC.id === r.id) return;
+      if(REC_ITEMS.some(function(x){ return x.local === r.id; })) return;
+      RDB.blob(r.id, r.mime).then(function(bl){
+        if(!bl.size){ RDB.drop(r.id); return; }
+        recItem({title: 'Запись разбора · ' + (r.res || 'без имени') + ' · ' + (r.date || ''), local: r.id, boardId: r.boardId, res: r.res, date: r.date,
+          dur: r.dur, size: bl.size, state: 'local', msg: 'Запись ' + recMB(bl.size) + ' осталась в этом браузере и не отправлена' + (r.state === 'recording' ? ' (вкладку закрыли во время записи)' : '')});
+      });
+    });
+  });
+}
+
+// Список «Записи разборов»: готовые итоги, обработка, ошибки, записи без итогов
+function callsOf(b){ return ((b && b.calls) || []).slice().reverse(); }
+function renderCallList(boxId){
+  var box = document.getElementById(boxId); if(!box) return;
+  var b = curBoard, calls = callsOf(b), adm = MODE === 'admin';
+  var row = function(c){
+    var cnt = (c.checklist || []).length, s = c.sent;
+    return '<div class="rl-i" onclick="showCall(\'' + c.id + '\')"><div class="rl-ic">' + pfSvg('pulse', 16) + '</div><div class="rl-b">' +
+      '<div class="rl-t">' + esc(c.title || 'Разбор') + '</div>' +
+      '<div class="rl-d">' + esc([c.date, cnt ? recPl(cnt, 'задача', 'задачи', 'задач') : '', (c.problems || []).length ? recPl(c.problems.length, 'проблема', 'проблемы', 'проблем') : '', c.audio ? 'есть запись' : '',
+        s ? (s.owner ? 'вам в Telegram ✓' : '') + (s.resident ? ' · резиденту ✓' : '') : ''].filter(Boolean).join(' · ')) + '</div></div></div>';
+  };
+  box.innerHTML = (calls.length ? calls.map(row).join('') : '<div class="pf-empty">Записей разборов пока нет</div>') + (adm ? '<div id="' + boxId + 'Srv"></div>' : '');
+  if(!adm || !window.BSSync || !BSSync.api || !b) return;
+  // С сервера: обработка, ошибки, готовые итоги, которые не дошли до доски, и записи без итогов
+  BSSync.api('GET', '/ai/calls').then(function(r){ return r.json(); }).then(function(j){
+    var srv = document.getElementById(boxId + 'Srv'); if(!srv) return;
+    var jobs = (j && j.jobs) || [], files = (j && j.files) || [], mine = [], other = [];
+    jobs.forEach(function(x){
+      if(x.boardId === b.id){
+        if(x.status === 'done'){ if(!(b.calls || []).some(function(c){ return c.id === x.id; })){ BSSync.api('GET', '/ai/jobs/' + x.id).then(function(r){ return r.json(); }).then(function(full){ attachCall(b, full); renderCallList(boxId); }); } }
+        else mine.push(x);
+      } else if(!x.boardId || !boards.some(function(bb){ return bb.id === x.boardId; })) other.push(x);
+    });
+    var jr = function(x, own){
+      var m = {}; try{ m = typeof x.result === 'string' ? JSON.parse(x.result) : (x.result || {}); }catch(e){}
+      var st = {queued: 'в очереди', running: 'обрабатывается', error: 'не обработана: ' + (x.error || ''), done: 'готово'}[x.status] || x.status;
+      return '<div class="rl-i"><div class="rl-ic">' + pfSvg('pulse', 16) + '</div><div class="rl-b"><div class="rl-t">Запись ' + esc(x.resident || '') + ' · ' + esc(m.date || recDay(x.createdAt)) + '</div>' +
+        '<div class="rl-d' + (x.status === 'error' ? ' err' : '') + '">' + esc(st) + '</div><div class="rl-a">' +
+        (x.status === 'error' || !own ? '<button class="btn pf-b pf-p" onclick="event.stopPropagation();recRetryJob(\'' + x.id + '\',' + (own ? 0 : 1) + ')">' + (own ? 'Обработать снова' : 'Обработать для этой доски') + '</button>' : '') +
+        (m.audio || m.file ? '<button class="btn pf-b" onclick="event.stopPropagation();openFile(\'' + (m.audio || m.file) + '\')">Слушать</button>' : '') + '</div></div></div>';
+    };
+    var fr = function(f){
+      return '<div class="rl-i"><div class="rl-ic">' + pfSvg('pulse', 16) + '</div><div class="rl-b"><div class="rl-t">' + esc(f.name) + '</div>' +
+        '<div class="rl-d">' + recMB(f.size || 0) + ' · ' + esc(recDay(f.createdAt)) + ' · итогов нет</div><div class="rl-a">' +
+        '<button class="btn pf-b pf-p" onclick="event.stopPropagation();recProcessFile(\'' + f.id + '\')">Упаковать для этой доски</button>' +
+        '<button class="btn pf-b" onclick="event.stopPropagation();openFile(\'' + f.id + '\')">Слушать</button></div></div></div>';
+    };
+    srv.innerHTML = (mine.length ? '<div class="rl-h">В работе и с ошибкой</div>' + mine.map(function(x){ return jr(x, true); }).join('') : '') +
+      (other.length || files.length ? '<div class="rl-h">Найдены на сервере без доски</div>' + other.map(function(x){ return jr(x, false); }).join('') + files.map(fr).join('') : '');
+  }).catch(function(){});
+}
+function recRetryJob(id, rebind){
+  var b = curBoard; if(!b) return;
+  var q = '/ai/jobs/' + id + '/retry' + (rebind ? '?board=' + encodeURIComponent(b.id) + '&resident=' + encodeURIComponent(recRes()) : '');
+  var it = recItem({title: 'Запись разбора · ' + recRes(), jobId: id, boardId: b.id, state: 'queued'});
+  BSSync.api('POST', q).then(function(r){ return r.json(); }).then(function(j){
+    if(j && j.error){ recCardErr(it, j.error); return; }
+    b.pendingCalls = (b.pendingCalls || []).concat([id]); saveAll(); recTrack(it);
+  }).catch(function(){ recCardErr(it, 'Нет связи с сервером'); });
+}
+function recProcessFile(fid){
+  var b = curBoard; if(!b) return;
+  var it = recItem({title: 'Запись разбора · ' + recRes(), boardId: b.id, state: 'queued'});
+  BSSync.api('POST', '/ai/call?file=' + fid + '&board=' + encodeURIComponent(b.id) + '&resident=' + encodeURIComponent(recRes()) + '&date=' + recDate())
+    .then(function(r){ return r.json(); }).then(function(j){
+      if(!j || !j.id){ recCardErr(it, (j && j.error) || 'Не получилось'); return; }
+      it.jobId = j.id;
+      if(j.error){ recCardErr(it, j.error); return; }
+      b.pendingCalls = (b.pendingCalls || []).concat([j.id]); saveAll(); recTrack(it);
+    }).catch(function(){ recCardErr(it, 'Нет связи с сервером'); });
+}
+function rpRenderCalls(){
+  var box = document.getElementById('rpCalls'); if(!box) return;
+  box.innerHTML = '<div id="rpCallsL"></div>';
+  renderCallList('rpCallsL');
+}
+function renderRCalls(){
+  var el = pgSet('Записи разборов', 'Итоги каждой встречи: проблемы, диагнозы, решения и задачи');
+  el.innerHTML = '<div class="card-sum" id="rcBody"></div>';
+  renderCallList('rcBody');
+}
+
+// Карточка записи: аудио, расшифровка и упакованные итоги
+function showCall(id){
+  var c = ((curBoard && curBoard.calls) || []).find(function(x){ return x.id === id; }); if(!c) return;
+  var li = function(arr, cls){ return (arr || []).map(function(x){ return '<div class="dli' + (cls ? ' ' + cls : '') + '"><div class="ddot"></div><div>' + esc(x) + '</div></div>'; }).join(''); };
+  var sec = function(h, arr, cls){ return (arr && arr.length) ? '<div class="dsec"><div class="dh">' + h + '</div>' + li(arr, cls) + '</div>' : ''; };
+  var res = (curBoard && curBoard.info && curBoard.info.res) || '';
+  document.getElementById('edTitle').textContent = c.title;
+  document.getElementById('edSub').textContent = 'Запись разбора ' + (c.date || '');
+  var meta = ['Запись разбора', c.date || '', c.transcript ? 'расшифровано' : ''].filter(Boolean).join(' · ');
+  var s = c.sent;
+  var main = '<div class="cv-main">' +
+    '<div class="cv-x" onclick="closeSheet(\'editSheet\')" title="Закрыть"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>' +
+    '<div class="cv-meta">' + esc(meta) + '</div><div class="cv-t">' + esc(c.title) + '</div>' +
+    (s ? '<div class="cl-sent">' + esc(recSentText(s)) + '</div>' : '') +
+    (c.audio ? '<div class="dsec"><div class="dh">Запись</div><audio class="cl-audio" id="clAudio" controls preload="none"></audio></div>' : '') +
+    (c.summary ? '<div class="call-sum">' + esc(c.summary) + '</div>' : '') +
+    ((c.pointA || c.pointB) ? '<div class="dsec"><div class="dh">Точки</div>' + li(['А: ' + (c.pointA || '-'), 'Б: ' + (c.pointB || '-')]) + '</div>' : '') +
+    sec('Ключевые проблемы', c.problems) + sec('Диагнозы', c.diagnoses, 'cl-dg') + sec('Решения', c.decisions) +
+    '<div class="dsec"><div class="dh">Задачи резидента</div>' + (c.checklist || []).map(function(k){
+      return '<div class="call-ck"><i></i><div>' + esc(k.text) + '</div>' + (k.due ? '<b>до ' + esc(k.due) + '</b>' : '') + '</div>'; }).join('') + '</div>' +
+    sec('Следующие шаги', c.next) + sec('Открытые вопросы', c.questions) +
+    (c.transcript ? '<details class="cl-tr"><summary>Расшифровка</summary><pre>' + esc(c.transcript) + '</pre></details>' : '') +
+    '<div class="cv-acts">' +
+      (MODE === 'admin' ? '<button class="btn pf-b pf-p" onclick="callToBoard(\'' + c.id + '\')">Задачи на доску</button>' : '') +
+      '<button class="btn pf-b' + (MODE === 'admin' ? '' : ' pf-p') + '" onclick="callChecklistPNG(\'' + c.id + '\')">Чек-лист картинкой</button>' +
+      '<button class="btn pf-b" onclick="callText(\'' + c.id + '\')">Текст итогов</button>' +
+    '</div></div>';
+  var card = '<div class="cv-card" onclick="callChecklistPNG(\'' + c.id + '\')" title="Скачать картинкой">' +
+    '<img class="cv-logo" src="' + BS_LOGO + '" alt="business surgery"><div class="cv-cap">БИЗНЕС-ТРЕКИНГ</div>' +
+    '<div class="cv-k">Итоги разбора' + (c.date ? ' · ' + esc(String(c.date).slice(0, 5)) : '') + '</div>' +
+    '<div class="cv-ct">' + esc(c.title) + '</div><div class="cv-line"></div>' +
+    (c.checklist || []).slice(0, 9).map(function(k){ return '<div class="cv-ci"><i></i><div>' + esc(k.text) + '</div></div>'; }).join('') +
+    '<div class="cv-f">' + esc(res ? res + ' · картинка для резидента' : 'Картинка для резидента') + '</div></div>';
+  document.getElementById('edBody').innerHTML = '<div class="cv-grid">' + main + card + '</div>';
+  window._callView = true; openSheet('editSheet'); window._callView = false;
+  if(c.audio && window.BSSync && BSSync.api){
+    BSSync.api('GET', '/files/' + encodeURIComponent(c.audio)).then(function(r){ return r.ok ? r.blob() : null; }).then(function(bl){
+      var a = document.getElementById('clAudio'); if(a && bl){ a.src = URL.createObjectURL(bl); }
+    }).catch(function(){});
+  }
+}
+(function(){
+  var _ct = callText;
+  callText = function(id){
+    var c = ((curBoard && curBoard.calls) || []).find(function(x){ return x.id === id; }); if(!c) return;
+    c.diagnoses = c.diagnoses || []; c.decisions = c.decisions || []; c.questions = c.questions || []; c.checklist = c.checklist || [];
+    return _ct.apply(this, arguments);
+  };
+})();
+</script>
+
 </body>
 </html>
