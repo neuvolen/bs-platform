@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -72,6 +73,17 @@ type AppGateway struct {
 	avIDs   map[int64]bool
 	avIDsAt time.Time
 
+	// Writes: club changes go to the server first, then to the script.
+	Writes *ClubWrites
+	// Stage says who answers the app's bundle: "sheet", "shadow" (the script,
+	// compared daily with the server) or "server" (migration.go).
+	Stage func(ctx context.Context) string
+	// Club is the server's club data the bundle is built from.
+	Club     AppBundleSource
+	aux      map[string]*cachedBundle
+	auxBusy  map[string]bool
+	srvStats struct{ served, fallbacks int }
+
 	// Done tells which meetings already happened (from the import).
 	Done    AppDoneSource
 	done    map[string]time.Time
@@ -92,6 +104,7 @@ type cachedBundle struct {
 	body       []byte
 	at         time.Time
 	refreshing bool
+	stale      bool // data changed since: served, but fetched again behind
 }
 
 type appStats struct {
@@ -245,15 +258,28 @@ func (g *AppGateway) params(in url.Values, action string, u *platformTgUser) url
 	if _, admin := g.Admins[u.ID]; admin && appTargetActions[action] && in.Get("chatId") != "" {
 		cid = in.Get("chatId")
 	}
-	ts := strconv.FormatInt(g.now().Unix(), 10)
-	out.Set("action", action)
-	out.Set("chatId", cid)
 	if n := fullName(u); n != "" {
 		out.Set("userName", n)
 	}
 	if u.Username != "" {
 		out.Set("userTg", u.Username)
 	}
+	return g.signed(out, action, cid)
+}
+
+// signed adds the action, the chatId and a fresh signature to a query whose
+// identity is already settled (a write sent again later).
+func (g *AppGateway) signed(in url.Values, action, cid string) url.Values {
+	out := url.Values{}
+	for k, v := range in {
+		if k == "_tg" || strings.HasPrefix(k, "_srv") {
+			continue
+		}
+		out[k] = v
+	}
+	ts := strconv.FormatInt(g.now().Unix(), 10)
+	out.Set("action", action)
+	out.Set("chatId", cid)
 	out.Set("_srv_ts", ts)
 	out.Set("_srv_sig", AppSign(g.token, action, cid, ts))
 	return out
@@ -266,14 +292,21 @@ func (g *AppGateway) get(ctx context.Context, q url.Values) ([]byte, error) {
 	}
 	resp, err := g.client.Do(req)
 	if err != nil {
+		if isTimeout(err) {
+			return nil, fmt.Errorf("%w: script unreachable", errScriptNoAnswer)
+		}
 		return nil, errors.New("script unreachable")
 	}
 	defer resp.Body.Close()
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", errScriptNoAnswer, err)
 	}
-	if resp.StatusCode >= 400 || !json.Valid(b) {
+	if resp.StatusCode >= 500 || (resp.StatusCode < 400 && !json.Valid(b)) {
+		// The script may have run before it failed: whether it wrote is unknown.
+		return nil, fmt.Errorf("%w: script answered %d", errScriptNoAnswer, resp.StatusCode)
+	}
+	if resp.StatusCode >= 400 {
 		return nil, errors.New("script answered " + strconv.Itoa(resp.StatusCode))
 	}
 	return b, nil
@@ -300,6 +333,18 @@ func (g *AppGateway) Call(c *gin.Context) {
 		g.bundle(c, q, u, in.Get("fresh") == "1")
 		return
 	}
+	if pg.ClubWriteActions[action] && g.Writes != nil {
+		// Club data: the server first, then the sheet (app_writes.go)
+		_, team := g.Admins[u.ID]
+		body := g.Writes.Do(c.Request.Context(), "app", u, action, q, team)
+		g.dropBundles()
+		g.logOp(c.Request.Context(), "app", u, action, q, body)
+		if action == "confirmMeeting" || action == "markAttendance" {
+			g.noteDone(action, map[string]string{"res": in.Get("res"), "date": in.Get("date"), "time": in.Get("time"), "names": in.Get("names")})
+		}
+		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+		return
+	}
 	body, err := g.get(c.Request.Context(), q)
 	g.note(err == nil, u.ID)
 	if err != nil {
@@ -320,12 +365,21 @@ func (g *AppGateway) Call(c *gin.Context) {
 func (g *AppGateway) dropBundles() {
 	g.mu.Lock()
 	g.bundles = map[string]*cachedBundle{}
+	for _, a := range g.aux { // the script's part is refreshed on the next open
+		a.stale = true
+	}
 	g.mu.Unlock()
 }
 
 // bundle hands out the person's data bundle: a fresh copy at once, an older
 // one at once while a new one is fetched, or waits for the script.
 func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, force bool) {
+	if g.Stage != nil && g.Club != nil && g.Stage(c.Request.Context()) == StageServer {
+		if g.serveServerBundle(c, q, u, force) {
+			return
+		}
+		// The server could not build it: the script answers, as before.
+	}
 	key := q.Get("chatId")
 	g.mu.Lock()
 	b := g.bundles[key]

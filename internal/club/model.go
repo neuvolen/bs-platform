@@ -26,6 +26,9 @@ type Resident struct {
 	Months    int64      `json:"months"`
 	Note      string     `json:"note"`
 	Partner   string     `json:"partner"`
+	// Archived: the row comes from «Бывшие резиденты», not from the debet
+	// sheet. The app's bundle lists only the debet sheet.
+	Archived bool `json:"archived,omitempty"`
 
 	// What the sheet itself computed (formulas F, J, K). Only for the
 	// import check; the server computes these on its own.
@@ -53,6 +56,11 @@ type Fine struct {
 	Amount int64     `json:"amount"`
 	Date   time.Time `json:"date"`
 	Paid   bool      `json:"paid"`
+	// Row is the sheet row (the app sends it back to find the fine); 0 for a
+	// fine the server wrote that the sheet has not numbered yet.
+	Row int `json:"row,omitempty"`
+	// Status is the «Статус» cell as is ("Не оплатил" when empty).
+	Status string `json:"status,omitempty"`
 }
 
 // Meeting is one row of «Расписание».
@@ -68,6 +76,12 @@ type Meeting struct {
 	Sent1h   bool      `json:"sent1h"`
 	Done     bool      `json:"done"`
 	EventID  string    `json:"eventId"`
+	// The sheet's row and its cells E, F and H as they are: the app's bundle
+	// shows them so, without the clean-up done for Place and Link.
+	Row      int    `json:"row,omitempty"`
+	AddrCell string `json:"-"`
+	LinkCell string `json:"-"`
+	HCell    string `json:"-"`
 }
 
 // ReportEntry is one row of «Лог отчётов».
@@ -79,12 +93,17 @@ type ReportEntry struct {
 	TgUserID int64     `json:"tgUserId"`
 	Thread   string    `json:"thread"`
 	Late     bool      `json:"late"`
+	// ShownAt is column A («Дата») as the sheet shows it: the app's bundle
+	// dates a report by it. Older rows carry the report's day at 23:59 there,
+	// not the moment it was sent.
+	ShownAt *time.Time `json:"shownAt,omitempty"`
 }
 
 // MeetingLogEntry is one row of «Лог встреч».
 type MeetingLogEntry struct {
 	Date     time.Time `json:"date"`
 	Resident string    `json:"resident"`
+	Time     string    `json:"time,omitempty"` // «Дата+время записи» as shown
 }
 
 // Setting is one bot text from «Настройки».
@@ -118,4 +137,8 @@ type Snapshot struct {
 	MeetingLog []MeetingLogEntry `json:"meetingLog"`
 	Settings   []Setting         `json:"settings"`
 	PL         *PLSheet          `json:"pl,omitempty"`
+	// Raw keeps the «PL» sheet and every sheet the server does not parse
+	// (e.g. «Профили») as displayed: the app's bundle reads them as the
+	// script does.
+	Raw Sheets `json:"-"`
 }

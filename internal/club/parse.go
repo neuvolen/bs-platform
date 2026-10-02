@@ -61,8 +61,18 @@ func Parse(s Sheets) (*Snapshot, []string, error) {
 	snap.MeetingLog = parseMeetingLog(s[SheetMeetingLog], w)
 	snap.Settings = parseSettings(s[SheetSettings])
 	snap.PL = parsePL(s[SheetPL], w)
+	snap.Raw = Sheets{}
+	for name, rows := range s {
+		if !parsedSheets[name] || name == SheetPL {
+			snap.Raw[name] = rows
+		}
+	}
 	return snap, warn, nil
 }
+
+// parsedSheets are read into the club tables; any other sheet is kept raw.
+var parsedSheets = map[string]bool{SheetDebet: true, SheetDDS: true, SheetPL: true, SheetFines: true, SheetSchedule: true,
+	SheetReports: true, SheetMeetingLog: true, SheetSettings: true, SheetFormer: true}
 
 // ── cells ────────────────────────────────────────────────────────────────
 
@@ -278,7 +288,7 @@ func parseFormer(rows [][]string, active []Resident, w func(string, ...any)) []R
 			continue // вернувшийся резидент живёт в дебете
 		}
 		m := func(f string) int64 { v, _ := Money(cell(r, col[f])); return v }
-		p := Resident{Name: name, Former: true, PaidEntry: m("paid"), RestEntry: m("rest"), RenewDebt: m("renew"),
+		p := Resident{Name: name, Former: true, Archived: true, PaidEntry: m("paid"), RestEntry: m("rest"), RenewDebt: m("renew"),
 			Tariff: m("tariff"), Source: strings.Trim(cell(r, col["source"]), "— "), Note: strings.Trim(cell(r, col["note"]), "— ")}
 		if d, ok := Date(cell(r, col["joined"])); ok {
 			p.JoinedAt = &d
@@ -352,8 +362,12 @@ func parseFines(rows [][]string, w func(string, ...any)) ([]Fine, error) {
 			continue
 		}
 		d, _ := Date(cell(r, col["date"]))
+		st := cell(r, col["status"])
+		if st == "" {
+			st = "Не оплатил" // as the script reads an empty status
+		}
 		out = append(out, Fine{Name: name, Type: cell(r, col["type"]), Amount: a, Date: d,
-			Paid: strings.EqualFold(cell(r, col["status"]), "Оплатил")})
+			Paid: strings.EqualFold(st, "Оплатил"), Row: i + 1, Status: st})
 	}
 	return out, nil
 }
@@ -376,7 +390,8 @@ func parseSchedule(rows [][]string, w func(string, ...any)) []Meeting {
 			w("%s, строка %d (%s): дата «%s» не читается", SheetSchedule, i+1, name, cell(r, col["date"]))
 			continue
 		}
-		m := Meeting{Resident: name, Date: d, Time: ClockTime(cell(r, col["time"]))}
+		m := Meeting{Resident: name, Date: d, Time: ClockTime(cell(r, col["time"])), Row: i + 1,
+			AddrCell: cell(r, 4), LinkCell: cell(r, 5), HCell: cell(r, 7)}
 		place := cell(r, col["addr"])
 		link := cell(r, col["link"])
 		if strings.HasPrefix(link, "http") {
@@ -417,6 +432,9 @@ func parseReports(rows [][]string, w func(string, ...any)) []ReportEntry {
 		if id, ok := Money(cell(r, 5)); ok {
 			e.TgUserID = id
 		}
+		if d, ok := Date(cell(r, 0)); ok {
+			e.ShownAt = &d
+		}
 		out = append(out, e)
 	}
 	return out
@@ -434,7 +452,7 @@ func parseMeetingLog(rows [][]string, w func(string, ...any)) []MeetingLogEntry 
 			w("%s, строка %d: дата «%s» не читается", SheetMeetingLog, i+1, cell(r, 0))
 			continue
 		}
-		out = append(out, MeetingLogEntry{Date: d, Resident: cell(r, 1)})
+		out = append(out, MeetingLogEntry{Date: d, Resident: cell(r, 1), Time: cell(r, 2)})
 	}
 	return out
 }

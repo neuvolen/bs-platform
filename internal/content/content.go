@@ -20,6 +20,11 @@ var guidesFS embed.FS
 //go:embed marketing.json
 var Marketing []byte
 
+// HowToApp: the picture in the bot's welcome showing how to open the app.
+//
+//go:embed howto_app.jpg
+var HowToApp []byte
+
 // Existing guides made earlier as PDF in the bot (sheet «Лид-магниты»).
 var existingMeta = map[string]map[string]any{
 	"g015": {"subtitle": "7 инструментов, чтобы заявки превращались в деньги", "promise": "Почему заявки есть, а продаж нет, и что с этим делать", "time": "30 дней", "level": "старт", "hero": map[string]any{"name": "Дамир", "business": "digital-агентство"}},

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -41,6 +42,10 @@ type LeadFunnel struct {
 	app    string // the Mini App, ?p=<page>
 	now    func() time.Time
 	mu     sync.Mutex
+
+	// Photo and Doc send a picture or a file (the bot service); nil in tests means text only.
+	Photo func(ctx context.Context, chatID int64, key string, photo []byte, caption string, kb map[string]any) error
+	Doc   func(ctx context.Context, chatID int64, key, name string, data []byte, fileID, caption string, kb map[string]any) error
 }
 
 func NewLeadFunnel(docs funnelDocs, send func(ctx context.Context, chatID int64, text string, kb map[string]any) error, admins []int64) *LeadFunnel {
@@ -155,62 +160,97 @@ func exampleTitles(day int) []string {
 	return out
 }
 
-func welcomeText(first string, examples []string) string {
+func welcomeText(first string) string {
 	var b strings.Builder
 	if first != "" {
-		b.WriteString("Привет, " + first + "! 👋\n\n")
+		b.WriteString("Привет, " + html.EscapeString(first) + "! 👋\n\n")
 	} else {
 		b.WriteString("Привет! 👋\n\n")
 	}
-	b.WriteString("Это Business Surgery, клуб бизнес-трекинга в Алматы.\n\n")
-	b.WriteString("Для вас открыты 99 гайдов-чек-листов по всем органам бизнеса: финансы, продажи, команда, маркетинг, стратегия, процессы, аналитика. В каждом история предпринимателя с цифрами до и после, шаги с таблицами и чек-листом. Читаются за 15 минут, PDF можно скачать.\n\n")
-	if len(examples) > 0 {
-		b.WriteString("Например:\n")
-		for _, e := range examples {
-			b.WriteString("• " + e + "\n")
-		}
-		b.WriteString("\n")
-	}
-	b.WriteString("Откройте приложение и начните с того, что болит сильнее всего 👇")
+	b.WriteString("Это <b>Business Surgery</b>, клуб бизнес-трекинга в Алматы.\n\n")
+	b.WriteString("Для вас бесплатно открыты <b>99 гайдов</b> по всем органам бизнеса: финансы, продажи, команда, маркетинг, стратегия. В каждом история предпринимателя с цифрами и пошаговый план.\n\n")
+	b.WriteString("Гайды в приложении BS. Оно открывается прямо в Telegram, ничего устанавливать не нужно. Нажмите белую кнопку ниже 👇")
 	return b.String()
 }
 
-// HandleStart answers a new person's /start (the hook of the bot service).
-func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
+// ensureLead finds or creates the lead of a Telegram user in the CRM.
+func (f *LeadFunnel) ensureLead(ctx context.Context, chatID int64, first, last, username, src, logNew, logAgain string, quietRepeat bool) (isNew, repeat bool, err error) {
 	now := f.now()
-	name := strings.TrimSpace(st.FirstName + " " + st.LastName)
+	name := strings.TrimSpace(first + " " + last)
 	if name == "" {
 		name = "Без имени"
 	}
-	src := startSource(st.Param)
-	isNew, repeat := false, false
-	err := f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
+	err = f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
 		leads, _ := crm["leads"].([]any)
-		lead := findLeadByTg(leads, st.ChatID)
+		lead := findLeadByTg(leads, chatID)
 		if lead != nil {
-			if t, err := time.Parse(time.RFC3339, fmt.Sprint(lead["lastStart"])); err == nil && now.Sub(t) < time.Minute {
+			if t, err := time.Parse(time.RFC3339, fmt.Sprint(lead["lastStart"])); quietRepeat && err == nil && now.Sub(t) < time.Minute {
 				repeat = true
 				return false
 			}
 			lead["lastStart"] = now.UTC().Format(time.RFC3339)
-			addLog(lead, now, "Снова нажал Старт в боте ("+src+")")
+			if logAgain != "" {
+				addLog(lead, now, logAgain)
+			}
 			return true
 		}
 		isNew = true
 		tg := ""
-		if st.Username != "" {
-			tg = "@" + st.Username
+		if username != "" {
+			tg = "@" + username
 		}
 		lead = map[string]any{
-			"id": fmt.Sprintf("tg%d", st.ChatID), "col": "new", "name": name, "phone": "", "tg": tg,
-			"tgId": st.ChatID, "source": src, "niche": "", "note": "", "sum": "",
+			"id": fmt.Sprintf("tg%d", chatID), "col": "new", "name": name, "phone": "", "tg": tg,
+			"tgId": chatID, "source": src, "niche": "", "note": "", "sum": "",
 			"date": now.In(almaty).Format("02.01.2006"), "funnel": "bot",
 			"startAt": now.UTC().Format(time.RFC3339), "lastStart": now.UTC().Format(time.RFC3339), "warm": 0,
 		}
-		addLog(lead, now, "Нажал Старт в боте ("+src+"), позван в приложение к 99 гайдам")
+		addLog(lead, now, logNew)
 		crm["leads"] = append([]any{lead}, leads...)
 		return true
 	})
+	if isNew {
+		who := name
+		if username != "" {
+			who += " @" + username
+		}
+		for _, a := range f.admins {
+			_ = f.send(ctx, a, fmt.Sprintf("Новый лид: %s\nИсточник: %s\n🆔 %d\n\nПозван в приложение к гайдам, карточка в CRM платформы.", who, src, chatID), nil)
+		}
+	}
+	return
+}
+
+// sendWelcome: one message, a picture showing how to open the app and the app buttons.
+func (f *LeadFunnel) sendWelcome(ctx context.Context, chatID int64, first, param string) error {
+	top := row(f.appBtn("📘 Открыть 99 гайдов", "checklists"))
+	rows := [][]map[string]any{}
+	if i := strings.Index(param, "g"); (strings.HasPrefix(param, "guide_") || strings.HasPrefix(param, "pdf_")) && i > 0 {
+		if t := content.GuideTitle(param[i:]); t != "" {
+			rows = append(rows, row(f.appBtn("📘 "+t, "guide_"+param[i:])))
+			top = row(f.appBtn("📚 Все 99 гайдов", "checklists"))
+		}
+	}
+	rows = append(rows, top,
+		row(f.appBtn("🔬 Диагностика бизнеса", "diagnostic")),
+		row(map[string]any{"text": "✋ Я резидент BS", "callback_data": "i_am_resident"}))
+	keys := map[string]any{"inline_keyboard": rows}
+	text := welcomeText(first)
+	if f.Photo != nil && len(content.HowToApp) > 0 {
+		if err := f.Photo(ctx, chatID, "howto_app", content.HowToApp, text, keys); err == nil {
+			return nil
+		} else {
+			log.Printf("funnel: welcome photo %d: %v", chatID, err)
+		}
+	}
+	return f.send(ctx, chatID, strings.NewReplacer("<b>", "", "</b>", "").Replace(text), keys)
+}
+
+// HandleStart answers a new person's /start (the hook of the bot service).
+func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
+	src := startSource(st.Param)
+	_, repeat, err := f.ensureLead(ctx, st.ChatID, st.FirstName, st.LastName, st.Username, src,
+		"Нажал Старт в боте ("+src+"), позван в приложение к 99 гайдам", "Снова нажал Старт в боте ("+src+")", true)
 	if err != nil {
 		log.Printf("funnel: crm: %v", err)
 		return false // the script answers instead
@@ -218,33 +258,48 @@ func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
 	if repeat {
 		return true // the second /start within a minute: quiet, like the script
 	}
-	text := welcomeText(st.FirstName, exampleTitles(now.YearDay()))
-	first := row(f.appBtn("📘 Открыть 99 гайдов", "checklists"))
-	if i := strings.Index(st.Param, "g"); (strings.HasPrefix(st.Param, "guide_") || strings.HasPrefix(st.Param, "pdf_")) && i > 0 {
-		if t := content.GuideTitle(st.Param[i:]); t != "" {
-			first = row(f.appBtn("📘 "+t, "guide_"+st.Param[i:]))
-		}
-	}
-	keys := kb(
-		first,
-		row(f.appBtn("📚 Все 99 гайдов", "checklists")),
-		row(f.appBtn("🔬 Диагностика бизнеса", "diagnostic")),
-		row(map[string]any{"text": "✋ Я резидент BS", "callback_data": "i_am_resident"}),
-	)
-	if err := f.send(ctx, st.ChatID, text, keys); err != nil {
+	if err := f.sendWelcome(ctx, st.ChatID, st.FirstName, st.Param); err != nil {
 		log.Printf("funnel: welcome %d: %v", st.ChatID, err)
 		return false
 	}
-	if isNew {
-		who := name
-		if st.Username != "" {
-			who += " @" + st.Username
+	return true
+}
+
+// Old script buttons (lead magnets) map to the guides.
+var lmGuide = map[string]string{"sales": "g015", "unit": "g078", "delegate": "g057", "hire": "g043", "marketing": "g029",
+	"cashflow": "g001", "scripts": "g016", "team_culture": "g044", "metrics": "g069", "crisis": "g079"}
+
+// HandleCallback answers the buttons of the script's old lead-magnet menu.
+func (f *LeadFunnel) HandleCallback(ctx context.Context, cb bot.CallbackUpdate) bool {
+	if cb.Data == "sub_leadmagnets" || cb.Data == "sub_menu" {
+		_, _, _ = f.ensureLead(ctx, cb.ChatID, cb.FirstName, "", cb.Username, "Telegram: старое меню бота", "Открыл меню материалов в боте", "", false)
+		return f.sendWelcome(ctx, cb.ChatID, cb.FirstName, "") == nil
+	}
+	id := lmGuide[strings.TrimPrefix(cb.Data, "lm_")]
+	title := content.GuideTitle(id)
+	if title == "" {
+		_, _, _ = f.ensureLead(ctx, cb.ChatID, cb.FirstName, "", cb.Username, "Telegram: старое меню бота", "Открыл меню материалов в боте", "", false)
+		return f.sendWelcome(ctx, cb.ChatID, cb.FirstName, "") == nil
+	}
+	_, _, _ = f.ensureLead(ctx, cb.ChatID, cb.FirstName, "", cb.Username, "Гайд: "+title, "Взял PDF «"+title+"» из меню бота", "", false)
+	keys := kb(row(f.appBtn("📘 Читать в приложении", "guide_"+id)), row(f.appBtn("📚 Ещё 98 гайдов", "checklists")))
+	caption := "📘 " + title + "\n\nВ приложении BS этот гайд удобно читать с телефона и отмечать пункты чек-листа."
+	if f.Doc != nil {
+		fileID := ""
+		if key, ok := content.LeadMagnetKey[id]; ok {
+			fileID = leadMagnets[key].FileID
 		}
-		for _, a := range f.admins {
-			_ = f.send(ctx, a, fmt.Sprintf("Новый лид: %s\nИсточник: %s\n🆔 %d\n\nПозван в приложение к гайдам, карточка в CRM платформы.", who, src, st.ChatID), nil)
+		pdf := content.GuidePDF(id)
+		if fileID != "" || pdf != nil {
+			if err := f.Doc(ctx, cb.ChatID, "guide_"+id, "BS — "+title+".pdf", pdf, fileID, caption, keys); err == nil {
+				_ = f.Downloaded(ctx, cb.ChatID, id, title)
+				return true
+			} else {
+				log.Printf("funnel: lm %s → %d: %v", id, cb.ChatID, err)
+			}
 		}
 	}
-	return true
+	return f.send(ctx, cb.ChatID, caption, keys) == nil
 }
 
 // ── Прогресс по чек-листам ──

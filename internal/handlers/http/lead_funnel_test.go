@@ -26,6 +26,7 @@ func TestLeadFunnel(t *testing.T) {
 	repo := pg.NewPlatformRepo(e.db)
 	f := NewLeadFunnel(repo, e.svc.SendMessageKB, []int64{111})
 	e.svc.SetStartHook(f.HandleStart)
+	e.svc.SetCallbackHook(f.HandleCallback)
 	e.useTestRelay()
 
 	sentTo := func(chat int64) []map[string]any {
@@ -79,6 +80,24 @@ func TestLeadFunnel(t *testing.T) {
 		t.Fatalf("repeat start answered: %d", len(sentTo(777)))
 	}
 
+	// An old script menu button: the server answers with the guide and the app.
+	e.hook(`{"update_id":5010,"callback_query":{"id":"cb1","from":{"id":555,"first_name":"Олжас"},"data":"lm_unit","message":{"message_id":1,"chat":{"id":555,"type":"private"}}}}`)
+	e.hook(`{"update_id":5011,"callback_query":{"id":"cb2","from":{"id":888,"first_name":"Рез"},"data":"lm_unit","message":{"message_id":2,"chat":{"id":888,"type":"private"}}}}`)
+	time.Sleep(900 * time.Millisecond)
+	if m := sentTo(555); len(m) != 1 || !strings.Contains(m[0]["text"].(string), "Анатомия бизнеса") {
+		t.Fatalf("lm_unit: %v", m)
+	}
+	e.script.mu.Lock()
+	for _, u := range e.script.got {
+		if int64(u["update_id"].(float64)) == 5010 {
+			t.Fatal("a lead's menu button must not reach the script")
+		}
+	}
+	e.script.mu.Unlock()
+	if len(sentTo(888)) != 0 {
+		t.Fatal("a resident's button belongs to the script")
+	}
+
 	// Checklist progress: a lead finishes one and is invited, once.
 	r := ckReport{ID: "c007", Title: "Платёжный календарь", Organ: "Финансы", Done: 9, Total: 10}
 	if err := f.Progress(ctx, 777, "Айдар", "aidar", "lead", "", r); err != nil {
@@ -111,7 +130,7 @@ func TestLeadFunnel(t *testing.T) {
 		return time.Date(x.Year(), x.Month(), x.Day(), 12, 0, 0, 0, almaty)
 	}
 	f.now = func() time.Time { return noon(2) }
-	if n := f.WarmOnce(ctx); n != 1 {
+	if n := f.WarmOnce(ctx); n != 2 { // Айдар and Олжас from the old menu
 		t.Fatalf("warm day 1: %d", n)
 	}
 	if n := f.WarmOnce(ctx); n != 0 {
@@ -127,7 +146,7 @@ func TestLeadFunnel(t *testing.T) {
 		t.Fatal("warm at night")
 	}
 	f.now = func() time.Time { return noon(4) }
-	if n := f.WarmOnce(ctx); n != 1 {
+	if n := f.WarmOnce(ctx); n != 2 {
 		t.Fatal("warm day 3")
 	}
 }

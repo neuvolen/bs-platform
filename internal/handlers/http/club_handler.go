@@ -19,6 +19,7 @@ import (
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 // ClubHandler serves the club data moved from the Google Sheet.
@@ -106,6 +107,7 @@ type clubImportReport struct {
 	PLMismatch    []club.Mismatch     `json:"plMismatch"`
 	Unplaced      []club.UnknownEntry `json:"unplaced"`
 	PlatformUsers int                 `json:"platformResidents"`
+	Reapplied     int                 `json:"reapplied"` // server writes put back on top of the sheet's copy
 }
 
 // Import godoc
@@ -181,7 +183,17 @@ func (h *ClubHandler) Import(c *gin.Context) {
 	}
 
 	if !dry {
-		if err := h.repo.ReplaceAll(ctx, snap, by); err != nil {
+		// Club writes the sheet did not have when it sent this copy are put back on top.
+		sheetAt := time.Now()
+		if req.TS > 0 {
+			sheetAt = time.Unix(req.TS, 0)
+		}
+		reapply := func(ctx context.Context, tx pgx.Tx) error {
+			n, err := h.repo.ReapplyAfterImport(ctx, tx, sheetAt)
+			rep.Reapplied = n
+			return err
+		}
+		if err := h.repo.ReplaceAllThen(ctx, snap, by, reapply); err != nil {
 			if errors.Is(err, pg.ErrServerIsMaster) {
 				c.JSON(http.StatusConflict, gin.H{"error": "server_is_master", "detail": "Данные уже ведутся на сервере, таблица их не перезаписывает"})
 				return

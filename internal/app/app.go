@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"github.com/bnursik/business_surgery_backend/internal/bot"
+	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -257,8 +259,15 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 		}
 		f := httpapi.NewLeadFunnel(d.PlatformRepo, botSvc.SendMessageKB, admins)
 		g.Funnel = f
+		f.Photo, f.Doc = botSvc.SendPhotoKB, botSvc.SendDocumentKB
 		if os.Getenv("LEAD_FUNNEL") != "off" {
 			botSvc.SetStartHook(f.HandleStart)
+			botSvc.SetCallbackHook(f.HandleCallback)
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				botSvc.EnsureMenuButton(ctx)
+			}()
 			go f.WarmLoop(context.Background())
 		}
 	}
@@ -277,6 +286,61 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 		defer cancel()
 		_ = repo.SetMeta(ctx, bot.MetaAppLastOK, time.Now().UTC().Format(time.RFC3339))
 	}
-	action := httpapi.NewClubActionHandler(g, pg.NewClubRepo(d.DB), d.PlatformRepo, staticSeed)
-	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewClubActionModule(action, []byte(jwtSecret))}
+	// Moving the club off the sheet, step 2: club writes go to the server
+	// first, and the app's bundle moves to the server once it matches.
+	clubRepo := pg.NewClubRepo(d.DB)
+	g.Club = clubRepo
+	writes := httpapi.NewClubWrites(clubRepo, g)
+	g.Writes = writes
+	var seedMu sync.Mutex
+	writes.Tables = func() { // the platform's club sections show the change at once
+		seedMu.Lock()
+		defer seedMu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		if err := httpapi.RefreshPlatformSeed(ctx, clubRepo, d.PlatformRepo, staticSeed); err != nil {
+			log.Printf("platform seed: %v", err)
+		}
+	}
+	var docs interface {
+		PutServerDoc(ctx context.Context, key, value string) error
+	}
+	if d.PlatformRepo != nil {
+		docs = d.PlatformRepo
+	}
+	mig := httpapi.NewBundleMigration(g, clubRepo, repo, docs, writes)
+	mig.Sample = parseBundleSample(os.Getenv("BUNDLE_SAMPLE"))
+	if botSvc != nil && botSvc.Enabled() {
+		if ids := botSvc.NotifyIDs(); len(ids) > 0 {
+			mig.Owner = ids[0]
+		}
+		mig.Notify = func(ctx context.Context, text string) {
+			for _, id := range botSvc.NotifyIDs() {
+				if err := botSvc.SendMessage(ctx, id, text); err != nil {
+					log.Printf("migration notify %d: %v", id, err)
+				}
+			}
+		}
+	}
+	go writes.Loop(context.Background())
+	go mig.Loop(context.Background())
+
+	action := httpapi.NewClubActionHandler(g, clubRepo, d.PlatformRepo, staticSeed)
+	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewClubActionModule(action, []byte(jwtSecret)),
+		httpapi.NewMigrationModule(mig, []byte(jwtSecret))}
+}
+
+// parseBundleSample reads "admin:453800951,resident:490685605,lead:999".
+func parseBundleSample(v string) []httpapi.SampleUser {
+	var out []httpapi.SampleUser
+	for _, part := range strings.Split(v, ",") {
+		role, id, ok := strings.Cut(strings.TrimSpace(part), ":")
+		if !ok {
+			continue
+		}
+		if n, err := strconv.ParseInt(strings.TrimSpace(id), 10, 64); err == nil && n > 0 {
+			out = append(out, httpapi.SampleUser{Role: strings.TrimSpace(role), TgID: n})
+		}
+	}
+	return out
 }

@@ -71,6 +71,13 @@ func (r *ClubRepo) LogImport(ctx context.Context, by string, dry bool, raw []byt
 
 // ReplaceAll puts a whole sheet snapshot in place, in one transaction.
 func (r *ClubRepo) ReplaceAll(ctx context.Context, s *club.Snapshot, by string) error {
+	return r.ReplaceAllThen(ctx, s, by, nil)
+}
+
+// ReplaceAllThen is ReplaceAll with then run in the same transaction after
+// the snapshot is in place: club writes the sheet does not have yet are put
+// back on top of it, so an import never undoes them.
+func (r *ClubRepo) ReplaceAllThen(ctx context.Context, s *club.Snapshot, by string, then func(ctx context.Context, tx pgx.Tx) error) error {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -111,10 +118,10 @@ func (r *ClubRepo) ReplaceAll(ctx context.Context, s *club.Snapshot, by string) 
 	b := &pgx.Batch{}
 	for _, p := range s.Residents {
 		b.Queue(`INSERT INTO club_residents (name, tg_id, format, tariff, meetings_granted, meetings_done,
-			paid_entry, rest_entry, renew_debt, former, exception, admin, source, joined_at, left_at, months, note, partner, updated_by)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+			paid_entry, rest_entry, renew_debt, former, exception, admin, source, joined_at, left_at, months, note, partner, updated_by, archived)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
 			p.Name, nullID(p.TgID), p.Format, p.Tariff, p.Granted, p.Done, p.PaidEntry, p.RestEntry, p.RenewDebt,
-			p.Former, p.Exception, p.Admin, p.Source, date(p.JoinedAt), date(p.LeftAt), p.Months, p.Note, p.Partner, by)
+			p.Former, p.Exception, p.Admin, p.Source, date(p.JoinedAt), date(p.LeftAt), p.Months, p.Note, p.Partner, by, p.Archived)
 	}
 	for _, p := range s.Payments {
 		b.Queue(`INSERT INTO club_payments (sheet_row, date, income, expense, income_cat, resident, expense_cat, applied, source, created_by)
@@ -122,20 +129,33 @@ func (r *ClubRepo) ReplaceAll(ctx context.Context, s *club.Snapshot, by string) 
 			p.Row, day(p.Date), p.Income, p.Expense, p.IncomeCat, p.Resident, p.ExpenseCat, p.Applied, by)
 	}
 	for _, f := range s.Fines {
-		b.Queue(`INSERT INTO club_fines (resident, type, amount, date, paid, created_by) VALUES ($1,$2,$3,$4,$5,$6)`,
-			f.Name, f.Type, f.Amount, day(f.Date), f.Paid, by)
+		b.Queue(`INSERT INTO club_fines (resident, type, amount, date, paid, created_by, sheet_row, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+			f.Name, f.Type, f.Amount, day(f.Date), f.Paid, by, nullID(int64(f.Row)), f.Status)
 	}
 	for _, m := range s.Meetings {
-		b.Queue(`INSERT INTO club_meetings (resident, date, time, place, link, online, sent_3d, sent_1d, sent_1h, done, event_id)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-			m.Resident, day(m.Date), m.Time, m.Place, m.Link, m.Online, m.Sent3d, m.Sent1d, m.Sent1h, m.Done, m.EventID)
+		b.Queue(`INSERT INTO club_meetings (resident, date, time, place, link, online, sent_3d, sent_1d, sent_1h, done, event_id,
+			sheet_row, addr_cell, link_cell, h_cell)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+			m.Resident, day(m.Date), m.Time, m.Place, m.Link, m.Online, m.Sent3d, m.Sent1d, m.Sent1h, m.Done, m.EventID,
+			nullID(int64(m.Row)), m.AddrCell, m.LinkCell, m.HCell)
 	}
 	for _, e := range s.Reports {
-		b.Queue(`INSERT INTO club_reports (at, username, name, text, tg_user_id, thread, late) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-			e.At, e.Username, e.Name, e.Text, nullID(e.TgUserID), e.Thread, e.Late)
+		b.Queue(`INSERT INTO club_reports (at, username, name, text, tg_user_id, thread, late, shown_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+			e.At, e.Username, e.Name, e.Text, nullID(e.TgUserID), e.Thread, e.Late, e.ShownAt)
 	}
 	for _, e := range s.MeetingLog {
-		b.Queue(`INSERT INTO club_meeting_log (date, resident) VALUES ($1,$2)`, day(e.Date), e.Resident)
+		b.Queue(`INSERT INTO club_meeting_log (date, resident, time_cell) VALUES ($1,$2,$3)`, day(e.Date), e.Resident, e.Time)
+	}
+	if s.Raw != nil {
+		// Листы как есть: PL и всё, что сервер не раскладывает по таблицам
+		b.Queue(`DELETE FROM club_sheets`)
+		for name, rows := range s.Raw {
+			raw, err := json.Marshal(rows)
+			if err != nil {
+				return err
+			}
+			b.Queue(`INSERT INTO club_sheets (name, rows) VALUES ($1,$2)`, name, raw)
+		}
 	}
 	for _, st := range s.Settings {
 		b.Queue(`INSERT INTO club_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`, st.Key, st.Value)
@@ -157,6 +177,11 @@ func (r *ClubRepo) ReplaceAll(ctx context.Context, s *club.Snapshot, by string) 
 	if err := br.Close(); err != nil {
 		return err
 	}
+	if then != nil {
+		if err := then(ctx, tx); err != nil {
+			return err
+		}
+	}
 	return tx.Commit(ctx)
 }
 
@@ -175,7 +200,7 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 	}
 
 	rows, err := r.db.Pool.Query(ctx, `SELECT name, COALESCE(tg_id,0), format, tariff, meetings_granted, meetings_done,
-		paid_entry, rest_entry, renew_debt, former, exception, admin, source, joined_at, left_at, months, note, partner
+		paid_entry, rest_entry, renew_debt, former, exception, admin, source, joined_at, left_at, months, note, partner, archived
 		FROM club_residents ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -184,7 +209,7 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 		var p club.Resident
 		var j, l *time.Time
 		if err := rows.Scan(&p.Name, &p.TgID, &p.Format, &p.Tariff, &p.Granted, &p.Done, &p.PaidEntry, &p.RestEntry,
-			&p.RenewDebt, &p.Former, &p.Exception, &p.Admin, &p.Source, &j, &l, &p.Months, &p.Note, &p.Partner); err != nil {
+			&p.RenewDebt, &p.Former, &p.Exception, &p.Admin, &p.Source, &j, &l, &p.Months, &p.Note, &p.Partner, &p.Archived); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -210,14 +235,14 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 	}
 	rows.Close()
 
-	rows, err = r.db.Pool.Query(ctx, `SELECT resident, type, amount, date, paid FROM club_fines ORDER BY id`)
+	rows, err = r.db.Pool.Query(ctx, `SELECT resident, type, amount, date, paid, COALESCE(sheet_row,0), status FROM club_fines ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		var f club.Fine
 		var d *time.Time
-		if err := rows.Scan(&f.Name, &f.Type, &f.Amount, &d, &f.Paid); err != nil {
+		if err := rows.Scan(&f.Name, &f.Type, &f.Amount, &d, &f.Paid, &f.Row, &f.Status); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -228,7 +253,8 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 	}
 	rows.Close()
 
-	rows, err = r.db.Pool.Query(ctx, `SELECT resident, date, time, place, link, online, sent_3d, sent_1d, sent_1h, done, event_id
+	rows, err = r.db.Pool.Query(ctx, `SELECT resident, date, time, place, link, online, sent_3d, sent_1d, sent_1h, done, event_id,
+		COALESCE(sheet_row,0), addr_cell, link_cell, h_cell
 		FROM club_meetings ORDER BY date, time, id`)
 	if err != nil {
 		return nil, err
@@ -236,7 +262,8 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 	for rows.Next() {
 		var m club.Meeting
 		var d time.Time
-		if err := rows.Scan(&m.Resident, &d, &m.Time, &m.Place, &m.Link, &m.Online, &m.Sent3d, &m.Sent1d, &m.Sent1h, &m.Done, &m.EventID); err != nil {
+		if err := rows.Scan(&m.Resident, &d, &m.Time, &m.Place, &m.Link, &m.Online, &m.Sent3d, &m.Sent1d, &m.Sent1h, &m.Done, &m.EventID,
+			&m.Row, &m.AddrCell, &m.LinkCell, &m.HCell); err != nil {
 			rows.Close()
 			return nil, err
 		}

@@ -88,6 +88,30 @@ func (h *ClubActionHandler) Action(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "not_telegram_user"})
 		return
 	}
+	if h.gw.Writes != nil {
+		// The server first, then the sheet; a write the script does not take waits on the server.
+		in := url.Values{}
+		for k, v := range params {
+			in.Set(k, v)
+		}
+		u := &platformTgUser{ID: tg}
+		q := h.gw.params(in, req.Action, u)
+		body := h.gw.Writes.Do(ctx, "platform", u, req.Action, q, true)
+		h.gw.logOp(ctx, "platform", u, req.Action, q, body)
+		var res map[string]any
+		_ = json.Unmarshal(body, &res)
+		if e, _ := res["error"].(string); e != "" {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "script", "detail": e})
+			return
+		}
+		if err := RefreshPlatformSeed(ctx, h.club, h.platform, h.seed); err != nil {
+			log.Printf("platform seed: %v", err)
+		}
+		dup, _ := res["deduplicated"].(bool)
+		queued, _ := res["queued"].(bool)
+		c.JSON(http.StatusOK, gin.H{"ok": true, "duplicate": dup, "queued": queued, "script": res})
+		return
+	}
 	res, err := h.gw.CallAs(ctx, tg, "", req.Action, params)
 	{
 		q := url.Values{}

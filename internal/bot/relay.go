@@ -59,6 +59,8 @@ type Service struct {
 	mu        sync.RWMutex
 	relayURL  string
 	startHook StartHook
+	cbHook    CallbackHook
+	files     sync.Map // Telegram file_id of what the server uploaded
 }
 
 type Options struct {
@@ -136,6 +138,9 @@ func (s *Service) SetRelayURL(ctx context.Context, u string) error {
 	_, _ = s.refreshFeatures(ctx)
 	return nil
 }
+
+// NotifyIDs: who gets the owner's reports (the daily comparisons).
+func (s *Service) NotifyIDs() []int64 { return s.notify }
 
 // Master: who keeps the club's data, "sheet" or "server".
 func (s *Service) Master(ctx context.Context) string {
@@ -340,7 +345,7 @@ func (s *Service) worker(ctx context.Context) {
 }
 
 func (s *Service) relayOne(ctx context.Context, u *pg.BotUpdate) {
-	if u.Kind == "message" && u.Tries <= 1 && s.takeStart(ctx, u.Body) {
+	if u.Tries <= 1 && ((u.Kind == "message" && s.takeStart(ctx, u.Body)) || (u.Kind == "callback_query" && s.takeCallback(ctx, u.Body))) {
 		if e := s.repo.MarkRelayed(ctx, u.UpdateID, 204, 0); e != nil {
 			log.Printf("bot relay: mark %d: %v", u.UpdateID, e)
 		}
