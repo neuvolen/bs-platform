@@ -539,6 +539,19 @@ func (a *applier) apply(action string, p map[string]string) error {
 			}
 			return a.deleteFines(gone)
 		}
+		// Оплата резидента продлевает пакет встреч (addMeetingsOnPayment): за каждый
+		// оплаченный период пакет по тарифу, остаток (или перебор) переносится
+		if res != "" {
+			r, err := a.resident(res)
+			if err != nil || r.tariff <= 0 || amount/r.tariff < 1 {
+				return nil
+			}
+			total := tariffMonths(r.tariff)*3*(amount/r.tariff) + r.granted - r.done
+			if total < 0 {
+				total = 0
+			}
+			return a.update("club_residents", r.id, `meetings_done = 0, meetings_granted = $2`, total)
+		}
 		return nil
 
 	case "addSchedule":

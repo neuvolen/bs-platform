@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"github.com/bnursik/business_surgery_backend/internal/club"
 	"github.com/bnursik/business_surgery_backend/internal/middleware"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
@@ -398,7 +399,9 @@ type MigrationStatus struct {
 	Writes     pg.WriteStats         `json:"writes"`
 	Served     int                   `json:"servedByServer"`
 	Fallbacks  int                   `json:"fallbacks"`
-	UpdatedAt  time.Time             `json:"updatedAt"`
+	// ScriptUpdate: the sheet's self-update (latest shipped, running, last update, last error)
+	ScriptUpdate bot.ScriptUpdateStatus `json:"script"`
+	UpdatedAt    time.Time              `json:"updatedAt"`
 }
 
 func (m *BundleMigration) Status(ctx context.Context) (MigrationStatus, error) {
@@ -432,6 +435,7 @@ func (m *BundleMigration) Status(ctx context.Context) (MigrationStatus, error) {
 		return st, err
 	}
 	st.Served, st.Fallbacks = m.gw.ServerStats()
+	st.ScriptUpdate = bot.ReadScriptUpdate(ctx, m.meta)
 	return st, nil
 }
 

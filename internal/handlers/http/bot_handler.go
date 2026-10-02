@@ -6,10 +6,12 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
+	"github.com/bnursik/business_surgery_backend/internal/content"
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,6 +39,8 @@ func (m *BotModule) Register(r *gin.Engine) {
 	r.POST("/api/v1/bot/features", m.h.SetFeatures)
 	r.POST("/api/v1/bot/control", m.h.Control)
 	r.POST("/api/v1/bot/tick", m.h.Tick)
+	r.GET("/api/v1/script/latest", m.h.ScriptLatest)
+	r.POST("/api/v1/script/updated", m.h.ScriptUpdated)
 }
 
 // Webhook godoc
@@ -305,4 +309,76 @@ func (h *BotHandler) Tick(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, h.svc.Tick(c.Request.Context(), now))
+}
+
+// signedGet checks a GET signed by the sheet:
+// X-BS-Signature = hex(HMAC-SHA256("GET " + path + "?" + raw query, bot token)),
+// the query has ts (unix seconds), not older than an hour.
+func (h *BotHandler) signedGet(c *gin.Context) bool {
+	if !h.svc.Enabled() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "telegram_not_configured"})
+		return false
+	}
+	canon := "GET " + c.Request.URL.Path + "?" + c.Request.URL.RawQuery
+	if !VerifyBotSignature([]byte(canon), c.GetHeader("X-BS-Signature"), h.svc.Token()) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "bad_signature"})
+		return false
+	}
+	ts, err := strconv.ParseInt(c.Query("ts"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad ts"})
+		return false
+	}
+	if d := time.Since(time.Unix(ts, 0)); d > time.Hour || d < -5*time.Minute {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "stale_request"})
+		return false
+	}
+	return true
+}
+
+// ScriptLatest godoc
+// @Summary  The latest Apps Script code of the sheet, for its self-update
+// @Description  Signed GET by the sheet (see signedGet), query version = its own BS_VERSION. Answer {version, relay, files:[{name,type,source}]}; files are empty when the sheet already runs this version. The bot token in the code is the mark "__BS_BOT_TOKEN__"; the sheet puts its own back.
+// @Tags     bot
+// @Router   /api/v1/script/latest [get]
+func (h *BotHandler) ScriptLatest(c *gin.Context) {
+	if !h.signedGet(c) {
+		return
+	}
+	have := strings.TrimSpace(c.Query("version"))
+	if have != "" {
+		h.svc.NoteScript(c.Request.Context(), have)
+	}
+	v := content.ScriptVersion()
+	out := gin.H{"version": v, "relay": h.svc.RelayURL(), "files": []content.ScriptFile{}}
+	if have == v {
+		out["upToDate"] = true
+	} else {
+		out["files"] = content.ScriptFiles()
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// ScriptUpdated godoc
+// @Summary  The sheet reports how its self-update went
+// @Description  Signed by the sheet: {ts, version, from, deploymentId, versionNumber} after an update, or {ts, version, error} after a failure. Kept in bot_meta, shown in /api/v1/club/migration (script).
+// @Tags     bot
+// @Router   /api/v1/script/updated [post]
+func (h *BotHandler) ScriptUpdated(c *gin.Context) {
+	var req bot.ScriptUpdated
+	if !h.signed(c, &req) {
+		return
+	}
+	if strings.TrimSpace(req.Version) == "" && req.Error == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no version"})
+		return
+	}
+	if len(req.Error) > 1000 {
+		req.Error = req.Error[:1000]
+	}
+	if err := h.svc.NoteScriptUpdated(c.Request.Context(), req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "latest": content.ScriptVersion()})
 }

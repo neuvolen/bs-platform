@@ -7,11 +7,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"github.com/bnursik/business_surgery_backend/internal/club"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/bnursik/business_surgery_backend/migrations"
@@ -401,7 +403,8 @@ func TestBundleMigrationStages(t *testing.T) {
 		t.Fatal("clean days are silent")
 	}
 	st, err := e.mig.Status(ctx)
-	if err != nil || st.Streak != BundleStreak || st.StageBy != "auto" || len(st.History) != BundleStreak || len(st.Script) == 0 {
+	if err != nil || st.Streak != BundleStreak || st.StageBy != "auto" || len(st.History) != BundleStreak || len(st.Script) == 0 ||
+		st.ScriptUpdate.Latest != bot.LatestScript {
 		t.Fatalf("status %+v %v", st, err)
 	}
 
@@ -486,5 +489,39 @@ func TestClubWritesNextWriteSendsWaitingFirst(t *testing.T) {
 	}
 	if got := strings.Join(e.f.actions(), ","); got != "addFine,setPartner" || e.statuses(t) != "addFine:sent setPartner:sent" {
 		t.Fatalf("order %s, %s", got, e.statuses(t))
+	}
+}
+
+// A resident's payment extends the package as the script's addMeetingsOnPayment
+// does (v32): the tariff stays, «проведено» goes to 0, the rest carries over.
+// A fine payment leaves the package alone.
+func TestClubResidentPaymentExtendsPackage(t *testing.T) {
+	e := newClubEnv(t)
+	ctx := context.Background()
+	row := func() (tariff, granted, done int64) {
+		t.Helper()
+		if err := e.db.Pool.QueryRow(ctx, `SELECT tariff, meetings_granted, meetings_done FROM club_residents WHERE name = 'Асет'`).Scan(&tariff, &granted, &done); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	t0, g0, d0 := row()
+	if t0 <= 0 {
+		t.Fatalf("tariff %d", t0)
+	}
+	e.call(453800951, "addPayment", "type", "income", "src", "БХ Штраф", "amount", "10000", "isCash", "true", "resident", "Асет")
+	if t1, g1, d1 := row(); t1 != t0 || g1 != g0 || d1 != d0 {
+		t.Fatalf("fine payment changed the package: %d %d %d", t1, g1, d1)
+	}
+	e.call(453800951, "addPayment", "type", "income", "src", "БХ Трекинг продление", "amount", strconv.FormatInt(2*t0, 10), "isCash", "false", "resident", "Асет")
+	months := int64(3)
+	switch {
+	case t0 >= 1000000:
+		months = 12
+	case t0 < 400000:
+		months = 1
+	}
+	if t1, g1, d1 := row(); t1 != t0 || d1 != 0 || g1 != months*3*2+g0-d0 {
+		t.Fatalf("after payment: tariff %d granted %d done %d (was %d %d %d)", t1, g1, d1, t0, g0, d0)
 	}
 }
