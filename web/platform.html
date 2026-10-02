@@ -10135,9 +10135,9 @@ function diagHistoryHTML(){
   if(h.length < 1) return '';
   return '<div class="dh" style="margin-top:24px">История прохождений</div>' +
     '<div class="dyn">' + h.map(function(x){
-      return '<div class="dyncol"><div class="dynbar" style="height:'+(x.avg*11)+'px;' +
-        'background:linear-gradient(180deg,'+healthColor(x.avg)+',rgba(0,0,0,.3))"></div>' +
-        '<div class="dynv" style="color:'+healthColor(x.avg)+'">'+x.avg+'</div>' +
+      return '<div class="dyncol"><div class="dynbar hxb" style="height:'+(x.avg*11)+'px;' +
+        hVars(x.avg)+'background:var(--hf)"></div>' +
+        '<div class="dynv hx" style="'+hVars(x.avg)+'">'+x.avg+'</div>' +
         '<div class="dynl">'+esc(x.date)+'</div></div>';
     }).join('') + '</div>' +
     (h.length > 1 ? '<div class="dbox g" style="margin-top:14px;font-size:13px">' +
@@ -11266,7 +11266,7 @@ function renderTotalAnalysis(){
     '<div class="bs-progress" style="margin-top:12px"><i style="width:'+pct+'%"></i></div></div>' +
     (h0 ? '<div class="card-sum" style="margin-top:12px"><div class="sum-row">' +
       '<div><div class="bs-l">Здоровье в начале</div><div class="sum-v">'+Math.round(h0)+'</div></div>' +
-      '<div><div class="bs-l">Сейчас</div><div class="sum-v" style="color:'+healthColor(hn/10)+'">'+Math.round(hn)+'</div></div>' +
+      '<div><div class="bs-l">Сейчас</div><div class="sum-v hx" style="'+hVars(hn/10)+'">'+Math.round(hn)+'</div></div>' +
       '<div><div class="bs-l">Изменение</div><div class="sum-v" style="color:'+(delta>0?'#3DD68C':'#FF4D4D')+'">'+
         (delta>0?'+':'')+Math.round(delta)+'</div></div>' +
     '</div></div>' : '') +
@@ -11490,7 +11490,7 @@ function openPrep(){
   h += '<div class="card-sum"><div class="sum-row">' +
     '<div><div class="bs-l">Задачи</div><div class="sum-v" style="color:'+
       (d.pct>=70?'var(--gold)':(d.pct>=40?'#DADADA':'#FF4D4D'))+'">'+d.done+' / '+d.tasks.length+'</div></div>' +
-    '<div><div class="bs-l">Здоровье</div><div class="sum-v" style="color:'+healthColor(d.hTotal/10)+'">'+d.hTotal+'</div></div>' +
+    '<div><div class="bs-l">Здоровье</div><div class="sum-v hx" style="'+(d.hTotal?hVars(d.hTotal/10):'')+'">'+d.hTotal+'</div></div>' +
     (d.bAvg ? '<div><div class="bs-l">Колесо бизнеса</div><div class="sum-v">'+d.bAvg+'</div></div>' : '') +
     (d.wAvg ? '<div><div class="bs-l">Баланс</div><div class="sum-v">'+d.wAvg+'</div></div>' : '') +
     '</div><div class="bs-progress" style="margin-top:12px"><i style="width:'+d.pct+'%"></i></div></div>';
@@ -11521,11 +11521,11 @@ function openPrep(){
   // Здоровье с динамикой
   h += '<div class="dh" style="margin-top:22px">Здоровье органов</div><div class="card-sum">' +
     d.health.map(function(x){
-      var c = x.v ? healthColor(x.v) : 'var(--t3)';
+      var c = x.v ? healthColor(x.v) : 'var(--t3)', hv = x.v ? hVars(x.v) : '';
       var dv = (x.prev !== null && x.prev) ? x.v - x.prev : null;
       return '<div class="axrow"><div class="axname">'+x.n+'</div>' +
-        '<div class="axbar"><i style="width:'+(x.v*10)+'%;background:'+c+'"></i></div>' +
-        '<div style="width:52px;text-align:right;font-weight:800;color:'+c+'">'+(x.v||'-')+
+        '<div class="axbar"><i class="hxb" style="width:'+(x.v*10)+'%;'+hv+'background:'+c+'"></i></div>' +
+        '<div class="'+(hv?'hx':'')+'" style="width:52px;text-align:right;font-weight:800;'+(hv||'color:'+c+';')+'">'+(x.v||'-')+
         (dv ? ' <span style="font-size:10.5px;color:'+(dv>0?'#3DD68C':'#FF4D4D')+'">'+
           (dv>0?'+':'')+dv+'</span>' : '')+'</div></div>';
     }).join('') + '</div>';
@@ -11766,7 +11766,7 @@ function renderLeadWeek(){
   el.innerHTML =
     '<div class="card-sum">' +
       '<div class="bs-l">Ваша слабая зона</div>' +
-      '<div style="font-size:24px;font-weight:900;color:'+healthColor(dg[weak])+';margin:8px 0 4px">'+
+      '<div class="hx" style="font-size:24px;font-weight:900;'+hVars(dg[weak])+'margin:8px 0 4px">'+
         esc(weak)+'</div>' +
       '<div style="font-size:13px;color:var(--t3)">'+Math.round(dg[weak]*10)+'% по диагностике</div>' +
     '</div>' +
@@ -11831,7 +11831,7 @@ function renderLeadSignal(){
 
   el.innerHTML =
     '<div class="diag-top">' +
-      '<div class="diag-score" style="color:'+healthColor(avg)+'">'+Math.round(avg*10)+'%</div>' +
+      '<div class="diag-score hx" style="'+hVars(avg)+'">'+Math.round(avg*10)+'%</div>' +
       '<div class="diag-lbl">Здоровье вашего бизнеса</div>' +
     '</div>' +
     '<div class="dh" style="margin-top:22px">Что мы видим</div>' +
@@ -13462,11 +13462,34 @@ var ORG_MAP = [
   {k:'dna',    n:'Процессы',  label:'ДНК'},
   {k:'eyes',   n:'Аналитика', label:'Зрение'}
 ];
-function healthColor(v){
-  // 0 красный, 5 золото, 10 зелёный
-  if(v <= 0) return '#3A3A3A';
-  if(v < 5){ var t = v/5; return mixHex('#FF4D4D', '#FFFFFF', t); }
-  var t2 = (v-5)/5; return mixHex('#FFFFFF', '#3DD68C', t2);
+// Расходящаяся шкала здоровья: 0 красный, 5 белый (нейтрально), 10 зелёный, плавно по значению.
+// healthColor: заливка (обе темы, на белом с тонкой обводкой), healthInk: текст и линии в светлой теме
+var H_RED = '#FF6B6F', H_MID = '#FFFFFF', H_GREEN = '#3DD68C';
+var H_INK_RED = '#E5484D', H_INK_MID = '#3A3A40', H_INK_GREEN = '#16A05E';
+function hNum(v){
+  if(v === null || v === undefined || v === '') return null;
+  var n = Number(v); return isFinite(n) ? Math.max(0, Math.min(10, n)) : null;
+}
+function hScale(v, lo, mid, hi){
+  var n = hNum(v); if(n === null) return null;
+  return n < 5 ? mixHex(lo, mid, n / 5) : mixHex(mid, hi, (n - 5) / 5);
+}
+function healthColor(v){ return hScale(v, H_RED, H_MID, H_GREEN) || 'rgba(255,255,255,.3)'; }
+// Чернила светлой темы: оттенок набирается быстрее (3 уже заметно красный, 7 заметно зелёный), иначе середина грязнит цвет
+function healthInk(v){
+  var n = hNum(v); if(n === null) return 'rgba(20,20,22,.4)';
+  var d = Math.abs(n - 5) / 5, e = 1 - (1 - d) * (1 - d);
+  return mixHex(H_INK_MID, n < 5 ? H_INK_RED : H_INK_GREEN, e);
+}
+// CSS-переменные для элемента с оценкой: --hf заливка, --hi текст в светлой теме, --ha рамка, --hb подложка
+function hVars(v){
+  var n = hNum(v); if(n === null) return '';
+  var f = healthColor(n), d = Math.abs(n - 5) / 5;
+  return '--hf:' + f + ';--hi:' + healthInk(n) + ';--ha:' + rgba(f, (.14 + .3 * d).toFixed(2)) + ';--hb:' + rgba(f, (.11 * d).toFixed(3)) + ';';
+}
+function hLegendHTML(){
+  return '<div class="hleg" aria-label="Шкала цвета"><i class="hleg-bar"></i><span><b class="hx" style="' + hVars(0) + '">0</b> красный · ' +
+    '<b class="hx" style="' + hVars(5) + '">5</b> белый · <b class="hx" style="' + hVars(10) + '">10</b> зелёный</span></div>';
 }
 function rgba(col, a){
   // healthColor отдаёт rgb(r,g,b), добавляем прозрачность корректно
@@ -13925,10 +13948,11 @@ function drawBody(h, boxId){
   if(!box) return;
   var gid = 'bdG' + (++BODY_N);
   function lv(k){ return hLevel(h[k]); }
-  function sc(k){ var v = Number(h[k]) || 0; return v ? String(v) : '-'; }
+  function sc(k){ var v = hNum(h[k]); return v === null ? '-' : String(v); }
+  function hsx(k){ var v = hNum(h[k]); return v === null ? '' : ' hs" style="' + hVars(v); }
   function grp(k, inner, halo){
     var l = lv(k), lit = l === 'hr' || l === 'hg';
-    return '<g class="bo ' + l + '" data-o="' + k + '">' +
+    return '<g class="bo ' + l + hsx(k) + '" data-o="' + k + '">' +
       (lit && halo ? '<ellipse cx="' + halo[0] + '" cy="' + halo[1] + '" rx="' + halo[2] + '" ry="' + (halo[3] || halo[2]) + '" class="bo-halo" filter="url(#' + gid + 'b)"/>' : '') +
       '<g' + (lit ? ' filter="url(#' + gid + ')"' : '') + '>' + inner + '</g></g>';
   }
@@ -14005,8 +14029,8 @@ function drawBody(h, boxId){
   var pins = PINS.map(function(p){
     var o = ORG_MAP.find(function(x){ return x.k === p.k; }) || {n:p.k, label:''};
     var x0 = p.side < 0 ? 8 : 370, x1 = p.side < 0 ? 150 : 512, inner = p.side < 0 ? x1 : x0;
-    var v = Number(h[p.k]) || 0;
-    return '<g class="bo ' + lv(p.k) + ' bo-pin" data-pin="' + p.k + '">' +
+    var v = hNum(h[p.k]) !== null;
+    return '<g class="bo ' + lv(p.k) + ' bo-pin' + hsx(p.k) + '" data-pin="' + p.k + '">' +
       '<rect x="' + x0 + '" y="' + (p.y - 40) + '" width="' + (x1 - x0) + '" height="44" class="bo-hit"/>' +
       '<path d="M' + p.ax + ' ' + p.ay + 'L' + inner + ' ' + p.y + '" class="bo-ld"/>' +
       '<path d="M' + x0 + ' ' + p.y + 'H' + x1 + '" class="bo-ul"/>' +
@@ -14035,7 +14059,7 @@ function drawBody(h, boxId){
     grp('brain', br, [260, 38, 24, 15]) +
     grp('eyes', ey, [260, 56, 20, 7]) +
     pins +
-    '<g class="bo ' + tl + ' bo-tot"><text x="260" y="596" class="bo-tv">' + (tot || '-') + '</text>' +
+    '<g class="bo ' + tl + ' bo-tot' + (tot ? ' hs" style="' + hVars(tot / 10) : '') + '"><text x="260" y="596" class="bo-tv">' + (tot || '-') + '</text>' +
       '<text x="260" y="616" class="bo-tl">ОБЩАЯ ОЦЕНКА ИЗ 100' + (tot ? ' · ' + esc(hVerdict(tot / 10)).toUpperCase() : '') + '</text></g>' +
   '</svg>';
 }
@@ -16290,27 +16314,27 @@ function hTone(v){
 // Цвет текста оценки: белый средний уровень в светлой теме становится тёмным
 function hText(v){ v = Number(v) || 0; return (v >= 4 && v < 7) || v <= 0 ? 'var(--ptx)' : hTone(v); }
 function hVerdict(v){
-  v = Number(v) || 0;
-  if(!v) return 'Нет оценки';
+  if(hNum(v) === null) return 'Нет оценки';
+  v = hNum(v);
   if(v < 4) return 'Критично';
   if(v < 6) return 'Слабо';
   if(v < 8) return 'Норма';
   return 'Сильно';
 }
-function hLevel(v){ v = Number(v) || 0; return !v ? 'h0' : (v < 4 ? 'hr' : (v < 7 ? 'hw' : 'hg')); }
+function hLevel(v){ v = hNum(v); return v === null ? 'h0' : (v < 4 ? 'hr' : (v < 7 ? 'hw' : 'hg')); }
 function healthCardsHTML(h, editable){
-  return '<div class="hc-list">' + ORG_MAP.map(function(o){
-    var v = Number(h[o.k]) || 0, lv = hLevel(v);
+  return '<div class="hc-list">' + hLegendHTML() + ORG_MAP.map(function(o){
+    var n = hNum(h[o.k]), v = n === null ? 0 : n, lv = hLevel(n);
     var segs = '';
     for(var i = 1; i <= 10; i++){
       segs += '<i class="' + (i <= v ? 'on' : '') + '"' + (editable ? ' onclick="setHealth(\'' + o.k + '\',' + i + ')" title="' + i + '"' : '') + '></i>';
     }
-    return '<div class="hc ' + lv + '">' +
+    return '<div class="hc ' + lv + (n === null ? '' : ' hs') + '" style="' + hVars(n) + '">' +
       '<div class="hc-ic">' + organArt(o.n, 40) + '</div>' +
       '<div class="hc-b"><div class="hc-top"><span class="hc-n">' + esc(o.n) + '</span><span class="hc-l">' + esc(o.label) + '</span>' +
-        '<span class="hc-v">' + esc(hVerdict(v)) + '</span></div>' +
+        '<span class="hc-v">' + esc(hVerdict(n)) + '</span></div>' +
         '<div class="hc-seg' + (editable ? ' ed' : '') + '">' + segs + '</div></div>' +
-      '<div class="hc-s">' + (v || '-') + '<small>/10</small></div>' +
+      '<div class="hc-s">' + (n === null ? '-' : n) + '<small>/10</small></div>' +
     '</div>';
   }).join('') + '</div>';
 }
@@ -16327,7 +16351,9 @@ function renderHealth(){
     : 'Оцените каждый орган от 0 до 10';
   var sc = document.getElementById('hltScore');
   sc.querySelector('.hs-v').textContent = score;
-  sc.querySelector('.hs-v').style.color = hText(score / 10);
+  var hsv = sc.querySelector('.hs-v');
+  hsv.classList.add('hx'); hsv.style.color = '';
+  hsv.setAttribute('style', score ? hVars(score / 10) : '');
   drawBody(h);
   document.getElementById('hltList').innerHTML = healthCardsHTML(h, MODE === 'admin');
   var hist = [];
@@ -16339,8 +16365,8 @@ function renderHealth(){
   if(hist.length > 1){
     dyn.innerHTML = '<div class="dh">Динамика здоровья</div><div class="dyn">' + hist.map(function(x){
       var s = healthScore(x.h);
-      return '<div class="dyncol"><div class="dynbar" style="height:' + (s * 1.3) + 'px;background:' + hTone(s / 10) + ';opacity:.85"></div>' +
-        '<div class="dynv" style="color:' + hText(s / 10) + '">' + s + '</div><div class="dynl">Ц' + x.version + '</div></div>';
+      return '<div class="dyncol"><div class="dynbar hxb" style="height:' + (s * 1.3) + 'px;' + hVars(s / 10) + '"></div>' +
+        '<div class="dynv hx" style="' + hVars(s / 10) + '">' + s + '</div><div class="dynl">Ц' + x.version + '</div></div>';
     }).join('') + '</div>';
   } else dyn.innerHTML = '';
 }
@@ -16359,7 +16385,7 @@ function renderLeadHealth(){
   var h = (curBoard && curBoard.health) || {};
   var score = healthScore(h);
   el.innerHTML = '<div class="card-sum hc-total"><div class="bs-l">Общая оценка</div>' +
-      '<div class="hc-big" style="color:' + hText(score / 10) + '">' + score + '</div><div class="pf-sub">из 100 · нажмите на шкалу органа, чтобы оценить</div></div>' +
+      '<div class="hc-big hx" style="' + (score ? hVars(score / 10) : '') + '">' + score + '</div><div class="pf-sub">из 100 · нажмите на шкалу органа, чтобы оценить</div></div>' +
     healthCardsHTML(h, true) +
     '<div class="dbox g" style="margin-top:16px;font-size:13px">' +
       'На разборе трекеры оценивают эти же органы независимо. Сравнение вашей оценки ' +
@@ -22607,6 +22633,39 @@ body.light .g16{--gi:#141414;--gm:rgba(20,20,22,.66);--gs:rgba(20,20,22,.44);--g
 .hlt-st.busy{color:var(--ptx)}
 .hlt-st-h{font-weight:800;color:var(--ptx);margin-bottom:4px}
 .hlt-why{color:var(--pm)} .hlt-why b{color:var(--ptx)}
+</style>
+<style id="r19Style">
+/* ═══ R19: здоровье бизнеса, расходящаяся шкала 0 красный · 5 белый · 10 зелёный ═══ */
+.hx{color:var(--hf,inherit)}
+body.light .hx{color:var(--hi,inherit)}
+.hxb{background:var(--hf)}
+body.light .hxb{box-shadow:inset 0 0 0 1px rgba(20,20,22,.2)}
+.hleg{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11.5px;font-weight:700;color:var(--pm);padding:2px 2px 4px}
+.hleg-bar{display:block;width:96px;height:8px;border-radius:4px;flex-shrink:0;
+  background:linear-gradient(90deg,#FF6B6F,#FFFFFF 50%,#3DD68C);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+body.light .hleg-bar{box-shadow:inset 0 0 0 1px rgba(20,20,22,.2)}
+.hleg b{font-weight:900}
+/* Карточки органов */
+.hc.hs{--hc:var(--hf);border-color:var(--ha);background:linear-gradient(90deg,var(--hb),transparent 70%),var(--pc)}
+body.light .hc.hs{--hc:var(--hi)}
+.hc.hs .hc-seg i.on{background:var(--hf)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+body.light .hc.hs .hc-seg i.on{box-shadow:inset 0 0 0 1px rgba(20,20,22,.22)}
+.hc-v{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hc.hs .hc-s{min-width:0;flex-shrink:0;padding:5px 8px 4px;border-radius:10px;background:var(--hf);color:#141414;font-size:20px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+body.light .hc.hs .hc-s{box-shadow:inset 0 0 0 1px rgba(20,20,22,.2)}
+.hc.hs .hc-s small{color:rgba(20,20,22,.55)}
+@media (max-width:520px){.hc .hc-l{display:none}.hc{gap:11px;padding:10px 12px}.hc.hs .hc-s{font-size:18px;padding:4px 7px 3px}}
+/* Силуэт: органы, выноски, оценки */
+.bo.hs{--oc:var(--hf);--ot:var(--hf)}
+body.light .bo.hs{--oc:var(--hi);--ot:var(--hi)}
+.bo-tot.hs .bo-tv,body.light .bd-svg .bo.hs .bo-v,.bd-svg .bo.hs .bo-v{fill:var(--ot)}
+/* Белый (около 5) на тёмном: заливка белым и тонкая обводка, чтобы читалось как нейтральное */
+.bo.hs.hw .bo-f,.bo.hs.hw .bo-f2{fill:var(--hf);fill-opacity:.32}
+.bo.hs.hw .bo-fl{stroke:rgba(0,0,0,.35);stroke-width:.6}
+body.light .bo.hs.hw .bo-f,body.light .bo.hs.hw .bo-f2{fill:#FFFFFF;fill-opacity:1;stroke:var(--hi)}
+.bo.hs.hg .bo-halo{opacity:.22}
+body.light .bo.hs.hg .bo-halo{opacity:.14}
 </style>
 <script id="r16Script">
 (function(){
