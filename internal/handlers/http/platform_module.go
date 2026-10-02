@@ -66,12 +66,14 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/ai/jobs/:id/retry", m.AI.RetryCall) // platform_calls.go: записи разборов
 	g.GET("/ai/calls", m.AI.Calls)
 	g.POST("/ai/events", m.AI.RefreshEvents)
+	g.GET("/ai/events", m.AI.EventsStatus)
 	g.POST("/ai/recs", m.AI.RecsNow)
 	g.POST("/ai/recs/:id", m.AI.RecAction)
 	g.POST("/ai/marketing", m.AI.Marketing)
 	g.POST("/ai/gallup", m.AI.Gallup) // platform_gallup.go: 34 talents from a Gallup report
 	g.POST("/ai/health", m.AI.Health) // platform_health.go: organ scores for «Здоровье бизнеса»
 	g.POST("/tts", m.AI.TTS)          // platform_tts.go: voice guide (onboarding)
+	g.POST("/tts/warm", m.AI.TTSWarm) // platform_tts_warm.go: the tour phrases made ahead of time
 	g.GET("/guide/:id", m.AI.GuideForPlatform)
 	g.GET("/ops", m.AI.OpsList)
 	g.POST("/threads/publish", m.AI.ThreadsNow)

@@ -7264,13 +7264,13 @@ var BLOCKS = {
     {id:'custdev',  n:'CustDev'},
     {id:'nps',      n:'NPS'},
     {id:'crmPrompts',n:'Промпты ИИ'}]},
-  // R15: маркетинг отдельным блоком (раньше был внутри «Продаж»), сюда же «Полезное» (Threads)
+  // R24: маркетинг в пяти разделах. Старые sCA, sRub, smm, useful ведут в новые места (mktRoute)
   mkt:     {name:'Маркетинг', tabs:[
-    {id:'mktA',     n:'Маркетинговый анализ'},
+    {id:'mHome',    n:'Обзор'},
+    {id:'mktA',     n:'Стратегия'},
     {id:'content',  n:'Контент-завод'},
-    {id:'smm',      n:'SMM планер'},
-    {id:'useful',   n:'Полезное'},
-    {id:'mNotes',   n:'Заметки маркетинга'}]},
+    {id:'sCreo',    n:'Креативы'},
+    {id:'mNotes',   n:'Заметки'}]},
   lib:     {name:'BS', tabs:[
     {id:'guides', n:'Интерактивные чек-листы'},
     {id:'kanban',   n:'Цели и задачи'},
@@ -7530,6 +7530,7 @@ window.bsRerenderLive = function(){
 };
 function goSection(s){
   if(s === 'checklists') s = 'guides';
+  s = mktRoute(s);
   section = s;
   pfSideSync(s);
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -7558,7 +7559,7 @@ function goSection(s){
               rDiag:renderDiagTest, rGallup:renderGallup, rHealth:renderResHealth,
               rStats:renderStats, rFines:renderResFines, mycal:renderMyCal, rInvite:renderInvite, rOnboard:renderOnboard, rNumbers:renderNumbers, aNumbers:renderNumbers, rHist:renderReportHistory, rAch:renderAch, diagMap:renderDiagMap, rLabs:renderLabs, rAnalysis:renderMeasAnalysis,
               lDiag:renderLeadDiag, lTools:renderLeadTools, lHealth:renderLeadHealth, lUpgrade:renderUpgrade, lWeek:renderLeadWeek, lSignal:renderLeadSignal,
-              mNotes:renderMktNotes, mktA:renderMktA, smm:renderSMM, content:renderContent, useful:renderUseful, guides:renderGuides, events:renderEvents, aiRec:renderAIRec, rtasks:renderRTasks, rreport:renderRReport,
+              mHome:renderMktHome, mNotes:renderMktNotes, mktA:renderMktA, smm:renderSMM, content:renderContent, useful:renderUseful, guides:renderGuides, events:renderEvents, aiRec:renderAIRec, rtasks:renderRTasks, rreport:renderRReport,
                rwheel:renderLifeWheel, bizWheel:renderBizWheel, rprofile:renderRProfile, rCalls:function(){ renderRCalls(); }}[s];
     if(fn) fn(); else renderStub(s);
   }
@@ -7983,6 +7984,8 @@ function openResident(i){
     cell('Оплачено', money(String(r.paid||0))||'0', r.tariff ? 'тариф ' + money(String(r.tariff)) : '') +
     cell('Штрафы', money(String(r.fines||0))||'0', fines.length ? fines.length + ' начислений' : '', !!r.fines) +
     '</div></div>';
+  // R23: настройки резидента (исключение, формат, дата входа, партнёр, Chat ID): только команде
+  if(window.r23ResSlot) h += r23ResSlot(r);
   if(board){
     var bn = board.nodes || [];
     var pA = bn.find(n=>n.role==='pointA'), pB = bn.find(n=>n.role==='pointB'), st = bn.find(n=>n.role==='strategy');
@@ -8012,6 +8015,7 @@ function openResident(i){
   document.getElementById('cardBody').innerHTML = h;
   var cb0 = document.getElementById('coverBtn'); if(cb0) cb0.style.display='none';
   openSheet('cardSheet');
+  if(window.r23ResLoad) r23ResLoad(r.name);
 }
 function newBoardFor(name){
   goBlock('track'); goSection('board');
@@ -9593,22 +9597,23 @@ function saveMkt(){ try{ localStorage.setItem('bs_mkt', JSON.stringify(MKT)); }c
 
 function renderMktNotes(){
   if(!MKT) loadMkt();
-  var el = pgSet('Заметки маркетинга', MKT.notes.length + ' идей');
-  el.innerHTML = '<button class="btn bg" style="width:100%;padding:13px;margin-bottom:14px" ' +
-    'onclick="addMktNote()">+ Добавить идею</button>' +
-    (MKT.notes.length ? MKT.notes.map(function(n,i){
-      return '<div class="row" onclick="editMktNote('+i+')">' +
-        '<div class="row-bar" style="background:var(--gold)"></div>' +
-        '<div style="flex:1"><div class="row-t">'+esc(n.t)+'</div>' +
-        (n.d?'<div class="row-d">'+esc(n.d)+'</div>':'') +
-        '<div class="row-o" style="color:var(--t3)">'+esc(n.date||'')+'</div></div></div>';
-    }).join('') : '<div class="empt">Идей пока нет</div>');
+  // R24: карточки заметок, кнопка в шапке, заметку можно отправить в идеи Контент-завода
+  var n = MKT.notes.length;
+  var el = pgSet('Заметки', n ? fmtN(n) + ' ' + czPl(n, 'заметка', 'заметки', 'заметок') + ' · темы, формулировки и кейсы для контента' : 'Темы, формулировки и кейсы для контента');
+  var pa = document.getElementById('phAct'); if(pa) pa.innerHTML = '<button class="btn pf-b pf-p" id="mnAdd" onclick="addMktNote()">+ Заметка</button>';
+  el.innerHTML = n ? '<div class="mn-grid" id="mnGrid">' + MKT.notes.map(function(x, i){
+      var inI = mkIdeaHas(x.t);
+      return '<div class="mn-c" data-i="' + i + '" onclick="editMktNote(' + i + ')"><div class="mn-t">' + esc(x.t) + '</div>' +
+        (x.d ? '<div class="mn-d">' + esc(x.d) + '</div>' : '') +
+        '<div class="mn-f"><span>' + esc(x.date || '') + '</span><button class="mk-lnk' + (inI ? ' on' : '') + '" onclick="event.stopPropagation();mnToIdea(' + i + ')">' + (inI ? 'В идеях ✓' : 'В идеи контента') + '</button></div></div>';
+    }).join('') + '</div>'
+    : mkEmpty('Заметок пока нет', 'Записывайте сюда темы постов, удачные формулировки и кейсы резидентов, чтобы не потерять', '+ Заметка', 'addMktNote()');
 }
 function addMktNote(){ editMktNote(null); }
 function editMktNote(i){
   var n = (i!==null) ? MKT.notes[i] : {t:'', d:''};
-  document.getElementById('edTitle').textContent = i!==null ? 'Идея' : 'Новая идея';
-  document.getElementById('edSub').textContent = '';
+  document.getElementById('edTitle').textContent = i!==null ? 'Заметка' : 'Новая заметка';
+  document.getElementById('edSub').textContent = 'Маркетинг · Заметки';
   document.getElementById('edBody').innerHTML =
     fieldHTML('Тема', 'mkT', n.t) + fieldHTML('Развёрнуто', 'mkD', n.d, 4) +
     '<div style="display:flex;gap:9px"><button class="btn bg" style="flex:1;padding:14px" ' +
@@ -9624,30 +9629,21 @@ function saveMktNote(i){
   saveMkt(); closeSheet('editSheet'); renderMktNotes(); toast('Сохранено');
 }
 function delMktNote(i){
-  askConfirm('Удалить идею?', MKT.notes[i].t, function(){
+  askConfirm('Удалить заметку?', MKT.notes[i].t, function(){
     MKT.notes.splice(i,1); saveMkt(); closeSheet('editSheet'); renderMktNotes();
   });
 }
 
+// R24: бывший «SMM планер» стал вкладкой «Идеи» в Контент-заводе (второго календаря больше нет)
 function renderSMM(){
-  if(!MKT) loadMkt();
-  var el = pgSet('SMM планер', MKT.posts.length + ' публикаций');
-  var PLAT = ['Instagram','Threads','Telegram'];
-  el.innerHTML = '<button class="btn bg" style="width:100%;padding:13px;margin-bottom:14px" ' +
-    'onclick="editPost(null)">+ Запланировать пост</button>' +
-    (MKT.posts.length ? MKT.posts.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(function(p,i){
-      var st = p.done ? 'var(--gold)' : 'var(--bd2)';
-      return '<div class="row" onclick="editPost('+MKT.posts.indexOf(p)+')">' +
-        '<div class="row-bar" style="background:'+st+'"></div>' +
-        '<div style="flex:1"><div class="row-t">'+esc(p.t)+'</div>' +
-        '<div class="row-d">'+esc(p.plat||'')+' · '+esc(p.format||'')+'</div></div>' +
-        '<div class="row-m">'+esc(p.date||'')+'<br>'+(p.done?'опубликовано':'запланировано')+'</div></div>';
-    }).join('') : '<div class="empt">Публикаций пока нет</div>');
+  CT.view = 'ideas'; CT._v0 = 1;
+  if(section !== 'content' || !document.getElementById('czBody')){ goSection('content'); return; }
+  czPaint();
 }
 function editPost(i){
-  var p = (i!==null) ? MKT.posts[i] : {t:'', plat:'Instagram', format:'Пост', date:'', text:'', done:false};
-  document.getElementById('edTitle').textContent = i!==null ? 'Публикация' : 'Новая публикация';
-  document.getElementById('edSub').textContent = '';
+  var p = (i!==null) ? MKT.posts[i] : {t:'', plat:'Threads', format:'Пост', date:'', text:'', done:false};
+  document.getElementById('edTitle').textContent = i!==null ? 'Идея' : 'Новая идея';
+  document.getElementById('edSub').textContent = 'Контент-завод · Идеи';
   document.getElementById('edBody').innerHTML =
     fieldHTML('Тема', 'psT', p.t) +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
@@ -9657,10 +9653,10 @@ function editPost(i){
       '<div class="field"><div class="lbl">Формат</div><select class="inp" id="psF">' +
         ['Пост','Карусель','Reels','Сторис'].map(x=>'<option'+(p.format===x?' selected':'')+'>'+x+'</option>').join('') +
       '</select></div></div>' +
-    '<div class="field"><div class="lbl">Дата</div><input class="inp" type="date" id="psD" value="'+(p.date||'')+'"></div>' +
+    '<div class="field"><div class="lbl">Желаемая дата</div><input class="inp" type="date" id="psD" value="'+(p.date||'')+'"></div>' +
     fieldHTML('Текст', 'psX', p.text, 5) +
     '<div class="field"><div class="lbl">Статус</div>' +
-      '<div class="tkt"><div class="tkb ps'+(!p.done?' on':'')+'" onclick="postDone(false)">Запланировано</div>' +
+      '<div class="tkt"><div class="tkb ps'+(!p.done?' on':'')+'" onclick="postDone(false)">В работе</div>' +
       '<div class="tkb ps'+(p.done?' on':'')+'" onclick="postDone(true)">Опубликовано</div></div></div>' +
     '<div style="display:flex;gap:9px"><button class="btn bg" style="flex:1;padding:14px" ' +
     'onclick="savePost('+(i===null?'null':i)+')">Сохранить</button>' +
@@ -9678,11 +9674,11 @@ function savePost(i){
     date:document.getElementById('psD').value, text:document.getElementById('psX').value.trim(),
     done:!!window._postDone};
   if(!o.t) return;
-  if(i===null) MKT.posts.push(o); else MKT.posts[i]=o;
+  if(i===null) MKT.posts.push(o); else MKT.posts[i]=Object.assign({}, MKT.posts[i], o); // src и ct (связь с календарём) не теряются
   saveMkt(); closeSheet('editSheet'); renderSMM(); toast('Сохранено');
 }
 function delPost(i){
-  askConfirm('Удалить публикацию?', MKT.posts[i].t, function(){
+  askConfirm('Удалить идею?', MKT.posts[i].t, function(){
     MKT.posts.splice(i,1); saveMkt(); closeSheet('editSheet'); renderSMM();
   });
 }
@@ -11115,18 +11111,24 @@ function loadUseful(){
   ]};
 }
 function saveUseful(){ try{ localStorage.setItem('bs_useful', JSON.stringify(USEFUL)); }catch(e){} }
+// R24: «Полезное» живёт вкладкой в Контент-заводе; renderUseful перерисовывает её или открывает
 function renderUseful(){
   if(!USEFUL) loadUseful();
-  var el = pgSet('Полезное', 'Материалы для ежедневной публикации в группу');
+  CT.view = 'useful'; CT._v0 = 1;
+  if(section !== 'content' || !document.getElementById('czBody')){ goSection('content'); return; }
+  czPaint();
+}
+function usefulHTML(){
+  if(!USEFUL) loadUseful();
   var pend = USEFUL.items.filter(function(x){ return !x.done; }).length;
-  el.innerHTML = threadsCardHTML() +
+  return '<div class="cx-note">Материал дня для топика «Полезное» в группе клуба: бот каждый день берёт верхний неопубликованный пункт и отмечает его опубликованным.</div>' +
+    threadsCardHTML() +
     '<div class="card-sum" style="margin-bottom:14px"><div class="sum-row">' +
       '<div><div class="bs-l">В очереди</div><div class="sum-v">'+pend+'</div></div>' +
-      '<div><div class="bs-l">Опубликовано</div><div class="sum-v" style="color:var(--gold)">'+
+      '<div><div class="bs-l">Опубликовано</div><div class="sum-v">'+
         (USEFUL.items.length-pend)+'</div></div>' +
     '</div></div>' +
-    '<button class="btn bg" style="width:100%;padding:13px;margin-bottom:14px" onclick="editUseful(null)">' +
-      '+ Добавить материал</button>' +
+    (!USEFUL.items.length ? mkEmpty('Очередь пуста', 'Добавьте материал: заголовок и готовый текст поста. Бот опубликует его в ближайший день', '+ Материал', 'editUseful(null)') :
     (function(){ var MD = ['az','tag','new','queue'], md = bslMode('useful', MD);
       return bslBar('useful', MD, md, 'renderUseful') + bslRender(bslApply(USEFUL.items.map(function(x, i){ return {x:x, i:i}; }), md,
         {t:function(o){ return o.x.t; }, g:function(o){ return o.x.tag || 'Без темы'; }, n:function(o){ return o.i; }}), function(o){ var x = o.x, i = o.i;
@@ -11139,10 +11141,7 @@ function renderUseful(){
           '<div class="row-d">'+esc(x.txt||'').slice(0,120)+'</div>' +
           (x.threads ? '<span class="thr-b" title="Опубликовано в Threads">Threads ✓ ' + esc(thrDate(x.threads)) + '</span>' : '') + '</div>' +
         '<div class="row-m">'+(x.done?'опубликовано':(x.d||'в очереди'))+'</div></div>';
-    }); })() +
-    '<div class="dbox g" style="margin-top:16px;font-size:12.5px">' +
-      'Бот берёт верхний неопубликованный материал и отправляет в топик Полезное. ' +
-      'После отправки помечает как опубликованный.</div>';
+    }); })());
 }
 function editUseful(i){
   var x = (i!==null) ? USEFUL.items[i] : {t:'', txt:'', tag:'', d:'', done:false};
@@ -15710,12 +15709,12 @@ function renderSearch(){
   A.forEach(function(a){ if(!q || hit(a[1], a[2])) act.push({ic:a[0], t:a[1], s:a[2], fn:a[3]}); });
   var mas = [];
   if(adm){
-    MA_TABS.forEach(function(t){ if(t.id !== 'overview' && (!q || hit(t.n, 'маркетинговый анализ', t.s))) mas.push({ic:'up', t:t.n, s:'Маркетинговый анализ · ' + t.s, fn:function(){ goMA(t.id); }}); });
+    MA_TABS.forEach(function(t){ if(t.id !== 'overview' && (!q || hit(t.n, 'маркетинговый анализ стратегия маркетинга', t.s))) mas.push({ic:'up', t:t.n, s:'Стратегия · ' + t.s, fn:function(){ goMA(t.id); }}); });
     if(q){ var md = maData(); if(md) (md.competitors || []).forEach(function(c){ if(hit(c.name, c.offer)) mas.push({ic:'doc', t:c.name, s:'Конкурент · ' + (c.type || ''), fn:function(){ goMA('competitors'); }}); }); }
     if(q && typeof r8SearchKB === 'function') r8SearchKB(hit, mas);
   }
   if(q){ grp(res, 6); grp(brd, 6); grp(lds, 6); grp(mas, 6); grp(cks, 6); grp(dg, 6); grp(tl, 6); grp(ct, 6); grp(sec, 8); grp(act, 8); }
-  else { grp(act, 8); grp(sec, 12); if(curBlock === 'sales') grp(mas, 6); }
+  else { grp(act, 8); grp(sec, 12); if(curBlock === 'mkt') grp(mas, 6); }
   ckItems = out; ckIdx = 0;
   document.getElementById('ckList').innerHTML = out.length ? out.map(function(it, i){
     return '<div class="ck-r'+(i===0?' on':'')+'" data-i="'+i+'" onmousemove="ckSel('+i+')" onclick="ckGo('+i+')">' +
@@ -16150,7 +16149,7 @@ function renderEvents(){
     }).join('') + '</div>' : '<div class="pf-empty">Своих мероприятий пока нет</div>') +
     '<div class="ev-sec-h" style="margin-top:28px"><div><div class="pf-lbl" style="margin:0">Мероприятия Алматы</div>' +
       '<div class="pf-sub">' + (upd && !isNaN(upd) ? 'Обновлено ' + upd.toLocaleDateString('ru', {day:'2-digit', month:'long'}) + ' в ' + upd.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}) : 'Лента обновляется сервером') + '</div></div>' +
-      (adm ? '<div class="ev-ref"><span id="evRefMsg" class="ev-ref-m">' + esc(EV_REF.busy ? 'Ищем мероприятия, до 1 минуты…' : '') + '</span>' +
+      (adm ? '<div class="ev-ref"><span id="evRefMsg" class="ev-ref-m">' + esc(EV_REF.busy ? 'Ищем мероприятия, обычно 1–3 минуты…' : '') + '</span>' +
         '<button class="btn pf-b pf-p" id="evRefBtn" onclick="evRefresh()"' + (EV_REF.busy ? ' disabled' : '') + '>' + (EV_REF.busy ? '<span class="spin"></span>' : '') + 'Обновить сейчас</button></div>' : '') +
     '</div>' + (adm && EV_REF.err && !EV_REF.busy ? evErrHTML(EV_REF.err) : '') +
     (tagList.length ? '<div class="pf-filters" style="margin-bottom:14px">' +
@@ -16164,12 +16163,13 @@ var EV_REF = {busy:false, err:''};
 // Ошибка обновления: понятный текст, сырой ответ сервера только по «подробнее»
 function evErrText(e){
   e = String(e || '');
+  if(/^[А-ЯЁ]/.test(e) && e.length <= 220 && !/[{}\[\]]/.test(e)) return e;
   if(/404|no longer available/i.test(e)) return 'ИИ временно недоступен, попробуйте ещё раз через минуту';
   if(e.length > 120 || /[{}\[\]]/.test(e)) return 'Не получилось обновить ленту';
   return e || 'Не получилось обновить ленту';
 }
 function evErrHTML(e){
-  var raw = String(e || ''), t = evErrText(raw);
+  var t = evErrText(String(e || '')), raw = String((EV_REF && EV_REF.detail) || e || '');
   return '<div class="ev-err" id="evErr" role="alert"><div class="ev-err-t">' + esc(t) + '</div>' +
     '<div class="ev-err-m">Лента осталась прежней. Нажмите «Обновить сейчас», чтобы попробовать снова</div>' +
     (raw && raw !== t ? '<button type="button" class="ev-err-tg" onclick="var c=this.closest(\'.ev-err\');c.classList.toggle(\'open\');this.textContent=c.classList.contains(\'open\')?\'скрыть\':\'подробнее\'">подробнее</button>' +
@@ -16183,22 +16183,46 @@ function evWhen(d){
   if(+t - dd === 86400000) return 'вчера в ' + tm;
   return d.toLocaleDateString('ru', {day:'numeric', month:'long'}) + ' в ' + tm;
 }
+// R23: поиск идёт на сервере в фоне (может занять пару минут): кнопка запускает его,
+// страница спрашивает GET /ai/events, пока он не закончится. Ошибка приходит понятным текстом + detail
 function evRefresh(){
   if(EV_REF.busy) return Promise.resolve();
   if(!window.BSSync || !BSSync.api){ toast('Обновление работает на сервере платформы'); return Promise.resolve(); }
-  EV_REF = {busy:true, err:''};
+  EV_REF = {busy:true, err:'', detail:''};
   if(section === 'events') renderEvents();
-  return BSSync.api('POST', '/ai/events').then(function(r){
-    return r.json().catch(function(){ return {error: 'Сервер ответил ' + (r.status || 'ошибкой')}; });
-  }, function(){ return {error: 'Нет связи с сервером'}; }).then(function(j){
+  var read = function(r){
+    if(!r) return {error: 'Нет связи с сервером'};
+    var bad = function(){ return {error: r.status === 524 || r.status === 504 ? 'Сервер не дождался ответа ИИ, попробуйте ещё раз' : 'Сервер ответил ' + (r.status || 'ошибкой')}; };
+    return r.json().then(function(j){ return j && typeof j === 'object' && (r.ok !== false || j.error) ? j : bad(); }, bad);
+  };
+  var t0 = Date.now();
+  function poll(){
+    return new Promise(function(res){ setTimeout(res, EV_POLL_MS); }).then(function(){
+      return BSSync.api('GET', '/ai/events').then(read, function(){ return {busy: true, _net: true}; });
+    }).then(function(j){
+      j = j || {};
+      // связь моргнула или поиск ещё идёт: ждём до 8 минут
+      if((j.busy || j.pending) && Date.now() - t0 < 8 * 60000) return poll();
+      if(j.busy || j.pending) return {error: 'Поиск идёт дольше обычного. Лента обновится сама, когда он закончится'};
+      return j;
+    });
+  }
+  return BSSync.api('POST', '/ai/events').then(read, function(){ return {error: 'Нет связи с сервером'}; }).then(function(j){
     j = j || {};
-    if(j.error){ var er = typeof j.error === 'string' ? j.error : JSON.stringify(j.error); EV_REF = {busy:false, err: er}; toast(evErrText(er)); }
-    else { EV_REF = {busy:false, err:''}; toast('Найдено: ' + (Number(j.found) || 0)); }
+    if(j.pending || j.busy){ var m = document.getElementById('evRefMsg'); if(m) m.textContent = 'Ищем мероприятия, обычно 1–3 минуты…'; return poll(); }
+    return j;
+  }).then(function(j){
+    j = j || {};
+    if(j.error){
+      var er = typeof j.error === 'string' ? j.error : JSON.stringify(j.error);
+      EV_REF = {busy:false, err: er, detail: typeof j.detail === 'string' ? j.detail : ''}; toast(evErrText(er));
+    } else { EV_REF = {busy:false, err:'', detail:''}; toast('Найдено: ' + (Number(j.found) || 0)); }
     if(section === 'events') renderEvents();
     var t = (window.BSSync && BSSync.tick) ? BSSync.tick() : null;
     return Promise.resolve(t).then(function(){ if(section === 'events') renderEvents(); });
   });
 }
+var EV_POLL_MS = 4000;
 function loadEventsFeed(){ if(typeof section !== 'undefined' && section === 'events' && !document.querySelector('.sheet.on')) renderEvents(); }
 function evToOurs(fi){
   var x = evFeed().items[fi]; if(!x) return;
@@ -16836,6 +16860,7 @@ function pf3Init(){
 function goHashSection(){
   try{
     var hs = (location.hash.match(/^#([A-Za-z][A-Za-z0-9]*)$/) || [])[1];
+    if(hs) hs = mktRoute(hs);
     var nv = navOfMode();
     if(hs && hs !== 'board' && nv && Array.from(nv.querySelectorAll('.nv')).some(function(x){
       var b = BLOCKS[x.dataset.b]; return b && b.tabs.some(function(t){ return t.id === hs; }); })) goSection(hs);
@@ -17572,7 +17597,7 @@ function thrStatus(){
   var s = null; try{ s = JSON.parse(localStorage.getItem('bs_threads_status') || 'null'); }catch(e){}
   return s && typeof s === 'object' ? s : {};
 }
-function loadThreadsStatus(){ if(typeof section !== 'undefined' && section === 'useful' && !document.querySelector('.sheet.on')) renderUseful(); }
+function loadThreadsStatus(){ if(mkUsefulOn() && !document.querySelector('.sheet.on')) renderUseful(); }
 function thrDate(v){
   var d = crmParseDate(v); if(!d) return String(v || '');
   return d.toLocaleDateString('ru', {day:'numeric', month:'short'});
@@ -17603,7 +17628,7 @@ function threadsCardHTML(){
 }
 function threadsPublish(){
   if(THR.busy) return Promise.resolve();
-  THR.busy = true; if(section === 'useful') renderUseful();
+  THR.busy = true; if(mkUsefulOn()) renderUseful();
   return r6Api('POST', '/threads/publish').then(function(j){
     THR.busy = false; j = j || {};
     if(j.error) toast('Threads: ' + j.error);
@@ -17611,9 +17636,9 @@ function threadsPublish(){
       var t = j.title || (j.item && (j.item.t || j.item.title)) || j.lastTitle || '';
       toast(t ? 'Опубликовано в Threads: ' + t : 'Опубликовано в Threads');
     }
-    if(section === 'useful') renderUseful();
+    if(mkUsefulOn()) renderUseful();
     var tk = (window.BSSync && BSSync.tick) ? BSSync.tick() : null;
-    return Promise.resolve(tk).then(function(){ if(section === 'useful' && !document.querySelector('.sheet.on')) renderUseful(); return j; });
+    return Promise.resolve(tk).then(function(){ if(mkUsefulOn() && !document.querySelector('.sheet.on')) renderUseful(); return j; });
   });
 }
 
@@ -17811,16 +17836,19 @@ function r7Clone(o){ return JSON.parse(JSON.stringify(o)); }
 
 // ── Маркетинговый анализ ──
 var MA = null, MA_RO = false;
-var MAV = {tab:'overview', ctype:'', cview:'cards', seg:0, open:{}};
+// R24: «Стратегия» одним документом: главы по порядку, оглавление слева, режим правки (MAV.edit)
+var MAV = {tab:'overview', ctype:'', cview:'cards', seg:0, open:{}, edit:false, jump:''};
 var MA_AI = {};
 var MA_TABS = [
-  {id:'overview',    n:'Обзор',                    s:'итог и ключевые цифры'},
-  {id:'competitors', n:'Анализ конкурентов',       s:'кто ещё продаёт рост'},
-  {id:'ladder',      n:'Лестница Бена Ханта',      s:'5 ступеней осознанности'},
-  {id:'audience',    n:'ЦА и боли',                s:'сегменты, боли, возражения'},
-  {id:'value',       n:'Ценность глазами клиента', s:'за что платят'},
+  {id:'overview',    n:'Итог',                     s:'суть и ключевые цифры'},
   {id:'positioning', n:'Позиционирование',         s:'чем отличаемся'},
-  {id:'insights',    n:'Инсайты и действия',       s:'что делать дальше'}
+  {id:'audience',    n:'ЦА и боли',                s:'сегменты, боли, возражения'},
+  {id:'value',       n:'Ценность для клиента',     s:'за что платят'},
+  {id:'competitors', n:'Конкуренты',               s:'кто ещё продаёт рост'},
+  {id:'ladder',      n:'Лестница Бена Ханта',      s:'5 ступеней осознанности'},
+  {id:'funnels',     n:'Воронки и ICP',            s:'как приводим клиентов'},
+  {id:'rubrics',     n:'Рубрики и сетка',          s:'о чём пишем каждую неделю'},
+  {id:'insights',    n:'Инсайты и план',           s:'что делать дальше'}
 ];
 var MA_SECT = {segments:'Сегменты ЦА', jtbd:'Работы клиента', value:'Ценность', ladder:'Лестница Ханта', competitors:'Конкуренты',
   positioning:'Позиционирование', insights:'Инсайты', actions:'Действия'};
@@ -17831,7 +17859,9 @@ var MA_IC = {
   audience:'<circle cx="12" cy="8" r="3.6"/><path d="M5 20c1.2-4 3.8-6 7-6s5.8 2 7 6"/>',
   value:'<path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18M9 4l3 16M15 4l-3 16"/>',
   positioning:'<circle cx="12" cy="12" r="8"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
-  insights:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>'
+  insights:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+  funnels:'<path d="M3 4h18l-7 8v6l-4 2v-8z"/>',
+  rubrics:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>'
 };
 function maIc(id, sz){ return '<svg width="' + (sz || 22) + '" height="' + (sz || 22) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + (MA_IC[id] || '') + '</svg>'; }
 function maData(){
@@ -17880,6 +17910,7 @@ function mChips(path, arr){
   }).join('') + (MA_RO ? '' : '<span class="ma-chip add" onclick="maAdd(\'' + path + '\')">+</span>') + '</div>';
 }
 function maEdit(el, e){
+  if(!MAV.edit) return; // в режиме чтения текст не правится
   if(e) e.stopPropagation();
   if(el.isContentEditable) return;
   el.dataset.old = el.innerText;
@@ -17915,7 +17946,7 @@ function maRepaintLite(){
   setTimeout(function(){ var a = document.activeElement; if(a && a.isContentEditable) return; if(section === 'mktA') renderMktA(); }, 0);
 }
 function maAdd(path, tmpl){
-  if(!MA) return;
+  if(!MA || !MAV.edit) return;
   var arr = maGet(path);
   if(!Array.isArray(arr)){ arr = []; maSetP(path, arr); }
   arr.push(tmpl === undefined ? '' : r7Clone(tmpl));
@@ -17938,9 +17969,50 @@ function maDelCard(path, i, what){
 function maDelBtn(path, i, what){ return MA_RO ? '' : '<span class="ma-del" title="Удалить" onclick="event.stopPropagation();maDelCard(\'' + path + '\',' + i + ',\'' + what + '\')">✕</span>'; }
 
 function goMA(tab){
-  MAV.tab = tab || 'overview';
+  MAV.tab = tab || 'overview'; MAV.jump = MAV.tab;
   if(section !== 'mktA') goSection('mktA'); else renderMktA();
-  var pg = document.getElementById('pg-stub'); if(pg) pg.scrollTop = 0;
+}
+// Переход к главе документа: оглавление подсвечивает её, прокрутка до заголовка
+function maJump(id){
+  var pg = document.getElementById('pg-stub');
+  if(id === 'overview' || !id){ if(pg) pg.scrollTop = 0; try{ window.scrollTo(0, 0); }catch(e){} }
+  else { var c = document.getElementById('maCh-' + id); if(c) c.scrollIntoView({block:'start'}); }
+  maSpyMark(id || 'overview');
+  // Шрифты и картинки догружаются и сдвигают главы: первые секунды глава держится у верхнего края
+  if(MAV._ro){ try{ MAV._ro.disconnect(); }catch(e){} MAV._ro = null; }
+  var body = document.getElementById('maBody');
+  if(id && id !== 'overview' && body && window.ResizeObserver){
+    var t0 = Date.now(), ro = new ResizeObserver(function(){
+      var c2 = document.getElementById('maCh-' + id);
+      if(Date.now() - t0 > 2500 || section !== 'mktA' || !c2 || MAV.tab !== id){ ro.disconnect(); return; }
+      c2.scrollIntoView({block:'start'});
+    });
+    ro.observe(body); MAV._ro = ro;
+  }
+}
+function maSpyMark(id){
+  MAV.tab = id;
+  document.querySelectorAll('#maToc .ma-tab').forEach(function(x){ x.classList.toggle('on', x.dataset.t === id); });
+}
+var _maSpyRaf = 0;
+function maSpy(){
+  if(_maSpyRaf || typeof section === 'undefined' || section !== 'mktA') return;
+  _maSpyRaf = requestAnimationFrame(function(){
+    _maSpyRaf = 0;
+    var chs = document.querySelectorAll('#maBody .ma-ch'); if(!chs.length) return;
+    var cur = chs[0].dataset.t, lim = Math.min(window.innerHeight * 0.3, 260);
+    chs.forEach(function(c){ if(c.getBoundingClientRect().top <= lim) cur = c.dataset.t; });
+    var pg = document.getElementById('pg-stub');
+    if(pg && pg.scrollHeight - pg.scrollTop - pg.clientHeight < 4 && pg.scrollTop > 0) cur = chs[chs.length - 1].dataset.t;
+    if(cur !== MAV.tab || !document.querySelector('#maToc .ma-tab.on')) maSpyMark(cur);
+  });
+}
+document.addEventListener('scroll', function(){ if(document.getElementById('maToc')) maSpy(); }, true);
+function maEditMode(on){
+  var a = document.activeElement; if(a && a.isContentEditable) a.blur();
+  MAV.edit = on === undefined ? !MAV.edit : !!on;
+  renderMktA();
+  toast(MAV.edit ? 'Режим правки: нажмите на текст, чтобы изменить' : 'Правки сохранены');
 }
 function maTabCount(id){
   var d = MA || {};
@@ -17949,48 +18021,67 @@ function maTabCount(id){
   if(id === 'audience') return (d.segments || []).length;
   if(id === 'value') return ((d.value || {}).perceived || []).length;
   if(id === 'positioning') return ((d.positioning || {}).usp || []).length;
+  if(id === 'funnels') return r8Groups('ca').length;
+  if(id === 'rubrics') return r8Groups('rub').reduce(function(a, g){ return a + (g.items || []).length; }, 0);
   if(id === 'insights'){ var a = d.actions || []; return a.filter(function(x){ return x && x.done; }).length + '/' + a.length; }
   return '';
 }
 function r7Pl(n, a, b, c){ n = Math.abs(Number(n) || 0) % 100; var k = n % 10; if(n > 10 && n < 20) return c; if(k === 1) return a; if(k > 1 && k < 5) return b; return c; }
 var MA_TAB_UNIT = {competitors:['игрок', 'игрока', 'игроков'], ladder:['ступень', 'ступени', 'ступеней'], audience:['сегмент', 'сегмента', 'сегментов'],
-  value:['ценность', 'ценности', 'ценностей'], positioning:['УТП', 'УТП', 'УТП'], insights:['действие', 'действия', 'действий']};
+  value:['ценность', 'ценности', 'ценностей'], positioning:['УТП', 'УТП', 'УТП'], insights:['действие', 'действия', 'действий'],
+  funnels:['блок', 'блока', 'блоков'], rubrics:['заголовок', 'заголовка', 'заголовков']};
 function maUnit(id, c){ var u = MA_TAB_UNIT[id]; if(!u) return ''; var n = String(c).indexOf('/') > 0 ? Number(String(c).split('/')[1]) : c; return r7Pl(n, u[0], u[1], u[2]); }
 function renderMktA(){
   MA = maData();
-  var upd = MA && (MA.updated || MA.edited);
-  var el = pgSet('Маркетинговый анализ', MA ? 'Конкуренты, лестница Ханта, ЦА, ценность и позиционирование BS' + (upd ? ' · обновлено ' + r7Date(upd) : '') : 'Конкуренты, лестница Ханта, ЦА, ценность и позиционирование BS');
-  if(!MA){
-    el.innerHTML = '<div class="ma-wait"><span class="spin"></span><div><b>Анализ загружается с сервера</b><span>Как только данные придут, здесь появятся конкуренты, лестница Бена Ханта, ЦА и план действий</span></div></div>';
-    return;
-  }
-  if(!MA_TABS.some(function(t){ return t.id === MAV.tab; })) MAV.tab = 'overview';
-  el.innerHTML = '<div class="ma">' +
-    '<div class="ma-tabs">' + MA_TABS.map(function(t){
+  var pg = document.getElementById('pg-stub');
+  var again = !!document.getElementById('maDoc') && !!pg && pg.classList.contains('on');
+  var st = again ? pg.scrollTop : 0, wy = again ? (window.scrollY || 0) : 0;
+  var upd = MA && (MA.updated || MA.edited), adm = MODE === 'admin';
+  var el = pgSet('Стратегия', 'Позиционирование, ЦА, конкуренты, лестница Ханта, воронки и рубрики одним документом' + (upd ? ' · обновлено ' + r7Date(upd) : ''));
+  // Пока анализ не пришёл с сервера: сверху ожидание, ниже главы из рабочего документа (воронки и рубрики уже есть)
+  var tabs = MA ? MA_TABS : MA_TABS.filter(function(t){ return t.id === 'funnels' || t.id === 'rubrics'; });
+  var wait = MA ? '' : '<div class="ma-wait"><span class="spin"></span><div><b>Анализ загружается с сервера</b><span>Как только данные придут, здесь появятся позиционирование, ЦА, конкуренты, лестница Бена Ханта и план действий</span></div></div>';
+  var pa = document.getElementById('phAct');
+  if(pa && adm) pa.innerHTML = '<button class="btn pf-b' + (MAV.edit ? ' pf-p' : '') + '" id="maEditBtn" onclick="maEditMode()">' + (MAV.edit ? 'Готово' : 'Редактировать') + '</button>';
+  if(!tabs.some(function(t){ return t.id === MAV.tab; })) MAV.tab = tabs[0].id;
+  if(MAV.jump && !tabs.some(function(t){ return t.id === MAV.jump; })) MAV.jump = '';
+  var num = function(i){ return (i < 9 ? '0' : '') + (i + 1); };
+  el.innerHTML = '<div class="ma ma-doc' + (MAV.edit ? ' edit' : '') + '" id="maDoc">' +
+    '<nav class="ma-toc" id="maToc"><div class="ma-tock">Содержание</div>' + tabs.map(function(t, i){
       var c = maTabCount(t.id);
-      return '<div class="ma-tab' + (MAV.tab === t.id ? ' on' : '') + (t.id === 'overview' ? ' ov' : '') + '" data-t="' + t.id + '" onclick="goMA(this.dataset.t)">' +
-        '<div class="ma-ti">' + maIc(t.id) + '</div><div class="ma-tn">' + esc(t.n) + '</div>' +
-        '<div class="ma-tc">' + (c !== '' ? '<b>' + c + '</b> ' + maUnit(t.id, c) : esc(t.s)) + '</div></div>';
-    }).join('') + '</div>' +
-    '<div class="ma-body" id="maBody">' + maSection(MAV.tab) + '</div></div>';
+      return '<div class="ma-tab' + (MAV.tab === t.id ? ' on' : '') + '" data-t="' + t.id + '" onclick="goMA(this.dataset.t)">' +
+        '<span class="ma-ti">' + num(i) + '</span><span class="ma-tn">' + esc(t.n) + '</span>' +
+        '<span class="ma-tc">' + (c !== '' && c !== 0 ? esc(String(c)) : '') + '</span></div>';
+    }).join('') +
+    (MAV.edit ? '<div class="ma-tocnote"><b>Режим правки.</b> Нажмите на текст, чтобы изменить. Enter сохраняет, Esc отменяет</div>' : '') + '</nav>' +
+    '<div class="ma-body" id="maBody">' + wait + tabs.map(function(t){
+      return '<section class="ma-ch" id="maCh-' + t.id + '" data-t="' + t.id + '">' + maSection(t.id) + '</section>';
+    }).join('') + '</div></div>';
+  if(MAV.jump){ var j = MAV.jump; MAV.jump = ''; maJump(j); }
+  else if(again){ pg.scrollTop = st; if(wy) window.scrollTo(0, wy); maSpy(); }
+  else { pg.scrollTop = 0; maSpyMark(tabs[0].id); }
 }
 function maSection(t){
   var d = MA;
-  if(t === 'competitors') return maHead('Анализ конкурентов', 'Кто ещё забирает деньги нашей ЦА: прямые, косвенные и альтернативы', 'competitors') + secCompetitors(d.competitors || [], 'competitors');
+  if(t === 'competitors') return maHead('Конкуренты', 'Кто ещё забирает деньги нашей ЦА: прямые, косвенные и альтернативы', 'competitors') + secCompetitors(d.competitors || [], 'competitors');
   if(t === 'ladder') return maHead('Лестница Бена Ханта', 'Пять уровней осознанности клиента: что он думает, что ему сказать и что показать', 'ladder') + secLadder(d.ladder || [], 'ladder');
-  if(t === 'audience') return maHead('Сегменты ЦА', 'Кто покупает, что болит, чего боится и что возражает', 'segments') + secSegments(d.segments || [], 'segments') +
+  if(t === 'audience') return maHead('ЦА и боли', 'Кто покупает, что болит, чего боится и что возражает', 'segments') + secSegments(d.segments || [], 'segments') +
     maHead('Работы клиента (Jobs to be done)', 'Какую задачу клиент «нанимает» нас решить и чем решает её сейчас', 'jtbd') + secJtbd(d.jtbd || [], 'jtbd');
-  if(t === 'value') return maHead('Ценность глазами клиента', 'За что клиент готов платить и чем это доказываем', 'value') + secValue(d.value || {}, 'value');
+  if(t === 'value') return maHead('Ценность для клиента', 'За что клиент готов платить и чем это доказываем', 'value') + secValue(d.value || {}, 'value');
   if(t === 'positioning') return maHead('Позиционирование', 'Одна фраза, отличия и доказательства', 'positioning') + secPositioning(d.positioning || {}, 'positioning');
-  if(t === 'insights') return maHead('Инсайты', 'Главные выводы анализа', 'insights') + secInsights(d.insights || [], 'insights') +
+  if(t === 'insights') return maHead('Инсайты и план', 'Главные выводы анализа', 'insights') + secInsights(d.insights || [], 'insights') +
     maHead('План действий', 'Отмечайте выполненное, отметки сохраняются для всей команды', 'actions') + secActions(d.actions || [], 'actions');
-  return secOverview();
+  if(t === 'funnels') return maHead('Воронки и ICP', 'Через какие воронки приводим клиентов и как искать идеального клиента без таргета', '', MAV.edit ? r8AddBtn('ca', '+ Блок') : '') + r8ChFunnels();
+  if(t === 'rubrics') return maHead('Рубрики и сетка недели', '6 рубрик по 5 заголовков: «В идеи» отправляет заголовок в Контент-завод', '',
+    (MODE === 'admin' ? '<button class="btn pf-b" onclick="r8PlanWeek()">Неделя по сетке в идеи</button>' : '') + (MAV.edit ? r8AddBtn('rub', '+ Рубрика') : '')) + r8ChRubrics();
+  return maHead('Итог', 'Суть стратегии, ключевые цифры и главные действия', '') + secOverview();
 }
-function maHead(title, sub, sec){
+// Заголовок главы или подраздела. sec: раздел для обновления через ИИ (кнопка только в режиме правки). acts: свои кнопки справа
+function maHead(title, sub, sec, acts){
   var adm = MODE === 'admin';
   return '<div class="ma-sh"><div><div class="ma-st">' + esc(title) + '</div><div class="ma-ss">' + esc(sub) + '</div></div>' +
-    (adm ? '<button class="btn pf-b ma-aib" data-s="' + sec + '" onclick="maAiOpen(this.dataset.s)">' + maIc('insights', 15) + 'Обновить через ИИ</button>' : '') + '</div>' +
-    (adm ? '<div class="ma-ai" id="maAi-' + sec + '">' + maAiInner(sec) + '</div>' : '');
+    '<div class="ma-sha">' + (acts || '') + (adm && sec && MAV.edit ? '<button class="btn pf-b ma-aib" data-s="' + sec + '" onclick="maAiOpen(this.dataset.s)">' + maIc('insights', 15) + 'Обновить через ИИ</button>' : '') + '</div></div>' +
+    (adm && sec ? '<div class="ma-ai" id="maAi-' + sec + '">' + maAiInner(sec) + '</div>' : '');
 }
 
 // Обзор
@@ -18000,7 +18091,7 @@ function secOverview(){
   var done = acts.filter(function(a){ return a && a.done; }).length;
   var high = acts.map(function(a, i){ return {a:a, i:i}; }).filter(function(x){ return x.a && !x.a.done && /высок/i.test(x.a.priority || ''); });
   var pos = d.positioning || {};
-  return '<div class="ma-hero"><div class="ma-hk">Business Surgery · маркетинговый анализ</div>' +
+  return '<div class="ma-hero"><div class="ma-hk">Business Surgery · стратегия маркетинга</div>' +
       '<div class="ma-ht">Что продаём, кому и почему у нас</div>' +
       '<div class="ma-hs">' + mE('summary', d.summary, 'ma-sum', 'Итог анализа') + '</div>' +
       '<div class="ma-hn">' +
@@ -18017,13 +18108,8 @@ function secOverview(){
           return '<div class="ma-ovact"><span class="ma-ck" onclick="maActToggle(' + x.i + ')"></span><div><div class="ma-ovt">' + esc(x.a.text) + '</div>' + (x.a.effect ? '<div class="ma-ove">' + esc(x.a.effect) + '</div>' : '') + '</div></div>';
         }).join('') : '<div class="ma-mute">Все действия с высоким приоритетом выполнены</div>') +
         '<div class="ma-more" onclick="goMA(\'insights\')">Весь план действий →</div></div>' +
-    '</div>' +
-    (pos.statement ? '<div class="ma-card ma-click ma-ovpos" onclick="goMA(\'positioning\')"><div class="ma-k">Позиционирование</div><div class="ma-quote">' + esc(pos.statement) + '</div></div>' : '') +
-    '<div class="ma-ov3">' + [['competitors', 'Конкуренты', comp.length + ' ' + r7Pl(comp.length, 'игрок', 'игрока', 'игроков') + ': ' + cnt('прямой') + ' прямых, ' + cnt('косвенный') + ' косвенных, ' + cnt('альтернатива') + ' альтернатив'],
-      ['audience', 'ЦА и боли', (d.segments || []).map(function(s){ return s.name; }).slice(0, 3).join(', ')],
-      ['value', 'Ценность', ((d.value || {}).perceived || []).slice(0, 2).map(function(v){ return v.what; }).join(', ')]].map(function(x){
-        return '<div class="ma-card ma-click" onclick="goMA(\'' + x[0] + '\')"><div class="ma-ti">' + maIc(x[0], 20) + '</div><div class="ma-ovh">' + x[1] + '</div><div class="ma-ove">' + esc(x[2]) + '</div></div>';
-      }).join('') + '</div>';
+    '</div>';
+  // R24: карточки-ссылки на конкурентов, ЦА, ценность и позиционирование убраны: эти главы идут ниже в том же документе
 }
 
 // Лестница Ханта
@@ -18080,7 +18166,7 @@ function maToPlan(si, ci, btn){
   MKT.posts.push({t:idea, plat:plat, format:fmt, date:'', text:'Лестница Ханта, ступень ' + (s.stage || si + 1) + ' «' + (s.name || '') + '». ' + (s.message || ''), done:false, src:'ladder'});
   saveMkt();
   if(btn){ btn.classList.add('on'); btn.textContent = 'В плане ✓'; }
-  toast('Добавлено в SMM планер');
+  toast('Добавлено в идеи Контент-завода');
 }
 
 // Конкуренты
@@ -18159,7 +18245,7 @@ function maMapHTML(comp){
 }
 var MA_DRAG = null;
 function maDotDown(e, el){
-  if(MA_RO) return;
+  if(MA_RO || !MAV.edit) return;
   e.preventDefault();
   var map = document.getElementById('maMap'); if(!map) return;
   MA_DRAG = {el:el, i:Number(el.dataset.i), r:map.getBoundingClientRect(), moved:false};
@@ -18183,6 +18269,7 @@ function maDotDown(e, el){
   };
 }
 function maCycleType(i){
+  if(!MAV.edit) return;
   var c = (MA.competitors || [])[i]; if(!c) return;
   c.type = MA_TYPES[(MA_TYPES.indexOf(c.type) + 1) % MA_TYPES.length];
   maSave(); renderMktA();
@@ -18891,7 +18978,7 @@ var R8DOC = {"ver":"r8doc","tools":[{"organ":"Стратегия","icon":"◇","
 // сравнение по названию или тексту, правки пользователя не перезаписываются.
 var R8_SEC = {razbor:'Разбор', goals:'Цели', energy:'Энергия', mind:'Мышление', team:'Команда', fin:'Финансы',
   mkt:'Маркетинг и продажи', lean:'Продукт и Lean', bm:'Бизнес-модель', strat:'Стратегия', notes:'Заметки'};
-var R8_PAGE = {ca:'sCA', rub:'sRub', creo:'sCreo', smm:'smm', events:'events'};
+var R8_PAGE = {ca:'sCA', rub:'sRub', creo:'sCreo', smm:'sRub', events:'events'}; // R24: sCA и sRub открывают главы «Стратегии»
 var KBD = null, R8V = {notes:'inbox', sec:'razbor'};
 function r8Norm(s){ return String(s == null ? '' : s).toLowerCase().replace(/ё/g, 'е').replace(/[«»"“”]/g, '').replace(/\s+/g, ' ').trim(); }
 function r8It(x){ return x && typeof x === 'object' ? String(x.t || '') : String(x == null ? '' : x); }
@@ -19048,7 +19135,7 @@ function r8EditGroup(id){
   var g = r8Find(id); if(!g) return;
   var lines = (g.items || []).map(function(x){ return x && typeof x === 'object' ? (x.t + (x.d ? ' || ' + x.d : '')) : x; }).join('\n');
   document.getElementById('edTitle').textContent = 'Конспект';
-  document.getElementById('edSub').textContent = R8_SEC[g.sec] || ({ca:'ЦА и воронки', rub:'Рубрики', creo:'Креативы', smm:'SMM планер', events:'Мероприятия'})[g.sec] || '';
+  document.getElementById('edSub').textContent = R8_SEC[g.sec] || ({ca:'Стратегия · Воронки и ICP', rub:'Стратегия · Рубрики', creo:'Креативы', smm:'Стратегия · Сетка недели', events:'Мероприятия'})[g.sec] || '';
   document.getElementById('edBody').innerHTML =
     fieldHTML('Заголовок', 'd8T', g.title) + fieldHTML('Пояснение', 'd8S', g.sub || '') +
     fieldHTML('Пункты: каждый с новой строки, пояснение после ||', 'd8I', lines, 12) +
@@ -19109,13 +19196,12 @@ function r8RenderKBNotes(){
     (list.length ? r8Grid(list) : '<div class="empt">В этом разделе конспектов пока нет</div>');
 }
 
-// ── Продажи: ЦА и воронки ──
-function renderSCA(){
-  var el = pgSet('ЦА и воронки', 'Кому продаём, через какие воронки и как искать ICP без таргета');
-  var pa = document.getElementById('phAct'); if(pa) pa.innerHTML = r8AddBtn('ca', '+ Блок');
-  el.innerHTML = '<div class="cx-note">Сегменты, боли, страхи и возражения ЦА ведутся в <b class="d8-a" onclick="goMA(\'audience\')">Маркетинговом анализе → ЦА и боли</b>, конкуренты там же: ' +
-      '<b class="d8-a" onclick="goMA(\'competitors\')">Анализ конкурентов</b>. Здесь формулировки владельца из рабочего документа.</div>' +
-    r8Grid(r8Groups('ca'), function(g){ return {num:/funnels/.test(g.id), copy:/fit$/.test(g.id)}; });
+// ── Стратегия: глава «Воронки и ICP» (R24: раньше отдельная страница «ЦА и воронки», ?section=sCA ведёт сюда) ──
+function renderSCA(){ goMA('funnels'); }
+function r8ChFunnels(){
+  var gs = r8Groups('ca');
+  return gs.length ? r8Grid(gs, function(g){ return {num:/funnels/.test(g.id), copy:/fit$/.test(g.id)}; })
+    : mkEmpty('Блоков пока нет', 'Опишите воронки и портрет идеального клиента, чтобы команда приводила одинаковых клиентов', MODE === 'admin' ? '+ Блок' : '', 'MAV.edit=true;r8AddGroup(\'ca\')');
 }
 
 // ── Продажи: Рубрики (30 заголовков) и сетка недели ──
@@ -19134,14 +19220,14 @@ function r8ToPlan(id, i){
   var g = r8Find(id); if(!g || !g.items[i]) return;
   var x = g.items[i], t = r8Head(x), d = x && typeof x === 'object' ? (x.d || '') : '';
   if(!MKT) loadMkt();
-  if(r8Planned(t)){ toast('Уже в SMM планере'); return; }
+  if(r8Planned(t)){ toast('Уже в идеях Контент-завода'); return; }
   var fm = (d.match(/Формат: ([^·]+)/) || [])[1];
-  MKT.posts.push({t:t, plat:'Instagram', format:r8Fmt(fm), date:'', text:[g.title, d].filter(Boolean).join('. '), done:false});
-  saveMkt(); toast('Добавлено в SMM планер'); r8Rerender();
+  MKT.posts.push({t:t, plat:'Instagram', format:r8Fmt(fm), date:'', text:[g.title, d].filter(Boolean).join('. '), done:false, src:'rubric'});
+  saveMkt(); toast('Добавлено в идеи Контент-завода'); r8Rerender();
 }
 function r8PlanAct(g, i, x){
   var on = r8Planned(r8Head(x));
-  return '<button class="d8-pl' + (on ? ' on' : '') + '" onclick="r8ToPlan(\'' + g.id + '\',' + i + ')">' + (on ? 'В плане ✓' : 'В планер') + '</button>';
+  return '<button class="d8-pl' + (on ? ' on' : '') + '" onclick="r8ToPlan(\'' + g.id + '\',' + i + ')">' + (on ? 'В плане ✓' : 'В идеи') + '</button>';
 }
 // Неделя по сетке: 6 публикаций со следующего понедельника, воскресенье пауза
 function r8PlanWeek(){
@@ -19156,39 +19242,32 @@ function r8PlanWeek(){
     var t = w['рубрика'];
     if(MKT.posts.some(function(p){ return p.date === ds && r8Norm(p.t) === r8Norm(t); })) return;
     MKT.posts.push({t:t, plat:'Instagram', format:r8Fmt(w['формат']), date:ds,
-      text:['Формат: ' + (w['формат'] || '-'), 'Ответственный: ' + w['ответственный'], 'Время основателей: ' + w['время основателей']].join('\n'), done:false});
+      text:['Формат: ' + (w['формат'] || '-'), 'Ответственный: ' + w['ответственный'], 'Время основателей: ' + w['время основателей']].join('\n'), done:false, src:'week'});
     n++;
   });
   saveMkt();
-  toast(n ? 'Запланировано публикаций: ' + n + ', неделя с ' + first : 'Эта неделя уже запланирована');
+  toast(n ? 'В идеи добавлено публикаций: ' + n + ', неделя с ' + first : 'Эта неделя уже в идеях');
   r8Rerender();
 }
-function renderSRub(){
-  var el = pgSet('Рубрики', 'Контент-стратегия: 6 рубрик по 5 заголовков, зачем, что и почему работает');
-  var pa = document.getElementById('phAct'); if(pa) pa.innerHTML = '<button class="btn pf-b pf-p" onclick="r8PlanWeek()">Неделя по сетке в планер</button>';
-  var week = r8Groups('smm').filter(function(g){ return /-week$/.test(g.id); });
-  el.innerHTML = '<div class="cx-note">«В планер» кладёт заголовок в <b class="d8-a" onclick="goSection(\'smm\')">SMM планер</b> без даты. Промпт для текста поста в стиле Рустама: ' +
-      '<b class="d8-a" onclick="goSection(\'crmPrompts\')">Промпты ИИ</b>.</div>' +
-    (week.length ? r8Grid(week) : '') +
-    '<div style="height:12px"></div>' +
-    r8Grid(r8Groups('rub'), {act:r8PlanAct}, true);
+// ── Стратегия: глава «Рубрики и сетка недели» (R24: раньше страница «Рубрики» и шаблоны SMM планера, ?section=sRub ведёт сюда) ──
+function renderSRub(){ goMA('rubrics'); }
+function r8ChRubrics(){
+  var smm = r8Groups('smm'), rub = r8Groups('rub');
+  return '<div class="cx-note">«В идеи» кладёт заголовок во вкладку <b class="d8-a" onclick="goSection(\'smm\')">Контент-завод → Идеи</b>, оттуда он уходит в календарь. Текст поста в стиле Рустама пишет ' +
+      '<b class="d8-a" onclick="goSection(\'crmPrompts\')">промпт ИИ</b>.</div>' +
+    (smm.length ? r8Grid(smm) : '') +
+    (rub.length ? r8Grid(rub, {act:r8PlanAct}, true) : mkEmpty('Рубрик пока нет', 'Рубрика задаёт тему и 5 заголовков, из них собирается контент на неделю', MODE === 'admin' ? '+ Рубрика' : '', 'MAV.edit=true;r8AddGroup(\'rub\')'));
 }
 
 // ── Продажи: Креативы на таргет ──
 function renderSCreo(){
   var el = pgSet('Креативы', 'Готовые креативы на таргет, почему таргет не работал и идея видео');
   var pa = document.getElementById('phAct'); if(pa) pa.innerHTML = r8AddBtn('creo', '+ Креатив');
-  el.innerHTML = '<div class="cx-note">Кнопка копирования собирает креатив целиком: заголовок, пункты и призыв. Виды креативов и диагностика по CTR: ' +
+  var gs = r8Groups('creo');
+  el.innerHTML = gs.length ? '<div class="cx-note">Кнопка копирования собирает креатив целиком: заголовок, пункты и призыв. Виды креативов и диагностика по CTR: ' +
     '<b class="d8-a" onclick="goSection(\'toolLib\');var s=document.getElementById(\'tlSearch\');if(s){s.value=\'креатив\';renderToolLib();}">Инструменты</b>.</div>' +
-    r8Grid(r8Groups('creo'), function(g){ return {num:/-c[3-6]$/.test(g.id), copy:true}; }, true);
-}
-
-// ── SMM планер: шаблоны недели и автопостинг ──
-function r8SmmPresets(){
-  var gs = r8Groups('smm');
-  return '<div class="d8-sec"><div class="pf-lbl" style="margin:0">Шаблоны</div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pf-b pf-p" onclick="r8PlanWeek()">Неделя по сетке</button>' +
-    '<button class="btn pf-b" onclick="goSection(\'sRub\')">Рубрики: 30 заголовков</button></div></div>' + r8Grid(gs);
+    r8Grid(gs, function(g){ return {num:/-c[3-6]$/.test(g.id), copy:true}; }, true)
+    : mkEmpty('Креативов пока нет', 'Креатив: заголовок, пункты и призыв для рекламы. Добавьте первый, копирование соберёт его целиком', MODE === 'admin' ? '+ Креатив' : '', 'r8AddGroup(\'creo\')');
 }
 
 // ── CustDev: шаблон интервью из документа ──
@@ -19251,7 +19330,7 @@ function r8SearchKB(hit, out){
     if(!g) return;
     var txt = (g.items || []).map(function(x){ return r8It(x) + ' ' + (x && x.d || ''); }).join(' ');
     if(!hit(g.title, g.sub, txt)) return;
-    var where = R8_SEC[g.sec] ? 'Конспект · ' + R8_SEC[g.sec] : ({ca:'Продажи · ЦА и воронки', rub:'Продажи · Рубрики', creo:'Продажи · Креативы', smm:'SMM планер', events:'Мероприятия', fin:'Учёт'})[g.sec] || '';
+    var where = R8_SEC[g.sec] ? 'Конспект · ' + R8_SEC[g.sec] : ({ca:'Стратегия · Воронки и ICP', rub:'Стратегия · Рубрики', creo:'Маркетинг · Креативы', smm:'Стратегия · Сетка недели', events:'Мероприятия', fin:'Учёт'})[g.sec] || '';
     out.push({ic:'doc', t:g.title, s:where, fn:function(){ r8OpenGroup(g.id); }});
   });
 }
@@ -19269,10 +19348,7 @@ function r8OpenGroup(id){
 // ── Встраивание в существующие разделы ──
 (function(){
   if(!CRM_PROMPTS.some(function(p){ return p.n === R8DOC.prompt.n; })) CRM_PROMPTS.push(r8Cl(R8DOC.prompt));
-  var sales = BLOCKS.mkt.tabs, at = sales.findIndex(function(t){ return t.id === 'mktA'; });
-  [{id:'sCA', n:'ЦА и воронки'}, {id:'sRub', n:'Рубрики'}, {id:'sCreo', n:'Креативы'}].forEach(function(t, k){
-    if(!sales.some(function(x){ return x.id === t.id; })) sales.splice(at + 1 + k, 0, t);
-  });
+  // R24: «ЦА и воронки» и «Рубрики» стали главами «Стратегии», «Креативы» уже в BLOCKS.mkt
 
   var _notes = renderNotes;
   renderNotes = function(){
@@ -19281,11 +19357,6 @@ function r8OpenGroup(id){
     var pt = document.querySelector('#pg-stub .pt'); if(pt) pt.textContent = 'Заметки';
     var b = document.getElementById('stubBody'); if(b) b.insertAdjacentHTML('afterbegin', r8NotesSwitch());
     var pa = document.getElementById('phAct'); if(pa) pa.innerHTML = '';
-  };
-  var _smm = renderSMM;
-  renderSMM = function(){
-    _smm.apply(this, arguments);
-    var b = document.getElementById('stubBody'); if(b && section === 'smm') b.insertAdjacentHTML('beforeend', '<div style="height:22px"></div>' + r8SmmPresets());
   };
   var _cd = renderCDev;
   renderCDev = function(){
@@ -21602,22 +21673,30 @@ function renderContent(){
   var up = c.queue.filter(function(x){ var d = czDay(x.at); return d >= t && d <= end && x.status !== 'skipped'; }).length;
   var el = pgSet('Контент-завод', 'Threads, Telegram, Instagram по плану · ' + fmtN(up) + ' ' + czPl(up, 'публикация', 'публикации', 'публикаций') +
     ' на 2 недели · ' + (c.settings.approval === 'manual' ? 'выходит только одобренное' : 'выходит всё, что не отменили'));
-  var pa = document.getElementById('phAct');
-  if(pa) pa.innerHTML = '<button class="btn pf-b" id="czSetBtn" onclick="czSettings()">Настройки</button>' +
-    '<button class="btn pf-b pf-p" id="czReplanTop" onclick="czReplan()">Перепланировать</button>';
   try{ var v = localStorage.getItem('ct_view'); if(v && !CT._v0){ CT.view = v; } }catch(e){}
   CT._v0 = 1;
   el.innerHTML = '<div class="cz" id="czRoot"><div class="cz-top"><div class="cx-sw cz-tabs" id="czTabs"></div></div><div id="czBody"></div></div>';
   czPaint();
 }
+// R24: кнопки шапки зависят от вкладки (календарь: настройки и план; идеи: + идея; «Полезное»: + материал)
+function czActs(v){
+  if(v === 'ideas') return (MODE === 'admin' ? '<button class="btn pf-b" id="czWeekBtn" onclick="r8PlanWeek()">Неделя по сетке</button>' : '') +
+    '<button class="btn pf-b pf-p" id="czIdeaAdd" onclick="editPost(null)">+ Идея</button>';
+  if(v === 'useful') return '<button class="btn pf-b pf-p" id="ufAdd" onclick="editUseful(null)">+ Материал</button>';
+  return '<button class="btn pf-b" id="czSetBtn" onclick="czSettings()">Настройки</button>' +
+    '<button class="btn pf-b pf-p" id="czReplanTop" onclick="czReplan()">Перепланировать</button>';
+}
 function czPl(n, a, b, c){ n = Math.abs(n) % 100; var n1 = n % 10; if(n > 10 && n < 20) return c; if(n1 > 1 && n1 < 5) return b; if(n1 === 1) return a; return c; }
 function czTab(v){ CT.view = v; try{ localStorage.setItem('ct_view', v); }catch(e){} czPaint(); }
 function czPaint(){
   var tb = document.getElementById('czTabs'), body = document.getElementById('czBody'); if(!tb || !body) return;
-  var tabs = [['cal', 'Календарь'], ['car', 'Карусели'], ['reels', 'Reels'], ['an', 'Аналитика'], ['lib', 'Библиотека']];
+  // R24: «Идеи» (бывший SMM планер) и «Полезное» стали вкладками; календарь один
+  var tabs = [['cal', 'Календарь'], ['ideas', 'Идеи'], ['lib', 'Библиотека'], ['car', 'Карусели'], ['reels', 'Reels'], ['useful', 'Полезное'], ['an', 'Аналитика']];
   if(!tabs.some(function(t){ return t[0] === CT.view; })) CT.view = 'cal';
   tb.innerHTML = tabs.map(function(t){ return '<div class="cx-swb' + (CT.view === t[0] ? ' on' : '') + '" data-v="' + t[0] + '" onclick="czTab(this.dataset.v)">' + t[1] + '</div>'; }).join('');
-  ({cal:czCal, car:czCar, reels:czReels, an:czAn, lib:czLib})[CT.view](body);
+  var pa = document.getElementById('phAct'); if(pa && section === 'content') pa.innerHTML = czActs(CT.view);
+  var onT = tb.querySelector('.cx-swb.on'); if(onT && tb.scrollWidth > tb.clientWidth + 2) tb.scrollLeft = Math.max(0, onT.getBoundingClientRect().left - tb.getBoundingClientRect().left + tb.scrollLeft - 24); // на телефоне активная вкладка видна
+  ({cal:czCal, ideas:czIdeas, car:czCar, reels:czReels, an:czAn, lib:czLib, useful:czUseful})[CT.view](body);
 }
 
 // ── 1. Календарь ──
@@ -21650,7 +21729,9 @@ function czCal(body){
       }).join('') + '</div>';
   });
   h += '</div>';
-  body.innerHTML = head + h;
+  var empty = inRange.length ? '' : '<div class="mk-empty row1" id="czCalEmpty"><div><b>На эти 2 недели публикаций нет</b><span>Составьте план из библиотеки или добавьте материал в нужную ячейку календаря</span></div>' +
+    '<button class="btn pf-b pf-p" onclick="czReplan()">Составить план</button></div>';
+  body.innerHTML = head + empty + h;
 }
 function czCard(it){
   return '<div class="cz-c ' + it.status + '" data-id="' + escA(it.id) + '" onclick="czOpen(this.dataset.id)">' +
@@ -22419,16 +22500,252 @@ function czDeepLink(){
   try{
     var q = new URLSearchParams(location.search), s = q.get('section');
     if(!s) return;
+    s = mktRoute(s); // R24: старые ссылки маркетинга (sCA, sRub, smm, useful) ведут в новые места
     var nv = navOfMode();
     var ok = nv && Array.from(nv.querySelectorAll('.nv')).some(function(x){ var b = BLOCKS[x.dataset.b]; return b && b.tabs.some(function(t){ return t.id === s; }); });
     if(!ok) return;
     goSection(s);
+    if(s === 'mktA'){ var ch = q.get('view') || q.get('ch'); if(ch && MA_TABS.some(function(t){ return t.id === ch; })) goMA(ch); }
     if(s === 'content'){
-      var v = q.get('view'); if(v && {cal:1, car:1, reels:1, an:1, lib:1}[v]) czTab(v);
+      var v = q.get('view'); if(v && {cal:1, ideas:1, car:1, reels:1, an:1, lib:1, useful:1}[v]) czTab(v);
       var id = q.get('id'); if(id){ var it = czItem(id); if(it){ if(it.kind === 'carousel'){ CT.car = it.id; } czOpen(id); } else toast('Публикация не найдена'); }
     }
   }catch(e){}
 }
+
+// ═══ R24: Маркетинг. Обзор недели, «Идеи» и «Полезное» внутри Контент-завода, старые ссылки ведут в новые места ═══
+var MKT_ROUTE = {sCA:['mktA', 'funnels'], sRub:['mktA', 'rubrics'], smm:['content', 'ideas'], useful:['content', 'useful']};
+function mktRoute(s){
+  var r = (typeof MKT_ROUTE !== 'undefined' && MKT_ROUTE) ? MKT_ROUTE[s] : null;
+  if(!r) return s;
+  if(r[0] === 'mktA'){ MAV.tab = r[1]; MAV.jump = r[1]; }
+  else { CT.view = r[1]; CT._v0 = 1; }
+  return r[0];
+}
+function mkUsefulOn(){ return typeof section !== 'undefined' && section === 'content' && CT.view === 'useful' && !!document.getElementById('czBody'); }
+// Пустое состояние: что здесь будет, одной строкой, и главное действие
+function mkEmpty(t, s, btn, fn){
+  return '<div class="mk-empty"><div><b>' + esc(t) + '</b><span>' + esc(s) + '</span></div>' +
+    (btn ? '<button class="btn pf-b pf-p" onclick="' + escA(fn) + '">' + esc(btn) + '</button>' : '') + '</div>';
+}
+function mkIdeaHas(t){ return r8Planned(t); }
+function mnToIdea(i){
+  if(!MKT) loadMkt();
+  var n = MKT.notes[i]; if(!n) return;
+  if(r8Planned(n.t)){ toast('Уже в идеях Контент-завода'); return; }
+  MKT.posts.push({t:n.t, plat:'Threads', format:'Пост', date:'', text:n.d || '', done:false, src:'note'});
+  saveMkt(); toast('Добавлено в идеи Контент-завода'); renderMktNotes();
+}
+
+// ── Контент-завод → Идеи (бывший SMM планер): идеи без даты, «В календарь» ставит их в единый план ──
+var CZ_SRC = {ladder:'лестница Ханта', rubric:'рубрика', week:'сетка недели', note:'заметка'};
+function czIdeaIt(p){ return p && p.ct ? czItem(p.ct) : null; }
+function czOpenItem(id){
+  var it = czItem(id); if(!it){ toast('Публикация не найдена'); return; }
+  if(section !== 'content') goSection('content');
+  if(it.kind === 'carousel') CT.car = it.id;
+  czOpen(id);
+}
+function czIdeaRow(x){
+  var p = x.p, it = x.it, meta = [p.plat, p.format, CZ_SRC[p.src] ? 'из: ' + CZ_SRC[p.src] : ''].filter(Boolean).join(' · ');
+  var right;
+  if(it) right = '<button class="mk-lnk" data-id="' + escA(it.id) + '" onclick="event.stopPropagation();czOpenItem(this.dataset.id)">' + czChName(it.channel) + ', ' + czDayName(czDay(it.at)) + '</button>' + czPill(it);
+  else if(p.done) right = '<span class="cz-p published">Вышло</span>';
+  else right = (/^\d{4}-\d{2}-\d{2}$/.test(p.date || '') ? '<span class="cz-iw">на ' + czDayName(p.date) + '</span>' : '') +
+    '<button class="btn pf-b cz-ical" onclick="event.stopPropagation();czIdeaCal(' + x.i + ')">В календарь</button>';
+  return '<div class="cz-idea' + (p.done ? ' done' : '') + '" data-i="' + x.i + '" onclick="editPost(' + x.i + ')"><div class="cz-ibd"><div class="cz-it">' + esc(p.t) + '</div>' +
+    (meta ? '<div class="cz-im">' + esc(meta) + '</div>' : '') + '</div><div class="cz-ia">' + right + '</div></div>';
+}
+function czIdeas(body){
+  if(!MKT) loadMkt();
+  var all = (MKT.posts || []).map(function(p, i){ return {p:p, i:i, it:czIdeaIt(p)}; }).filter(function(x){ return x.p; });
+  var pub = function(x){ return x.p.done || (x.it && x.it.status === 'published'); };
+  var wait = all.filter(function(x){ return !pub(x) && !x.it; }).sort(function(a, b){ return (a.p.date || '9999').localeCompare(b.p.date || '9999') || a.i - b.i; });
+  var cal = all.filter(function(x){ return !pub(x) && x.it; }).sort(function(a, b){ return String(a.it.at).localeCompare(String(b.it.at)); });
+  var done = all.filter(pub);
+  var sec = function(id, t, list){ return list.length ? '<div class="cz-ish" id="' + id + '"><b>' + t + '</b><span>' + fmtN(list.length) + '</span></div><div class="cz-il">' + list.map(czIdeaRow).join('') + '</div>' : ''; };
+  body.innerHTML = '<div class="cx-note">Банк идей: заголовки из рубрик, лестницы Ханта и заметок. Когда идея готова, «В календарь» ставит её в план публикаций, второго календаря нет.</div>' +
+    (all.length ? sec('czIdWait', 'Ждут календаря', wait) + sec('czIdCal', 'В календаре', cal) + sec('czIdDone', 'Вышли', done)
+      : mkEmpty('Идей пока нет', 'Добавляйте заголовки из рубрик и лестницы Ханта кнопкой «В идеи» или запишите свою', '+ Идея', 'editPost(null)'));
+}
+function czNextDay(t){
+  var s = czC().settings, d = czAddDays(t, 1);
+  for(var k = 0; k < 7; k++){ if(s.days.indexOf(czWd(d)) >= 0) return d; d = czAddDays(d, 1); }
+  return czAddDays(t, 1);
+}
+function czIdeaCal(i){
+  if(!MKT) loadMkt();
+  var p = MKT.posts[i]; if(!p) return;
+  var t = czToday(), pl = String(p.plat || '');
+  var ch = /teleg/i.test(pl) ? 'telegram' : (/insta/i.test(pl) ? 'instagram' : 'threads');
+  var day = /^\d{4}-\d{2}-\d{2}$/.test(p.date || '') && p.date >= t ? p.date : czNextDay(t);
+  CT.idea = {i:i, ch:ch, day:day, tm:(czC().settings.channels[ch] || {}).time || '10:00'};
+  var sh = czSheet('czIdSheet');
+  document.getElementById('czIdSheetH').innerHTML = '<div><div class="cz-eh">Идея в календарь</div><div class="st cz-et">' + esc(p.t) + '</div></div><div class="x" onclick="czCloseSheet(\'czIdSheet\')">✕</div>';
+  czIdeaPaint();
+  sh.classList.add('on');
+}
+function czIdeaPaint(){
+  var st = CT.idea, B = document.getElementById('czIdSheetB'); if(!st || !B) return;
+  var p = MKT.posts[st.i] || {}, kind = st.ch === 'instagram' ? (/reels/i.test(p.format || '') ? 'Reels' : 'Карусель') : (st.ch === 'telegram' ? 'Пост в Telegram-канал' : 'Пост в Threads');
+  B.innerHTML = '<div class="field"><div class="lbl">Канал</div><div class="cx-sw" id="czIdCh">' + CT_CH.map(function(c){
+      return '<div class="cx-swb' + (st.ch === c.id ? ' on' : '') + '" data-ch="' + c.id + '" onclick="czIdeaCh(this.dataset.ch)">' + c.n + '</div>'; }).join('') + '</div></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+      '<div class="field"><div class="lbl">День</div><input class="inp" type="date" id="czIdD" value="' + escA(st.day) + '" min="' + czToday() + '" onchange="CT.idea.day=this.value"></div>' +
+      '<div class="field"><div class="lbl">Время, Алматы</div><input class="inp" type="time" id="czIdT" value="' + escA(st.tm) + '" onchange="CT.idea.tm=this.value"></div></div>' +
+    '<div class="cx-note">В календаре: ' + kind + (st.ch === 'instagram' ? ', публикуется вручную' : ', выйдет автоматически по плану') + '. Текст можно поправить в карточке публикации.</div>' +
+    '<div style="display:flex;gap:9px"><button class="btn pf-b pf-p" style="flex:1" id="czIdGo" onclick="czIdeaGo()">Поставить в календарь</button>' +
+    '<button class="btn pf-b" onclick="czCloseSheet(\'czIdSheet\')">Отмена</button></div>';
+}
+function czIdeaCh(ch){ var st = CT.idea; if(!st) return; st.ch = ch; st.tm = (czC().settings.channels[ch] || {}).time || st.tm; czIdeaPaint(); }
+function czIdeaGo(){
+  var st = CT.idea; if(!st) return;
+  if(!MKT) loadMkt();
+  var p = MKT.posts[st.i]; if(!p) return;
+  var day = (document.getElementById('czIdD') || {}).value || st.day, tm = (document.getElementById('czIdT') || {}).value || st.tm || '10:00';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(day)){ toast('Выберите день'); return; }
+  var ch = st.ch, cp = CT_CH.find(function(c){ return c.id === ch; }).p;
+  var kind = ch === 'instagram' ? (/reels/i.test(p.format || '') ? 'reels' : 'carousel') : ch;
+  var it = {id:'c' + uid(), src:'idea', kind:kind, channel:ch, at:czIso(day, tm), status:'planned', added:'manual', addedBy:czWho(), title:p.t, link:'t.me/bsurgery_bot?start=' + cp + '_bs'};
+  if(kind === 'threads' || kind === 'telegram') it.text = [p.t, p.text].filter(Boolean).join('\n\n');
+  else if(kind === 'carousel'){ it.caption = p.text || ''; it.slides = [{kind:'cover', title:p.t, sub:''}]; }
+  else { it.hook = p.t; it.beats = String(p.text || '').split('\n').map(function(s){ return s.trim(); }).filter(Boolean); }
+  czNormItem(it);
+  czC().queue.push(it); czLog(it, 'planned', 'idea'); saveContent(); czPush();
+  p.ct = it.id; p.date = day; saveMkt();
+  CT.idea = null; czCloseSheet('czIdSheet');
+  toast('В календаре: ' + czChName(ch) + ', ' + czDayName(day) + ' в ' + tm);
+}
+function czUseful(body){ body.innerHTML = usefulHTML(); }
+
+// ── Маркетинг → Обзор: план недели, лиды по источникам, лучшие публикации, следующие шаги ──
+var MH_SRC = [
+  {id:'threads', n:'Threads', re:/^threads/i},
+  {id:'tgch', n:'Telegram-канал', re:/^telegram-канал/i},
+  {id:'ig', n:'Instagram', re:/^(instagram|карусель)/i},
+  {id:'guide', n:'Чек-листы', re:/^(гайд|pdf-гайд|чек-лист)/i},
+  {id:'ref', n:'Рефералы', re:/^(реферал|рекомендац)/i},
+  {id:'other', n:'Бот, сайт и другие', re:null}];
+function mhSrc(s){ s = String(s || '').trim(); for(var i = 0; i < MH_SRC.length - 1; i++) if(MH_SRC[i].re.test(s)) return MH_SRC[i].id; return 'other'; }
+function mhLeadDay(l){
+  if(l.startAt){ var x = czDay(l.startAt); if(x) return x; }
+  var d = czLeadDate(l); if(!d) return '';
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function mhData(){
+  var t = czToday(), m = czMonday(t), e = czAddDays(m, 6), pm = czAddDays(m, -7), pe = czAddDays(m, -1);
+  if(typeof loadCRM === 'function') loadCRM();
+  if(!MKT) loadMkt();
+  var leads = (typeof CRM !== 'undefined' && CRM && CRM.leads) || [], src = {}, wk = [], prev = 0, razbor = 0;
+  MH_SRC.forEach(function(s){ src[s.id] = {cur:0, prev:0}; });
+  leads.forEach(function(l){
+    if(!l) return;
+    var d = mhLeadDay(l); if(!d) return;
+    var k = mhSrc(l.source);
+    if(d >= m && d <= e){ src[k].cur++; wk.push(l); if(['meet', 'diag', 'won'].indexOf(l.col) >= 0) razbor++; }
+    else if(d >= pm && d <= pe){ src[k].prev++; prev++; }
+  });
+  var items = czAll().filter(function(it){ var d = czDay(it.at); return d >= m && d <= e; });
+  var ideas = (MKT.posts || []).filter(function(p){ return p && !p.done && !czIdeaIt(p); }).length;
+  return {t:t, m:m, e:e, leads:leads, wk:wk, prev:prev, razbor:razbor, src:src, items:items, ideas:ideas};
+}
+function mhKpi(lbl, v, sub, fn, id){
+  return '<div class="mh-k" id="' + id + '" onclick="' + escA(fn) + '"><div class="mh-kl">' + lbl + '</div><div class="mh-kv">' + v + '</div><div class="mh-ks">' + sub + '</div></div>';
+}
+function mhWeek(D){
+  var c = czC(), live = D.items.filter(function(x){ return x.status !== 'skipped'; }), pub = live.filter(function(x){ return x.status === 'published'; }).length;
+  var head = '<div class="mh-h"><div><b>Контент-план недели</b><span>' + czShort(D.m) + ' - ' + czShort(D.e) + (live.length ? ' · вышло ' + fmtN(pub) + ' из ' + fmtN(live.length) : '') + '</span></div>' +
+    '<button class="mk-lnk" onclick="CT.view=\'cal\';CT._v0=1;goSection(\'content\')">Календарь →</button></div>';
+  if(!D.items.length) return '<div class="mh-card mh-week" id="mhWeek">' + head +
+    mkEmpty('На этой неделе публикаций нет', 'Контент-завод соберёт план из библиотеки на 2 недели вперёд', 'Составить план', "CT.view='cal';CT._v0=1;goSection('content');czReplan()") + '</div>';
+  var by = {}; D.items.forEach(function(it){ (by[czDay(it.at)] = by[czDay(it.at)] || []).push(it); });
+  var days = []; for(var i = 0; i < 7; i++) days.push(czAddDays(D.m, i));
+  var abbr = {threads:'Threads', telegram:'Telegram', instagram:'Instagram'};
+  return '<div class="mh-card mh-week" id="mhWeek">' + head +
+    '<div class="mh-bar"><i style="width:' + (live.length ? Math.round(pub / live.length * 100) : 0) + '%"></i></div>' +
+    '<div class="mh-days">' + days.map(function(d){
+      var list = (by[d] || []).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); }), off = c.settings.days.indexOf(czWd(d)) < 0;
+      var p = d.split('-');
+      return '<div class="mh-day' + (d === D.t ? ' today' : '') + (d < D.t ? ' past' : '') + '" data-day="' + d + '"><div class="mh-dn">' + CT_WD[czWd(d)] + ' <b>' + (+p[2]) + '</b>' + (d === D.t ? '<i>сегодня</i>' : '') + '</div>' +
+        '<div class="mh-dl">' + (list.length ? list.map(function(it){
+          return '<div class="mh-c st-' + it.status + '" data-id="' + escA(it.id) + '" title="' + escA(czFirst(it)) + '" onclick="czOpenItem(this.dataset.id)"><b>' + esc(czHM(it.at)) + '</b><span>' + (CT_KIND[it.kind] === 'Карусель' || it.kind === 'reels' ? CT_KIND[it.kind] : abbr[it.channel]) + '</span><em>' + esc(czFirst(it)) + '</em></div>';
+        }).join('') : '<div class="mh-none">' + (off ? 'выходной' : 'пусто') + '</div>') + '</div></div>';
+    }).join('') + '</div>' +
+    '<div class="mh-lg"><span><i class="st-published"></i>Вышло</span><span><i class="st-approved"></i>Одобрено</span><span><i class="st-planned"></i>В плане</span><span><i class="st-skipped"></i>Пропуск</span>' +
+      (D.items.some(function(x){ return x.status === 'failed'; }) ? '<span class="bad"><i class="st-failed"></i>Ошибка</span>' : '') + '</div></div>';
+}
+function mhLeads(D){
+  var tot = D.wk.length, max = 1;
+  MH_SRC.forEach(function(s){ max = Math.max(max, D.src[s.id].cur); });
+  var rows = MH_SRC.filter(function(s){ return D.src[s.id].cur || D.src[s.id].prev; });
+  var head = '<div class="mh-h"><div><b>Лиды по источникам</b><span>эта неделя · ' + fmtN(tot) + ' ' + czPl(tot, 'лид', 'лида', 'лидов') + ', прошлая ' + fmtN(D.prev) + '</span></div>' +
+    '<button class="mk-lnk" onclick="goSection(\'leads\')">CRM →</button></div>';
+  if(!tot) return '<div class="mh-card mh-leads" id="mhLeads">' + head +
+    mkEmpty('За неделю лидов нет', 'Бот подписывает источник каждого лида: Threads, Telegram-канал, Instagram, чек-лист или реферал', 'Открыть CRM', "goSection('leads')") + '</div>';
+  return '<div class="mh-card mh-leads" id="mhLeads">' + head + '<div class="mh-srcs">' + rows.map(function(s){
+    var v = D.src[s.id], dl = v.cur - v.prev;
+    return '<div class="mh-sr" data-src="' + s.id + '"><span class="mh-sn">' + s.n + '</span><div class="mh-sb"><i style="width:' + Math.round(v.cur / max * 100) + '%"></i></div>' +
+      '<b>' + fmtN(v.cur) + '</b><span class="mh-sd" title="к прошлой неделе">' + (dl > 0 ? '+' + fmtN(dl) : (dl < 0 ? '-' + fmtN(-dl) : '0')) + '</span></div>';
+  }).join('') + '</div><div class="mh-foot">Записались на разбор: <b>' + fmtN(D.razbor) + '</b> из ' + fmtN(tot) + '. Справа разница с прошлой неделей</div></div>';
+}
+function mhTop(){
+  var S = czStats(), from = czAddDays(czToday(), -30);
+  var rows = S.rows.filter(function(r){ return r.leads > 0 && czDay(r.it.at) >= from; }).sort(function(a, b){ return b.leads - a.leads || b.razbor - a.razbor || String(b.it.at).localeCompare(String(a.it.at)); }).slice(0, 5);
+  var head = '<div class="mh-h"><div><b>Лучшие публикации</b><span>по лидам за 30 дней</span></div><button class="mk-lnk" onclick="CT.view=\'an\';CT._v0=1;goSection(\'content\')">Аналитика →</button></div>';
+  if(!rows.length) return '<div class="mh-card mh-top" id="mhTop">' + head +
+    mkEmpty('Пока нет публикаций с лидами', 'Лид засчитывается публикации по метке в ссылке бота, например «Threads: g003»', 'Аналитика контента', "CT.view='an';CT._v0=1;goSection('content')") + '</div>';
+  return '<div class="mh-card mh-top" id="mhTop">' + head + rows.map(function(r, i){
+    return '<div class="mh-tp" data-id="' + escA(r.it.id) + '" onclick="czOpenItem(this.dataset.id)"><span class="mh-tn">' + (i + 1) + '</span>' +
+      '<div class="mh-tt"><div>' + esc(czFirst(r.it)) + '</div><span>' + czChName(r.it.channel) + (czDay(r.it.at) ? ' · ' + czShort(czDay(r.it.at)) : '') + '</span></div>' +
+      '<div class="mh-tv"><b>' + fmtN(r.leads) + '</b><span>' + czPl(r.leads, 'лид', 'лида', 'лидов') + '</span></div>' +
+      '<div class="mh-tv"><b>' + fmtN(r.razbor) + '</b><span>' + czPl(r.razbor, 'разбор', 'разбора', 'разборов') + '</span></div></div>';
+  }).join('') + '</div>';
+}
+function mhNext(D){
+  var c = czC(), t = D.t, t1 = czAddDays(t, 1), out = [];
+  var all = czAll();
+  all.filter(function(it){ return it.status === 'failed' && czDay(it.at) >= czAddDays(t, -7); }).slice(0, 2).forEach(function(it){
+    out.push({bad:1, t:'Публикация не вышла: «' + mhCut(czFirst(it), 60) + '»', s:czChName(it.channel) + ', ' + czDayName(czDay(it.at)) + '. Откройте и опубликуйте снова', fn:"czOpenItem('" + it.id + "')"});
+  });
+  var soon = all.filter(function(it){ var d = czDay(it.at); return d >= t && d <= t1; });
+  if(c.settings.approval === 'manual'){
+    var w = soon.filter(function(it){ return it.status === 'planned'; }).length;
+    if(w) out.push({t:'Одобрить ' + fmtN(w) + ' ' + czPl(w, 'публикацию', 'публикации', 'публикаций') + ' на сегодня и завтра', s:'Ручной режим: выходит только одобренное', fn:"CT.view='cal';CT._v0=1;goSection('content')"});
+  }
+  soon.filter(function(it){ return it.channel === 'instagram' && (it.status === 'planned' || it.status === 'approved'); }).slice(0, 2).forEach(function(it){
+    out.push({t:'Выложить вручную: ' + ({carousel:'карусель', reels:'Reels'}[it.kind] || 'пост') + ' «' + mhCut(czFirst(it), 50) + '»', s:'Instagram, ' + (czDay(it.at) === t ? 'сегодня' : 'завтра') + ' в ' + czHM(it.at), fn:"czOpenItem('" + it.id + "')"});
+  });
+  var n0 = czAddDays(D.m, 7), n1 = czAddDays(D.m, 13);
+  if(!all.some(function(it){ var d = czDay(it.at); return d >= n0 && d <= n1 && it.status !== 'skipped'; }))
+    out.push({t:'Спланировать следующую неделю', s:'С ' + czShort(n0) + ' публикаций пока нет', fn:"CT.view='cal';CT._v0=1;goSection('content');czReplan()"});
+  var nl = D.leads.filter(function(l){ return l && l.col === 'new' && mhSrc(l.source) !== 'other'; }).length;
+  if(nl) out.push({t:'Ответить новым лидам из контента: ' + fmtN(nl), s:'Колонка «Новый» в CRM', fn:"goSection('leads')"});
+  if(D.ideas) out.push({t:'Разобрать идеи: ' + fmtN(D.ideas) + ' ' + czPl(D.ideas, 'ждёт', 'ждут', 'ждут') + ' календаря', s:'Контент-завод → Идеи', fn:"CT.view='ideas';CT._v0=1;goSection('content')"});
+  var MAd = maData();
+  ((MAd && MAd.actions) || []).filter(function(a){ return a && !a.done && /высок/i.test(a.priority || ''); }).slice(0, 2).forEach(function(a){
+    out.push({t:mhCut(a.text, 110), s:'Стратегия · план действий, высокий приоритет', fn:"goMA('insights')"});
+  });
+  out = out.slice(0, 7);
+  var head = '<div class="mh-h"><div><b>Следующие шаги</b><span>' + (out.length ? fmtN(out.length) + ' ' + czPl(out.length, 'дело', 'дела', 'дел') : 'всё сделано') + '</span></div></div>';
+  return '<div class="mh-card mh-next" id="mhNext">' + head + (out.length ? out.map(function(x){
+    return '<div class="mh-na' + (x.bad ? ' bad' : '') + '" onclick="' + escA(x.fn) + '"><i></i><div><b>' + esc(x.t) + '</b><span>' + esc(x.s) + '</span></div><em>→</em></div>';
+  }).join('') : mkEmpty('Срочных дел нет', 'Новые шаги появятся, когда подойдёт срок публикаций или придут лиды', '', '')) + '</div>';
+}
+function renderMktHome(){
+  var D = mhData(), live = D.items.filter(function(x){ return x.status !== 'skipped'; }), pub = live.filter(function(x){ return x.status === 'published'; }).length;
+  var el = pgSet('Маркетинг', 'Неделя ' + czShort(D.m) + ' - ' + czShort(D.e) + ' · что выходит, откуда лиды и что сделать дальше');
+  var dl = D.wk.length - D.prev;
+  el.innerHTML = '<div class="mh" id="mhRoot">' +
+    '<div class="mh-kpis">' +
+      mhKpi('Публикации недели', live.length ? fmtN(pub) + ' <small>из ' + fmtN(live.length) + '</small>' : '0', live.length ? (live.length - pub ? 'ещё ' + fmtN(live.length - pub) + ' по плану' : 'всё вышло') : 'план пуст', "CT.view='cal';CT._v0=1;goSection('content')", 'mhK1') +
+      mhKpi('Лиды за неделю', fmtN(D.wk.length), dl > 0 ? 'на ' + fmtN(dl) + ' больше, чем на прошлой' : (dl < 0 ? 'на ' + fmtN(-dl) + ' меньше, чем на прошлой' : 'как на прошлой неделе'), "goSection('leads')", 'mhK2') +
+      mhKpi('Записались на разбор', fmtN(D.razbor), 'из лидов этой недели', "goSection('leads')", 'mhK3') +
+      mhKpi('Идеи ждут календаря', fmtN(D.ideas), 'в Контент-заводе', "CT.view='ideas';CT._v0=1;goSection('content')", 'mhK4') +
+    '</div>' +
+    '<div class="mh-col">' + mhWeek(D) + mhTop() + '</div><div class="mh-col">' + mhNext(D) + mhLeads(D) + '</div></div>';
+}
+// Обрезка по границе слова, чтобы не рвать числа и слова
+function mhCut(s, n){ s = String(s || '').replace(/\s+/g, ' ').trim(); if(s.length <= n) return s; var c = s.slice(0, n), k = c.lastIndexOf(' '); return (k > n * 0.6 ? c.slice(0, k) : c).replace(/[\s,.:;«(-]+$/, '') + '…'; }
 
 // ═══ Старт ═══
 function bsBoot(){
@@ -22444,6 +22761,183 @@ function bsBoot(){
 // С сервера: сначала вход и загрузка данных, потом запуск. Из файла: сразу, как раньше
 if(window.BS_SERVER && window.BSSync) BSSync.start(bsBoot); else bsBoot();
 </script>
+<!-- R24: Маркетинг. Обзор, стратегия документом, идеи в Контент-заводе, пустые состояния -->
+<style id="r24Style">
+/* Общие: пустое состояние и ссылка-кнопка */
+.mk-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;padding:40px 20px;border:1px dashed var(--pi);border-radius:16px;margin:2px 0 14px}
+.mk-empty>div{display:flex;flex-direction:column;gap:5px;max-width:480px}
+.mk-empty b{font-size:15px;font-weight:800;letter-spacing:-.2px}
+.mk-empty span{font-size:13px;color:var(--pm);line-height:1.5;font-weight:500}
+.mk-empty.row1{flex-direction:row;justify-content:space-between;text-align:left;padding:16px 20px;margin-bottom:12px}
+.mk-lnk{background:none;border:0;padding:0;font:inherit;font-size:12.5px;font-weight:800;color:var(--ptx);cursor:pointer;white-space:nowrap}
+.mk-lnk:hover{text-decoration:underline;text-underline-offset:3px}
+.mk-lnk.on{color:var(--pm)}
+/* Заметки */
+.mn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.mn-c{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:16px 18px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:border-color .15s;min-height:120px}
+.mn-c:hover{border-color:var(--ptx)}
+.mn-t{font-size:15px;font-weight:800;line-height:1.3;letter-spacing:-.2px}
+.mn-d{font-size:13px;color:var(--t2);line-height:1.5;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.mn-f{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--pm);font-weight:600;padding-top:6px}
+/* Стратегия: документ с оглавлением */
+.ma.ma-doc{display:grid;grid-template-columns:210px minmax(0,1fr);gap:36px;align-items:start}
+.ma-toc{position:sticky;top:8px;display:flex;flex-direction:column;gap:2px;padding-top:2px}
+.ma-tock{font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--pl);margin:0 0 10px 10px}
+.ma-toc .ma-tab{min-height:0;flex-direction:row;align-items:center;gap:10px;padding:8px 10px;border:0;border-radius:9px;background:none;transform:none}
+.ma-toc .ma-tab:hover{background:var(--ph);transform:none;border-color:transparent}
+.ma-toc .ma-tab.on{background:var(--pon);color:var(--pontx)}
+.ma-toc .ma-ti{width:auto;height:auto;border:0;border-radius:0;font-size:11px;font-weight:800;color:var(--pl);font-variant-numeric:tabular-nums;display:inline}
+.ma-toc .ma-tab.on .ma-ti{color:inherit;opacity:.55}
+.ma-toc .ma-tn{margin:0;font-size:13px;font-weight:700;flex:1;line-height:1.3}
+.ma-toc .ma-tc{font-size:11px;font-weight:700;color:var(--pm);font-variant-numeric:tabular-nums}
+.ma-toc .ma-tab.on .ma-tc{color:inherit;opacity:.55}
+.ma-tocnote{margin-top:14px;padding:12px;border:1px dashed var(--pi);border-radius:10px;font-size:12px;color:var(--pm);line-height:1.5}
+.ma-tocnote b{color:var(--ptx)}
+.ma-doc .ma-body{counter-reset:mach;gap:0}
+.ma-ch{counter-increment:mach;display:flex;flex-direction:column;gap:14px;padding:0 0 44px;margin:0 0 40px;border-bottom:1px solid var(--pb);scroll-margin-top:14px;min-width:0}
+.ma-ch:last-child{border-bottom:0;margin-bottom:0}
+.ma-ch>.ma-sh:first-child{margin-top:0}
+.ma-ch>.ma-sh:first-child .ma-st{font-size:26px;font-weight:800;letter-spacing:-.7px;line-height:1.15}
+.ma-ch>.ma-sh:first-child .ma-st::before{content:counter(mach,decimal-leading-zero);display:block;font-size:11px;font-weight:800;letter-spacing:1.6px;color:var(--pl);margin-bottom:8px}
+.ma-sh .ma-sha{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.ma-sha:empty{display:none}
+.ma-doc .ma-wait{margin-bottom:32px}
+/* Режим чтения: правка скрыта, текст выглядит как документ */
+.ma-doc:not(.edit) .ma-add,.ma-doc:not(.edit) .ma-x,.ma-doc:not(.edit) .ma-del,.ma-doc:not(.edit) .ma-chip.add,.ma-doc:not(.edit) .ma-pill.add,
+.ma-doc:not(.edit) .d8-ed,.ma-doc:not(.edit) .ma-urlf,.ma-doc:not(.edit) .ma-fbar>.btn{display:none!important}
+.ma-doc:not(.edit) .ma-e{cursor:inherit}
+.ma-doc:not(.edit) .ma-e:hover{background:none;box-shadow:none}
+.ma-doc:not(.edit) .ma-e:empty::before{content:none}
+.ma-doc:not(.edit) .ma-type{cursor:default}
+.ma-doc:not(.edit) .ma-dot{cursor:default}
+.ma-doc.edit .ma-e{box-shadow:inset 0 -1px 0 var(--pi)}
+/* Контент-завод → Идеи */
+.cz-ish{display:flex;align-items:baseline;gap:8px;margin:18px 0 8px}
+.cz-ish b{font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--pl)}
+.cz-ish span{font-size:12px;color:var(--pm);font-weight:700}
+.cz-il{display:flex;flex-direction:column;border:1px solid var(--pb);border-radius:14px;background:var(--pc);overflow:hidden}
+.cz-idea{display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid var(--pb);cursor:pointer;transition:background .12s}
+.cz-idea:first-child{border-top:0}
+.cz-idea:hover{background:var(--ph)}
+.cz-ibd{flex:1;min-width:0}
+.cz-it{font-size:14px;font-weight:700;line-height:1.35;overflow-wrap:anywhere}
+.cz-im{font-size:12px;color:var(--pm);margin-top:3px;font-weight:600}
+.cz-ia{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.cz-iw{font-size:12px;color:var(--pm);font-weight:700}
+.cz-ical{height:34px;padding:0 14px}
+.cz-idea.done .cz-it{color:var(--pm)}
+/* Маркетинг → Обзор */
+.mh{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:14px;align-items:start}
+.mh-col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ma-doc .ma-stairs.mini .ma-stp{min-height:96px}
+.mh-kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.mh-k{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:16px 18px;cursor:pointer;transition:border-color .15s}
+.mh-k:hover{border-color:var(--ptx)}
+.mh-kl{font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--pl)}
+.mh-kv{font-size:30px;font-weight:800;letter-spacing:-1px;margin:8px 0 2px;font-variant-numeric:tabular-nums;line-height:1.1}
+.mh-kv small{font-size:15px;font-weight:700;color:var(--pm);letter-spacing:-.2px}
+.mh-ks{font-size:12px;color:var(--pm);font-weight:600}
+.mh-card{background:var(--pc);border:1px solid var(--pb);border-radius:16px;padding:18px 20px;min-width:0}
+.mh-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.mh-h>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.mh-h b{font-size:16px;font-weight:800;letter-spacing:-.3px}
+.mh-h span{font-size:12px;color:var(--pm);font-weight:600}
+.mh-card .mk-empty{margin:0;padding:28px 16px}
+.mh-bar{height:4px;border-radius:4px;background:var(--pi);overflow:hidden;margin:-4px 0 14px}
+.mh-bar i{display:block;height:100%;background:var(--ptx);border-radius:4px}
+.mh-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.mh-day{border:1px solid var(--pb);border-radius:10px;padding:8px;min-height:120px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.mh-day.today{border-color:var(--ptx)}
+.mh-day.past{opacity:.72}
+.mh-dn{font-size:11px;font-weight:800;color:var(--pm);text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}
+.mh-dn b{font-size:15px;color:var(--ptx);letter-spacing:-.3px}
+.mh-dn i{font-style:normal;font-size:9.5px;letter-spacing:.6px;color:var(--ptx)}
+.mh-dl{display:flex;flex-direction:column;gap:4px}
+.mh-c{border:1px solid var(--pi);border-radius:7px;padding:5px 7px;font-size:11px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;gap:1px;min-width:0;line-height:1.25}
+.mh-c span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;font-weight:600;opacity:.75}
+.mh-c b{font-weight:800;font-variant-numeric:tabular-nums;font-size:12px}
+.mh-c em{display:none}
+.mh-c:hover{border-color:var(--ptx)}
+.mh-c.st-approved{border-color:var(--ptx)}
+.mh-c.st-published{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.mh-c.st-skipped{text-decoration:line-through;opacity:.5}
+.mh-c.st-failed{border-color:var(--pred);color:var(--pred)}
+.mh-c.st-planned{border-style:dashed;border-color:var(--pm)}
+.mh-none{font-size:11px;color:var(--pdim);font-weight:600}
+.mh-lg{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--pm);font-weight:600}
+.mh-lg span{display:inline-flex;align-items:center;gap:6px}
+.mh-lg i{width:12px;height:12px;border-radius:3px;border:1px solid var(--pi);display:inline-block}
+.mh-lg i.st-published{background:var(--pon);border-color:var(--pon)}
+.mh-lg i.st-approved{border-color:var(--ptx)}
+.mh-lg i.st-planned{border-style:dashed;border-color:var(--pm)}
+.mh-lg i.st-skipped{opacity:.45}
+.mh-lg i.st-failed{border-color:var(--pred)}
+.mh-lg .bad{color:var(--pred)}
+.mh-na{display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-top:1px solid var(--pb);cursor:pointer}
+.mh-na:first-of-type{border-top:0;padding-top:2px}
+.mh-na>i{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--ptx);margin-top:6px;flex-shrink:0}
+.mh-na>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.mh-na b{font-size:13.5px;font-weight:700;line-height:1.4}
+.mh-na span{font-size:12px;color:var(--pm);font-weight:600}
+.mh-na em{font-style:normal;color:var(--pm);font-weight:800}
+.mh-na:hover b{text-decoration:underline;text-underline-offset:3px}
+.mh-na.bad>i{border-color:var(--pred);background:var(--pred)}
+.mh-na.bad b{color:var(--pred)}
+.mh-srcs{display:flex;flex-direction:column;gap:10px}
+.mh-sr{display:grid;grid-template-columns:132px minmax(0,1fr) 34px 34px;gap:10px;align-items:center;font-size:13px}
+.mh-sn{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mh-sb{height:8px;border-radius:4px;background:var(--ph);overflow:hidden}
+.mh-sb i{display:block;height:100%;background:var(--ptx);border-radius:4px;min-width:2px}
+.mh-sr b{text-align:right;font-variant-numeric:tabular-nums;font-weight:800}
+.mh-sd{text-align:right;font-size:12px;color:var(--pm);font-weight:700;font-variant-numeric:tabular-nums}
+.mh-foot{margin-top:14px;padding-top:12px;border-top:1px solid var(--pb);font-size:12px;color:var(--pm);font-weight:600}
+.mh-foot b{color:var(--ptx)}
+.mh-tp{display:grid;grid-template-columns:22px minmax(0,1fr) 58px 66px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--pb);cursor:pointer}
+.mh-tp:first-of-type{border-top:0;padding-top:2px}
+.mh-tn{font-size:12px;font-weight:800;color:var(--pl);font-variant-numeric:tabular-nums}
+.mh-tt{min-width:0}
+.mh-tt div{font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mh-tt span{font-size:12px;color:var(--pm);font-weight:600}
+.mh-tv{display:flex;flex-direction:column;align-items:flex-end}
+.mh-tv b{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+.mh-tv span{font-size:11px;color:var(--pm);font-weight:600}
+.mh-tp:hover .mh-tt div{text-decoration:underline;text-underline-offset:3px}
+@media(max-width:1100px){
+  .mh{grid-template-columns:minmax(0,1fr)}
+  .ma.ma-doc{grid-template-columns:180px minmax(0,1fr);gap:24px}
+}
+@media(max-width:900px){
+  .ma.ma-doc{grid-template-columns:minmax(0,1fr);gap:12px}
+  .ma-toc{flex-direction:row;overflow-x:auto;gap:6px;top:0;z-index:6;background:var(--bg);padding:8px 0;scrollbar-width:none}
+  .ma-toc::-webkit-scrollbar{display:none}
+  .ma-tock,.ma-tocnote,.ma-toc .ma-tc{display:none}
+  .ma-toc .ma-tab{flex-shrink:0;border:1px solid var(--pi);border-radius:20px;padding:7px 12px}
+  .ma-ch{scroll-margin-top:62px;padding-bottom:32px;margin-bottom:30px}
+  .ma-ch>.ma-sh:first-child .ma-st{font-size:22px}
+  .ma-sh{flex-wrap:wrap;align-items:flex-start}
+}
+@media(max-width:700px){
+  .mh-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .mh-k{padding:14px}
+  .mh-kv{font-size:24px}
+  .mh-card{padding:16px}
+  .mh-days{grid-template-columns:minmax(0,1fr);gap:0}
+  .mh-day{flex-direction:row;min-height:0;border:0;border-top:1px solid var(--pb);border-radius:0;padding:9px 0;gap:10px}
+  .mh-day.today{border-color:var(--pb)}
+  .mh-day.today .mh-dn b{text-decoration:underline;text-underline-offset:3px}
+  .mh-dn i{display:none}
+  .mh-dn{width:58px;flex-shrink:0}
+  .mh-dl{flex:1;min-width:0}
+  .mh-c em{display:block;flex:1;min-width:0;font-style:normal;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8}
+  .mh-c{flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;padding:6px 8px}
+  .mh-c span{flex-shrink:0}
+  .mh-sr{grid-template-columns:104px minmax(0,1fr) 28px 28px;gap:8px}
+  .mh-tp{grid-template-columns:18px minmax(0,1fr) 46px 54px;gap:8px}
+  .cz-idea{flex-direction:column;align-items:stretch;gap:10px}
+  .cz-ia{justify-content:space-between;flex-wrap:wrap}
+  .mk-empty.row1{flex-direction:column;align-items:flex-start}
+}
+</style>
 <!-- R16: обучение с голосовым гидом, Gallup 34 таланта -->
 <style id="r16Style">
 /* ═══ R16 · Обучение (подсветка шагов) ═══ */
@@ -22754,9 +23248,8 @@ var Voice = (function(){
       if(!b || !b.size) throw new Error('empty');
       fails = 0; return URL.createObjectURL(b);
     }).catch(function(){
+      // R23: неудачу забываем, повторяет say(), пока шаг на экране
       fails++; delete cache[text];
-      // сервер сам ждёт лимит Gemini; один повтор на случай сбоя сети
-      if(!again && !serverDown) return new Promise(function(r){ setTimeout(r, 3000); }).then(function(){ return fetchAudio(text, true); });
       return null;
     });
     cache[text] = p;
@@ -22766,7 +23259,7 @@ var Voice = (function(){
   var pq = [], prun = false;
   function prefetch(list){
     if(muted()) return;
-    list.forEach(function(t){ if(t && !cache[t] && pq.indexOf(t) < 0) pq.push(t); });
+    list.slice(0, 3).forEach(function(t){ if(t && !cache[t] && pq.indexOf(t) < 0) pq.push(t); });
     if(prun) return;
     prun = true;
     (function next(){
@@ -22778,7 +23271,7 @@ var Voice = (function(){
     token++;
     if(cur){ try{ cur.pause(); }catch(e){} cur = null; }
     if(curUtter){ try{ speechSynthesis.cancel(); }catch(e){} curUtter = false; }
-    pending = null; emit();
+    pending = null; prep = false; emit();
   }
   function ruVoice(){
     try{
@@ -22797,32 +23290,52 @@ var Voice = (function(){
       speechSynthesis.cancel(); speechSynthesis.speak(u); curUtter = true; emit();
     }catch(e){ done(); }
   }
-  // Сказать фразы по очереди. Ни одна ошибка не останавливает обучение
+  // R23: «озвучка готовится»: фраза ещё не пришла с сервера
+  var prep = false;
+  function setPrep(on){ on = !!on; if(prep !== on){ prep = on; emit(); } }
+  // R23: все фразы обучения сервер делает заранее, сразу после входа (POST /tts/warm)
+  function warm(texts){
+    var seen = {}, list = (texts || []).filter(function(t){ if(!t || seen[t]) return false; seen[t] = 1; return true; });
+    if(!list.length || !online() || !window.BSSync || !BSSync.api) return Promise.resolve(null);
+    return Promise.resolve().then(function(){ return BSSync.api('POST', '/tts/warm', {texts: list}); }).then(function(r){
+      return r && r.ok ? r.json() : null;
+    }).then(function(j){ if(j && j.noTTS) serverDown = true; return j; }).catch(function(){ return null; });
+  }
+  // Сказать фразы по очереди. Ни одна ошибка не останавливает обучение:
+  // фраза, которая не пришла, запрашивается снова, пока шаг на экране; следующий шаг озвучивается всегда
   function say(texts){
     if(typeof texts === 'string') texts = [texts];
     stop();
     if(muted() || !texts.length) return;
     var my = token, i = 0;
     function one(){
-      if(my !== token || i >= texts.length) return;
-      var text = texts[i++], settled = false;
-      // Ждём голос сервера (он сам переждёт лимит). Голос браузера только если озвучки на сервере нет совсем
-      var timer = setTimeout(function(){ if(settled) return; settled = true; if(my === token){ if(serverDown) browserSay(text, my, one); else one(); } }, 60000);
-      fetchAudio(text).then(function(url){
-        if(settled || my !== token) return;
-        settled = true; clearTimeout(timer);
-        if(!url){ if(serverDown) browserSay(text, my, one); else one(); return; }
-        var a = new Audio(url); cur = a;
-        a.onended = function(){ if(my === token){ cur = null; emit(); one(); } };
-        a.onerror = function(){ if(my === token){ cur = null; one(); } };
-        var pr = a.play();
-        emit();
-        if(pr && pr.catch) pr.catch(function(){
-          // Браузер не даёт играть звук до первого действия: ждём клика или клавиши
+      if(my !== token) return;
+      if(i >= texts.length){ setPrep(false); return; }
+      var text = texts[i++], tries = 0;
+      var slow = setTimeout(function(){ if(my === token) setPrep(true); }, 600);
+      function next(){ clearTimeout(slow); setPrep(false); one(); }
+      (function attempt(){
+        fetchAudio(text).then(function(url){
           if(my !== token) return;
-          cur = null; pending = {texts: texts.slice(i - 1), my: my}; emit();
+          if(!url){
+            if(serverDown){ clearTimeout(slow); setPrep(false); browserSay(text, my, one); return; }
+            // сервер занят или упёрся в лимит: ещё раз через пару секунд
+            if(++tries <= 8){ setPrep(true); setTimeout(function(){ if(my === token) attempt(); }, Math.min(1500 * tries, 6000)); return; }
+            next(); return;
+          }
+          clearTimeout(slow); setPrep(false);
+          var a = new Audio(url); cur = a;
+          a.onended = function(){ if(my === token){ cur = null; emit(); one(); } };
+          a.onerror = function(){ if(my === token){ cur = null; delete cache[text]; one(); } };
+          var pr = a.play();
+          emit();
+          if(pr && pr.catch) pr.catch(function(){
+            // Браузер не даёт играть звук до первого действия: ждём клика или клавиши
+            if(my !== token) return;
+            cur = null; pending = {texts: texts.slice(i - 1), my: my}; emit();
+          });
         });
-      });
+      })();
     }
     one();
   }
@@ -22832,7 +23345,8 @@ var Voice = (function(){
     if(!pending || (e.target && e.target.closest && e.target.closest('#tr16 [data-a]')) || (ev === 'keydown' && document.getElementById('tr16'))) return;
     setTimeout(resume, 0);
   }, true); });
-  return {say: say, stop: stop, prefetch: prefetch, muted: muted, setMuted: setMuted,
+  return {say: say, stop: stop, prefetch: prefetch, muted: muted, setMuted: setMuted, warm: warm,
+    preparing: function(){ return prep; },
     speaking: function(){ return !!(cur || curUtter); }, blocked: function(){ return !!pending; },
     on: function(f){ listeners.push(f); }, _fetch: fetchAudio, _cache: cache};
 })();
@@ -22939,10 +23453,11 @@ function root(){
 }
 function muteBtn(){
   var m = Voice.muted();
-  return '<button type="button" class="tr16-ic' + (Voice.speaking() ? ' speaking' : '') + '" data-a="mute" title="' + (m ? 'Включить голос' : 'Выключить голос') + '" aria-label="' + (m ? 'Включить голос' : 'Выключить голос') + '">' + (m ? ICON_OFF : ICON_ON) + '</button>';
+  return '<span class="tr16-vw"><span class="tr16-prep' + (Voice.preparing() && !m ? ' on' : '') + '" role="status"><i></i>озвучка готовится</span>' +
+    '<button type="button" class="tr16-ic' + (Voice.speaking() ? ' speaking' : '') + '" data-a="mute" title="' + (m ? 'Включить голос' : 'Выключить голос') + '" aria-label="' + (m ? 'Включить голос' : 'Выключить голос') + '">' + (m ? ICON_OFF : ICON_ON) + '</button></span>';
 }
 Voice.on(function(){
-  var b = document.querySelector('#tr16 [data-a="mute"]'); if(!b) return;
+  var b = document.querySelector('#tr16 .tr16-vw'); if(!b) return;
   b.outerHTML = muteBtn();
   var orb = document.querySelector('#tr16 .tr16-orb'); if(orb) orb.classList.toggle('on', Voice.speaking());
 });
@@ -23119,10 +23634,28 @@ function autoCheck(){
   if(obRead().tour[m]) return;
   showWelcome(m, true);
 }
+// R23: фразы обучения готовятся на сервере сразу после входа, приветствие скачивается
+// заранее: «Обучение» начинает говорить без паузы
+var warmed = {};
+function warmTour(){
+  try{
+    if(Voice.muted() || !window.BSSync || !BSSync.api) return;
+    // автотесты старых сценариев не ходят за озвучкой, свой тест включает её явно
+    if(navigator.webdriver && !window.BS_TTS_WARM) return;
+    var m = mode(); if(warmed[m]) return; warmed[m] = 1;
+    var texts = [];
+    [m].concat(m === 'admin' ? ['res', 'lead'] : []).forEach(function(x){
+      texts.push((WELCOME[x] || WELCOME.admin).d);
+      buildSteps(x).forEach(function(s){ texts.push(s.d); });
+    });
+    // заранее скачивается только приветствие: остальное сервер отдаёт из готового за доли секунды
+    Voice.warm(texts).then(function(){ Voice.prefetch([(WELCOME[m] || WELCOME.admin).d]); });
+  }catch(e){}
+}
 var waits = 0;
 (function wait(){
   // до входа ждём сколько угодно: страница входа может висеть долго
-  if(dataReady() && document.getElementById('navAdmin') && (!window.BS_SERVER || online())){ setTimeout(autoCheck, 900); return; }
+  if(dataReady() && document.getElementById('navAdmin') && (!window.BS_SERVER || online())){ setTimeout(autoCheck, 900); setTimeout(warmTour, 200); return; }
   setTimeout(wait, ++waits > 120 ? 1500 : 500);
 })();
 // Переключение режима (команда смотрит глазами резидента или лида): своё обучение один раз
@@ -23184,6 +23717,7 @@ window.BSTour = {
   close: function(){ finish(false); },
   state: obRead,
   voice: Voice,
+  warm: warmTour,
   autoCheck: autoCheck
 };
 
@@ -24343,6 +24877,166 @@ function showCall(id){
     c.diagnoses = c.diagnoses || []; c.decisions = c.decisions || []; c.questions = c.questions || []; c.checklist = c.checklist || [];
     return _ct.apply(this, arguments);
   };
+})();
+</script>
+
+<style id="r23Style">
+/* R23 · настройки резидента в карточке (команда) */
+.r23-res .r23-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;align-items:center;padding:11px 0;border-top:1px solid var(--pb)}
+.r23-res .r23-row:first-child{border-top:0;padding-top:2px}
+.r23-k{font-size:13px;font-weight:700;color:var(--ptx)}
+.r23-h{font-size:11.5px;color:var(--pm);margin-top:2px;line-height:1.4}
+.r23-c{display:flex;align-items:center;gap:8px;justify-content:flex-end;min-width:0}
+.r23-sw{width:46px;height:26px;border-radius:13px;border:1px solid var(--pi);background:var(--ph);position:relative;cursor:pointer;padding:0;flex-shrink:0}
+.r23-sw i{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--pm);transition:left .18s,background .18s}
+.r23-sw[aria-checked="true"]{background:var(--pon);border-color:var(--pon)}
+.r23-sw[aria-checked="true"] i{left:23px;background:var(--pontx)}
+.r23-seg{display:inline-flex;border:1px solid var(--pi);border-radius:9px;overflow:hidden}
+.r23-seg button{padding:7px 13px;font-size:12px;font-weight:800;background:none;border:0;color:var(--pm);cursor:pointer;font-family:inherit}
+.r23-seg button.on{background:var(--pon);color:var(--pontx)}
+.r23-in{background:var(--pd);border:1px solid var(--pi);border-radius:9px;color:var(--ptx);padding:7px 10px;font:inherit;font-size:13px;min-width:0;max-width:190px;box-sizing:border-box}
+.r23-in:focus{outline:none;border-color:var(--ptx)}
+.r23-in.bad{border-color:var(--pred)}
+select.r23-in{max-width:200px;cursor:pointer}
+.r23-ok{padding:7px 12px;border-radius:9px;border:1px solid var(--pon);background:var(--pon);color:var(--pontx);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
+.r23-ok[hidden]{display:none}
+.r23-st{grid-column:1/-1;font-size:11.5px;color:var(--pm)}
+.r23-st:empty{display:none}
+.r23-st.err{color:var(--pred)}
+.r23-res [disabled]{opacity:.55;cursor:progress}
+.r23-err{font-size:12.5px;color:var(--pred)}
+@media (max-width:480px){
+  .r23-res .r23-row{grid-template-columns:1fr}
+  .r23-c{justify-content:flex-start;flex-wrap:wrap}
+  .r23-in,select.r23-in{max-width:100%;flex:1}
+}
+/* R23 · обучение: «озвучка готовится» рядом с кнопкой голоса */
+#tr16 .tr16-vw{display:inline-flex;align-items:center;gap:8px;flex-shrink:0}
+#tr16 .tr16-prep{display:none;align-items:center;gap:6px;font-size:11px;font-weight:700;opacity:.62;white-space:nowrap}
+#tr16 .tr16-prep.on{display:inline-flex}
+#tr16 .tr16-prep i{width:9px;height:9px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:r23spin .8s linear infinite}
+@keyframes r23spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){#tr16 .tr16-prep i{animation:none}}
+</style>
+<script id="r23Script">
+// R23: настройки резидента в его карточке (Клуб → Резиденты). Команда меняет «Исключение»,
+// формат, дату входа, партнёра и Telegram Chat ID: сервер сохраняет сразу (бот видит исключение
+// в тот же момент), таблица «BS - резиденты дебет» получает правку через очередь записей.
+(function(){
+'use strict';
+function ea(v){ return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function canEdit(){ try{ return MODE === 'admin' && !!(window.BSSync && BSSync.clubApi); }catch(e){ return false; } }
+function api(method, path, body){
+  if(typeof r11Club === 'function') return r11Club(method, path, body);
+  return Promise.resolve(BSSync.clubApi(method, path, body)).then(function(r){ return r.json(); }).catch(function(){ return {error:'Нет связи с сервером'}; });
+}
+var S = {list: null};
+function iso(d){ var m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(d || ''); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; }
+function dots(v){ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); return m ? m[3] + '.' + m[2] + '.' + m[1] : ''; }
+window.r23ResSlot = function(r){
+  if(!canEdit() || !r) return '';
+  return '<div class="pf-card r23-res" id="r23Res" data-name="' + ea(r.name) + '"><div class="pf-lbl">Настройки резидента</div>' +
+    '<div class="r23-body"><div class="pf-ld">Загружаю…</div></div></div>';
+};
+window.r23ResLoad = function(name){
+  var box = document.getElementById('r23Res'); if(!box || !canEdit()) return Promise.resolve();
+  return api('GET', '/residents').then(function(j){
+    j = j || {};
+    if(j.error || !Array.isArray(j.residents)){
+      var b = box.querySelector('.r23-body'); if(b) b.innerHTML = '<div class="r23-err">' + ea(j.error || 'Сервер не отдал данные резидентов') + '</div>';
+      return;
+    }
+    S.list = j.residents; draw(name);
+  });
+};
+function row(field, k, h, ctrl){
+  return '<div class="r23-row" data-f="' + field + '"><div><div class="r23-k">' + k + '</div>' + (h ? '<div class="r23-h">' + h + '</div>' : '') + '</div>' +
+    '<div class="r23-c">' + ctrl + '</div><div class="r23-st" role="status"></div></div>';
+}
+function draw(name){
+  var box = document.getElementById('r23Res'); if(!box || box.dataset.name !== name) return;
+  var body = box.querySelector('.r23-body');
+  var r = (S.list || []).find(function(x){ return x.name === name; });
+  if(!r){ body.innerHTML = '<div class="r23-err">Резидента «' + ea(name) + '» нет в данных сервера</div>'; return; }
+  var others = S.list.filter(function(x){ return x.name !== name && !x.former; });
+  if(r.partner && !others.some(function(x){ return x.name === r.partner; })) others.push({name: r.partner});
+  var fmt = String(r.format || '');
+  body.innerHTML =
+    row('exception', 'Исключение для отчётов', 'Без напоминаний и штрафов за отчёты',
+      '<button type="button" class="r23-sw" role="switch" aria-label="Исключение для отчётов" aria-checked="' + (r.exception ? 'true' : 'false') + '" data-a="exc"><i></i></button>') +
+    row('format', 'Формат', '', '<div class="r23-seg" role="group" aria-label="Формат">' +
+      ['Онлайн', 'Офлайн'].map(function(v){ return '<button type="button" data-a="fmt" data-v="' + v + '" class="' + (fmt === v ? 'on' : '') + '" aria-pressed="' + (fmt === v) + '">' + v + '</button>'; }).join('') + '</div>') +
+    row('joinedAt', 'Дата входа', '', '<input class="r23-in" type="date" data-a="date" aria-label="Дата входа" value="' + ea(iso(r.joinedAt)) + '" min="2024-01-01">') +
+    row('partner', 'Партнёр', 'Пара резидентов: встречи и отчёты вместе', '<select class="r23-in" data-a="partner" aria-label="Партнёр"><option value="">Нет партнёра</option>' +
+      others.map(function(x){ return '<option value="' + ea(x.name) + '"' + (x.name === r.partner ? ' selected' : '') + '>' + ea(x.name) + '</option>'; }).join('') + '</select>') +
+    row('chatId', 'Telegram Chat ID', 'Только цифры. По нему бот узнаёт резидента',
+      '<input class="r23-in" data-a="chat" inputmode="numeric" autocomplete="off" maxlength="16" aria-label="Telegram Chat ID" placeholder="не указан" value="' + ea(r.chatId || '') + '">' +
+      '<button type="button" class="r23-ok" data-a="chatOk" hidden>Сохранить</button>');
+  bind(box, r);
+}
+function status(box, field, text, err){
+  var st = box.querySelector('.r23-row[data-f="' + field + '"] .r23-st'); if(!st) return;
+  st.textContent = text || ''; st.classList.toggle('err', !!err);
+}
+function save(box, r, field, value, ctrl){
+  var name = r.name;
+  status(box, field, 'Сохраняю…');
+  box.querySelectorAll('[data-a]').forEach(function(el){ el.disabled = true; });
+  return api('POST', '/resident', {name: name, field: field, value: value}).then(function(j){
+    j = j || {};
+    var cur = document.getElementById('r23Res');
+    if(j.error){
+      draw(name); if(cur) status(cur, field, j.detail || j.error, true);
+      return;
+    }
+    var nr = j.resident;
+    if(nr){
+      S.list = S.list.map(function(x){ return x.name === nr.name ? nr : x; });
+      if(field === 'partner') S.list.forEach(function(x){
+        if(x.name === value) x.partner = name; else if(x.partner === name && x.name !== name) x.partner = '';
+      });
+      try{
+        var R = (typeof RESIDENTS !== 'undefined' && RESIDENTS || []).find(function(x){ return x.name === nr.name; });
+        if(R){ R.format = nr.format; R.start = nr.joinedAt; }
+        var sub = document.getElementById('cardSub');
+        if(sub && R) sub.textContent = ['Клуб · Резиденты', R.format || '', R.start ? 'в клубе с ' + R.start : ''].filter(Boolean).join(' · ');
+        if(typeof srRender === 'function' && document.getElementById('srTbl')) srRender();
+      }catch(e){}
+    }
+    draw(name);
+    if(cur) status(document.getElementById('r23Res'), field, j.unchanged ? 'Без изменений' : (j.queued ? 'Сохранено на сервере · таблица обновится, как только ответит' : 'Сохранено · в таблице тоже'));
+    if(!j.unchanged) toast(field === 'exception' ? (nr && nr.exception ? 'Резидент в исключении: без напоминаний и штрафов за отчёты' : 'Исключение снято') : 'Сохранено');
+  });
+}
+function bind(box, r){
+  box.onclick = function(e){
+    var a = e.target.closest && e.target.closest('[data-a]'); if(!a || a.disabled) return;
+    var act = a.getAttribute('data-a');
+    if(act === 'exc'){ save(box, r, 'exception', r.exception ? 'Нет' : 'Да', a); }
+    else if(act === 'fmt'){ if(a.dataset.v !== r.format) save(box, r, 'format', a.dataset.v, a); }
+    else if(act === 'chatOk'){ chat(); }
+  };
+  var d = box.querySelector('[data-a="date"]');
+  d.onchange = function(){
+    if(!d.value){ status(box, 'joinedAt', 'Укажите дату', true); return; }
+    var v = dots(d.value);
+    if(!v || d.value < '2024-01-01'){ d.classList.add('bad'); status(box, 'joinedAt', 'Дата в виде 30.09.2026', true); return; }
+    if(v !== r.joinedAt) save(box, r, 'joinedAt', v, d);
+  };
+  var p = box.querySelector('[data-a="partner"]');
+  p.onchange = function(){ save(box, r, 'partner', p.value, p); };
+  var c = box.querySelector('[data-a="chat"]'), ok = box.querySelector('[data-a="chatOk"]');
+  function check(){
+    var v = c.value.trim(), good = /^\d{0,16}$/.test(v);
+    c.classList.toggle('bad', !good);
+    ok.hidden = v === (r.chatId || '');
+    status(box, 'chatId', good ? '' : 'Chat ID: только цифры, без @ и пробелов', !good);
+    return good;
+  }
+  function chat(){ if(!check()) return; var v = c.value.trim(); if(v !== (r.chatId || '')) save(box, r, 'chatId', v, c); }
+  c.oninput = check;
+  c.onkeydown = function(e){ if(e.key === 'Enter'){ e.preventDefault(); chat(); } };
+}
 })();
 </script>
 

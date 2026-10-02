@@ -2604,7 +2604,7 @@ function _miniRenewMeetings(p){
 // Поля резидента, которые можно исправить одной ячейкой
 var BS_RESIDENT_FIELDS = {tariff: "tariff", meetingsGranted: "granted", meetingsDone: "done",
   paidEntry: "paid", restEntry: "rest", renewDebt: "renew", months: "months", chatId: "chat",
-  partner: "partner", note: "notes"};
+  partner: "partner", note: "notes", exception: "except", format: "format", joinedAt: "date"};
 
 function _miniSetResidentField(p){
   // Исправление одной ячейки резидента (проверка данных на платформе)
@@ -2614,13 +2614,27 @@ function _miniSetResidentField(p){
     if(!name) return {error: "Нет имени"};
     var key = BS_RESIDENT_FIELDS[field];
     if(!key) return {error: "Поле «" + field + "» не меняется"};
-    var text = (field === "partner" || field === "note" || field === "chatId");
+    var text = (field === "partner" || field === "note" || field === "chatId" ||
+      field === "exception" || field === "format" || field === "joinedAt");
     var v = value;
     if(!text){
       v = value === "" ? 0 : Number(value.replace(/[\s,]/g, ""));
       if(isNaN(v) || v < 0) return {error: "«" + value + "» не число"};
     } else if(field === "chatId" && value !== "" && !/^\d+$/.test(value)){
       return {error: "Chat ID «" + value + "» не число"};
+    }
+    // v37: настройки карточки резидента с платформы (Исключение L, Формат O, Дата входа)
+    if(field === "exception"){
+      v = /^(да|true|1|yes)$/i.test(value) ? "Да" : (/^(нет|false|0|no|)$/i.test(value) ? "Нет" : null);
+      if(v === null) return {error: "Исключение: нужно Да или Нет"};
+    } else if(field === "format"){
+      v = /^(онлайн|online)$/i.test(value) ? "Онлайн" : (/^(офлайн|оффлайн|offline)$/i.test(value) ? "Офлайн" : null);
+      if(v === null) return {error: "Формат: нужно Онлайн или Офлайн"};
+    } else if(field === "joinedAt"){
+      var dm = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value) || null;
+      if(!dm) return {error: "Дата входа «" + value + "»: нужна дата в виде 30.09.2026"};
+      v = new Date(Number(dm[3]), Number(dm[2]) - 1, Number(dm[1]));
+      if(v.getDate() !== Number(dm[1])) return {error: "Дата входа «" + value + "» не существует"};
     }
     var ws = SpreadsheetApp.openById(SS_ID).getSheetByName("BS - резиденты дебет");
     if(!ws) return {error: "Нет листа"};
@@ -2765,7 +2779,7 @@ function _alert(m){
 // ═══════════════════════════════════════════════════════════════
 // Месяц, с которого считается касса. 3 = апрель, счёт был обнулён
 var CASH_START_MONTH = 3;
-var BS_VERSION = "2026-10-02-36";
+var BS_VERSION = "2026-10-02-37";
 
 // ═══════════════════════════════════════════════════════════════
 // КАРТА КОЛОНОК ЛИСТА РЕЗИДЕНТОВ

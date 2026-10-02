@@ -11,7 +11,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
 
@@ -106,20 +105,13 @@ func (h *PlatformAI) TTS(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no_tts"})
 		return
 	}
-	unlock := ttsLock(key)
-	defer unlock()
-	// Another request may have made it while this one waited.
-	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
-		serve(f.Data, true)
-		return
-	}
 	sctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
-	wav, err := h.AI.Speak(sctx, text, voice, "")
+	// One synthesis at a time on the server, a listener before the warm-up (platform_tts_warm.go).
+	wav, hit, err := h.speakCached(sctx, key, text, voice, true)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "tts_failed", "detail": err.Error()})
 		return
 	}
-	_ = h.repo.PutFile(context.Background(), pg.PlatformFile{ID: key, Name: "voice.wav", Mime: "audio/wav", Data: wav}, "server:tts")
-	serve(wav, false)
+	serve(wav, hit)
 }

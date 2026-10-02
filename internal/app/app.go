@@ -368,7 +368,8 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 
 	action := httpapi.NewClubActionHandler(g, clubRepo, d.PlatformRepo, staticSeed)
 	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewClubActionModule(action, []byte(jwtSecret)),
-		httpapi.NewMigrationModule(mig, []byte(jwtSecret)), httpapi.NewClubAuditModule(audit, []byte(jwtSecret))}
+		httpapi.NewMigrationModule(mig, []byte(jwtSecret)), httpapi.NewClubAuditModule(audit, []byte(jwtSecret)),
+		httpapi.NewClubResidentModule(action, []byte(jwtSecret))}
 }
 
 // parseBundleSample reads "admin:453800951,resident:490685605,lead:999".

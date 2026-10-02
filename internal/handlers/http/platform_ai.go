@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"net/url"
@@ -50,6 +50,8 @@ type PlatformAI struct {
 	queueOwns atomic.Pointer[func(ctx context.Context, day time.Time) bool]
 	// Run starts background work; tests replace it to run inline.
 	Run func(func())
+	// ev: the events feed refresh in progress or last done (platform_events.go).
+	ev eventsRun
 }
 
 func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {
@@ -237,6 +239,10 @@ func (h *PlatformAI) refreshEvents(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	if len(items) == 0 {
+		// Nothing usable: the feed stays as it was rather than going empty.
+		return 0, errors.New("ИИ не нашёл ни одного предстоящего мероприятия с датой и ссылкой, лента осталась прежней")
+	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Date+items[i].Time < items[j].Date+items[j].Time })
 	val, _ := json.Marshal(map[string]any{"updated": time.Now().UTC().Format(time.RFC3339), "items": items})
 	for try := 0; try < 3; try++ {
@@ -272,28 +278,10 @@ func (h *PlatformAI) EventsLoop(ctx context.Context) {
 		case <-t.C:
 		}
 		if h.AI.Status()["text"] != "" {
-			c, cancel := context.WithTimeout(ctx, 5*time.Minute)
-			n, err := h.refreshEvents(c)
-			cancel()
-			log.Printf("platform events: %d found, err=%v", n, err)
+			<-h.startEvents("morning")
 		}
 		t.Reset(untilNextMorning(time.Now()))
 	}
-}
-
-// RefreshEvents: POST /ai/events (team) refreshes the feed now.
-func (h *PlatformAI) RefreshEvents(c *gin.Context) {
-	if !teamOnly(c) {
-		return
-	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
-	defer cancel()
-	n, err := h.refreshEvents(ctx)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"found": n})
 }
 
 // OpsList: GET /ops (team) — the journal of club data changes.

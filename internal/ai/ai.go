@@ -467,61 +467,123 @@ const eventsPrompt = `Найди в интернете бизнес-меропр
 Только реальные события с датой и ссылкой, которые ты нашёл в поиске. Не выдумывай. До 30 событий.`
 
 // Search asks a model that can search the web (Gemini with google_search, or
-// Claude with web_search) and returns its text answer.
+// Claude with web_search) and returns its text answer. An overloaded or
+// rate-limited model is asked again (SearchBackoff); when Gemini refuses for
+// good and a Claude key is there, Claude searches instead.
 func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
-	var ans string
-	var err error
-	switch {
-	case c.Gemini != "":
-		var b []byte
-		if b, err = c.geminiCall(ctx, "generateContent", map[string]any{
-			"contents": []map[string]any{{"role": "user", "parts": []map[string]any{{"text": prompt}}}},
-			"tools":    []map[string]any{{"google_search": map[string]any{}}},
-		}); err == nil {
-			var out struct {
-				Candidates []struct {
-					Content struct {
-						Parts []struct {
-							Text string `json:"text"`
-						} `json:"parts"`
-					} `json:"content"`
-				} `json:"candidates"`
+	if c.Gemini == "" && c.Anthropic == "" {
+		return "", errors.New("поиск в интернете работает с GEMINI_API_KEY или ANTHROPIC_API_KEY")
+	}
+	try := func(f func(context.Context, string) (string, error)) (string, error) {
+		var ans string
+		var err error
+		for i := 0; ; i++ {
+			ans, err = f(ctx, prompt)
+			if err == nil || !transient(err) || i >= len(SearchBackoff) || ctx.Err() != nil {
+				return ans, err
 			}
-			_ = json.Unmarshal(b, &out)
-			for _, cnd := range out.Candidates {
-				for _, p := range cnd.Content.Parts {
-					ans += p.Text
-				}
-				break
+			if serr := sleepCtx(ctx, SearchBackoff[i]); serr != nil {
+				return ans, err
 			}
 		}
-	case c.Anthropic != "":
+	}
+	if c.Gemini != "" {
+		ans, err := try(c.geminiSearch)
+		if err == nil || c.Anthropic == "" || ctx.Err() != nil {
+			return ans, err
+		}
+		if ans2, err2 := try(c.claudeSearch); err2 == nil {
+			return ans2, nil
+		}
+		return ans, err
+	}
+	return try(c.claudeSearch)
+}
+
+func (c *Client) geminiSearch(ctx context.Context, prompt string) (string, error) {
+	b, err := c.geminiCall(ctx, "generateContent", map[string]any{
+		"contents": []map[string]any{{"role": "user", "parts": []map[string]any{{"text": prompt}}}},
+		"tools":    []map[string]any{{"google_search": map[string]any{}}},
+	})
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		Candidates []struct {
+			FinishReason string `json:"finishReason"`
+			Content      struct {
+				Parts []struct {
+					Text    string `json:"text"`
+					Thought bool   `json:"thought"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+		PromptFeedback struct {
+			BlockReason string `json:"blockReason"`
+		} `json:"promptFeedback"`
+	}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return "", fmt.Errorf("ответ ИИ не читается: %v", err)
+	}
+	ans, reason := "", out.PromptFeedback.BlockReason
+	for _, cnd := range out.Candidates {
+		for _, p := range cnd.Content.Parts {
+			if !p.Thought {
+				ans += p.Text
+			}
+		}
+		if reason == "" {
+			reason = cnd.FinishReason
+		}
+		break
+	}
+	if strings.TrimSpace(ans) == "" {
+		return "", &ErrEmptyAnswer{Reason: reason}
+	}
+	return ans, nil
+}
+
+func (c *Client) claudeSearch(ctx context.Context, prompt string) (string, error) {
+	msgs := []map[string]any{{"role": "user", "content": prompt}}
+	ans := ""
+	for turn := 0; turn < 4; turn++ {
 		r := jsonReq("POST", c.AnthropicBase+"/v1/messages", map[string]any{
-			"model": c.ClaudeModel, "max_tokens": 8000,
+			"model": c.ClaudeModel, "max_tokens": 12000,
 			"tools":    []map[string]any{{"type": "web_search_20250305", "name": "web_search", "max_uses": 8}},
-			"messages": []map[string]any{{"role": "user", "content": prompt}},
+			"messages": msgs,
 		})
 		r.Header.Set("x-api-key", c.Anthropic)
 		r.Header.Set("anthropic-version", "2023-06-01")
-		var b []byte
-		if b, err = c.do(ctx, r); err == nil {
-			var out struct {
-				Content []struct {
-					Type string `json:"type"`
-					Text string `json:"text"`
-				} `json:"content"`
+		b, err := c.do(ctx, r)
+		if err != nil {
+			return "", err
+		}
+		var out struct {
+			StopReason string            `json:"stop_reason"`
+			Content    []json.RawMessage `json:"content"`
+		}
+		if err := json.Unmarshal(b, &out); err != nil {
+			return "", fmt.Errorf("ответ ИИ не читается: %v", err)
+		}
+		for _, raw := range out.Content {
+			var p struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
 			}
-			_ = json.Unmarshal(b, &out)
-			for _, p := range out.Content {
-				if p.Type == "text" {
-					ans += p.Text
-				}
+			if json.Unmarshal(raw, &p) == nil && p.Type == "text" {
+				ans += p.Text
 			}
 		}
-	default:
-		return "", errors.New("поиск в интернете работает с GEMINI_API_KEY или ANTHROPIC_API_KEY")
+		// A long search pauses the turn: send it back to let Claude go on.
+		if out.StopReason != "pause_turn" {
+			break
+		}
+		msgs = append(msgs, map[string]any{"role": "assistant", "content": out.Content})
 	}
-	return ans, err
+	if strings.TrimSpace(ans) == "" {
+		return "", &ErrEmptyAnswer{}
+	}
+	return ans, nil
 }
 
 // FindEvents searches the web for Almaty business events (needs a model with web search).
@@ -530,26 +592,5 @@ func (c *Client) FindEvents(ctx context.Context, days int, from time.Time) ([]Ev
 	if err != nil {
 		return nil, err
 	}
-	var out struct {
-		Items []Event `json:"items"`
-	}
-	if js := JSONFrom(ans); js == "" || json.Unmarshal([]byte(js), &out) != nil {
-		return nil, errors.New("ИИ не вернул список мероприятий")
-	}
-	today := from.Format("2006-01-02")
-	var keep []Event
-	seen := map[string]bool{}
-	for _, e := range out.Items {
-		e.Title, e.URL = strings.TrimSpace(e.Title), strings.TrimSpace(e.URL)
-		if e.Title == "" || len(e.Date) != 10 || e.Date < today || !strings.HasPrefix(e.URL, "http") {
-			continue
-		}
-		k := strings.ToLower(e.Title) + e.Date
-		if seen[k] {
-			continue
-		}
-		seen[k] = true
-		keep = append(keep, e)
-	}
-	return keep, nil
+	return ParseEvents(ans, from)
 }
