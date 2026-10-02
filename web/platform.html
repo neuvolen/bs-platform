@@ -4225,17 +4225,31 @@ html.cz-tp-on{overflow:hidden}
 </div>
 
 <style>
-#bsxLogin{position:fixed;inset:0;z-index:100000;background:#080808;color:#fff;display:flex;align-items:center;justify-content:center;font:14px/1.5 -apple-system,'Inter',system-ui,sans-serif}
-#bsxLogin .bx-card{width:min(420px,calc(100vw - 32px));background:#121212;border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:34px 28px;text-align:center}
-#bsxLogin .bx-t{font-size:22px;font-weight:900;letter-spacing:-.5px}
-#bsxLogin .bx-s{color:rgba(255,255,255,.5);margin:8px 0 24px;font-size:13.5px}
-#bsxLogin .bx-w{min-height:48px;display:flex;justify-content:center;align-items:center}
-#bsxLogin .bx-tg{display:inline-flex;align-items:center;justify-content:center;height:46px;padding:0 22px;border-radius:12px;background:#fff;color:#000;font-weight:800;font-size:15px;text-decoration:none;margin-top:10px}
-#bsxLogin .bx-msg{margin-top:18px;font-size:12.5px;color:rgba(255,255,255,.55);white-space:pre-line}
-#bsxLogin .bx-msg.err{color:#FF8A8A}
-#bsxLogin .bx-btn{display:inline-block;margin:6px;padding:11px 18px;border-radius:11px;border:0;background:#FFFFFF;color:#0a0a0a;font-weight:800;font-size:13.5px;cursor:pointer}
-#bsxLogin .bx-btn.g{background:rgba(255,255,255,.08);color:#fff}
+#bsxLogin{position:fixed;inset:0;z-index:100000;background:#050505;color:#fff;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;isolation:isolate;font:14px/1.5 'Manrope',-apple-system,'Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+#bsxLogin::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:72px 72px;background-position:center -1px;-webkit-mask-image:radial-gradient(ellipse 70% 70% at 50% 0,#000 20%,transparent 78%);mask-image:radial-gradient(ellipse 70% 70% at 50% 0,#000 20%,transparent 78%)}
+#bsxLogin::after{content:"";position:absolute;left:50%;top:-320px;width:1000px;height:700px;transform:translateX(-50%);z-index:-1;pointer-events:none;border-radius:50%;background:radial-gradient(closest-side,rgba(255,255,255,.12),rgba(255,255,255,.035) 55%,transparent)}
+#bsxLogin .bx-card{position:relative;width:min(440px,100%);margin:auto;background:linear-gradient(180deg,#0E0E0E,#090909);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:28px 28px 22px;text-align:center;box-shadow:0 0 0 7px rgba(255,255,255,.025),0 40px 100px -30px rgba(0,0,0,.95),0 24px 80px -40px rgba(255,255,255,.12)}
+#bsxLogin .bx-card::before{content:"";position:absolute;left:14%;right:14%;top:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent)}
+#bsxLogin .bx-brand{display:flex;align-items:center;justify-content:center;gap:10px;font-size:15px;font-weight:700;letter-spacing:-.02em;margin-bottom:22px}
+#bsxLogin .bx-lg{width:30px;height:30px;border-radius:8px;box-shadow:0 0 0 1px rgba(255,255,255,.14);display:block}
+#bsxLogin .bx-t{font-size:22px;line-height:1.2;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
+#bsxLogin .bx-s{color:#8E8E8E;margin:8px 0 0;font-size:13.5px;text-wrap:balance}
+#bsxLogin .bx-w{min-height:48px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;margin-top:20px}
+#bsxLogin .bx-w iframe{max-width:100%}
+#bsxLogin .bx-tg{display:inline-flex;align-items:center;justify-content:center;gap:10px;height:48px;padding:0 24px;border-radius:999px;background:#fff;color:#050505;font-weight:700;font-size:15px;text-decoration:none;box-shadow:0 0 0 1px #fff,0 10px 40px -8px rgba(255,255,255,.35)}
+#bsxLogin .bx-msg{margin-top:14px;font-size:13px;line-height:1.55;color:#9A9A9A;white-space:pre-line;text-wrap:balance}
+#bsxLogin .bx-msg:empty{margin-top:0}
+#bsxLogin .bx-msg.err{color:#FF6B6F;padding:12px 14px;border-radius:12px;background:rgba(255,107,111,.06);border:1px solid rgba(255,107,111,.22)}
+#bsxLogin .bx-btn{display:inline-flex;align-items:center;justify-content:center;margin:6px;height:44px;padding:0 20px;border-radius:999px;border:0;background:#fff;color:#050505;font:700 14px/1 'Manrope',-apple-system,system-ui,sans-serif;cursor:pointer}
+#bsxLogin .bx-btn.g{background:rgba(255,255,255,.03);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
 #bsxLogin .bx-rep{text-align:left;font-size:12.5px;color:rgba(255,255,255,.75);max-height:40vh;overflow:auto;margin-top:14px;white-space:pre-line}
+#bsxLogin .bx-foot{display:none;margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.09);font-size:12.5px;color:#6F6F6F}
+#bsxLogin .bx-foot a{color:#BDBDBD;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.2)}
+#bsxLogin .bx-foot a:hover{color:#fff;border-color:#fff}
+#bsxLogin.is-login .bx-foot{display:block}
+#bsxLogin:not(.is-login) .bx-s{display:none}
+#bsxLogin a:focus-visible,#bsxLogin .bx-btn:focus-visible{outline:2px solid #fff;outline-offset:3px}
+@media (max-width:480px){#bsxLogin .bx-card{padding:24px 18px 20px;border-radius:20px}#bsxLogin .bx-tg{width:100%}}
 #bsxPill{position:fixed;left:14px;bottom:14px;z-index:99990;display:none;align-items:center;gap:7px;padding:7px 11px;border-radius:20px;background:rgba(18,18,18,.92);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.75);font:600 11.5px/1 -apple-system,'Inter',system-ui,sans-serif;cursor:pointer;user-select:none;backdrop-filter:blur(8px)}
 #bsxPill i{width:7px;height:7px;border-radius:50%;background:#3DD68C;display:block}
 #bsxPill.saving i{background:#FFFFFF}
@@ -5256,12 +5270,17 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   function panel(msg, isErr){
     if(!loginEl){
       loginEl = document.createElement('div'); loginEl.id = 'bsxLogin';
-      loginEl.innerHTML = '<div class="bx-card"><div class="bx-t">Business Surgery</div>' +
-        '<div class="bx-s">Платформа команды. Вход через Telegram</div>' +
-        '<div class="bx-w" id="bsxWidget"></div><div class="bx-msg" id="bsxMsg"></div></div>';
+      var ic = document.querySelector('link[rel="apple-touch-icon"]');
+      loginEl.innerHTML = '<div class="bx-card"><div class="bx-brand">' +
+        (ic ? '<img class="bx-lg" alt="" src="' + escH(ic.getAttribute('href')) + '">' : '') + '<span>business surgery</span></div>' +
+        '<div class="bx-t">Вход для резидентов и команды</div>' +
+        '<div class="bx-s">Платформа клуба. Вход через Telegram</div>' +
+        '<div class="bx-w" id="bsxWidget"></div><div class="bx-msg" id="bsxMsg" role="status" aria-live="polite"></div>' +
+        '<div class="bx-foot">Ещё не резидент? <a href="https://t.me/bsurgery_bot?start=app_login" target="_blank" rel="noopener">Забрать 99 гайдов</a></div></div>';
       document.body.appendChild(loginEl);
     }
     loginEl.style.display = 'flex';
+    loginEl.classList.remove('is-login');
     loginMode = 'panel';
     document.getElementById('bsxWidget').innerHTML = '';
     setMsg(msg || '', isErr);
@@ -5269,6 +5288,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   function showLogin(msg, isErr){
     panel(msg, isErr);
     loginMode = 'login';
+    loginEl.classList.add('is-login');
     // Возврат со страницы входа Telegram (запасной путь, если кнопка не показалась)
     var tgr = (location.hash.match(/tgAuthResult=([^&]+)/)||[])[1];
     if(tgr){
@@ -5294,8 +5314,8 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
       s.src = 'https://telegram.org/js/telegram-widget.js?22';
       s.setAttribute('data-telegram-login', c.bot);
       s.setAttribute('data-size', 'large');
-      s.setAttribute('data-radius', '12');
-      s.setAttribute('data-request-access', 'write');
+      s.setAttribute('data-radius', '20');
+      s.setAttribute('data-request-access', 'write'); s.setAttribute('data-lang', 'ru');
       s.setAttribute('data-onauth', 'BSX_onTelegram(user)');
       w.appendChild(s);
       if(!msg) setMsg('');
@@ -5344,7 +5364,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
           afterLogin();
           return;
         }
-        if(r.status === 403) setMsg('Этот Telegram-аккаунт не в команде BS.\nID: ' + (r.j.telegramId || '?') + '. Передайте его Рустаму', true);
+        if(r.status === 403) setMsg('Этот Telegram-аккаунт не найден среди резидентов и команды BS.\nНапишите куратору, он проверит Chat ID в таблице.\nВаш ID: ' + (r.j.telegramId || '?'), true);
         else setMsg('Telegram не подтвердил вход: ' + ((r.j && (r.j.detail || r.j.error)) || r.status), true);
       })
       .catch(function(){ setMsg('Нет связи с сервером', true); });
@@ -5359,9 +5379,9 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
       lsDel(K_TOKEN); lsDel(K_USER); lsDel(K_STATE); lsDel(K_UNSENT);
       var ks = []; for(var i = 0; i < LS.length; i++){ var k = LS.key(i); if(k && k.indexOf('bs_') === 0) ks.push(k); }
       ks.forEach(lsDel);
-      // Сначала сервер снимает куку, потом перезагрузка покажет страницу входа
+      // Сначала сервер снимает куку, потом главная отдаёт страницу входа клуба
       fetch(API + '/auth/logout', {method:'POST', credentials:'same-origin'})
-        .catch(function(){}).then(reload);
+        .catch(function(){}).then(function(){ leaving = true; location.replace('/'); });
     };
     if(Object.keys(dirty).length){ tick().then(go); } else go();
   }

@@ -2,8 +2,13 @@ package web
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestStripSeed(t *testing.T) {
@@ -65,5 +70,45 @@ func TestEmbeddedPageHasNoClubData(t *testing.T) {
 	}
 	if strings.Contains(string(loginPage.plain), "RESIDENTS") {
 		t.Error("login page carries platform code")
+	}
+}
+
+// Without a valid session "/" serves the club entry page with the logo and
+// icons filled in; with one it serves the platform.
+func TestRegisterServesEntryPage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	Register(r, "secret", "bs_session")
+	get := func(cookie string) string {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		if cookie != "" {
+			req.AddCookie(&http.Cookie{Name: "bs_session", Value: cookie})
+		}
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status %d", w.Code)
+		}
+		return w.Body.String()
+	}
+	for _, c := range []string{"", "garbage"} {
+		page := get(c)
+		for _, want := range []string{"Вход для резидентов и команды", "Ещё не резидент?", "https://t.me/bsurgery_bot?start=app_login", "https://wa.me/77024035036", `class="lg"`, `rel="apple-touch-icon"`, "/api/v1/platform", "/config", "/auth/telegram", "BSX_onTelegram(user)", "oauth.telegram.org", "tgWebAppData", "tgAuthResult"} {
+			if !strings.Contains(page, want) {
+				t.Errorf("entry page (cookie %q) lacks %q", c, want)
+			}
+		}
+		for _, bad := range []string{"<!--LOGO-->", "<!--ICONS-->", "—", "window.BS_SERVER"} {
+			if strings.Contains(page, bad) {
+				t.Errorf("entry page carries %q", bad)
+			}
+		}
+	}
+	if len(loginPage.plain) > 120000 {
+		t.Errorf("entry page too large: %d bytes", len(loginPage.plain))
+	}
+	tok, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"typ": "access"}).SignedString([]byte("secret"))
+	if page := get(tok); !strings.Contains(page, "window.BS_SERVER=1") {
+		t.Error("valid session does not get the platform")
 	}
 }
