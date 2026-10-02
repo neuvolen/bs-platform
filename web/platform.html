@@ -3809,12 +3809,11 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
     <div class="x" onclick="toggleHealth()">✕</div>
   </div>
   <div class="hlt-act admin-only">
-    <button class="btn bs" style="width:100%;padding:11px" onclick="autoHealth()">
-      ✦ Оценить автоматически
-    </button>
+    <button class="btn bs" id="hltAuto" style="width:100%;padding:11px" onclick="autoHealth()">✦ Оценить автоматически</button>
     <div style="font-size:11px;color:var(--t3);margin-top:7px;line-height:1.4">
       На основе диагнозов, инструментов и задач на доске. Значения можно поправить
     </div>
+    <div class="hlt-st" id="hltAutoSt" role="status" aria-live="polite"></div>
   </div>
   <div class="hlt-body hlt-split">
     <div class="hlt-fig"><div id="bodyBox"></div></div>
@@ -4238,8 +4237,6 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
     <div class="sb">
       <div class="field"><div class="lbl">Что сделать</div>
         <input class="inp" id="tkTitle" placeholder="Собрать платёжный календарь"></div>
-      <div class="field"><div class="lbl">Как поймём, что сделано</div>
-        <textarea class="inp" id="tkResult" rows="2" placeholder="Критерий выполнения"></textarea></div>
 
       <div class="field"><div class="lbl">Тип задачи</div>
         <div class="tkt">
@@ -4282,10 +4279,10 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
       </div>
 
       <div class="field"><div class="lbl">Приоритет</div>
-        <div class="tkt">
-          <div class="tkb pr" data-p="low" onclick="setPrio('low')">Обычный</div>
-          <div class="tkb pr on" data-p="mid" onclick="setPrio('mid')">Важный</div>
-          <div class="tkb pr" data-p="high" onclick="setPrio('high')">Критичный</div>
+        <div class="tkt tkt-p">
+          <div class="tkb tkp" data-p="low" onclick="setPrio('low')">Обычный</div>
+          <div class="tkb tkp on" data-p="mid" onclick="setPrio('mid')">Важный</div>
+          <div class="tkb tkp" data-p="high" onclick="setPrio('high')">Критичный</div>
         </div>
       </div>
 
@@ -6071,7 +6068,7 @@ function renderNode(n){
   }
   var hasCard = (n.libIdx!==undefined && n.libIdx!==null && (n.type==='diag'?DIAG:TOOLS)[n.libIdx]);
   if(n.type==='diag') more = (hasCard ? '<div class="n-more" onclick="event.stopPropagation();openCard(\'diag\','+n.libIdx+')">Подробнее →</div>' : '') +
-    '<div class="n-fc" onclick="event.stopPropagation();showForecast('+n.id+')">Если не лечить →</div>';
+    (fcAllowed() ? '<div class="n-fc'+(fcOpen(n.id)?' on':'')+'" onclick="event.stopPropagation();showForecast('+n.id+')">'+(fcOpen(n.id)?'Скрыть последствия':'Если не лечить →')+'</div>' : '');
   if(n.type==='tool') more = hasCard ? '<div class="n-more" onclick="event.stopPropagation();openCard(\'tool\','+n.libIdx+')">Подробнее →</div>' : '';
   if(n.role==='pointA' || n.role==='pointB'){
     more = pointMeta(n) +
@@ -6131,8 +6128,10 @@ function renderNode(n){
     '<div class="n-rz rz-s" onmousedown="startResize(event,'+n.id+',\'s\')"></div>' +
     '<div class="n-rz rz-se" onmousedown="startResize(event,'+n.id+',\'se\')"></div>' +
     '<div class="n-rz rz-w" onmousedown="startResize(event,'+n.id+',\'w\')"></div>';
+  if(n.type==='quest'){ el.classList.add('q18'); el.querySelector('.n-in').innerHTML = questBody(n); }
+  if(n.type==='cont'){ el.classList.add('c18'); el.querySelector('.n-in').innerHTML = contBody(n); }
   el.addEventListener('mousedown', function(e){
-    if(drawMode || e.target.isContentEditable || e.target.closest('.nt') || e.target.closest('.n-more')) return;
+    if(drawMode || e.target.isContentEditable || e.target.closest('.nt') || e.target.closest('.n-more') || e.target.closest('.c18-row')) return;
     e.stopPropagation(); selectNode(n.id);
     // Как в XMind: узел едет вместе со своей веткой. Alt: двигать только сам узел
     var br = e.altKey ? [] : branchOf(n.id).map(function(id){
@@ -6146,6 +6145,64 @@ function renderNode(n){
     else selectNode(n.id);
   });
   canvas.appendChild(el);
+}
+
+// ═══ R18: вопрос и контакт на доске ═══
+// Вопрос: крупный знак «?», вопрос жирным, под чертой ответ и отметка «Есть ответ / Ждёт ответа»
+function questBody(n){
+  var ans = String(n.desc || '').trim();
+  var ed = !viewingArchive;
+  return '<div class="q18-top"><div class="q18-mark" aria-hidden="true">?</div>' +
+      '<div class="q18-h"><div class="q18-tag"' + (n.organ ? ' title="' + esc(n.organ) + '"' : '') + '>Вопрос</div>' +
+      '<span class="q18-pill' + (ans ? ' on' : '') + '">' + (ans ? 'Есть ответ' : 'Ждёт ответа') + '</span></div></div>' +
+    '<div class="n-t q18-q" spellcheck="false"' + (ed ? ' ondblclick="startEdit(this,'+n.id+',\'title\',event)" oninput="editNode('+n.id+',\'title\',this.innerText)"' : '') + '>' + esc(n.title) + '</div>' +
+    '<div class="q18-div"></div>' +
+    '<div class="q18-al">Ответ</div>' +
+    '<div class="n-d q18-a" spellcheck="false" data-ph="Дважды нажмите, чтобы записать ответ"' +
+      (ed ? ' ondblclick="startEdit(this,'+n.id+',\'desc\',event)" oninput="editNode('+n.id+',\'desc\',this.innerText);questPill('+n.id+')"' : '') + '>' + esc(ans) + '</div>';
+}
+function questPill(id){
+  var n = nodes.find(function(x){ return x.id === id; }), el = document.querySelector('#n'+id+' .q18-pill');
+  if(!n || !el) return;
+  var on = !!String(n.desc || '').trim();
+  el.classList.toggle('on', on); el.textContent = on ? 'Есть ответ' : 'Ждёт ответа';
+}
+// Контакт: данные из карточки контакта, у старых узлов разбираются из строки описания
+function contInfo(n){
+  var c = n.contact ? Object.assign({}, n.contact) : {};
+  if(!n.contact){
+    String(n.desc || '').split(' · ').forEach(function(p){
+      p = p.trim(); if(!p) return;
+      var m;
+      if((m = p.match(/^Telegram\s*@?(.+)$/i))) c.tg = m[1].trim();
+      else if((m = p.match(/^Instagram\s*@?(.+)$/i))) c.insta = m[1].trim();
+      else if(/^\+?[\d\s()\-]{6,}$/.test(p)) c.phone = p;
+      else c.role = c.role ? c.role + ' · ' + p : p;
+    });
+  }
+  return c;
+}
+function contInitials(name){
+  var w = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return ((w[0] || '?').charAt(0) + (w[1] ? w[1].charAt(0) : '')).toUpperCase();
+}
+var C18_IC = {
+  phone:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2"/></svg>',
+  tg:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4L3 11l6 2 2 6 3-4 5 4z"/><path d="M9 13l12-9"/></svg>',
+  insta:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/></svg>'
+};
+function contBody(n){
+  var c = contInfo(n), rows = [];
+  var tel = String(c.phone || '').replace(/[^\d+]/g, '');
+  if(c.phone) rows.push('<a class="c18-row" href="tel:' + esc(tel) + '" title="Позвонить">' + C18_IC.phone + '<span>' + esc(c.phone) + '</span><i>Позвонить</i></a>');
+  if(c.tg){ var tg = String(c.tg).replace(/^@/, '').replace(/[^\w]/g, '');
+    rows.push('<a class="c18-row" href="https://t.me/' + tg + '" target="_blank" rel="noopener" title="Написать в Telegram">' + C18_IC.tg + '<span>@' + esc(tg) + '</span><i>Написать</i></a>'); }
+  if(c.insta){ var ig = String(c.insta).replace(/^@/, '').replace(/[^\w.]/g, '');
+    rows.push('<a class="c18-row" href="https://instagram.com/' + ig + '" target="_blank" rel="noopener" title="Instagram">' + C18_IC.insta + '<span>@' + esc(ig) + '</span><i>Открыть</i></a>'); }
+  return '<div class="c18-hd"><div class="c18-av" aria-hidden="true">' + esc(contInitials(n.title)) + '</div>' +
+      '<div class="c18-who"><div class="c18-tag">Контакт</div><div class="n-t c18-n">' + esc(n.title) + '</div>' +
+      (c.role ? '<div class="c18-role">' + esc(c.role) + '</div>' : '') + '</div></div>' +
+    (rows.length ? '<div class="c18-rows">' + rows.join('') + '</div>' : '<div class="c18-none">Телефона и Telegram нет</div>');
 }
 
 // ═══ Отмена действий ═══
@@ -6494,7 +6551,6 @@ function renderSlide(dir){
     if(n.type==='task' && n.task){
       var tk = n.task;
       body += '<div class="sl-sec">' +
-        (tk.result ? '<div class="sl-h">Критерий</div><div class="sl-risk">'+esc(tk.result)+'</div>' : '') +
         '<div class="sl-meta">' +
           (tk.kind==='repeat' ? '<span>'+(tk.times||3)+' раз за цикл</span>' : '') +
           (tk.kind==='always' ? '<span>постоянная</span>' : '') +
@@ -11998,24 +12054,76 @@ function chainFor(title){
   return [];
 }
 
+// R18: «Если не лечить» недоступно резиденту (кнопки нет, вызов из голоса или консоли тоже блокируется)
+function fcAllowed(){
+  try{ if(window.BSSync && BSSync.isResident && BSSync.isResident()) return false; }catch(e){}
+  return MODE !== 'res';
+}
+function fcOpen(id){ return nodes.some(function(x){ return x.fcOf === id; }); }
+// Вся цепочка последствий узла: дети, их дети и так далее (fcOf ведёт к источнику)
+function fcDescendants(id){
+  var out = [], seen = {}, q = [id]; seen[id] = 1;
+  while(q.length){
+    var c = q.shift();
+    nodes.forEach(function(x){ if(x.fcOf === c && !seen[x.id]){ seen[x.id] = 1; out.push(x.id); q.push(x.id); } });
+  }
+  return out;
+}
+// Рамка узла на доске: настоящий размер из DOM, иначе по умолчанию
+function fcBox(o){
+  var e = document.getElementById('n'+o.id);
+  var w = (e && e.offsetWidth) || o.w || 240, h = (e && e.offsetHeight) || o.h || 130;
+  return {x:o.x, y:o.y, w:w, h:h};
+}
+function fcHit(a, list, gap){
+  return list.some(function(b){
+    return a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
+  });
+}
+// Свободное место рядом с источником: колонки справа, потом слева; в колонке от центра вниз и вверх.
+// Проверяются рамки всех узлов доски, кроме самого размещаемого
+function fcPlace(src, w, h, selfId){
+  var sb = fcBox(src), GAP = 32;
+  var boxes = nodes.filter(function(o){ return o.id !== selfId && o.x > -50000; }).map(fcBox);
+  var cols = [], step = w + 90;
+  for(var c = 0; c < 4; c++) cols.push(sb.x + sb.w + 130 + c*step);
+  for(var c2 = 0; c2 < 3; c2++) cols.push(sb.x - 130 - w - c2*step);
+  var cy = sb.y + sb.h/2 - h/2;
+  for(var i = 0; i < cols.length; i++){
+    for(var k = 0; k < 24; k++){
+      var dy = (k % 2 ? -1 : 1) * Math.ceil(k/2) * (h + GAP);
+      var r = {x:Math.round(cols[i]), y:Math.round(cy + dy), w:w, h:h};
+      if(!fcHit(r, boxes, GAP)) return r;
+    }
+  }
+  var maxY = boxes.reduce(function(m, b){ return Math.max(m, b.y + b.h); }, sb.y);
+  return {x:sb.x, y:maxY + GAP*2, w:w, h:h};
+}
+
 function showForecast(id){
   var n = nodes.find(function(x){ return x.id === id; });
   if(!n) return;
+  if(!fcAllowed()){ toast('Прогноз последствий доступен трекеру'); return; }
   if(viewingArchive){ toast('Архив цикла'); return; }
 
-  // Свёрнуть, если уже развёрнуто
-  var existing = nodes.filter(function(x){ return x.fcOf === id; });
-  if(existing.length){
+  // Свернуть всю цепочку: последствия последствий и их связи тоже
+  if(fcOpen(id)){
     pushUndo();
-    existing.forEach(function(x){
-      links = links.filter(function(l){ return l.a !== x.id && l.b !== x.id; });
-      var el = document.getElementById('n'+x.id);
-      if(el) el.remove();
+    var gone = fcDescendants(id), del = {};
+    gone.forEach(function(x){ del[x] = 1; });
+    var owners = [n].concat(nodes.filter(function(x){ return del[x.id]; }));
+    owners.forEach(function(o){
+      (o.fcLinks || []).forEach(function(t){
+        links = links.filter(function(l){ return !((l.a === o.id && l.b === t) || (l.a === t && l.b === o.id)); });
+      });
+      if(o === n) delete n.fcLinks;
     });
-    nodes = nodes.filter(function(x){ return x.fcOf !== id; });
+    links = links.filter(function(l){ return !del[l.a] && !del[l.b]; });
+    gone.forEach(function(x){ var el = document.getElementById('n'+x); if(el) el.remove(); });
+    nodes = nodes.filter(function(x){ return !del[x.id]; });
     drawLinks();
     updateFcBtn(id);
-    toast('Свёрнуто');
+    toast('Свёрнуто: ' + gone.length);
     return;
   }
 
@@ -12023,19 +12131,12 @@ function showForecast(id){
   if(!names.length){ toast('Для этого диагноза цепочка не описана'); return; }
 
   pushUndo();
-  var el0 = document.getElementById('n'+n.id);
-  var w0 = el0 ? el0.offsetWidth : 230;
-  var baseX = n.x + w0 + 140;
-  var startY = n.y - (names.length - 1) * 90;
-
   var added = 0;
-  names.forEach(function(title, i){
-    // Уже есть на доске. не дублируем, просто связываем
-    var already = nodes.find(function(x){
-      return x.type === 'diag' && x.title === title;
-    });
+  names.forEach(function(title){
+    // Уже есть на доске: не дублируем, просто связываем и помним эту связь, чтобы свернуть её вместе с цепочкой
+    var already = nodes.find(function(x){ return x.type === 'diag' && x.title === title; });
     if(already){
-      if(!hasLink(n.id, already.id)) makeLink(n.id, already.id);
+      if(!hasLink(n.id, already.id) && makeLink(n.id, already.id)){ (n.fcLinks = n.fcLinks || []).push(already.id); }
       return;
     }
     var lib = DIAG.find(function(d){ return d.title === title; });
@@ -12046,9 +12147,14 @@ function showForecast(id){
       color: lib ? lib.color : '#B0B0B0',
       libIdx: lib ? DIAG.indexOf(lib) : undefined,
       fcOf: id, risk: true,
-      x: baseX, y: startY + i*180
+      x: -99999, y: -99999
     });
-    if(node){ makeLink(n.id, node.id); added++; }
+    if(!node) return;
+    var b = fcBox(node), spot = fcPlace(n, b.w, b.h, node.id);
+    node.x = spot.x; node.y = spot.y;
+    var el = document.getElementById('n'+node.id);
+    if(el){ el.style.left = node.x+'px'; el.style.top = node.y+'px'; }
+    makeLink(n.id, node.id); added++;
   });
 
   drawLinks();
@@ -12061,7 +12167,7 @@ function updateFcBtn(id){
   if(!el) return;
   var btn = el.querySelector('.n-fc');
   if(!btn) return;
-  var open = nodes.some(function(x){ return x.fcOf === id; });
+  var open = fcOpen(id);
   btn.textContent = open ? 'Скрыть последствия' : 'Если не лечить →';
   btn.classList.toggle('on', open);
 }
@@ -12777,19 +12883,27 @@ function deleteGallup(){
     });
 }
 
+// R18: карта диагнозов считается только по тому, что сейчас стоит на живых досках.
+// Раньше в счёт шли снимки прошлых циклов (history), поэтому удалённые с доски диагнозы оставались в карте.
+// Удалённые и архивные доски не считаются; открытая доска берётся с экрана, даже если ещё не сохранена
+function dmBoards(){
+  return (boards || []).filter(function(b){ return b && !b.archived && !b.deleted; });
+}
+function dmNodes(b){
+  var list = (curBoard && b.id === curBoard.id && !viewingArchive && Array.isArray(nodes)) ? nodes : (b.nodes || []);
+  return list.filter(function(n){ return n && !n.deleted && !n.removed; });
+}
 function renderDiagMap(){
   // Карта диагнозов клуба: что встречается у многих
   var el = pgSet('Карта диагнозов клуба', 'Если диагноз у трети, это вопрос к продукту, а не к людям');
   if(!boards.length){ el.innerHTML = '<div class="empt">Досок пока нет</div>'; return; }
 
-  var active = boards.filter(function(b){ return !b.archived; });
+  var active = dmBoards();
   var counts = {}, organs = {}, byRes = {};
 
   active.forEach(function(b){
     var seen = {};
-    var all = (b.nodes||[]).concat.apply([], [(b.nodes||[])].concat(
-      (b.history||[]).map(function(h){ return h.nodes||[]; })));
-    all.forEach(function(n){
+    dmNodes(b).forEach(function(n){
       if(n.type !== 'diag' || !n.title) return;
       if(seen[n.title]) return;
       seen[n.title] = 1;
@@ -12825,10 +12939,10 @@ function renderDiagMap(){
 
     (orgList.length ? '<div class="lbl" style="margin-top:20px">По органам</div>' +
       '<div class="c-card">' + orgList.map(function(o){
-        return '<div class="tm-row"><div class="tm-n">' + esc(o.t) + '</div>' +
-          '<div style="flex:1;margin:0 14px"><div class="bar" style="margin:0">' +
-          '<i style="width:' + pct(o.n) + '%"></i></div></div>' +
-          '<div style="width:70px;text-align:right;font-weight:800">' + o.n + ' из ' + total + '</div></div>';
+        // R18: своя полоса. Класса .bar в стилях нет, поэтому раньше были видны только цифры
+        return '<div class="tm-row dm-org"><div class="tm-n">' + esc(o.t) + '</div>' +
+          '<div class="dm-bar" role="img" aria-label="' + pct(o.n) + '%"><i style="width:' + Math.max(2, Math.min(100, pct(o.n))) + '%"></i></div>' +
+          '<div class="dm-on">' + o.n + ' из ' + total + '</div></div>';
       }).join('') + '</div>' : '') +
 
     '<div class="lbl" style="margin-top:22px">Диагнозы по частоте</div>' +
@@ -12853,11 +12967,10 @@ function renderDiagMap(){
 }
 
 function showDiagRes(title){
-  var active = boards.filter(function(b){ return !b.archived; });
+  var active = dmBoards();
   var who = [];
   active.forEach(function(b){
-    var all = (b.nodes||[]).concat.apply([], [(b.nodes||[])].concat(
-      (b.history||[]).map(function(h){ return h.nodes||[]; })));
+    var all = dmNodes(b);
     if(all.some(function(n){ return n.type==='diag' && n.title===title; }))
       who.push(b);
   });
@@ -13273,7 +13386,7 @@ function renderRTasks(){
         '<div class="row-bar" style="background:'+pc+'"></div>' +
         '<div style="flex:1"><div class="row-t" style="'+(isDone?'color:var(--t3);text-decoration:line-through':'')+'">'+
           esc(t.title)+'</div>' +
-        '<div class="row-d">'+sub+(tk.result?' · '+esc(tk.result):'')+
+        '<div class="row-d">'+sub+
           (tk.price?' · цена слова '+money(tk.price)+' ₸':'')+'</div></div>' +
         (isDone?'<div style="color:var(--gold);font-size:17px">✓</div>':'') +
       '</div>';
@@ -13385,92 +13498,124 @@ function setHealthByClick(e, k){
   var v = Math.round(((e.clientX - r.left)/r.width)*10);
   setHealth(k, Math.max(0, Math.min(10, v)));
 }
-function autoHealth(){
-  var ORG_BY_NAME = {'Стратегия':'brain','Маркетинг':'heart','Продажи':'hands',
-    'Команда':'spine','Финансы':'blood','Процессы':'dna','Аналитика':'eyes'};
+// R18: автооценка здоровья. Раньше считались только диагнозы семи органов: у диагнозов «Мышление», «Энергия»,
+// «Цели», «Окружение», «Продукт» органа в карте не было, и кнопка молча ничего не меняла (сообщение пряталось
+// под панелью). Теперь: правила платформы по всем данным доски, затем ИИ (/ai/health), если он подключён.
+// Ход и ошибки видны прямо в панели
+var HLT_ORG = {'Стратегия':'brain','Мышление':'brain','Цели':'brain','Энергия':'brain',
+  'Маркетинг':'heart','Продукт':'heart','Продажи':'hands','Команда':'spine','Окружение':'spine',
+  'Финансы':'blood','Процессы':'dna','Аналитика':'eyes'};
+var HLT_BUSY = false;
+function hltOrganKey(organ){
+  return HLT_ORG[String(organ||'').replace(/^[^А-Яа-яA-Za-z]+/,'').trim()] || null;
+}
+function hltLocal(){
   var res = {}, why = {};
   ORG_MAP.forEach(function(o){ res[o.k] = null; why[o.k] = []; });
-
+  var signals = 0;
   // 1. Диагностика резидента как база
   var dg = (curBoard && curBoard.tests && curBoard.tests.diag) || {};
   Object.keys(dg).forEach(function(name){
-    var k = ORG_BY_NAME[name];
-    if(k && dg[name]){ res[k] = Number(dg[name]); why[k].push('диагностика ' + dg[name]); }
+    var k = hltOrganKey(name);
+    if(k && dg[name]){ res[k] = Number(dg[name]); why[k].push('диагностика ' + dg[name]); signals++; }
   });
-
   // 2. Диагнозы на доске снижают
-  nodes.filter(n=>n.type==='diag').forEach(function(n){
-    var organ = (n.organ||'').replace(/^[^А-Яа-яA-Za-z]+/,'').trim();
-    var k = ORG_BY_NAME[organ]; if(!k) return;
+  nodes.filter(function(n){ return n.type === 'diag'; }).forEach(function(n){
+    var k = hltOrganKey(n.organ); if(!k) return;
     if(res[k] === null) res[k] = 6.5;
-    res[k] -= 2.2;
-    why[k].push('диагноз: ' + n.title);
+    res[k] -= 2.2; why[k].push('диагноз: ' + n.title); signals++;
   });
-
-  // 3. Инструменты поднимают, если задачи по ним закрываются
-  var tasks = nodes.filter(n=>n.type==='task');
-  var done = tasks.filter(t=>t.task && (t.task.completed ||
-    (t.task.kind==='repeat' && (t.task.done||0) >= (t.task.times||3)))).length;
+  // 3. Инструменты поднимают, если задачи закрываются
+  var tasks = nodes.filter(function(n){ return n.type === 'task'; });
+  var done = tasks.filter(function(t){ return t.task && (t.task.completed ||
+    (t.task.kind === 'repeat' && (t.task.done||0) >= (t.task.times||3))); }).length;
   var rate = tasks.length ? done/tasks.length : 0;
-  nodes.filter(n=>n.type==='tool').forEach(function(n){
-    var organ = (n.organ||'').replace(/^[^А-Яа-яA-Za-z]+/,'').trim();
-    var k = ORG_BY_NAME[organ]; if(!k) return;
+  nodes.filter(function(n){ return n.type === 'tool'; }).forEach(function(n){
+    var k = hltOrganKey(n.organ); if(!k) return;
     if(res[k] === null) res[k] = 6;
-    res[k] += 0.6 + rate*1.4;
-    why[k].push('инструмент назначен');
+    res[k] += 0.6 + rate*1.4; why[k].push('инструмент: ' + n.title); signals++;
   });
-
-  // 4. Цифры точки А влияют на финансы
-  var pA = nodes.find(n=>n.role==='pointA');
+  // 4. Маржа из точки А влияет на финансы
+  var pA = nodes.find(function(n){ return n.role === 'pointA'; });
   if(pA && pA.point){
     var margin = Number(String(pA.point.margin||'').replace(/\D/g,''));
     if(margin){
       if(res.blood === null) res.blood = 6;
-      if(margin < 10){ res.blood -= 1.5; why.blood.push('маржа ниже 10%'); }
-      else if(margin > 25){ res.blood += 1; why.blood.push('маржа выше 25%'); }
+      if(margin < 10){ res.blood -= 1.5; why.blood.push('маржа ниже 10%'); signals++; }
+      else if(margin > 25){ res.blood += 1; why.blood.push('маржа выше 25%'); signals++; }
     }
   }
-
-  // 5. Динамика: если прошлый цикл был хуже, добавляем за рост
-  var prev = null;
-  ((curBoard && curBoard.history) || []).slice(-1).forEach(function(h){ if(h.health) prev = h.health; });
-
+  // 5. Органы без сигналов при наличии данных: средняя оценка, жалоб по органу на доске нет
+  var out = {};
+  ORG_MAP.forEach(function(o){
+    var v = res[o.k] === null ? (signals ? 6 : null) : res[o.k];
+    if(v === null) return;
+    if(res[o.k] === null) why[o.k].push('жалоб на доске нет, средняя оценка');
+    out[o.k] = Math.max(1, Math.min(10, Math.round(v)));
+  });
+  return {scores: out, why: why, signals: signals, tasks: tasks.length, done: done};
+}
+function hltStatus(txt, kind){
+  var el = document.getElementById('hltAutoSt'); if(!el) return;
+  el.className = 'hlt-st' + (kind ? ' ' + kind : '');
+  el.innerHTML = txt || '';
+}
+function hltBtn(busy){
+  var b = document.getElementById('hltAuto'); if(!b) return;
+  b.disabled = !!busy; b.classList.toggle('busy', !!busy);
+  b.textContent = busy ? 'Оцениваю…' : '✦ Оценить автоматически';
+}
+function hltApply(scores, why, src){
   if(!curBoard) saveBoard();
   curBoard.health = curBoard.health || {};
-  var filled = 0, notes = [];
+  var notes = [];
   ORG_MAP.forEach(function(o){
-    if(res[o.k] === null) return;
-    var v = Math.max(1, Math.min(10, Math.round(res[o.k])));
-    curBoard.health[o.k] = v;
-    filled++;
-    var w = why[o.k].slice(0,2).join(', ');
-    notes.push({n:o.n, v:v, w:w, prev: prev ? (prev[o.k]||0) : null});
+    if(scores[o.k] === undefined) return;
+    curBoard.health[o.k] = scores[o.k];
+    notes.push('<div class="hlt-why"><b>' + esc(o.n) + ' ' + scores[o.k] + '</b> ' + esc((why[o.k]||[]).slice(0,2).join(', ')) + '</div>');
   });
   saveBoardSilent(); renderHealth();
-
-  if(!filled){
-    toast('Мало данных: поставьте диагнозы или пройдите диагностику');
-    return;
-  }
-  // Показываем, на чём основана оценка
-  document.getElementById('cardTitle').textContent = 'Как посчитано';
-  document.getElementById('cardSub').textContent = filled + ' органов из ' + ORG_MAP.length;
-  var cb0 = document.getElementById('coverBtn'); if(cb0) cb0.style.display='none';
-  document.getElementById('cardBody').innerHTML =
-    '<div class="dbox g" style="margin-bottom:16px;font-size:13px">' +
-      'Оценка строится на диагностике резидента, поставленных диагнозах, ' +
-      'назначенных инструментах и проценте закрытых задач. Поправьте вручную, если не согласны.</div>' +
-    notes.map(function(x){
-      var c = healthColor(x.v);
-      var d = (x.prev !== null && x.prev) ? (x.v - x.prev) : null;
-      return '<div class="row" style="cursor:default"><div class="row-bar" style="background:'+c+'"></div>' +
-        '<div style="flex:1"><div class="row-t">'+esc(x.n)+'</div>' +
-        '<div class="row-d">'+esc(x.w||'нет данных, оценка средняя')+'</div></div>' +
-        '<div style="text-align:right"><div style="font-size:20px;font-weight:900;color:'+c+'">'+x.v+'</div>' +
-        (d !== null ? '<div class="row-m" style="color:'+(d>0?'#3DD68C':(d<0?'#FF4D4D':'var(--t3)'))+'">'+
-          (d>0?'+':'')+d+' к прошлому</div>' : '') + '</div></div>';
-    }).join('');
-  openSheet('cardSheet');
+  hltStatus('<div class="hlt-st-h">' + notes.length + ' из ' + ORG_MAP.length + ' органов оценены · ' + esc(src) + '</div>' + notes.join(''), 'ok');
+}
+function autoHealth(){
+  if(HLT_BUSY) return Promise.resolve();
+  if(viewingArchive){ hltStatus('Архив цикла: оценка не меняется', 'err'); return Promise.resolve(); }
+  var loc = hltLocal();
+  var ctx = {
+    board: curBoard ? curBoard.id : null,
+    resident: (document.getElementById('bName') || {}).value || '',
+    diagnoses: nodes.filter(function(n){ return n.type === 'diag'; }).map(function(n){ return {title:n.title, organ:n.organ||''}; }),
+    tools: nodes.filter(function(n){ return n.type === 'tool'; }).map(function(n){ return {title:n.title, organ:n.organ||''}; }),
+    tasks: {total: loc.tasks, done: loc.done},
+    tests: (curBoard && curBoard.tests && curBoard.tests.diag) || {},
+    organs: ORG_MAP.map(function(o){ return {k:o.k, n:o.n}; }),
+    local: loc.scores
+  };
+  HLT_BUSY = true; hltBtn(true);
+  hltStatus('Собираю диагнозы, инструменты и задачи доски…', 'busy');
+  var canAi = !!(window.BSSync && BSSync.api);
+  var pr = canAi ? r6Api('POST', '/ai/health', ctx) : Promise.resolve({error: 'нет сервера'});
+  return pr.then(function(j){
+    j = j || {};
+    if(j.error && /not found|404/i.test(String(j.error))) j.error = 'оценка ИИ на сервере не подключена';
+    var ai = j.scores || j.health || null, aiWhy = j.why || {};
+    if(Array.isArray(j.organs)){ ai = {}; j.organs.forEach(function(o){ if(o && o.k){ ai[o.k] = o.v; if(o.why) aiWhy[o.k] = [o.why]; } }); }
+    var sc = {}, why = {}, used = 0;
+    ORG_MAP.forEach(function(o){
+      var v = ai && ai[o.k] !== undefined && ai[o.k] !== null ? Number(ai[o.k]) : NaN;
+      if(!j.error && isFinite(v)){ sc[o.k] = Math.max(0, Math.min(10, Math.round(v))); why[o.k] = [].concat(aiWhy[o.k] || ['оценка ИИ']); used++; }
+      else if(loc.scores[o.k] !== undefined){ sc[o.k] = loc.scores[o.k]; why[o.k] = loc.why[o.k]; }
+    });
+    if(!Object.keys(sc).length){
+      hltStatus('Мало данных для оценки: поставьте диагнозы и инструменты на доску или пройдите диагностику.' +
+        (j.error ? ' ИИ: ' + esc(j.error) : ''), 'err');
+      return;
+    }
+    hltApply(sc, why, used ? 'оценка ИИ' + (used < Object.keys(sc).length ? ' и правила платформы' : '') :
+      'по правилам платформы' + (j.error && canAi ? ' (ИИ недоступен: ' + j.error + ')' : ''));
+  }).catch(function(e){
+    hltStatus('Не удалось оценить: ' + esc(e && e.message || e), 'err');
+  }).then(function(){ HLT_BUSY = false; hltBtn(false); });
 }
 
 // ═══ ГОЛОСОВОЙ ВВОД ═══
@@ -14190,7 +14335,8 @@ function delContact(i){ CONTACTS.splice(i,1); saveContacts(); renderContacts(); 
 function contactToBoard(i){
   var c = CONTACTS[i];
   closeSheet('contSheet');
-  addNode({type:'cont', title:c.name, desc:[c.use || c.cat, c.phone, c.tg?'Telegram @'+c.tg:'', c.insta?'Instagram @'+c.insta:''].filter(Boolean).join(' · ')});
+  addNode({type:'cont', title:c.name, desc:[c.use || c.cat, c.phone, c.tg?'Telegram @'+c.tg:'', c.insta?'Instagram @'+c.insta:''].filter(Boolean).join(' · '),
+    contact:{role:c.use || c.cat || '', phone:c.phone || '', tg:c.tg || '', insta:c.insta || ''}});
 }
 
 // ═══ Штрафы ═══
@@ -14610,7 +14756,6 @@ function openTask(id){
   taskDraft = t && t.task ? JSON.parse(JSON.stringify(t.task))
             : {kind:'once', prio:'mid', period:'day', rems:['rem1']};
   document.getElementById('tkTitle').value = t ? t.title : '';
-  document.getElementById('tkResult').value = t && t.task ? (t.task.result||'') : '';
   document.getElementById('tkDate').value = taskDraft.date || '';
   document.getElementById('tkTimes').value = taskDraft.times || 3;
   document.getElementById('tkPrice').value = taskDraft.price ? money(taskDraft.price) : '';
@@ -14639,7 +14784,7 @@ function setTaskKind(k){
 }
 function setPrio(p){
   taskDraft.prio = p;
-  document.querySelectorAll('.tkb.pr').forEach(b=>b.classList.toggle('on', b.dataset.p===p));
+  document.querySelectorAll('.tkb.tkp').forEach(b=>b.classList.toggle('on', b.dataset.p===p));
 }
 function setPeriod(p){
   taskDraft.period = p;
@@ -14674,7 +14819,7 @@ function toggleRem(id){
 function saveTask(){
   var title = document.getElementById('tkTitle').value.trim();
   if(!title){ document.getElementById('tkTitle').focus(); return; }
-  taskDraft.result = document.getElementById('tkResult').value.trim();
+  // R18: критерий «как поймём, что сделано» убран из формы; старое значение остаётся в данных без показа
   taskDraft.date = document.getElementById('tkDate').value;
   taskDraft.times = Number(document.getElementById('tkTimes').value)||3;
   taskDraft.price = document.getElementById('tkPrice').value.replace(/\s/g,'');
@@ -22410,6 +22555,58 @@ body.light .g16{--gi:#141414;--gm:rgba(20,20,22,.66);--gs:rgba(20,20,22,.44);--g
   .g16-rh{grid-template-columns:34px minmax(0,1fr) 18px;gap:10px;padding:10px 12px}
   .g16-rh .g16-dom{display:none}
 }
+/* R18: карта диагнозов, полосы по органам */
+.tm-row.dm-org{display:grid;grid-template-columns:minmax(90px,160px) 1fr auto;gap:14px;align-items:center}
+.dm-org .tm-n{flex:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dm-bar{height:8px;border-radius:4px;background:var(--pb);overflow:hidden;min-width:60px}
+.dm-bar i{display:block;height:100%;border-radius:4px;background:var(--pon)}
+.dm-on{min-width:56px;text-align:right;font-weight:800;white-space:nowrap}
+@media(max-width:600px){.tm-row.dm-org{grid-template-columns:96px 1fr auto;gap:10px}}
+/* R18: приоритет задачи. Класс .pr занят строками списков (padding, рамка снизу), поэтому у сегментов свой .tkp */
+.tkt.tkt-p{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.tkt-p .tkb.tkp{display:flex;align-items:center;justify-content:center;min-width:0;height:40px;padding:0 6px;margin:0;border:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;box-sizing:border-box;line-height:1}
+/* R18: вопрос */
+.node.quest.q18{width:250px;border:1px solid var(--pon);border-radius:14px;background:var(--pc)}
+.node.q18 .n-in{padding:14px 16px 15px}
+.q18-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.q18-mark{width:38px;height:38px;border-radius:10px;flex-shrink:0;background:var(--pon);color:var(--pontx);display:flex;align-items:center;
+  justify-content:center;font-size:24px;font-weight:900;line-height:1}
+.q18-h{flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.q18-tag{font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--pl);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q18-pill{flex-shrink:0;font-size:10px;font-weight:800;padding:4px 8px;border-radius:20px;border:1px solid var(--pb);color:var(--pm);white-space:nowrap}
+.q18-pill.on{background:var(--pon);border-color:var(--pon);color:var(--pontx)}
+.node.q18 .q18-q{font-size:15.5px;font-weight:800;line-height:1.3;color:var(--ptx)}
+.q18-div{height:1px;background:var(--pb);margin:12px 0 9px}
+.q18-al{font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--pl)}
+.node.q18 .q18-a{font-size:12.5px;line-height:1.45;color:var(--ptx);margin-top:4px;min-height:18px}
+.node.q18 .q18-a:empty:before{content:attr(data-ph);color:var(--pl);font-style:italic}
+/* R18: контакт */
+.node.cont.c18{width:250px;border:1px solid var(--pb);border-radius:14px;background:var(--pc)}
+.node.c18 .n-in{padding:14px 14px 12px}
+.c18-hd{display:flex;align-items:center;gap:12px}
+.c18-av{width:46px;height:46px;border-radius:50%;flex-shrink:0;background:var(--pon);color:var(--pontx);display:flex;align-items:center;
+  justify-content:center;font-size:16px;font-weight:900;letter-spacing:.5px}
+.c18-who{min-width:0;flex:1}
+.c18-tag{font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--pl);margin-bottom:2px}
+.node.c18 .c18-n{font-size:15px;font-weight:800;line-height:1.25;color:var(--ptx)}
+.c18-role{font-size:12px;color:var(--pm);margin-top:2px;line-height:1.35}
+.c18-rows{margin-top:12px;border-top:1px solid var(--pb);padding-top:6px;display:flex;flex-direction:column}
+.c18-row{display:flex;align-items:center;gap:10px;padding:7px 6px;margin:0 -6px;border-radius:8px;color:var(--ptx);text-decoration:none;font-size:13px;font-weight:600}
+.c18-row svg{flex-shrink:0;color:var(--pm)}
+.c18-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c18-row i{font-style:normal;font-size:11px;font-weight:700;color:var(--pl)}
+.c18-row:hover{background:var(--ph)}
+.c18-row:hover i{color:var(--ptx)}
+.c18-none{margin-top:10px;font-size:11.5px;color:var(--pl)}
+/* R18: автооценка здоровья, ход и ошибки */
+#hltAuto.busy{opacity:.6;cursor:progress}
+.hlt-st{font-size:12px;line-height:1.45;margin-top:8px;color:var(--t3)}
+.hlt-st:empty{display:none}
+.hlt-st.err{color:var(--pred);border:1px solid var(--pred);border-radius:9px;padding:8px 10px}
+.hlt-st.busy{color:var(--ptx)}
+.hlt-st-h{font-weight:800;color:var(--ptx);margin-bottom:4px}
+.hlt-why{color:var(--pm)} .hlt-why b{color:var(--ptx)}
 </style>
 <script id="r16Script">
 (function(){
