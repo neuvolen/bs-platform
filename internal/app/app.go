@@ -261,7 +261,7 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 		g.Funnel = f
 		f.Photo, f.Doc = botSvc.SendPhotoKB, botSvc.SendDocumentKB
 		if os.Getenv("LEAD_FUNNEL") != "off" {
-			botSvc.SetStartHook(f.HandleStart)
+			botSvc.SetStartHook(f.WithReferrals(d.PlatformRepo, g.Admins))
 			botSvc.SetCallbackHook(f.HandleCallback)
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -270,6 +270,8 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 			}()
 			go f.WarmLoop(context.Background())
 		}
+		go f.RefWonLoop(context.Background()) // referral.go: a referral became a resident
+		go f.RemindLoop(context.Background()) // booking.go: разбор reminders, meet → diag
 	}
 	g.Avatars = pg.NewClubRepo(d.DB)
 	repo := pg.NewBotRepo(d.DB)
@@ -324,10 +326,13 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 	}
 	go writes.Loop(context.Background())
 	go mig.Loop(context.Background())
+	// The data audit after the script v31 slips (bs_data_audit), after every import.
+	audit := httpapi.NewClubAudit(clubRepo, docs, g)
+	go audit.Loop(context.Background())
 
 	action := httpapi.NewClubActionHandler(g, clubRepo, d.PlatformRepo, staticSeed)
 	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewClubActionModule(action, []byte(jwtSecret)),
-		httpapi.NewMigrationModule(mig, []byte(jwtSecret))}
+		httpapi.NewMigrationModule(mig, []byte(jwtSecret)), httpapi.NewClubAuditModule(audit, []byte(jwtSecret))}
 }
 
 // parseBundleSample reads "admin:453800951,resident:490685605,lead:999".

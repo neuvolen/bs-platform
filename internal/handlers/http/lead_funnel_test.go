@@ -46,9 +46,8 @@ func TestLeadFunnel(t *testing.T) {
 	}
 	start(5001, 777, "/start threads")
 	start(5002, 111, "/start")       // admin: the script
-	start(5003, 888, "/start")       // a resident: the script
-	start(5004, 999, "/start ref_5") // a referral: the script
-	e.waitRelayed(3, 10*time.Second)
+	start(5003, 888, "/start ref_5") // a resident, even by a referral link: the script
+	e.waitRelayed(2, 10*time.Second)
 	time.Sleep(300 * time.Millisecond)
 	e.script.mu.Lock()
 	for _, u := range e.script.got {

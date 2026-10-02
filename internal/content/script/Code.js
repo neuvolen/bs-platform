@@ -1823,7 +1823,7 @@ function onTableEdit(e){
   if(bsServerIsMaster()){
     try{
       var _sh = e && e.range ? e.range.getSheet().getName() : "";
-      if(BS_CLUB_SHEETS.indexOf(_sh) >= 0)
+      if(BS_CLUB_SHEETS.indexOf(_sh) >= 0 && BS_APP_SHEETS.indexOf(_sh) < 0)
         SpreadsheetApp.getActiveSpreadsheet().toast("Данные клуба ведутся на платформе. Эта правка будет перезаписана копией с сервера.", "BS", 8);
     }catch(te){}
     return;
@@ -2581,6 +2581,45 @@ function _miniRenewMeetings(p){
   }catch(e){ return {error:String(e)}; }
 }
 
+// Поля резидента, которые можно исправить одной ячейкой
+var BS_RESIDENT_FIELDS = {tariff: "tariff", meetingsGranted: "granted", meetingsDone: "done",
+  paidEntry: "paid", restEntry: "rest", renewDebt: "renew", months: "months", chatId: "chat",
+  partner: "partner", note: "notes"};
+
+function _miniSetResidentField(p){
+  // Исправление одной ячейки резидента (проверка данных на платформе)
+  try{
+    var name = String(p.name||"").trim(), field = String(p.field||"").trim();
+    var value = String(p.value === undefined ? "" : p.value).trim();
+    if(!name) return {error: "Нет имени"};
+    var key = BS_RESIDENT_FIELDS[field];
+    if(!key) return {error: "Поле «" + field + "» не меняется"};
+    var text = (field === "partner" || field === "note" || field === "chatId");
+    var v = value;
+    if(!text){
+      v = value === "" ? 0 : Number(value.replace(/[\s,]/g, ""));
+      if(isNaN(v) || v < 0) return {error: "«" + value + "» не число"};
+    } else if(field === "chatId" && value !== "" && !/^\d+$/.test(value)){
+      return {error: "Chat ID «" + value + "» не число"};
+    }
+    var ws = SpreadsheetApp.openById(SS_ID).getSheetByName("BS - резиденты дебет");
+    if(!ws) return {error: "Нет листа"};
+    var lr = ws.getLastRow();
+    for(var r = 3; r <= lr; r++){
+      if(String(ws.getRange(r, RC.name).getValue()||"").trim() === name){
+        if(field === "months" && v === 0) ws.getRange(r, RC.months).setValue("");
+        else ws.getRange(r, RC[key]).setValue(v);
+        if(field === "tariff" || field === "restEntry" || field === "renewDebt"){
+          try{ bsSafeRecalcDebet(); }catch(e){}
+        }
+        _invalidateBundleCache();
+        return {ok: true};
+      }
+    }
+    return {error: "Резидент не найден"};
+  }catch(e){ return {error: String(e)}; }
+}
+
 function _miniSetMeetings(p){
   // Ручная правка счётчиков встреч из приложения
   try{
@@ -2706,7 +2745,7 @@ function _alert(m){
 // ═══════════════════════════════════════════════════════════════
 // Месяц, с которого считается касса. 3 = апрель, счёт был обнулён
 var CASH_START_MONTH = 3;
-var BS_VERSION = "2026-10-02-32";
+var BS_VERSION = "2026-10-02-33";
 
 // ═══════════════════════════════════════════════════════════════
 // КАРТА КОЛОНОК ЛИСТА РЕЗИДЕНТОВ
@@ -5482,8 +5521,22 @@ function bsResidentNameByChat(cid){
 // Листы уходят как есть (то, что видно в ячейках), с подписью токеном бота.
 // Сервер раскладывает их по своим таблицам и сверяет свои расчёты долгов
 // и PL с цифрами таблицы. Пока таблица главная, перенос можно повторять
+// Разделы приложения (колесо, лиды, задачи, СММ, контент, чек-листы): с v33 сервер
+// собирает их сам из этих листов и свойств скрипта
+var BS_APP_SHEETS = ["Колесо","CRM Лиды","Стоимость проблем","Задачи резидентов","СММ план",
+                     "Контент","Лид-магниты","История лид-магнитов"];
 var BS_CLUB_SHEETS = ["BS - резиденты дебет","Учет ДДС","PL","Штрафы","Расписание",
-                      "Лог отчётов","Лог встреч","Настройки","Бывшие резиденты","Профили"];
+                      "Лог отчётов","Лог встреч","Настройки","Бывшие резиденты","Профили"].concat(BS_APP_SHEETS);
+
+// Свойства скрипта, нужные разделам приложения: названия осей колеса резидентов
+// и очередь чек-листов. Уходят строками [ключ, значение] под именем "_props"
+function bsAppProps(){
+  var all = PropertiesService.getScriptProperties().getProperties(), rows = [];
+  Object.keys(all).sort().forEach(function(k){
+    if(k.indexOf("WHEEL_AXES_") === 0 || k === "USEFUL_CL_IDX") rows.push([k, String(all[k])]);
+  });
+  return rows;
+}
 
 function bsClubImport(dry){
   var ss = SpreadsheetApp.openById(SS_ID);
@@ -5492,6 +5545,7 @@ function bsClubImport(dry){
     var ws = ss.getSheetByName(n);
     if(ws) sheets[n] = ws.getDataRange().getDisplayValues();
   });
+  try{ sheets["_props"] = bsAppProps(); }catch(e){ Logger.log("app props: " + e); }
   var body = JSON.stringify({ts: Math.floor(Date.now() / 1000), sheets: sheets});
   var sig = Utilities.computeHmacSha256Signature(body, BOT_TOKEN, Utilities.Charset.UTF_8).map(function(b){
     var h = (b < 0 ? b + 256 : b).toString(16); return h.length < 2 ? "0" + h : h;
@@ -5938,7 +5992,7 @@ function bsServerShow(){
 // Действия приложения, которые пишут данные клуба в таблицу
 var BS_CLUB_WRITE_ACTIONS = ["addFine","addSchedule","addPayment","confirmMeeting","setPartner","setMeetings",
   "renewMeetings","addResident","deleteSchedule","updateMeeting","addOfflineGroup","updateFine","deleteFine",
-  "markAttendance","approveResident","convertToResident","saveProfit"];
+  "markAttendance","approveResident","convertToResident","saveProfit","setResidentField"];
 
 // Приложение в Telegram ходит через сервер: сервер проверяет, кто зашёл, и подписывает
 // запрос. Когда сервер включит app_gateway, таблица отвечает только на подписанные запросы,
@@ -8045,6 +8099,7 @@ function doGet(e){
         }catch(pcE){ result={ok:false, error:String(pcE)}; }
       }
       else if(action==="setMeetings"){result=_miniSetMeetings(e.parameter);_invalidateBSCaches();}
+      else if(action==="setResidentField"){result=_miniSetResidentField(e.parameter);_invalidateBSCaches();}
       else if(action==="renewMeetings"){result=_miniRenewMeetings(e.parameter);_invalidateBSCaches();}
       else if(action==="addLead"){
         result=addLead({

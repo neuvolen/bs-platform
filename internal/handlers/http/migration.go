@@ -205,13 +205,27 @@ func (m *BundleMigration) Check(ctx context.Context) (*BundleCheckResult, error)
 	if m.gw.Club == nil {
 		return nil, fmt.Errorf("no club data source")
 	}
-	srvParts, built, err := m.gw.ServerBundle(ctx)
-	if err != nil {
-		return nil, err
+	done := m.gw.doneSet(ctx)
+	// The server's bundle of one person: some sections depend on who asks
+	// (the checklists they took, their avatar).
+	serverOf := func(tgID int64) (map[string]any, []string, error) {
+		srvParts, built, err := m.gw.ServerBundle(ctx, tgID)
+		if err != nil {
+			return nil, nil, err
+		}
+		var server map[string]any
+		if err := json.Unmarshal(hideDone(mergeBundle(srvParts, nil, now), done, now), &server); err != nil {
+			return nil, nil, err
+		}
+		return server, built, nil
 	}
-	res.Sections = built
+	if _, built, err := serverOf(0); err != nil {
+		return nil, err
+	} else {
+		res.Sections = built
+	}
 	isBuilt := map[string]bool{}
-	for _, k := range built {
+	for _, k := range res.Sections {
 		isBuilt[k] = true
 	}
 	for _, k := range club.BundleKeys {
@@ -219,17 +233,16 @@ func (m *BundleMigration) Check(ctx context.Context) (*BundleCheckResult, error)
 			res.Script = append(res.Script, k)
 		}
 	}
-	done := m.gw.doneSet(ctx)
-	var server map[string]any
-	if err := json.Unmarshal(hideDone(mergeBundle(srvParts, nil, now), done, now), &server); err != nil {
-		return nil, err
-	}
 	res.InStep = m.inStep(ctx)
 
 	type key struct{ f, a, b string }
 	seen := map[key]int{}
 	for _, u := range m.sample(ctx) {
 		cu := CheckUser{Role: u.Role, TgID: u.TgID}
+		server, built, err := serverOf(u.TgID)
+		if err != nil {
+			return nil, err
+		}
 		body, err := m.gw.ScriptBundle(ctx, u.TgID)
 		var sheet map[string]any
 		if err == nil {
@@ -382,11 +395,15 @@ func (m *BundleMigration) maybeNotify(ctx context.Context, res *BundleCheckResul
 
 // MigrationStatus is the club doc bs_migration_status.
 type MigrationStatus struct {
-	Stage      string                `json:"stage"`
-	StageBy    string                `json:"stageBy,omitempty"`
-	StageAt    string                `json:"stageAt,omitempty"`
-	Streak     int                   `json:"streak"`
-	Need       int                   `json:"need"`
+	Stage    string `json:"stage"`
+	StageBy  string `json:"stageBy,omitempty"`
+	StageAt  string `json:"stageAt,omitempty"`
+	Streak   int    `json:"streak"`
+	Need     int    `json:"need"`
+	NeedDays int    `json:"needDays"`
+	// SectionsBy: who gives each section of the app's bundle now ("server"
+	// or "script"), by the stage and what the server can build.
+	SectionsBy map[string]string     `json:"sections"`
 	LastCheck  *time.Time            `json:"lastCheck,omitempty"`
 	OK         bool                  `json:"ok"`
 	InStep     bool                  `json:"inStep"`
@@ -405,7 +422,25 @@ type MigrationStatus struct {
 }
 
 func (m *BundleMigration) Status(ctx context.Context) (MigrationStatus, error) {
-	st := MigrationStatus{Stage: m.Stage(ctx), Need: BundleStreak, Mismatches: []club.BundleMismatch{}, History: []map[string]any{}, UpdatedAt: m.now()}
+	st := MigrationStatus{Stage: m.Stage(ctx), Need: BundleStreak, NeedDays: BundleStreak, Mismatches: []club.BundleMismatch{},
+		History: []map[string]any{}, UpdatedAt: m.now(), SectionsBy: map[string]string{}}
+	built := map[string]bool{}
+	if m.gw.Club != nil {
+		if _, list, err := m.gw.ServerBundle(ctx, 0); err == nil {
+			for _, k := range list {
+				built[k] = true
+			}
+		}
+	}
+	for _, k := range club.BundleKeys {
+		if k == "ts" {
+			continue
+		}
+		st.SectionsBy[k] = "script"
+		if built[k] && st.Stage == StageServer {
+			st.SectionsBy[k] = "server"
+		}
+	}
 	st.StageBy, _ = m.meta.GetMeta(ctx, metaBundleStageBy)
 	st.StageAt, _ = m.meta.GetMeta(ctx, metaBundleStageAt)
 	var err error

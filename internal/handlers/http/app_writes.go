@@ -111,6 +111,8 @@ func retryIn(tries int) time.Duration {
 // Do runs one write: kept and applied on the server, then sent to the
 // script. It returns what the app gets.
 func (w *ClubWrites) Do(ctx context.Context, source string, u *platformTgUser, action string, q url.Values, apply bool) []byte {
+	// The app's own sections (wheel, tasks…) are anyone's to write, as in the script.
+	apply = apply || pg.SectionWrite(action)
 	who := fullName(u)
 	if n, team := w.gw.Admins[u.ID]; team && n != "" {
 		who = n

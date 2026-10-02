@@ -3,6 +3,7 @@ package club
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,6 +27,19 @@ var bundleListKeys = map[string][]string{
 	"schedule":      {"res", "date", "time"},
 	"doneMeetings":  {"res", "date"},
 	"adminProfiles": {"chatId"},
+	// the app's own sections (step 3)
+	"checklistSchedule": {"key", "date"},
+}
+
+// Lists inside a section compared as sets too, by these keys.
+var bundleNestedKeys = map[string][]string{
+	"wheelSummary.summary": {"name"},
+	"leads.leads":          {"row"},
+	"problems.problems":    {"row"},
+	"resTasks.tasks":       {"row"},
+	"smm.items":            {"row"},
+	"contentPlan.items":    {"row"},
+	"leadmagnets.items":    {"key"},
 }
 
 // Fields not compared, and why:
@@ -187,6 +201,29 @@ func diffValue(sec, path string, a, b any, add func(string, any, any)) {
 	}
 	la, okA := a.([]any)
 	lb, okB := b.([]any)
+	if keys := bundleNestedKeys[sec]; okA && okB && keys != nil {
+		ka, order := keyRows(la, keys)
+		kb, orderB := keyRows(lb, keys)
+		for _, k := range orderB {
+			if _, ok := ka[k]; !ok {
+				order = append(order, k)
+			}
+		}
+		for _, k := range order {
+			ra, inA := ka[k]
+			rb, inB := kb[k]
+			field := path + "[" + k + "]"
+			switch {
+			case !inA:
+				add(field, nil, "есть")
+			case !inB:
+				add(field, "есть", nil)
+			default:
+				diffValue(sec, field, ra, rb, add)
+			}
+		}
+		return
+	}
 	if okA && okB {
 		n := len(la)
 		if len(lb) > n {
@@ -216,6 +253,12 @@ func diffValue(sec, path string, a, b any, add func(string, any, any)) {
 //   - logs.text: the script cuts the cell at 200 UTF-16 units before the
 //     spaces around it are dropped, the import drops them first.
 var bundleNorm = map[string]func(any) any{
+	// ts of a sheet date: the import sees the cell as displayed, often
+	// without the time (or the seconds); the app only sorts by it.
+	"leads.leads.ts": tsDay, "smm.items.ts": tsDay, "contentPlan.items.ts": tsDay,
+	// a date cell where a text belongs: the script gives JavaScript's
+	// String(date), which depends on its locale; the server the cell as shown.
+	"leadmagnets.items.description": jsDateText, "leadmagnets.items.title": jsDateText,
 	"logs.text": func(v any) any {
 		s, ok := v.(string)
 		if !ok {
@@ -311,4 +354,31 @@ func show(v any) string {
 		s = string(r[:120]) + "…"
 	}
 	return s
+}
+
+// tsDay is a millisecond time as its day in Almaty (0 stays 0).
+func tsDay(v any) any {
+	f, ok := number(v)
+	if !ok || f == 0 {
+		return v
+	}
+	return time.UnixMilli(int64(f)).In(Almaty).Format("2006-01-02")
+}
+
+var reJSDate = regexp.MustCompile(`^[A-Z][a-z]{2} ([A-Z][a-z]{2}) (\d{2}) (\d{4}) (\d{2}):(\d{2}):\d{2} GMT`)
+
+var jsMonths = map[string]string{"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
+	"Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
+
+// jsDateText: "Sun May 31 2026 03:21:00 GMT+0500 (…)" as "31.05.2026 03:21".
+func jsDateText(v any) any {
+	s, ok := v.(string)
+	if !ok {
+		return v
+	}
+	m := reJSDate.FindStringSubmatch(s)
+	if m == nil {
+		return v
+	}
+	return m[2] + "." + jsMonths[m[1]] + "." + m[3] + " " + m[4] + ":" + m[5]
 }

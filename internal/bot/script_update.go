@@ -9,7 +9,7 @@ import (
 // LatestScript is the version of the sheet's script the server ships
 // (internal/content/script/Code.js, BS_VERSION). The sheet installs it itself:
 // GET /api/v1/script/latest every hour, then POST /api/v1/script/updated.
-const LatestScript = "2026-10-02-32"
+const LatestScript = "2026-10-02-33"
 
 // bot_meta keys of the script's self-update.
 const (
@@ -72,6 +72,8 @@ type ScriptUpdateStatus struct {
 	VersionNumber string `json:"versionNumber,omitempty"`
 	LastError     string `json:"lastError,omitempty"`
 	LastErrorAt   string `json:"lastErrorAt,omitempty"`
+	// Error: the last self-update error, if the last try failed (= LastError)
+	Error string `json:"error,omitempty"`
 }
 
 // ReadScriptUpdate reads the self-update state from bot_meta.
@@ -84,5 +86,6 @@ func ReadScriptUpdate(ctx context.Context, meta interface {
 		DeploymentID: g(MetaScriptUpdDeploy), VersionNumber: g(MetaScriptUpdVersionNo),
 		LastError: g(MetaScriptUpdError), LastErrorAt: g(MetaScriptUpdErrorAt)}
 	st.UpToDate = st.Running == LatestScript
+	st.Error = st.LastError
 	return st
 }

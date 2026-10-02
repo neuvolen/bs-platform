@@ -152,6 +152,10 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.PUT("/api/v1/app/mycal", m.g.MyCal)
 	r.GET("/api/v1/app/file/:id", m.g.LibraryFile)
 	r.GET("/api/v1/app/avatar/:id", m.g.Avatar)
+	r.GET("/api/v1/app/referral", m.g.Referral)
+	r.GET("/api/v1/app/slots", m.g.Slots)
+	r.POST("/api/v1/app/book", m.g.Book)
+	r.POST("/api/v1/app/book/cancel", m.g.BookCancel)
 }
 
 // AppSign is the signature the script checks on calls from the server:

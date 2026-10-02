@@ -46,14 +46,30 @@ var auxDefaults = map[string]json.RawMessage{
 	"checklistSchedule": json.RawMessage(`[]`), "adminProfiles": json.RawMessage(`[]`), "myAvatar": json.RawMessage(`""`),
 }
 
-// ServerBundle builds the server's sections of the bundle; built lists them.
-func (g *AppGateway) ServerBundle(ctx context.Context) (map[string]json.RawMessage, []string, error) {
+// ServerBundle builds the server's sections of the bundle for one person
+// (tgID: the caller; 0 for none); built lists them. Since step 3 that is
+// also the app's own sections (wheels, leads, tasks, content, checklists)
+// once the import brings their sheets, and the caller's avatar.
+func (g *AppGateway) ServerBundle(ctx context.Context, tgID int64) (map[string]json.RawMessage, []string, error) {
 	now := g.now()
 	snap, err := g.Club.LoadBundle(ctx, now.Add(-bundleLoadSpan))
 	if err != nil {
 		return nil, nil, err
 	}
 	parts, built := club.AppBundle(snap, now)
+	cid := ""
+	if tgID != 0 {
+		cid = strconv.FormatInt(tgID, 10)
+	}
+	more, moreBuilt := club.AppSections(snap, cid, now)
+	for k, v := range more {
+		parts[k] = v
+	}
+	built = append(built, moreBuilt...)
+	if av, ok := g.myAvatar(ctx, tgID); ok {
+		parts["myAvatar"] = av
+		built = append(built, "myAvatar")
+	}
 	out := make(map[string]json.RawMessage, len(parts))
 	for k, v := range parts {
 		b, err := json.Marshal(v)
@@ -114,7 +130,7 @@ func mergeBundle(server map[string]json.RawMessage, script []byte, now time.Time
 // serveServerBundle answers getBotCache from the server; false: it could not.
 func (g *AppGateway) serveServerBundle(c *gin.Context, q url.Values, u *platformTgUser, force bool) bool {
 	ctx := c.Request.Context()
-	srv, _, err := g.ServerBundle(ctx)
+	srv, _, err := g.ServerBundle(ctx, u.ID)
 	if err != nil {
 		log.Printf("app bundle from the server: %v", err)
 		g.mu.Lock()
@@ -122,7 +138,14 @@ func (g *AppGateway) serveServerBundle(c *gin.Context, q url.Values, u *platform
 		g.mu.Unlock()
 		return false
 	}
-	aux := g.auxFor(ctx, q, u, force)
+	// The script is asked only for sections the server does not build.
+	var aux []byte
+	for k := range auxDefaults {
+		if _, ok := srv[k]; !ok {
+			aux = g.auxFor(ctx, q, u, force)
+			break
+		}
+	}
 	body := mergeBundle(srv, aux, g.now())
 	g.mu.Lock()
 	g.srvStats.served++

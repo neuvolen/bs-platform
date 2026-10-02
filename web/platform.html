@@ -3017,6 +3017,235 @@ a.d8-chip:hover,.d8-chip.d8-a:hover{border-color:var(--ptx)}
 .ev-err-raw{display:none;margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--pc);border:1px solid var(--pi);font:500 11.5px/1.45 ui-monospace,Menlo,monospace;color:var(--pm);white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto}
 .ev-err.open .ev-err-raw{display:block}
 </style>
+<style id="r11Style">
+/* ═══ R11: удаление лида, запись на разбор, рефералы, проверка данных, перенос ═══ */
+.r11-lnk{font-size:12.5px;font-weight:700;color:var(--pm);cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--pi)}
+.r11-lnk:hover{color:var(--ptx)}
+.r11-toast{position:fixed;bottom:88px;left:calc(var(--sw) + (100vw - var(--sw)) / 2);transform:translateX(-50%) translateY(10px);z-index:450;
+  display:flex;align-items:center;gap:16px;padding:12px 14px 12px 18px;border-radius:12px;overflow:hidden;
+  background:var(--pon);color:var(--pontx);font-size:13.5px;font-weight:700;box-shadow:0 14px 40px rgba(0,0,0,.45);
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+.r11-toast.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.r11-ub{border:1px solid var(--pontx);background:transparent;color:var(--pontx);font:800 12.5px 'Manrope',sans-serif;height:30px;padding:0 12px;border-radius:8px;cursor:pointer}
+.r11-ub:hover{background:var(--pontx);color:var(--pon)}
+.r11-tb{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--pontx);opacity:.35;transform-origin:left;animation:r11Bar linear forwards}
+@keyframes r11Bar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@media(max-width:900px){.r11-toast{left:50%}}
+.r11-menu{position:fixed;z-index:260;min-width:180px;background:var(--pc);border:1px solid var(--pi);border-radius:12px;padding:5px;box-shadow:0 16px 40px rgba(0,0,0,.45);display:none}
+.r11-menu.on{display:block}
+.r11-mi{padding:9px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ptx)}
+.r11-mi:hover{background:var(--ph)}
+.r11-mi.del{color:var(--pred)}
+.cx-mn{margin-left:auto;width:24px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--pm);font-weight:900;letter-spacing:1px;cursor:pointer;flex-shrink:0;opacity:.55}
+.cx-card:hover .cx-mn{opacity:1}
+.cx-mn:hover{background:var(--ph);color:var(--ptx)}
+.cx-hotb+.cx-mn,.cx-unb+.cx-mn{margin-left:4px}
+.cx-card.selm{padding-left:36px;position:relative}
+.cx-card.selm:before{content:'';position:absolute;left:12px;top:14px;width:14px;height:14px;border-radius:4px;border:1.5px solid var(--pm)}
+.cx-card.selm.sel{outline:2px solid var(--ptx);outline-offset:-1px}
+.cx-card.selm.sel:before{background:var(--ptx);border-color:var(--ptx);box-shadow:inset 0 0 0 2px var(--pc)}
+.r11-selbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;margin-bottom:12px;border:1px solid var(--ptx);border-radius:12px;background:var(--pc)}
+.r11-selbar b{font-size:13.5px;margin-right:auto}
+.r11-selbar .pf-b{height:34px;font-size:12.5px}
+.r11-sdel{color:var(--pred)!important;border-color:var(--pred)!important}
+.r11-sdel:disabled{opacity:.4;cursor:default}
+.ls-foot{display:flex;justify-content:flex-end;gap:22px;margin-top:22px;padding-top:14px;border-top:1px solid var(--ph)}
+.ls-delb{font-size:13px;font-weight:800;color:var(--pred);cursor:pointer}
+.ls-delb:hover{text-decoration:underline;text-underline-offset:3px}
+.ls-infs{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+.ls-inf{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--pi);border-radius:10px;font-size:13px}
+.ls-inf[data-s]{cursor:pointer}
+.ls-inf[data-s]:hover{border-color:var(--ptx)}
+.ls-inf>span{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--pl);width:84px;flex-shrink:0}
+.ls-inf i{font-style:normal;font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;border:1px solid var(--pi);color:var(--pm)}
+.ls-inf i.ok{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.ls-inf em{font-style:normal;margin-left:auto;font-size:12px;font-weight:700;color:var(--pm)}
+/* Запись на разбор */
+.sl-kpi{grid-template-columns:repeat(5,minmax(0,1fr))}
+.sl-wrap{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:14px;align-items:start}
+.sl-cal{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:14px 14px 16px;min-width:0}
+.sl-bar{display:flex;align-items:center;gap:14px;margin-bottom:12px;flex-wrap:wrap}
+.sl-nav{display:flex;align-items:center;gap:6px}
+.sl-nav b{font-size:15px;font-weight:800;min-width:118px;text-align:center}
+.sl-arr{width:30px;height:30px;border-radius:8px;border:1px solid var(--pi);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px;font-weight:700;color:var(--ptx);user-select:none}
+.sl-arr:hover{border-color:var(--ptx)}
+.sl-cap{font-size:12.5px;font-weight:700;color:var(--pdim)}
+.sl-leg{margin-left:auto;display:flex;gap:14px;font-size:11.5px;font-weight:700;color:var(--pm)}
+.sl-leg span{display:flex;align-items:center;gap:6px}
+.sl-leg i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.sl-leg i.free{border:1.5px solid var(--ptx)}
+.sl-leg i.booked{background:var(--pon)}
+.sl-leg i.blocked{background:var(--pi)}
+.sl-gh{display:grid;grid-template-columns:56px repeat(7,minmax(0,1fr));border-bottom:1px solid var(--ph);padding-bottom:8px}
+.sl-dh{display:flex;align-items:baseline;justify-content:center;gap:6px;font-size:12px;color:var(--pm);font-weight:700}
+.sl-dh b{font-size:16px;color:var(--ptx);font-weight:800}
+.sl-dh.today b{background:var(--pon);color:var(--pontx);border-radius:7px;padding:1px 7px}
+.sl-grid{position:relative;margin-top:8px}
+.sl-hr{position:absolute;left:0;right:0;border-top:1px solid var(--ph)}
+.sl-hr span{position:absolute;left:0;top:-8px;font-size:11px;font-weight:700;color:var(--pdim);background:var(--pc);padding-right:6px}
+.sl-cols{position:absolute;left:56px;right:0;top:0;bottom:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.sl-col{position:relative;border-left:1px solid var(--ph)}
+.sl-col.today{background:linear-gradient(var(--ph),var(--ph))}
+.sl-now{position:absolute;height:0;border-top:2px solid var(--ptx);z-index:3;pointer-events:none}
+.sl-s{position:absolute;left:3px;right:3px;border-radius:7px;padding:4px 7px;cursor:pointer;overflow:hidden;font-size:11.5px;line-height:1.3;z-index:2;
+  border:1.5px solid var(--ptx);background:var(--pc);color:var(--ptx);transition:transform .12s}
+.sl-s:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.25)}
+.sl-s.free{border-style:solid;border-color:var(--pm)}
+.sl-s.free:hover{border-color:var(--ptx)}
+.sl-s.booked{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.sl-s.blocked{background:repeating-linear-gradient(135deg,var(--ph) 0 6px,transparent 6px 12px);border-color:var(--pi);color:var(--pdim)}
+.sl-s.past{opacity:.45}
+.sl-st{font-weight:800;display:flex;gap:6px;align-items:baseline;white-space:nowrap}
+.sl-st span{overflow:hidden;text-overflow:ellipsis}
+.sl-s.booked .sl-sn{font-size:10.5px;font-weight:800;opacity:.75}
+.sl-s.booked.unpaid .sl-sn{opacity:1;text-decoration:underline;text-underline-offset:2px}
+.sl-sn{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sl-s.free .sl-sn{color:var(--pm);font-weight:600}
+.sl-empty{text-align:center;color:var(--pm);font-size:13px;padding:14px 10px 0}
+.sl-side{display:flex;flex-direction:column;gap:12px}
+.sl-up{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:14px 16px}
+.sl-uh{font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--pl);margin-bottom:6px}
+.sl-ud{padding:10px 0;border-bottom:1px solid var(--ph)}
+.sl-ud:last-child{border-bottom:none;padding-bottom:0}
+.sl-udh{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+.sl-udh b{font-size:14px}
+.sl-udh span{font-size:12px;color:var(--pm);font-weight:600}
+.sl-ui{display:flex;align-items:center;gap:10px;padding:8px 9px;margin:0 -9px;border-radius:9px;cursor:pointer}
+.sl-ui:hover{background:var(--ph)}
+.sl-ut{font-size:13px;font-weight:800;width:42px;flex-shrink:0}
+.sl-ub{flex:1;min-width:0;display:flex;flex-direction:column}
+.sl-ub b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sl-ub span{font-size:11.5px;color:var(--pm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sl-pd{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;border:1px solid var(--pi);color:var(--pm);white-space:nowrap}
+.sl-pd.on{background:var(--pon);border-color:var(--pon);color:var(--pontx)}
+.sl-un,.sl-uf{font-size:12.5px;color:var(--pdim);font-weight:600}
+.sl-uf{margin-top:6px}
+.sl-chip{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1.5px solid var(--ptx)}
+.sl-chip.booked{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.sl-chip.blocked{border-color:var(--pi);color:var(--pdim)}
+.sl-bk{border:1px solid var(--pi);border-radius:14px;padding:16px;margin-bottom:18px;display:flex;flex-direction:column;gap:12px}
+.sl-bkh{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.sl-bkn{font-size:18px;font-weight:800}
+.sl-bks{font-size:12.5px;color:var(--pm);margin-top:4px;font-weight:600}
+.sl-bks a{color:var(--ptx)}
+.sl-paid{flex-shrink:0}
+.sl-paid.on{background:var(--pon)!important;color:var(--pontx)!important;border-color:var(--pon)!important}
+.sl-kv{display:flex;flex-direction:column;gap:3px}
+.sl-kv span{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--pl)}
+.sl-kv div{font-size:13.5px;line-height:1.5;white-space:pre-wrap}
+.sl-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.sl-acts .btn{height:36px;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center}
+.sl-acts .btn:disabled{opacity:.4;cursor:default}
+.sl-eh{font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--pl);margin:6px 0 10px}
+.sl-f{margin-bottom:12px}
+.lf-full{grid-column:1/-1}
+.sl-err{color:var(--pred);font-size:13px;font-weight:700;margin:4px 0 12px}
+.sl-hist{display:flex;flex-direction:column;margin-bottom:6px}
+.sl-hi{display:flex;flex-direction:column;padding:8px 0;border-bottom:1px solid var(--ph);font-size:13px}
+.sl-hi span{font-size:12px;color:var(--pm)}
+.sl-gl{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--pl);margin:4px 0 8px}
+.sl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.sl-ch{min-width:52px;height:34px;padding:0 10px;border-radius:9px;border:1px solid var(--pi);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;cursor:pointer;color:var(--pm);user-select:none}
+.sl-ch:hover{border-color:var(--ptx);color:var(--ptx)}
+.sl-ch.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.sl-gx{height:38px;margin:-4px 0 16px;font-size:13.5px}
+.sl-gsum{font-size:13px;color:var(--pm);line-height:1.5;margin:4px 0 14px}
+.sl-gsum b{color:var(--ptx)}
+/* Рефералы */
+.cx-kpi>div.due b{text-decoration:underline;text-underline-offset:4px}
+.rf-t{background:var(--pc);border:1px solid var(--pb);border-radius:14px;overflow:hidden}
+.rf-r{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,.8fr)) repeat(3,minmax(0,1.1fr));gap:12px;align-items:center;padding:12px 18px;font-size:13.5px}
+.rf-r>div:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.rf-hd{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--pl);border-bottom:1px solid var(--ph);padding-top:14px}
+.rf-g{border-bottom:1px solid var(--ph)}
+.rf-g:last-child{border-bottom:none}
+.rf-in{cursor:pointer;font-weight:700}
+.rf-in:hover{background:var(--ph)}
+.rf-nm{display:flex;align-items:center;gap:10px;min-width:0}
+.rf-nm b{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-ar{font-style:normal;color:var(--pm);width:12px;font-size:12px}
+.rf-due{font-weight:800}
+.rf-zero{color:var(--pdim)}
+.rf-ls{padding:0 18px 12px 40px;display:flex;flex-direction:column}
+.rf-l{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--ph)}
+.rf-ln{flex:1;min-width:0;display:flex;flex-direction:column;cursor:pointer}
+.rf-ln b{font-size:13.5px}
+.rf-ln:hover b{text-decoration:underline;text-underline-offset:3px}
+.rf-ln span{font-size:12px;color:var(--pm)}
+.rf-col{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid var(--pi);color:var(--pm);white-space:nowrap}
+.rf-col.won{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.rf-b{font-size:13px;font-weight:800;width:100px;text-align:right}
+.rf-wait{font-size:12px;color:var(--pdim);width:220px;text-align:right}
+.rf-pay{height:32px!important;font-size:12px!important;width:120px;justify-content:center}
+.rf-pay.on{background:var(--pon)!important;color:var(--pontx)!important;border-color:var(--pon)!important}
+/* Проверка данных */
+.au-kpi{grid-template-columns:repeat(4,minmax(0,1fr))}
+.cx-kpi>div.bad b{color:var(--pred)}
+.au-at{font-size:16px!important}
+.au-note{font-size:13px;color:var(--pm);margin:0 0 12px}
+.au-t{background:var(--pc);border:1px solid var(--pb);border-radius:14px;overflow:hidden}
+.au-r{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,2.4fr) 92px 128px;gap:14px;align-items:start;padding:12px 18px;font-size:13.5px;border-top:1px solid var(--ph)}
+.au-hd{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--pl);border-top:none}
+.au-g:first-of-type .au-gh{border-top:1px solid var(--ph)}
+.au-gh{display:flex;align-items:baseline;gap:12px;padding:14px 18px 8px;border-top:1px solid var(--pi);background:var(--ph)}
+.au-gh b{font-size:15px}
+.au-gh span{font-size:12px;color:var(--pm);font-weight:700}
+.au-f{font-weight:800}
+.au-now{color:var(--pm);text-decoration:line-through;text-decoration-color:var(--pdim)}
+.au-sug{font-weight:800}
+.au-why{color:var(--pm);line-height:1.5}
+.au-c{font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+.au-a{text-align:right}
+.au-fix{height:32px!important;font-size:12px!important}
+.au-ok{font-size:12px;font-weight:800;color:var(--pm)}
+.au-r.fixed>div:not(.au-a){opacity:.45}
+.au-r.fixed .au-now{text-decoration:none}
+.au-nil{color:var(--pdim);font-style:italic;font-weight:600}
+.au-ops{margin-top:8px;display:flex;flex-direction:column;gap:5px;padding:8px 10px;border-radius:9px;background:var(--ph)}
+.au-ops>div{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;align-items:baseline}
+.au-ops i{font-style:normal;color:var(--pdim);font-weight:700}
+.au-ops b{color:var(--ptx)}
+.au-ops code{font:11.5px ui-monospace,Menlo,monospace;color:var(--pm);word-break:break-word}
+.au-err{color:var(--pred);font-weight:700;font-size:12.5px;margin-top:6px}
+/* Перенос с таблицы */
+.mg{display:flex;flex-direction:column;gap:14px}
+.mg-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:14px}
+.mg-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mg-card{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:16px 18px;min-width:0}
+.mg-l{font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--pl);margin-bottom:12px}
+.mg-big{font-size:15px;font-weight:700;color:var(--pm)}
+.mg-big b{font-size:40px;font-weight:800;color:var(--ptx);letter-spacing:-1px;margin-right:4px}
+.mg-seg{display:flex;gap:6px;margin:14px 0 12px}
+.mg-seg i{flex:1;height:10px;border-radius:5px;background:var(--ph);border:1px solid var(--pi)}
+.mg-seg i.on{background:var(--pon);border-color:var(--pon)}
+.mg-s{font-size:12.5px;color:var(--pm);font-weight:600;margin-top:6px;line-height:1.45}
+.mg-s.bad,.mg-bad{color:var(--pred)}
+.mg-bad{font-weight:700}
+.mg-step{display:flex;align-items:flex-start;gap:0}
+.mg-st{display:flex;gap:10px;flex:1;min-width:0}
+.mg-st b{font-size:14px;display:block}
+.mg-st span{font-size:12px;color:var(--pm);line-height:1.4;display:block;margin-top:3px}
+.mg-dot{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--pi);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--pm);flex-shrink:0}
+.mg-st.done .mg-dot{border-color:var(--ptx);color:var(--ptx)}
+.mg-st.cur .mg-dot{background:var(--pon);border-color:var(--pon);color:var(--pontx)}
+.mg-st:not(.cur):not(.done) b{color:var(--pm)}
+.mg-ln{width:28px;height:1.5px;background:var(--pi);margin:14px 10px 0;flex-shrink:0}
+.mg-chips{display:flex;flex-wrap:wrap;gap:6px}
+.mg-chip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 10px;border-radius:8px;font-size:12.5px;font-weight:800;border:1px solid var(--pi)}
+.mg-chip em{font-style:normal;font-size:10.5px;font-weight:700;opacity:.65}
+.mg-chip.srv{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.mg-kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mg-kv>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.mg-kv span{font-size:11.5px;color:var(--pm);font-weight:600}
+.mg-kv b{font-size:22px;font-weight:800}
+.mg-kv .bad b{color:var(--pred)}
+.mg-kv b.mg-sm{font-size:13.5px;word-break:break-word}
+.mg-nil{font-size:13px;color:var(--pm)}
+.mg-t{border:1px solid var(--ph);border-radius:10px;overflow:hidden}
+.mg-r{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:12px;padding:10px 14px;font-size:13.5px;border-top:1px solid var(--ph)}
+.mg-hd{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--pl);border-top:none}
+@media(max-width:1100px){.sl-wrap,.mg-top,.mg-3{grid-template-columns:1fr}.sl-kpi,.au-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
 </head>
 <body>
 
@@ -3390,7 +3619,7 @@ a.d8-chip:hover,.d8-chip.d8-a:hover{border-color:var(--ptx)}
     <div class="cf-d" id="cfDesc"></div>
     <div class="cf-btns">
       <button class="btn bs" style="flex:1;padding:13px" onclick="closeConfirm()">Отмена</button>
-      <button class="btn bg" style="flex:1;padding:13px;background:#FF4D4D;color:#fff" id="cfOk">Удалить</button>
+      <button class="btn bg" style="flex:1;padding:13px;background:#FF6B6F;color:#fff" id="cfOk">Удалить</button>
     </div>
   </div>
 </div>
@@ -3401,11 +3630,22 @@ a.d8-chip:hover,.d8-chip.d8-a:hover{border-color:var(--ptx)}
     <div class="sb">
       <div class="ls-fields" id="lsFields"></div>
       <div id="lsCk"></div>
-      <div class="ls-tabs"><div class="ls-tb" data-t="wa" onclick="lsTab('wa')">WhatsApp</div><div class="ls-tb" data-t="log" onclick="lsTab('log')">История</div><div class="ls-tb" data-t="note" onclick="lsTab('note')">Заметки</div>
-        <div class="ls-del" onclick="delLeadCur()">Удалить лида</div></div>
+      <div class="ls-tabs"><div class="ls-tb" data-t="wa" onclick="lsTab('wa')">WhatsApp</div><div class="ls-tb" data-t="log" onclick="lsTab('log')">История</div><div class="ls-tb" data-t="note" onclick="lsTab('note')">Заметки</div></div>
       <div id="lsBody"></div>
+      <div class="ls-foot"><span class="ls-delb" id="lsDel" onclick="delLeadCur()">Удалить</span></div>
     </div>
   </div>
+</div>
+<div class="sheet r6s" id="slSheet" onclick="if(event.target===this)slClose()">
+  <div class="si"><div class="sh" id="slHead"></div><div class="sb" id="slBody"></div></div>
+</div>
+<div class="sheet r6s" id="slGenSheet" onclick="if(event.target===this)closeSheet('slGenSheet')">
+  <div class="si"><div class="sh"><div><div class="st">Открыть окна для записи</div><div class="ss">Свободные окна добавятся без дублей, прошедшее время пропускается</div></div><div class="x" onclick="closeSheet('slGenSheet')">✕</div></div>
+    <div class="sb" id="slGenBody"></div></div>
+</div>
+<div class="sheet r6s" id="slSetSheet" onclick="if(event.target===this)closeSheet('slSetSheet')">
+  <div class="si"><div class="sh"><div><div class="st">Настройки записи</div><div class="ss">Цена, оплата и ссылка на встречу</div></div><div class="x" onclick="closeSheet('slSetSheet')">✕</div></div>
+    <div class="sb" id="slSetBody"></div></div>
 </div>
 <div class="sheet gu-sh" id="gdSheet" onclick="if(event.target===this)gdClose()">
   <div class="si gu-si">
@@ -4512,6 +4752,12 @@ body.light #bsxPill{background:rgba(255,255,255,.95);color:#333;border-color:rgb
         body: JSON.stringify({action: action, params: params})
       }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ j._status = r.status; return j; }); },
               function(){ return {error: 'net', detail: 'Нет связи с сервером'}; });
+    },
+    // Запрос к /api/v1/club/* с входом команды (проверка данных, перенос с таблицы)
+    clubApi: function(method, path, body){
+      return fetch('/api/v1/club' + path, {method: method,
+        headers: Object.assign({'Content-Type':'application/json'}, token ? {'Authorization':'Bearer ' + token} : {}),
+        body: body === undefined ? undefined : JSON.stringify(body)});
     },
     // Запрос к серверу платформы с входом команды (файлы, ИИ)
     api: function(method, path, body, headers){
@@ -5940,10 +6186,14 @@ var BLOCKS = {
     {id:'aNumbers', n:'В цифрах'},
     {id:'summary',  n:'Анализ'},
     {id:'ops',      n:'Журнал операций'},
-    {id:'gsheet',   n:'Google Таблица'}]},
+    {id:'gsheet',   n:'Google Таблица'},
+    {id:'dataAudit',n:'Проверка данных'},
+    {id:'migr',     n:'Перенос с таблицы'}]},
   sales:   {name:'Продажи', tabs:[
     {id:'leads',    n:'CRM лидов'},
     {id:'crmFunnel',n:'Конверсии'},
+    {id:'bookSlots',n:'Запись на разбор'},
+    {id:'refs',     n:'Рефералы'},
     {id:'salesPlan',n:'План продаж'},
     {id:'scripts',  n:'Скрипты'},
     {id:'custdev',  n:'CustDev'},
@@ -6226,6 +6476,7 @@ function goSection(s){
               aReports:renderAdminReports, stickers:renderStickers, summary:renderTotalAnalysis, lMat:renderLeadMat, pl:renderPL, fines:renderFines, kanban:renderKanban, gdoc:function(){renderLink('gdoc')}, gsheet:function(){renderLink('gsheet')},
               analytics:renderTotalAnalysis, sRes:renderSalesRes, sFive:renderTeams, nps:renderNPS, custdev:renderCDev, sCA:renderSCA, sRub:renderSRub, sCreo:renderSCreo,
               leads:renderLeads, scripts:renderScripts, crmPrompts:renderCrmPrompts, crmFunnel:renderCrmFunnel, salesPlan:renderSPlan,
+              bookSlots:renderSlots, refs:renderRefs, dataAudit:renderDataAudit, migr:renderMigration,
               rAbout:renderAbout, rRules:renderRules, rHistory:renderHistory, rSummary:renderSummary,
               rsched:renderSchedule, rResList:renderResContacts, rContacts:renderContPage,
               rRes2:renderResources, resLib:renderResources, rFiveList:renderMyTeam,
@@ -15388,6 +15639,12 @@ function loadCRM(){
   var ch = false;
   CRM.leads.forEach(function(l){ if(l && leadNorm(l)) ch = true; });
   CRM.leads = CRM.leads.filter(Boolean);
+  // Удалённые вручную лиды (bs_crm.deleted: id, tg<id>, ph:<цифры>, @ник) не возвращаются ни синхронизацией, ни ботом
+  var delK = {};
+  if(Array.isArray(CRM.deleted)) CRM.deleted.forEach(function(k){ delK[String(k)] = 1; });
+  var n0 = CRM.leads.length;
+  CRM.leads = CRM.leads.filter(function(l){ return !(delK[String(l.id)] || (l.tgId && delK['tg' + l.tgId])); });
+  if(CRM.leads.length !== n0) ch = true;
   // Лиды из Telegram-бота (SDATA.leads): добавляются один раз, удалённые вручную не возвращаются
   if(!Array.isArray(CRM.merged)) CRM.merged = [];
   var map = {'Новый':'new', 'В работе':'work', 'Квалифицирован':'qual', 'Записан':'meet', 'Записан на разбор':'meet',
@@ -15397,6 +15654,7 @@ function loadCRM(){
     var dg = crmDigits(s.phone), key = 'tg:' + (dg || s.tg || s.name || '') + ':' + (s.date || '');
     if(CRM.merged.indexOf(key) >= 0) return;
     CRM.merged.push(key); ch = true;
+    if((dg && delK['ph:' + dg]) || (s.tg && delK['@' + String(s.tg).replace('@', '').toLowerCase()])) return;
     var dup = CRM.leads.some(function(l){
       return (dg && crmDigits(l.phone) === dg) || (s.tg && l.tg && String(l.tg).replace('@', '') === String(s.tg).replace('@', '')) ||
         (!dg && !s.tg && s.name && l.name === s.name);
@@ -15459,6 +15717,7 @@ function renderLeads(){
         return '<div class="cx-fl' + (CRMV.src === s ? ' on' : '') + '" data-s="' + escA(s) + '" onclick="CRMV.src=this.dataset.s;crmFlPaint();renderCrmMain()">' + (s || 'Все') + '</div>';
       }).join('') + '<div class="cx-fl cx-hot' + (CRMV.hot ? ' on' : '') + '" id="crmHot" onclick="CRMV.hot=!CRMV.hot;crmFlPaint();renderCrmMain()">🔥 Горячие</div>' +
         (CRMV.base ? '<div class="cx-fl on cx-basef" onclick="CRMV.base=\'\';renderLeads()" title="Снять фильтр">База: ' + esc(CRMV.base) + ' ✕</div>' : '') + '</div>' +
+      '<button class="btn pf-b" id="crmSelBtn" onclick="crmSelToggle()">Выбрать</button>' +
       '<button class="btn pf-b" id="impBtn" onclick="impOpen()">Импорт базы</button>' +
       '<button class="btn pf-b pf-p" onclick="newLead()">+ Новый лид</button>' +
     '</div>' +
@@ -15501,7 +15760,7 @@ function renderCrmMain(){
   var unread = all.filter(function(l){ return Number(l.waUnread) > 0; }).length;
   var mon = crmISO().slice(0, 7);
   var wonM = all.filter(function(l){ return l.col === 'won' && String(l.wonAt || '').slice(0, 7) === mon; });
-  box.innerHTML =
+  box.innerHTML = crmSelHTML() +
     '<div class="cx-kpi">' +
       '<div><span>В работе</span><b>' + fmtN(act.length) + '</b></div>' +
       '<div><span>Сумма в воронке</span><b>' + fmtN(pipe) + ' ₸</b></div>' +
@@ -15529,11 +15788,12 @@ function renderCrmMain(){
 }
 function crmCardHTML(l){
   var over = crmOver(l), un = Number(l.waUnread) || 0;
-  return '<div class="cx-card' + (over ? ' over' : '') + (un ? ' unread' : '') + '" draggable="true" data-id="' + escA(l.id) + '" ' +
-      'ondragstart="crmDragStart(event,this)" ondragend="crmDragEnd()" onclick="openLead(this.dataset.id)">' +
+  return '<div class="cx-card' + (over ? ' over' : '') + (un ? ' unread' : '') + (CRMSEL.on ? ' selm' : '') + (CRMSEL.on && CRMSEL.ids[String(l.id)] ? ' sel' : '') + '" draggable="true" data-id="' + escA(l.id) + '" ' +
+      'ondragstart="crmDragStart(event,this)" ondragend="crmDragEnd()" onclick="crmCardClick(this.dataset.id)">' +
     '<div class="cx-t"><div class="cx-n">' + esc(l.name || crmPhone(l.phone) || 'Без имени') + '</div>' +
       (l.hot ? '<span class="cx-hotb" title="Горячий лид">🔥</span>' : '') +
-      (un ? '<span class="cx-unb" title="Непрочитанные">' + un + '</span>' : '') + '</div>' +
+      (un ? '<span class="cx-unb" title="Непрочитанные">' + un + '</span>' : '') +
+      '<span class="cx-mn" title="Действия" onclick="crmCardMenu(event,this.closest(\'.cx-card\').dataset.id)">⋯</span></div>' +
     '<div class="cx-m">' + crmSrcBadge(l.source) +
       (l.phone ? '<span class="cx-ph">' + esc(crmPhone(l.phone)) + '</span>' : '') + '</div>' +
     ((l.niche || crmNum(l.sum)) ? '<div class="cx-ns">' + esc(l.niche || '') + (crmNum(l.sum) ? '<b>' + fmtN(crmNum(l.sum)) + ' ₸</b>' : '') + '</div>' : '') +
@@ -15688,7 +15948,7 @@ function lsFields(){
     return '<label class="lf"><span>' + lbl + '</span><input class="inp" id="lf' + k[0].toUpperCase() + k.slice(1) + '" type="' + (type || 'text') + '" value="' + escA(val) + '" placeholder="' + escA(ph || '') + '" ' +
       'onchange="leadSet(\'' + k + '\',this.value)"></label>';
   }
-  document.getElementById('lsFields').innerHTML =
+  document.getElementById('lsFields').innerHTML = r11LeadInfo(l) +
     f('Имя', 'name', l.name, 'Как зовут') + f('Телефон', 'phone', l.phone, '+7 700 000 00 00', 'tel') +
     '<label class="lf"><span>Источник</span><select class="inp" id="lfSource" onchange="leadSet(\'source\',this.value)">' +
       '<option value="">Не указан</option>' + srcs.map(function(s){ return '<option' + (src === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
@@ -15856,13 +16116,6 @@ function lsSend(){
     if(document.getElementById('crmMain')) renderCrmMain();
     setTimeout(function(){ if(LS.id === forId) lsChatLoad(true); }, 1500);
     return j;
-  });
-}
-function delLeadCur(){
-  var l = lsLead(); if(!l) return;
-  askConfirm('Удалить лида?', (l.name || crmPhone(l.phone) || '') + '. Вернуть не получится', function(){
-    CRM.leads = CRM.leads.filter(function(x){ return String(x.id) !== String(l.id); });
-    saveCRM(); closeLead(); toast('Лид удалён');
   });
 }
 
@@ -17968,6 +18221,757 @@ function r8OpenGroup(id){
     if(sub.length || had){ saveKanban(); renderKanban(); }
   };
 })();
+
+// ═══ R11: удаление лидов, запись на разбор, рефералы, проверка данных, перенос с таблицы ═══
+
+// Общие мелочи
+function r11P2(n){ return String(n).padStart(2, '0'); }
+function r11Money(n){ return fmtN(n) + ' ₸'; }
+function r11At(v){
+  var t = Date.parse(v); if(!v || isNaN(t)) return '';
+  try{ return new Date(t).toLocaleString('ru', {timeZone:'Asia/Almaty', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}).replace(' в ', ', '); }
+  catch(e){ return new Date(t).toLocaleString('ru'); }
+}
+// Подтверждение своим окном, без системных диалогов. danger: красная кнопка
+function r11Confirm(title, desc, onOk, label, danger){
+  askConfirm(title, desc, onOk, label);
+  var b = document.getElementById('cfOk');
+  if(b && label){ b.classList.toggle('bg', !danger); b.classList.toggle('danger', !!danger); }
+}
+// Тост с кнопкой «Вернуть»
+function r11Undo(text, onUndo, ms){
+  ms = ms || 5000;
+  var el = document.getElementById('r11Toast');
+  if(!el){ el = document.createElement('div'); el.id = 'r11Toast'; el.className = 'r11-toast'; document.body.appendChild(el); }
+  clearTimeout(el._t);
+  el.innerHTML = '<span class="r11-tt"></span><button class="r11-ub" type="button">Вернуть</button><i class="r11-tb"></i>';
+  el.querySelector('.r11-tt').textContent = text;
+  var bar = el.querySelector('.r11-tb'); bar.style.animationDuration = ms + 'ms';
+  var done = false;
+  el.querySelector('.r11-ub').onclick = function(){
+    if(done) return; done = true; clearTimeout(el._t); el.classList.remove('on');
+    try{ onUndo(); }catch(e){ console.error(e); }
+  };
+  el.classList.add('on');
+  el._t = setTimeout(function(){ done = true; el.classList.remove('on'); }, ms);
+}
+// Запрос к /api/v1/club/* с входом команды
+function r11Club(method, path, body){
+  var pr;
+  try{
+    if(window.BSSync && BSSync.clubApi) pr = BSSync.clubApi(method, path, body);
+    else pr = fetch('/api/v1/club' + path, {method:method, headers:{'Content-Type':'application/json'}, body: body === undefined ? undefined : JSON.stringify(body)});
+  }catch(e){ return Promise.resolve({error:'Нет связи с сервером'}); }
+  return Promise.resolve(pr).then(function(r){
+    if(!r || typeof r.text !== 'function') return {error:'Пустой ответ сервера'};
+    return r.text().then(function(t){
+      var j = null; try{ j = t ? JSON.parse(t) : {}; }catch(e){ j = {}; }
+      if(!j || typeof j !== 'object' || Array.isArray(j)) j = {data:j};
+      if(r.ok === false && !j.error) j.error = r.status === 401 || r.status === 403 ? 'Нет доступа: войдите заново' : 'Сервер ответил ' + r.status;
+      if(r.ok === false && typeof j.error !== 'string') j.error = String(j.error);
+      return j;
+    });
+  }, function(){ return {error:'Нет связи с сервером'}; });
+}
+function r11AdminOnly(el){
+  if(typeof MODE !== 'undefined' && MODE !== 'admin'){ el.innerHTML = '<div class="pf-empty">Раздел доступен только команде</div>'; return true; }
+  return false;
+}
+
+// ── 1. Удаление лида ────────────────────────────────────────────────────────
+function crmDelKeys(l){
+  var k = [String(l.id)];
+  if(l.tgId) k.push('tg' + l.tgId);
+  var dg = crmDigits(l.phone); if(dg) k.push('ph:' + dg);
+  if(l.tg) k.push('@' + String(l.tg).replace('@', '').toLowerCase());
+  return k;
+}
+function crmDelLead(id, after){
+  if(!CRM) loadCRM();
+  var l = leadById(id); if(!l) { toast('Лид не найден'); return; }
+  r11Confirm('Удалить лида?', (l.name || crmPhone(l.phone) || 'Без имени') + '. Карточка исчезнет у всей команды, бот её не вернёт. Передумаете, нажмите «Вернуть» в течение 5 секунд',
+    function(){ crmDelNow([l.id]); if(after) after(); }, 'Удалить', true);
+}
+function crmDelNow(ids){
+  if(!CRM) loadCRM();
+  var want = {}; ids.forEach(function(x){ want[String(x)] = 1; });
+  var gone = [];
+  CRM.leads.forEach(function(l, i){ if(want[String(l.id)]) gone.push({i:i, l:l}); });
+  if(!gone.length) return 0;
+  if(!Array.isArray(CRM.deleted)) CRM.deleted = [];
+  var added = [];
+  gone.forEach(function(g){ crmDelKeys(g.l).forEach(function(k){ if(CRM.deleted.indexOf(k) < 0){ CRM.deleted.push(k); added.push(k); } }); });
+  CRM.leads = CRM.leads.filter(function(l){ return !want[String(l.id)]; });
+  saveCRM();
+  if(LS && want[LS.id]){ var sh = document.getElementById('leadSheet'); if(sh && sh.classList.contains('on')) closeLead(); }
+  if(document.getElementById('crmMain')) renderCrmMain();
+  r11Undo(gone.length > 1 ? 'Удалено лидов: ' + gone.length : 'Лид удалён', function(){
+    if(!CRM) loadCRM();
+    CRM.deleted = (CRM.deleted || []).filter(function(k){ return added.indexOf(k) < 0; });
+    gone.forEach(function(g){
+      if(CRM.leads.some(function(x){ return String(x.id) === String(g.l.id); })) return;
+      CRM.leads.splice(Math.min(g.i, CRM.leads.length), 0, g.l);
+    });
+    saveCRM();
+    if(document.getElementById('crmMain')) renderCrmMain();
+    toast(gone.length > 1 ? 'Лиды возвращены' : 'Лид возвращён');
+  });
+  return gone.length;
+}
+function delLeadCur(){ var l = lsLead(); if(l) crmDelLead(l.id); }
+// Меню карточки на канбане (⋯)
+function crmCardMenu(e, id){
+  e.stopPropagation(); e.preventDefault();
+  var m = document.getElementById('crmCm');
+  if(!m){ m = document.createElement('div'); m.id = 'crmCm'; m.className = 'r11-menu'; document.body.appendChild(m); }
+  if(m.classList.contains('on') && m.dataset.id === String(id)){ m.classList.remove('on'); return; }
+  m.dataset.id = String(id);
+  m.innerHTML = '<div class="r11-mi" onclick="crmCmGo(\'open\')">Открыть карточку</div>' +
+    '<div class="r11-mi" onclick="crmCmGo(\'sel\')">Выбрать несколько</div>' +
+    '<div class="r11-mi del" onclick="crmCmGo(\'del\')">Удалить</div>';
+  var r = e.currentTarget.getBoundingClientRect();
+  m.style.top = Math.round(r.bottom + 4) + 'px';
+  m.style.left = Math.round(Math.max(8, Math.min(window.innerWidth - 188, r.right - 180))) + 'px';
+  m.classList.add('on');
+}
+function crmCmGo(a){
+  var m = document.getElementById('crmCm'), id = m ? m.dataset.id : ''; crmCmClose(); if(!id) return;
+  if(a === 'open') openLead(id);
+  else if(a === 'del') crmDelLead(id);
+  else if(a === 'sel'){ CRMSEL.on = true; CRMSEL.ids = {}; CRMSEL.ids[id] = 1; renderCrmMain(); }
+}
+function crmCardClick(id){ if(CRMSEL.on) crmSelPick(id); else openLead(id); }
+function crmCmClose(){ var m = document.getElementById('crmCm'); if(m) m.classList.remove('on'); }
+document.addEventListener('click', function(e){ var m = document.getElementById('crmCm'); if(m && m.classList.contains('on') && !m.contains(e.target)) m.classList.remove('on'); });
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') crmCmClose(); });
+// Выбор нескольких лидов на канбане и удаление пачкой
+var CRMSEL = {on:false, ids:{}};
+function crmSelToggle(){
+  CRMSEL.on = !CRMSEL.on; CRMSEL.ids = {};
+  renderCrmMain();
+}
+function crmSelPick(id){
+  if(CRMSEL.ids[id]) delete CRMSEL.ids[id]; else CRMSEL.ids[id] = 1;
+  var c = document.querySelector('.cx-card[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+  if(c) c.classList.toggle('sel', !!CRMSEL.ids[id]);
+  crmSelBar();
+}
+function crmSelBar(){
+  var b = document.getElementById('crmSelBar'); if(!b) return;
+  var n = Object.keys(CRMSEL.ids).length;
+  b.querySelector('b').textContent = n ? 'Выбрано: ' + n : 'Нажмите на карточки, чтобы выбрать';
+  b.querySelector('.r11-sdel').disabled = !n;
+}
+function crmSelAll(){
+  crmFilter(CRM.leads).forEach(function(l){ CRMSEL.ids[String(l.id)] = 1; });
+  renderCrmMain();
+}
+function crmSelDel(){
+  var ids = Object.keys(CRMSEL.ids); if(!ids.length) return;
+  r11Confirm('Удалить лидов: ' + ids.length + '?', 'Карточки исчезнут у всей команды, бот их не вернёт. Передумаете, нажмите «Вернуть» в течение 5 секунд', function(){
+    CRMSEL = {on:false, ids:{}};
+    crmDelNow(ids);
+    renderCrmMain();
+  }, 'Удалить', true);
+}
+function crmSelHTML(){
+  if(!CRMSEL.on) return '';
+  var n = Object.keys(CRMSEL.ids).length;
+  return '<div class="r11-selbar" id="crmSelBar"><b>' + (n ? 'Выбрано: ' + n : 'Нажмите на карточки, чтобы выбрать') + '</b>' +
+    '<span class="r11-lnk" onclick="crmSelAll()">Выбрать все на экране</span>' +
+    '<button class="btn pf-b r11-sdel"' + (n ? '' : ' disabled') + ' onclick="crmSelDel()">Удалить выбранные</button>' +
+    '<button class="btn pf-b" onclick="crmSelToggle()">Готово</button></div>';
+}
+
+// ── 2. Запись на разбор ──────────────────────────────────────────────────────
+var SL = null;
+var SL_TZ = 5 * 3600000;                // Алматы, UTC+5
+var SL_H0 = 9, SL_H1 = 21, SL_PX = 46;  // сетка 09:00-21:00
+var SL_DOW = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+var SL_MON = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+var SL_MONS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+var SLV = {wk:0, open:null, err:'', gen:{days:[0, 1, 2, 3, 4], times:['11:00', '14:00', '16:00'], extra:'', weeks:2, fmt:'онлайн', place:'', link:'', dur:60}};
+function slLoad(){
+  var d = null; try{ d = JSON.parse(localStorage.getItem('bs_slots') || 'null'); }catch(e){}
+  if(!d || typeof d !== 'object' || Array.isArray(d)) d = {};
+  if(!Array.isArray(d.slots)) d.slots = [];
+  if(d.price === undefined || d.price === null || d.price === '') d.price = 30000;
+  if(d.kaspiLink === undefined) d.kaspiLink = '';
+  SL = d; return d;
+}
+function slSave(){ try{ localStorage.setItem('bs_slots', JSON.stringify(SL)); }catch(e){} }
+// Время слота по Алматы
+function slA(iso){
+  var t = Date.parse(iso); if(!iso || isNaN(t)) return null;
+  var d = new Date(t + SL_TZ);
+  var o = {t:t, w:t + SL_TZ, y:d.getUTCFullYear(), mo:d.getUTCMonth(), d:d.getUTCDate(), h:d.getUTCHours(), mi:d.getUTCMinutes(), dow:(d.getUTCDay() + 6) % 7};
+  o.date = o.y + '-' + r11P2(o.mo + 1) + '-' + r11P2(o.d); o.hm = r11P2(o.h) + ':' + r11P2(o.mi);
+  return o;
+}
+function slIso(date, hm){ return date + 'T' + hm + ':00+05:00'; }
+function slEnd(a, dur){ var e = new Date(a.w + (Number(dur) || 60) * 60000); return r11P2(e.getUTCHours()) + ':' + r11P2(e.getUTCMinutes()); }
+function slDay(a){ return SL_DOW[a.dow] + ', ' + a.d + ' ' + SL_MON[a.mo]; }
+function slShort(a){ return SL_DOW[a.dow] + ', ' + a.d + ' ' + SL_MONS[a.mo] + ' ' + a.hm; }
+// Понедельник недели (часы Алматы, в миллисекундах «как UTC»)
+function slMon(off){
+  var n = new Date(Date.now() + SL_TZ), dow = (n.getUTCDay() + 6) % 7;
+  return Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()) - dow * 864e5 + (off || 0) * 7 * 864e5;
+}
+function slDateOf(w){ var d = new Date(w); return d.getUTCFullYear() + '-' + r11P2(d.getUTCMonth() + 1) + '-' + r11P2(d.getUTCDate()); }
+function slById(id){ if(!SL) slLoad(); return SL.slots.find(function(s){ return String(s.id) === String(id); }); }
+function slSorted(){ return SL.slots.slice().sort(function(a, b){ return (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0); }); }
+function slLeadOf(b){
+  if(!b) return null; if(!CRM) loadCRM();
+  return (b.leadId && leadById(b.leadId)) || (b.tgId && CRM.leads.find(function(l){ return l.tgId && String(l.tgId) === String(b.tgId); })) || null;
+}
+function slOfLead(l){
+  if(!SL) slLoad();
+  var mine = SL.slots.filter(function(s){
+    var b = s.booking; if(s.status !== 'booked' || !b) return false;
+    return (b.leadId && String(b.leadId) === String(l.id)) || (l.tgId && b.tgId && String(b.tgId) === String(l.tgId));
+  }).sort(function(a, b){ return Date.parse(a.start) - Date.parse(b.start); });
+  var now = Date.now();
+  return mine.find(function(s){ return Date.parse(s.start) + (s.dur || 60) * 60000 >= now; }) || mine[mine.length - 1] || null;
+}
+function slWhere(s){ return s.format === 'офлайн' ? (s.place || 'место не указано') : (s.link ? '' : 'без ссылки'); }
+
+function renderSlots(){
+  slLoad();
+  var el = pgSet('Запись на разбор', 'Окна для записи через бота · цена ' + r11Money(SL.price) + (SL.kaspiLink ? ' · оплата Kaspi' : ''));
+  if(r11AdminOnly(el)) return;
+  var pa = document.getElementById('phAct');
+  if(pa) pa.innerHTML = '<button class="btn pf-b" onclick="slSetOpen()">Настройки</button><button class="btn pf-b pf-p" onclick="slGenOpen()">Открыть окна</button>';
+  var mon = slMon(SLV.wk), sun = mon + 6 * 864e5, md = new Date(mon), sd = new Date(sun);
+  var inWeek = SL.slots.filter(function(s){ var a = slA(s.start); return a && a.w >= mon && a.w < mon + 7 * 864e5; });
+  var cnt = function(st){ return inWeek.filter(function(s){ return (s.status || 'free') === st; }).length; };
+  var paid = inWeek.filter(function(s){ return s.status === 'booked' && s.booking && s.booking.paid; }).length;
+  var range = md.getUTCDate() + (md.getUTCMonth() !== sd.getUTCMonth() ? ' ' + SL_MONS[md.getUTCMonth()] : '') + ' - ' + sd.getUTCDate() + ' ' + SL_MONS[sd.getUTCMonth()];
+  var nowW = Date.now() + SL_TZ, todayCol = Math.floor((nowW - mon) / 864e5);
+  var head = '<div class="sl-gh"><div></div>' + SL_DOW.map(function(n, i){
+    var d = new Date(mon + i * 864e5);
+    return '<div class="sl-dh' + (i === todayCol ? ' today' : '') + '"><span>' + n + '</span><b>' + d.getUTCDate() + '</b></div>';
+  }).join('') + '</div>';
+  var hours = '';
+  for(var h = SL_H0; h < SL_H1; h++) hours += '<div class="sl-hr" style="top:' + ((h - SL_H0) * SL_PX) + 'px"><span>' + r11P2(h) + ':00</span></div>';
+  var cols = SL_DOW.map(function(n, i){
+    var items = inWeek.filter(function(s){ return Math.floor((slA(s.start).w - mon) / 864e5) === i; });
+    return '<div class="sl-col' + (i === todayCol ? ' today' : '') + '">' + items.map(slBlockHTML).join('') + '</div>';
+  }).join('');
+  var nowLine = '';
+  if(todayCol >= 0 && todayCol < 7){
+    var nm = (nowW - mon - todayCol * 864e5) / 60000;
+    if(nm >= SL_H0 * 60 && nm <= SL_H1 * 60) nowLine = '<div class="sl-now" style="top:' + Math.round((nm - SL_H0 * 60) / 60 * SL_PX) + 'px;left:calc(56px + (100% - 56px) / 7 * ' + todayCol + ');width:calc((100% - 56px) / 7)"></div>';
+  }
+  el.innerHTML = '<div class="sl">' +
+    '<div class="cx-kpi sl-kpi">' +
+      '<div><span>Свободно на неделе</span><b>' + cnt('free') + '</b></div>' +
+      '<div><span>Записано</span><b>' + cnt('booked') + '</b></div>' +
+      '<div><span>Оплачено</span><b>' + paid + ' из ' + cnt('booked') + '</b></div>' +
+      '<div><span>Закрыто</span><b>' + cnt('blocked') + '</b></div>' +
+      '<div><span>Ожидаем оплату</span><b>' + r11Money((cnt('booked') - paid) * (Number(SL.price) || 0)) + '</b></div>' +
+    '</div>' +
+    '<div class="sl-wrap"><div class="sl-cal">' +
+      '<div class="sl-bar"><div class="sl-nav"><span class="sl-arr" onclick="slWeek(-1)" title="Прошлая неделя">‹</span><b id="slRange">' + range + '</b><span class="sl-arr" onclick="slWeek(1)" title="Следующая неделя">›</span></div>' +
+        (SLV.wk ? '<span class="r11-lnk" onclick="slWeek(0,true)">Эта неделя</span>' : '<span class="sl-cap">Эта неделя</span>') +
+        '<div class="sl-leg"><span><i class="free"></i>свободно</span><span><i class="booked"></i>записан</span><span><i class="blocked"></i>закрыто</span></div></div>' +
+      head +
+      '<div class="sl-grid" style="height:' + ((SL_H1 - SL_H0) * SL_PX) + 'px">' + hours + '<div class="sl-cols">' + cols + '</div>' + nowLine + '</div>' +
+      (inWeek.length ? '' : '<div class="sl-empty">На этой неделе окон нет. Нажмите «Открыть окна», чтобы добавить их на несколько недель вперёд</div>') +
+    '</div>' +
+    '<div class="sl-side">' + slUpcomingHTML() + '</div></div></div>';
+}
+function slBlockHTML(s){
+  var a = slA(s.start), st = s.status || 'free', b = s.booking || {};
+  var m0 = a.h * 60 + a.mi, dur = Number(s.dur) || 60;
+  var top = Math.max(0, (m0 - SL_H0 * 60) / 60 * SL_PX), hgt = Math.max(20, Math.min(dur, SL_H1 * 60 - Math.max(m0, SL_H0 * 60)) / 60 * SL_PX - 3);
+  if(m0 >= SL_H1 * 60){ top = (SL_H1 - SL_H0) * SL_PX - 22; hgt = 20; }
+  var past = Date.parse(s.start) + dur * 60000 < Date.now();
+  var label = st === 'booked' ? esc(b.name || b.username || 'Записан') : (st === 'blocked' ? 'закрыто' : s.format === 'офлайн' ? 'офлайн' : 'онлайн');
+  return '<div class="sl-s ' + st + (past ? ' past' : '') + (st === 'booked' && !b.paid ? ' unpaid' : '') + '" data-id="' + escA(s.id) + '" style="top:' + Math.round(top) + 'px;height:' + Math.round(hgt) + 'px" onclick="slOpen(this.dataset.id)" title="' + escA(a.hm + '-' + slEnd(a, dur) + ' · ' + (st === 'booked' ? (b.name || '') + (b.paid ? ' · оплачено' : ' · не оплачено') : st === 'blocked' ? 'закрыто' : 'свободно')) + '">' +
+    '<div class="sl-st">' + a.hm + (st === 'booked' ? '<span>' + label + '</span>' : '') + '</div>' +
+    (hgt > 30 ? '<div class="sl-sn">' + (st === 'booked' ? (b.paid ? '✓ оплачено' : 'не оплачено') : label) + '</div>' : '') + '</div>';
+}
+function slUpcomingHTML(){
+  var now = Date.now(), d0 = slMon(0) + ((Math.floor((now + SL_TZ - slMon(0)) / 864e5)) * 864e5);
+  var days = [{n:'Сегодня', a:d0}, {n:'Завтра', a:d0 + 864e5}];
+  return '<div class="sl-up"><div class="sl-uh">Ближайшие записи</div>' + days.map(function(D){
+    var list = slSorted().filter(function(s){ var a = slA(s.start); return a && a.w >= D.a && a.w < D.a + 864e5 && (s.status || 'free') !== 'blocked'; });
+    var booked = list.filter(function(s){ return s.status === 'booked'; }), free = list.length - booked.length;
+    var dd = new Date(D.a);
+    return '<div class="sl-ud"><div class="sl-udh"><b>' + D.n + '</b><span>' + SL_DOW[(dd.getUTCDay() + 6) % 7] + ', ' + dd.getUTCDate() + ' ' + SL_MONS[dd.getUTCMonth()] + '</span></div>' +
+      (booked.length ? booked.map(function(s){
+        var a = slA(s.start), b = s.booking || {};
+        return '<div class="sl-ui" data-id="' + escA(s.id) + '" onclick="slOpen(this.dataset.id)"><div class="sl-ut">' + a.hm + '</div><div class="sl-ub"><b>' + esc(b.name || 'Без имени') + '</b>' +
+          '<span>' + esc([b.niche, s.format].filter(Boolean).join(' · ')) + '</span></div><span class="sl-pd' + (b.paid ? ' on' : '') + '">' + (b.paid ? 'оплачено' : 'не оплачено') + '</span></div>';
+      }).join('') : '<div class="sl-un">Записей нет</div>') +
+      (free ? '<div class="sl-uf">Свободных окон: ' + free + '</div>' : '') + '</div>';
+  }).join('') + '</div>';
+}
+function slWeek(d, abs){ SLV.wk = abs ? d : SLV.wk + d; renderSlots(); }
+
+// Окно (слот): карточка справа
+function slOpen(id){
+  var s = slById(id); if(!s) return;
+  SLV.open = String(s.id); SLV.err = '';
+  slPaint();
+  document.getElementById('slSheet').classList.add('on');
+}
+function slClose(){ document.getElementById('slSheet').classList.remove('on'); SLV.open = null; if(section === 'bookSlots') renderSlots(); }
+function slPaint(){
+  var s = slById(SLV.open), box = document.getElementById('slBody'), hd = document.getElementById('slHead');
+  if(!s || !box){ if(box) box.innerHTML = '<div class="pf-empty">Окно удалено</div>'; return; }
+  var a = slA(s.start), st = s.status || 'free', b = s.booking || null, dur = Number(s.dur) || 60;
+  var stN = {free:'Свободно', booked:'Записан', blocked:'Закрыто'}[st] || st;
+  hd.innerHTML = '<div class="ls-h1"><div class="ls-nm">' + (a ? slDay(a) : 'Без даты') + '</div>' +
+    '<div class="ls-sub"><span class="sl-chip ' + st + '">' + stN + '</span><span>' + (a ? a.hm + '-' + slEnd(a, dur) : '') + '</span><span>' + esc(s.format || 'онлайн') + '</span>' + (slWhere(s) ? '<span>' + esc(slWhere(s)) + '</span>' : '') + '</div></div>' +
+    '<div class="ls-ha"><div class="x" onclick="slClose()">✕</div></div>';
+  var h = '';
+  if(st === 'booked' && b){
+    var lead = slLeadOf(b);
+    h += '<div class="sl-bk">' +
+      '<div class="sl-bkh"><div><div class="sl-bkn">' + esc(b.name || 'Без имени') + '</div>' +
+        '<div class="sl-bks">' + [b.username ? '<a href="https://t.me/' + escA(String(b.username).replace('@', '')) + '" target="_blank" rel="noopener">@' + esc(String(b.username).replace('@', '')) + '</a>' : '', b.phone ? esc(crmPhone(b.phone) || b.phone) : '', b.at ? 'записался ' + esc(r11At(b.at)) : ''].filter(Boolean).join(' · ') + '</div></div>' +
+        '<button class="btn pf-b sl-paid' + (b.paid ? ' on' : '') + '" id="slPaid" onclick="slPaidToggle()">' + (b.paid ? '✓ Оплачено' : 'Оплачено') + '</button></div>' +
+      (b.niche ? '<div class="sl-kv"><span>Ниша</span><div>' + esc(b.niche) + '</div></div>' : '') +
+      (b.question ? '<div class="sl-kv"><span>Вопрос на разбор</span><div>' + esc(b.question) + '</div></div>' : '') +
+      '<div class="sl-kv"><span>Оплата</span><div>' + (b.paid ? 'Оплачено' + (b.paidAt ? ', ' + esc(r11At(b.paidAt)) : '') : 'Ждём ' + r11Money(SL.price) + (SL.kaspiLink ? ' по ссылке Kaspi' : '')) + '</div></div>' +
+      ((b.reminded || []).length ? '<div class="sl-kv"><span>Напоминания</span><div>' + b.reminded.map(function(x){ return esc(typeof x === 'string' && Date.parse(x) ? r11At(x) : String(x)); }).join(', ') + '</div></div>' : '') +
+      '<div class="sl-acts">' +
+        '<button class="btn pf-b" onclick="slOpenLead()"' + (lead || b.leadId || b.tgId ? '' : ' disabled') + '>Открыть лида' + (lead ? '' : ' (нет в CRM)') + '</button>' +
+        (SL.kaspiLink ? '<button class="btn pf-b" onclick="slCopyPay()">Ссылка на оплату</button>' : '') +
+        (s.link && s.format !== 'офлайн' ? '<a class="btn pf-b" href="' + escA(s.link) + '" target="_blank" rel="noopener">Открыть встречу</a>' : '') +
+      '</div></div>';
+  }
+  h += '<div class="sl-eh">Окно</div><div class="ls-fields sl-f">' +
+    '<label class="lf"><span>Дата</span><input class="inp" type="date" id="slfDate" value="' + (a ? a.date : '') + '"></label>' +
+    '<label class="lf"><span>Время</span><input class="inp" type="time" id="slfTime" value="' + (a ? a.hm : '') + '" step="900"></label>' +
+    '<label class="lf"><span>Длительность</span><select class="inp" id="slfDur">' + [30, 45, 60, 90, 120].map(function(m){ return '<option value="' + m + '"' + (m === dur ? ' selected' : '') + '>' + m + ' мин</option>'; }).join('') + '</select></label>' +
+    '<label class="lf"><span>Формат</span><select class="inp" id="slfFmt">' + ['онлайн', 'офлайн'].map(function(f){ return '<option' + ((s.format || 'онлайн') === f ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label>' +
+    '<label class="lf"><span>Место (офлайн)</span><input class="inp" id="slfPlace" value="' + escA(s.place || '') + '" placeholder="Алматы, Достык 44"></label>' +
+    '<label class="lf"><span>Ссылка (онлайн)</span><input class="inp" id="slfLink" value="' + escA(s.link || '') + '" placeholder="' + escA(SL.meetLink || 'https://meet.google.com/…') + '"></label>' +
+  '</div>' +
+  (SLV.err ? '<div class="sl-err">' + esc(SLV.err) + '</div>' : '') +
+  '<div class="sl-acts"><button class="btn pf-b pf-p" onclick="slSaveForm()">Сохранить</button>' +
+    (st === 'booked' ? '' : '<button class="btn pf-b" onclick="slBlock()">' + (st === 'blocked' ? 'Открыть для записи' : 'Закрыть окно') + '</button>') + '</div>';
+  if((s.history || []).length){
+    h += '<div class="sl-eh">Отменённые записи</div><div class="sl-hist">' + s.history.slice().reverse().map(function(x){
+      return '<div class="sl-hi"><b>' + esc(x.name || 'Без имени') + '</b><span>' + esc([x.username ? '@' + String(x.username).replace('@', '') : '', x.canceledAt ? 'отменено ' + r11At(x.canceledAt) : '', x.paid ? 'было оплачено' : ''].filter(Boolean).join(' · ')) + '</span></div>';
+    }).join('') + '</div>';
+  }
+  h += '<div class="ls-foot">' + (st === 'booked' ? '<span class="ls-delb" onclick="slCancel()">Отменить запись</span>' : '') + '<span class="ls-delb" onclick="slDel()">Удалить окно</span></div>';
+  box.innerHTML = h;
+}
+function slSaveForm(){
+  var s = slById(SLV.open); if(!s) return;
+  var date = document.getElementById('slfDate').value, hm = document.getElementById('slfTime').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(hm)){ SLV.err = 'Укажите дату и время'; slPaint(); return; }
+  var start = slIso(date, hm), t = Date.parse(start);
+  if(SL.slots.some(function(x){ return x !== s && Date.parse(x.start) === t; })){ SLV.err = 'На это время уже есть окно'; slPaint(); return; }
+  s.start = start; s.dur = Number(document.getElementById('slfDur').value) || 60;
+  s.format = document.getElementById('slfFmt').value;
+  s.place = document.getElementById('slfPlace').value.trim();
+  s.link = document.getElementById('slfLink').value.trim();
+  if(s.format === 'онлайн' && !s.link && SL.meetLink) s.link = SL.meetLink;
+  SLV.err = ''; slSave(); slPaint(); toast('Окно сохранено');
+}
+function slBlock(){
+  var s = slById(SLV.open); if(!s || s.status === 'booked') return;
+  s.status = s.status === 'blocked' ? 'free' : 'blocked';
+  slSave(); slPaint(); toast(s.status === 'blocked' ? 'Окно закрыто для записи' : 'Окно открыто для записи');
+}
+function slDel(){
+  var s = slById(SLV.open); if(!s) return;
+  var a = slA(s.start);
+  r11Confirm('Удалить окно?', (a ? slShort(a) : '') + (s.status === 'booked' && s.booking ? '. Запись ' + (s.booking.name || '') + ' тоже удалится' : ''), function(){
+    SL.slots = SL.slots.filter(function(x){ return x !== s; });
+    slSave(); slClose(); toast('Окно удалено');
+  }, 'Удалить', true);
+}
+function slPaidToggle(){
+  var s = slById(SLV.open); if(!s || !s.booking) return;
+  var b = s.booking; b.paid = !b.paid;
+  if(b.paid) b.paidAt = new Date().toISOString(); else delete b.paidAt;
+  slSave();
+  var l = slLeadOf(b);
+  if(l){ leadLog(l, b.paid ? 'Разбор оплачен' : 'Оплата разбора снята'); saveCRM(); }
+  slPaint(); toast(b.paid ? 'Отмечено: оплачено' : 'Отметка об оплате снята');
+}
+function slCancel(){
+  var s = slById(SLV.open); if(!s || !s.booking) return;
+  var b = s.booking, a = slA(s.start);
+  r11Confirm('Отменить запись?', (b.name || 'Без имени') + ', ' + (a ? slShort(a) : '') + '. Окно снова станет свободным', function(){
+    s.history = (s.history || []).concat([Object.assign({}, b, {canceledAt:new Date().toISOString()})]);
+    delete s.booking; s.status = 'free';
+    slSave();
+    var l = slLeadOf(b);
+    if(l){ leadLog(l, 'Запись на разбор отменена' + (a ? ': ' + slShort(a) : '')); saveCRM(); }
+    slPaint(); toast('Запись отменена, окно свободно');
+  }, 'Отменить запись', true);
+}
+function slOpenLead(){
+  var s = slById(SLV.open); if(!s || !s.booking) return;
+  var l = slLeadOf(s.booking);
+  if(!l){ toast('Этого лида нет в CRM'); return; }
+  document.getElementById('slSheet').classList.remove('on');
+  openLead(l.id);
+}
+function slCopyPay(){
+  var s = slById(SLV.open), a = s ? slA(s.start) : null;
+  r6Copy('Разбор Business Surgery' + (a ? ', ' + slShort(a) : '') + '. Оплата ' + money(SL.price) + ' ₸ по ссылке Kaspi: ' + SL.kaspiLink);
+}
+// Из карточки лида
+function slFromLead(id){
+  var s = slById(id); if(!s) return;
+  document.getElementById('leadSheet').classList.remove('on');
+  var a = slA(s.start);
+  if(a) SLV.wk = Math.round((Date.UTC(a.y, a.mo, a.d) - a.dow * 864e5 - slMon(0)) / (7 * 864e5));
+  goBlock('sales'); goSection('bookSlots');
+  slOpen(id);
+}
+
+// Генератор окон
+function slGenOpen(){
+  slLoad();
+  var g = SLV.gen;
+  if(!g.link) g.link = SL.meetLink || '';
+  slGenPaint();
+  document.getElementById('slGenSheet').classList.add('on');
+}
+function slGenTimes(){
+  var g = SLV.gen, t = g.times.slice();
+  String(g.extra || '').split(/[\s,;]+/).forEach(function(x){
+    var m = x.match(/^(\d{1,2})[:.](\d{2})$/) || x.match(/^(\d{1,2})$/);
+    if(!m) return; var h = +m[1], mi = m[2] ? +m[2] : 0;
+    if(h > 23 || mi > 59) return;
+    var v = r11P2(h) + ':' + r11P2(mi); if(t.indexOf(v) < 0) t.push(v);
+  });
+  return t.sort();
+}
+function slGenPlan(){
+  var g = SLV.gen, mon = slMon(SLV.wk), now = Date.now(), times = slGenTimes(), out = [], dup = 0, past = 0;
+  var have = {}; SL.slots.forEach(function(s){ var t = Date.parse(s.start); if(!isNaN(t)) have[t] = 1; });
+  for(var w = 0; w < g.weeks; w++) g.days.slice().sort().forEach(function(dw){
+    var date = slDateOf(mon + (w * 7 + dw) * 864e5);
+    times.forEach(function(hm){
+      var start = slIso(date, hm), t = Date.parse(start);
+      if(t < now){ past++; return; }
+      if(have[t]){ dup++; return; }
+      have[t] = 1; out.push(start);
+    });
+  });
+  return {add:out, dup:dup, past:past};
+}
+function slGenPaint(){
+  var g = SLV.gen, box = document.getElementById('slGenBody'); if(!box) return;
+  var hs = []; for(var h = SL_H0; h < SL_H1; h++) hs.push(r11P2(h) + ':00');
+  var p = slGenPlan(), mon = slMon(SLV.wk), md = new Date(mon);
+  box.innerHTML =
+    '<div class="sl-gl">Дни недели</div><div class="sl-chips" id="slgDays">' + SL_DOW.map(function(n, i){ return '<span class="sl-ch' + (g.days.indexOf(i) >= 0 ? ' on' : '') + '" data-i="' + i + '" onclick="slGenDay(' + i + ')">' + n + '</span>'; }).join('') + '</div>' +
+    '<div class="sl-gl">Время начала</div><div class="sl-chips" id="slgTimes">' + hs.map(function(t){ return '<span class="sl-ch' + (g.times.indexOf(t) >= 0 ? ' on' : '') + '" data-t="' + t + '" onclick="slGenTime(this.dataset.t)">' + t + '</span>'; }).join('') + '</div>' +
+    '<input class="inp sl-gx" id="slgExtra" placeholder="Своё время через запятую: 10:30, 15:30" value="' + escA(g.extra) + '" oninput="SLV.gen.extra=this.value;slGenSum()">' +
+    '<div class="ls-fields sl-f">' +
+      '<label class="lf"><span>На сколько недель</span><select class="inp" id="slgWeeks" onchange="SLV.gen.weeks=+this.value;slGenSum()">' + [1, 2, 3, 4, 6, 8].map(function(n){ return '<option value="' + n + '"' + (g.weeks === n ? ' selected' : '') + '>' + n + ' ' + (n === 1 ? 'неделя' : n < 5 ? 'недели' : 'недель') + '</option>'; }).join('') + '</select></label>' +
+      '<label class="lf"><span>Длительность</span><select class="inp" id="slgDur" onchange="SLV.gen.dur=+this.value">' + [30, 45, 60, 90, 120].map(function(m){ return '<option value="' + m + '"' + (g.dur === m ? ' selected' : '') + '>' + m + ' мин</option>'; }).join('') + '</select></label>' +
+      '<label class="lf"><span>Формат</span><select class="inp" id="slgFmt" onchange="SLV.gen.fmt=this.value;slGenPaint()">' + ['онлайн', 'офлайн'].map(function(f){ return '<option' + (g.fmt === f ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label>' +
+      (g.fmt === 'офлайн'
+        ? '<label class="lf"><span>Место</span><input class="inp" id="slgPlace" value="' + escA(g.place) + '" placeholder="Алматы, Достык 44" oninput="SLV.gen.place=this.value"></label>'
+        : '<label class="lf"><span>Ссылка на встречу</span><input class="inp" id="slgLink" value="' + escA(g.link) + '" placeholder="https://meet.google.com/…" oninput="SLV.gen.link=this.value"></label>') +
+    '</div>' +
+    '<div class="sl-gsum" id="slgSum">' + slGenSumText(p, md) + '</div>' +
+    '<div class="sl-acts"><button class="btn pf-b pf-p" id="slgGo" onclick="slGenGo()"' + (p.add.length ? '' : ' disabled') + '>Открыть окна' + (p.add.length ? ': ' + p.add.length : '') + '</button><button class="btn pf-b" onclick="closeSheet(\'slGenSheet\')">Отмена</button></div>';
+}
+function slGenSumText(p, md){
+  return 'С недели ' + md.getUTCDate() + ' ' + SL_MONS[md.getUTCMonth()] + ': <b>' + p.add.length + ' новых окон</b>' +
+    (p.dup ? ' · ' + p.dup + ' уже есть, пропустим' : '') + (p.past ? ' · ' + p.past + ' в прошлом, пропустим' : '');
+}
+function slGenSum(){
+  var p = slGenPlan(), s = document.getElementById('slgSum'), b = document.getElementById('slgGo');
+  if(s) s.innerHTML = slGenSumText(p, new Date(slMon(SLV.wk)));
+  if(b){ b.disabled = !p.add.length; b.textContent = 'Открыть окна' + (p.add.length ? ': ' + p.add.length : ''); }
+}
+function slGenDay(i){ var d = SLV.gen.days, k = d.indexOf(i); if(k >= 0) d.splice(k, 1); else d.push(i); slGenPaint(); }
+function slGenTime(t){ var d = SLV.gen.times, k = d.indexOf(t); if(k >= 0) d.splice(k, 1); else d.push(t); slGenPaint(); }
+function slGenGo(){
+  slLoad();
+  var g = SLV.gen, p = slGenPlan();
+  if(!p.add.length){ toast('Нечего добавлять'); return; }
+  p.add.forEach(function(start){
+    SL.slots.push({id:'s' + uid(), start:start, dur:g.dur || 60, format:g.fmt, place:g.fmt === 'офлайн' ? g.place : '', link:g.fmt === 'онлайн' ? (g.link || SL.meetLink || '') : '', status:'free'});
+  });
+  slSave();
+  closeSheet('slGenSheet');
+  renderSlots();
+  toast('Открыто окон: ' + p.add.length + (p.dup ? ', дубли пропущены: ' + p.dup : ''));
+}
+// Настройки записи
+function slSetOpen(){
+  slLoad();
+  document.getElementById('slSetBody').innerHTML =
+    '<div class="ls-fields sl-f">' +
+      '<label class="lf"><span>Цена разбора, ₸</span><input class="inp" id="slsPrice" value="' + escA(money(SL.price)) + '" inputmode="numeric"></label>' +
+      '<label class="lf"><span>Ссылка Kaspi на оплату</span><input class="inp" id="slsKaspi" value="' + escA(SL.kaspiLink || '') + '" placeholder="https://pay.kaspi.kz/…"></label>' +
+      '<label class="lf lf-full"><span>Ссылка Meet по умолчанию</span><input class="inp" id="slsMeet" value="' + escA(SL.meetLink || '') + '" placeholder="https://meet.google.com/…"></label>' +
+    '</div><div class="sl-gsum">Бот показывает цену и ссылку на оплату тем, кто записался. Ссылка Meet подставляется в новые онлайн-окна</div>' +
+    '<div class="sl-acts"><button class="btn pf-b pf-p" onclick="slSetSave()">Сохранить</button><button class="btn pf-b" onclick="closeSheet(\'slSetSheet\')">Отмена</button></div>';
+  bindMoney('slsPrice');
+  document.getElementById('slSetSheet').classList.add('on');
+}
+function slSetSave(){
+  slLoad();
+  SL.price = crmNum(document.getElementById('slsPrice').value) || 0;
+  SL.kaspiLink = document.getElementById('slsKaspi').value.trim();
+  SL.meetLink = document.getElementById('slsMeet').value.trim();
+  if(SL.meetLink) SLV.gen.link = SL.meetLink;
+  slSave(); closeSheet('slSetSheet'); renderSlots(); toast('Настройки записи сохранены');
+}
+
+// ── 3. Рефералы ──────────────────────────────────────────────────────────────
+var REF_BONUS = 100000;
+var REFV = {open:{}};
+function refKey(l){ return String(l.ref || l.refName || '').trim(); }
+function refGroups(){
+  if(!CRM) loadCRM();
+  var g = {}, order = [];
+  CRM.leads.forEach(function(l){
+    var k = refKey(l); if(!k) return;
+    if(!g[k]){ g[k] = {key:k, name:'', leads:[]}; order.push(k); }
+    if(l.refName && !g[k].name) g[k].name = String(l.refName);
+    g[k].leads.push(l);
+  });
+  return order.map(function(k){
+    var x = g[k]; x.name = x.name || x.key;
+    x.inv = x.leads.length;
+    x.meet = x.leads.filter(function(l){ return l.col === 'meet' || l.col === 'diag'; }).length;
+    x.won = x.leads.filter(function(l){ return l.col === 'won'; }).length;
+    x.bonus = x.won * REF_BONUS;
+    x.paid = x.leads.filter(function(l){ return l.col === 'won' && l.refPaid; }).length * REF_BONUS;
+    x.due = x.bonus - x.paid;
+    return x;
+  }).sort(function(a, b){ return b.due - a.due || b.won - a.won || b.inv - a.inv || a.name.localeCompare(b.name, 'ru'); });
+}
+function renderRefs(){
+  loadCRM();
+  var gs = refGroups();
+  var el = pgSet('Рефералы', 'Кого привели резиденты и друзья клуба · бонус ' + r11Money(REF_BONUS) + ' за каждого, кто стал резидентом');
+  if(r11AdminOnly(el)) return;
+  var T = gs.reduce(function(a, x){ a.inv += x.inv; a.meet += x.meet; a.won += x.won; a.bonus += x.bonus; a.paid += x.paid; return a; }, {inv:0, meet:0, won:0, bonus:0, paid:0});
+  if(!gs.length){ el.innerHTML = '<div class="pf-empty">Пока никто не пришёл по приглашению. Лиды с отметкой «Пригласил» появятся здесь</div>'; return; }
+  el.innerHTML = '<div class="rf">' +
+    '<div class="cx-kpi">' +
+      '<div><span>Пригласили</span><b>' + gs.length + '</b></div>' +
+      '<div><span>Приглашено</span><b>' + fmtN(T.inv) + '</b></div>' +
+      '<div><span>На разборе</span><b>' + fmtN(T.meet) + '</b></div>' +
+      '<div><span>Стали резидентами</span><b>' + fmtN(T.won) + '</b></div>' +
+      '<div><span>Начислено</span><b>' + r11Money(T.bonus) + '</b></div>' +
+      '<div' + (T.bonus - T.paid ? ' class="due"' : '') + '><span>К выплате</span><b>' + r11Money(T.bonus - T.paid) + '</b></div>' +
+    '</div>' +
+    '<div class="rf-t"><div class="rf-r rf-hd"><div>Пригласил</div><div>Приглашено</div><div>На разборе</div><div>Резидентов</div><div>Бонус начислен</div><div>Выплачено</div><div>К выплате</div></div>' +
+    gs.map(function(x){
+      var open = REFV.open[x.key] !== false;
+      return '<div class="rf-g' + (open ? ' open' : '') + '" data-k="' + escA(x.key) + '">' +
+        '<div class="rf-r rf-in" onclick="refToggle(this.parentNode.dataset.k)"><div class="rf-nm"><i class="rf-ar">' + (open ? '▾' : '▸') + '</i><b>' + esc(x.name) + '</b></div>' +
+          '<div>' + x.inv + '</div><div>' + x.meet + '</div><div>' + x.won + '</div><div>' + r11Money(x.bonus) + '</div><div>' + r11Money(x.paid) + '</div><div class="' + (x.due ? 'rf-due' : 'rf-zero') + '">' + r11Money(x.due) + '</div></div>' +
+        (open ? '<div class="rf-ls">' + x.leads.map(function(l){
+          var won = l.col === 'won';
+          return '<div class="rf-l" data-id="' + escA(l.id) + '"><div class="rf-ln" onclick="openLead(this.parentNode.dataset.id)"><b>' + esc(l.name || crmPhone(l.phone) || 'Без имени') + '</b>' +
+              '<span>' + esc([l.niche, l.date ? 'с ' + l.date : ''].filter(Boolean).join(' · ')) + '</span></div>' +
+            '<span class="rf-col' + (won ? ' won' : '') + '">' + esc(crmCol(l.col).n) + '</span>' +
+            (won ? '<span class="rf-b">' + r11Money(REF_BONUS) + '</span><button class="btn pf-b rf-pay' + (l.refPaid ? ' on' : '') + '" onclick="refPaidToggle(this.parentNode.dataset.id)">' + (l.refPaid ? '✓ Выплачено' : 'Выплачено') + '</button>'
+              : '<span class="rf-wait">бонус после вступления</span>') + '</div>';
+        }).join('') + '</div>' : '') + '</div>';
+    }).join('') + '</div></div>';
+}
+function refToggle(k){ REFV.open[k] = REFV.open[k] === false; renderRefs(); }
+function refPaidToggle(id){
+  var l = leadById(id); if(!l) return;
+  l.refPaid = !l.refPaid;
+  if(l.refPaid) l.refPaidAt = new Date().toISOString(); else delete l.refPaidAt;
+  leadLog(l, l.refPaid ? 'Реферальный бонус ' + fmtN(REF_BONUS) + ' ₸ выплачен: ' + (l.refName || l.ref) : 'Отметка о выплате бонуса снята');
+  saveCRM(); renderRefs();
+  toast(l.refPaid ? 'Бонус отмечен как выплаченный' : 'Отметка о выплате снята');
+}
+// Строки в карточке лида: разбор и кто пригласил
+function r11LeadInfo(l){
+  var out = [];
+  try{
+    var s = slOfLead(l);
+    if(s){
+      var a = slA(s.start), b = s.booking || {};
+      out.push('<div class="ls-inf" data-s="' + escA(s.id) + '" onclick="slFromLead(this.dataset.s)"><span>Разбор</span><b>' + (a ? slShort(a) : '') + '</b><i class="' + (b.paid ? 'ok' : 'no') + '">' + (b.paid ? 'оплачено' : 'не оплачено') + '</i><em>Открыть</em></div>');
+    }
+  }catch(e){}
+  if(l.refName || l.ref) out.push('<div class="ls-inf ref"><span>Пригласил</span><b>' + esc(l.refName || l.ref) + '</b>' + (l.col === 'won' ? '<i class="' + (l.refPaid ? 'ok' : 'no') + '">бонус ' + (l.refPaid ? 'выплачен' : 'не выплачен') + '</i>' : '') + '</div>');
+  return out.length ? '<div class="ls-infs">' + out.join('') + '</div>' : '';
+}
+
+// ── 4. Проверка данных ───────────────────────────────────────────────────────
+var AUD = {fixed:{}, busy:{}, err:{}, open:{}, run:false, runErr:'', runAt:''};
+function audDoc(){
+  var d = null; try{ d = JSON.parse(localStorage.getItem('bs_data_audit') || 'null'); }catch(e){}
+  if(!d || typeof d !== 'object') d = null;
+  if(AUD.live && (!d || (Date.parse(AUD.live.at) || 0) > (Date.parse(d.at) || 0))) d = AUD.live;
+  if(d && d.at !== AUD.at){ AUD.at = d.at; AUD.fixed = {}; AUD.err = {}; }
+  return d;
+}
+function audKey(it){ return String(it.name) + '|' + String(it.field); }
+function audVal(v){
+  if(v === null || v === undefined || v === '') return '<span class="au-nil">пусто</span>';
+  if(typeof v === 'number') return fmtN(v);
+  if(typeof v === 'object') return esc(JSON.stringify(v));
+  return esc(String(v));
+}
+function audConf(c){
+  if(c === null || c === undefined || c === '') return '';
+  if(typeof c === 'number'){ var p = c <= 1 ? Math.round(c * 100) : Math.round(c); return p + '%'; }
+  return esc(String(c));
+}
+function renderDataAudit(){
+  var el = pgSet('Проверка данных', 'Сервер сверяет данные резидентов с операциями и предлагает исправления');
+  if(r11AdminOnly(el)) return;
+  var pa = document.getElementById('phAct');
+  if(pa) pa.innerHTML = '<button class="btn pf-b" id="audRun" onclick="audRun()"' + (AUD.run ? ' disabled' : '') + '>' + (AUD.run ? 'Пересчитываем…' : 'Пересчитать') + '</button>';
+  var d = audDoc();
+  var items = (d && Array.isArray(d.items)) ? d.items : [];
+  var left = items.filter(function(it){ return !AUD.fixed[audKey(it)]; });
+  var groups = {}, order = [];
+  items.forEach(function(it){ var n = String(it.name || 'Без имени'); if(!groups[n]){ groups[n] = []; order.push(n); } groups[n].push(it); });
+  order.sort(function(a, b){ return a.localeCompare(b, 'ru'); });
+  var h = '<div class="au">' +
+    '<div class="cx-kpi au-kpi">' +
+      '<div><span>Проверено</span><b>' + (d ? fmtN(d.checked || 0) : '·') + '</b></div>' +
+      '<div' + (left.length ? ' class="bad"' : '') + '><span>Расхождений</span><b>' + left.length + '</b></div>' +
+      '<div><span>Резидентов с расхождениями</span><b>' + order.length + '</b></div>' +
+      '<div><span>Последняя проверка</span><b class="au-at">' + (d && d.at ? r11At(d.at) : 'не было') + '</b></div>' +
+    '</div>' +
+    (AUD.runErr ? '<div class="sl-err">' + esc(AUD.runErr) + '</div>' : '') +
+    (AUD.runAt && !AUD.runErr ? '<div class="au-note">Пересчёт запущен ' + esc(AUD.runAt) + '. Новый результат появится здесь сам</div>' : '');
+  if(!d) h += '<div class="pf-empty">Проверки ещё не было. Нажмите «Пересчитать», сервер сверит данные и пришлёт результат</div>';
+  else if(!items.length) h += '<div class="pf-empty">Расхождений нет. Данные резидентов совпадают с операциями</div>';
+  else h += '<div class="au-t"><div class="au-r au-hd"><div>Поле</div><div>Сейчас</div><div>Предлагается</div><div>Почему</div><div>Уверенность</div><div></div></div>' +
+    order.map(function(n){
+      var gl = groups[n], open = gl.filter(function(it){ return !AUD.fixed[audKey(it)]; }).length;
+      return '<div class="au-g"><div class="au-gh"><b>' + esc(n) + '</b><span>' + (open ? 'расхождений: ' + open : 'всё исправлено') + '</span></div>' +
+        gl.map(function(it){
+          var k = audKey(it), fx = AUD.fixed[k], busy = AUD.busy[k], err = AUD.err[k], ops = Array.isArray(it.ops) ? it.ops : [];
+          return '<div class="au-r' + (fx ? ' fixed' : '') + '" data-k="' + escA(k) + '">' +
+            '<div class="au-f">' + esc(it.field) + '</div>' +
+            '<div class="au-now">' + audVal(it.now) + '</div>' +
+            '<div class="au-sug">' + audVal(it.suggested) + '</div>' +
+            '<div class="au-why">' + esc(it.why || '') +
+              (ops.length ? ' <span class="r11-lnk" onclick="audOps(this.closest(\'.au-r\').dataset.k)">' + (AUD.open[k] ? 'скрыть операции' : 'операции: ' + ops.length) + '</span>' : '') +
+              (AUD.open[k] && ops.length ? '<div class="au-ops">' + ops.map(function(o){
+                return '<div><i>' + esc(r11At(o.at) || o.at || '') + '</i><b>' + esc(o.action || '') + '</b>' + (o.by ? '<span>' + esc(o.by) + '</span>' : '') +
+                  (o.params ? '<code>' + esc(typeof o.params === 'object' ? Object.keys(o.params).map(function(p){ return p + ': ' + (typeof o.params[p] === 'object' ? JSON.stringify(o.params[p]) : o.params[p]); }).join(', ') : String(o.params)) + '</code>' : '') + '</div>';
+              }).join('') + '</div>' : '') +
+              (err ? '<div class="au-err">' + esc(err) + '</div>' : '') + '</div>' +
+            '<div class="au-c">' + audConf(it.confidence) + '</div>' +
+            '<div class="au-a">' + (fx ? '<span class="au-ok">Исправлено</span>' : '<button class="btn pf-b au-fix" onclick="audFix(this.closest(\'.au-r\').dataset.k)"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Исправляем…' : 'Исправить') + '</button>') + '</div>' +
+          '</div>';
+        }).join('') + '</div>';
+    }).join('') + '</div>';
+  el.innerHTML = h + '</div>';
+}
+function audOps(k){ AUD.open[k] = !AUD.open[k]; renderDataAudit(); }
+function audFix(k){
+  var d = audDoc(); if(!d) return;
+  var it = (d.items || []).find(function(x){ return audKey(x) === k; }); if(!it || AUD.busy[k]) return;
+  AUD.busy[k] = 1; delete AUD.err[k]; renderDataAudit();
+  r11Club('POST', '/audit/fix', {name:it.name, field:it.field, value:it.suggested}).then(function(j){
+    delete AUD.busy[k];
+    if(j && j.error){ AUD.err[k] = 'Не исправлено: ' + j.error; toast('Не получилось исправить'); }
+    else { AUD.fixed[k] = 1; toast('Исправлено: ' + it.name + ', ' + it.field); }
+    if(section === 'dataAudit') renderDataAudit();
+  });
+}
+function audRun(){
+  if(AUD.run) return;
+  AUD.run = true; AUD.runErr = ''; renderDataAudit();
+  r11Club('POST', '/audit', {}).then(function(j){
+    AUD.run = false;
+    if(j && j.error) AUD.runErr = 'Пересчёт не запустился: ' + j.error;
+    else {
+      AUD.runAt = new Date().toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'});
+      if(j && Array.isArray(j.items)) AUD.live = j;
+      toast('Пересчёт запущен');
+      try{ if(window.BSSync && BSSync.refresh && BSSync.online && BSSync.online()) BSSync.refresh(); }catch(e){}
+    }
+    if(section === 'dataAudit') renderDataAudit();
+  });
+}
+
+// ── 5. Перенос с таблицы ─────────────────────────────────────────────────────
+var MIG = {busy:false, err:'', live:null, liveAt:0};
+var MIG_STAGES = [
+  {id:'sheet',  n:'Таблица', d:'Главная Google Таблица, сервер только читает'},
+  {id:'shadow', n:'Тень',    d:'Сервер пишет параллельно и каждый день сверяется с таблицей'},
+  {id:'server', n:'Сервер',  d:'Сервер главный, таблица получает копию'}];
+function migDoc(){
+  var d = null; try{ d = JSON.parse(localStorage.getItem('bs_migration_status') || 'null'); }catch(e){}
+  if(MIG.live && (!d || Date.parse(MIG.live.lastCheck || 0) >= Date.parse(d.lastCheck || 0))) return MIG.live;
+  return d && typeof d === 'object' ? d : null;
+}
+function renderMigration(){
+  var el = pgSet('Перенос с таблицы', 'Переезд учёта с Google Таблицы на сервер: раздел за разделом, без потери данных');
+  if(r11AdminOnly(el)) return;
+  var pa = document.getElementById('phAct');
+  if(pa) pa.innerHTML = '<button class="btn pf-b pf-p" id="migChk" onclick="migCheck()"' + (MIG.busy ? ' disabled' : '') + '>' + (MIG.busy ? 'Сверяем…' : 'Сверить сейчас') + '</button>';
+  var d = migDoc();
+  if(!d){ el.innerHTML = (MIG.err ? '<div class="sl-err">' + esc(MIG.err) + '</div>' : '') + '<div class="pf-empty">Сервер ещё не прислал статус переноса. Нажмите «Сверить сейчас»</div>'; return; }
+  var need = Number(d.needDays) || 5, streak = Math.max(0, Number(d.streak) || 0), si = Math.max(0, MIG_STAGES.findIndex(function(s){ return s.id === d.stage; }));
+  var mis = Array.isArray(d.mismatches) ? d.mismatches : [];
+  var secs = d.sections && typeof d.sections === 'object' ? Object.keys(d.sections) : [];
+  var w = d.writes || {}, sc = d.script || {};
+  var segs = ''; for(var i = 0; i < need; i++) segs += '<i class="' + (i < streak ? 'on' : '') + '"></i>';
+  var okNow = d.ok !== false && !mis.length;
+  var h = (MIG.err ? '<div class="sl-err">' + esc(MIG.err) + '</div>' : '') + '<div class="mg">' +
+    '<div class="mg-top">' +
+      '<div class="mg-card mg-prog"><div class="mg-l">Сверка таблицы и сервера</div>' +
+        '<div class="mg-big"><b>' + Math.min(streak, need) + '</b> из ' + need + ' дней без расхождений</div>' +
+        '<div class="mg-seg">' + segs + '</div>' +
+        '<div class="mg-s' + (okNow ? '' : ' bad') + '">' + (d.lastCheck ? 'Сверка ' + esc(r11At(d.lastCheck)) + ': ' : '') + (okNow ? 'расхождений нет' : 'расхождений: ' + mis.length + ', счётчик начнётся заново') + '</div>' +
+        (streak >= need && si < 2 ? '<div class="mg-s">Можно переключать следующий этап</div>' : '') + '</div>' +
+      '<div class="mg-card"><div class="mg-l">Этап переноса</div><div class="mg-step">' + MIG_STAGES.map(function(s, i){
+        return '<div class="mg-st' + (i < si ? ' done' : i === si ? ' cur' : '') + '"><div class="mg-dot">' + (i < si ? '✓' : (i + 1)) + '</div><div><b>' + s.n + '</b><span>' + s.d + '</span></div></div>';
+      }).join('<div class="mg-ln"></div>') + '</div></div>' +
+    '</div>' +
+    '<div class="mg-top mg-3">' +
+      '<div class="mg-card"><div class="mg-l">Разделы</div><div class="mg-chips">' + (secs.length ? secs.map(function(n){
+        var v = d.sections[n]; return '<span class="mg-chip ' + (v === 'server' ? 'srv' : 'scr') + '" title="' + (v === 'server' ? 'Считает сервер' : 'Пишет скрипт таблицы') + '">' + esc(n) + '<em>' + (v === 'server' ? 'сервер' : 'скрипт') + '</em></span>';
+      }).join('') : '<span class="mg-nil">Разделов пока нет</span>') + '</div>' +
+        (secs.length ? '<div class="mg-s">На сервере ' + secs.filter(function(n){ return d.sections[n] === 'server'; }).length + ' из ' + secs.length + '</div>' : '') + '</div>' +
+      '<div class="mg-card"><div class="mg-l">Очередь записи в таблицу</div><div class="mg-kv">' +
+        '<div><span>В очереди</span><b>' + fmtN(w.pending || 0) + '</b></div>' +
+        '<div' + (Number(w.failed) ? ' class="bad"' : '') + '><span>С ошибкой</span><b>' + fmtN(w.failed || 0) + '</b></div>' +
+        '<div><span>Последняя отправка</span><b class="mg-sm">' + (w.lastSent ? esc(r11At(w.lastSent)) : 'не было') + '</b></div></div></div>' +
+      '<div class="mg-card"><div class="mg-l">Скрипт таблицы</div><div class="mg-kv">' +
+        '<div><span>Работает</span><b class="mg-sm">' + esc(sc.running || 'неизвестно') + '</b></div>' +
+        '<div><span>Последняя</span><b class="mg-sm">' + esc(sc.latest || 'неизвестно') + '</b></div>' +
+        '<div><span>Обновлён</span><b class="mg-sm">' + (sc.updatedAt ? esc(r11At(sc.updatedAt)) : 'не было') + '</b></div></div>' +
+        (sc.latest && sc.running && sc.latest !== sc.running ? '<div class="mg-s">Нужно обновить скрипт до ' + esc(sc.latest) + '</div>' : (sc.latest && sc.running ? '<div class="mg-s">Версия актуальная</div>' : '')) +
+        (sc.error ? '<div class="mg-s bad">Ошибка скрипта: ' + esc(sc.error) + '</div>' : '') + '</div>' +
+    '</div>' +
+    '<div class="mg-card mg-mis"><div class="mg-l">Расхождения последней сверки</div>' +
+      (mis.length ? '<div class="mg-t"><div class="mg-r mg-hd"><div>Поле</div><div>Роль</div><div>В таблице</div><div>На сервере</div></div>' + mis.map(function(m){
+        return '<div class="mg-r"><div><b>' + esc(m.field || '') + '</b></div><div>' + esc(m.role || '') + '</div><div>' + audVal(m.sheet) + '</div><div class="mg-bad">' + audVal(m.server) + '</div></div>';
+      }).join('') + '</div>' : '<div class="mg-nil">Таблица и сервер совпадают</div>') +
+    '</div></div>';
+  el.innerHTML = h;
+}
+function migCheck(){
+  if(MIG.busy) return;
+  MIG.busy = true; MIG.err = ''; renderMigration();
+  r11Club('POST', '/migration/check', {}).then(function(j){
+    MIG.busy = false;
+    if(j && j.error){ MIG.err = 'Сверка не прошла: ' + j.error; toast('Сверка не прошла'); }
+    else {
+      var st = j && (j.stage ? j : (j.status && j.status.stage ? j.status : null));
+      if(st){ MIG.live = st; }
+      toast('Сверка выполнена');
+      try{ if(window.BSSync && BSSync.refresh && BSSync.online && BSSync.online()) BSSync.refresh(); }catch(e){}
+    }
+    if(section === 'migr') renderMigration();
+  });
+}
 
 // ═══ Старт ═══
 function bsBoot(){

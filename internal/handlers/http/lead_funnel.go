@@ -194,6 +194,14 @@ func (f *LeadFunnel) ensureLead(ctx context.Context, chatID int64, first, last, 
 			}
 			return true
 		}
+		// A lead the team deleted on the platform is not brought back.
+		if del, _ := crm["deleted"].([]any); len(del) > 0 {
+			for _, x := range del {
+				if fmt.Sprint(x) == fmt.Sprintf("tg%d", chatID) {
+					return false
+				}
+			}
+		}
 		isNew = true
 		tg := ""
 		if username != "" {

@@ -84,10 +84,7 @@ func (s *Service) takeStart(ctx context.Context, body []byte) bool {
 	if !ok || s.isAdmin(st.ChatID) {
 		return false
 	}
-	// Referral links stay with the script: it pays the bonus and tells the inviter.
-	if strings.HasPrefix(st.Param, "ref_") {
-		return false
-	}
+	// Referral links (ref_<chatId>) of new people are the server's too (referral.go).
 	if _, known, err := s.repo.ResidentByTgID(ctx, st.ChatID); err != nil || known {
 		return false
 	}

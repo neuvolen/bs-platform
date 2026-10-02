@@ -157,6 +157,11 @@ func newClubEnv(t *testing.T) *clubEnv {
 	srv := httptest.NewServer(http.HandlerFunc(f.handler))
 	t.Cleanup(srv.Close)
 	g := NewAppGateway(testBotToken, srv.URL+"/exec")
+	tg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"photos":[]}}`)) // nobody has a photo
+	}))
+	t.Cleanup(tg.Close)
+	g.TGBase = tg.URL
 	g.Admins = map[int64]string{453800951: "Рустам"}
 	now := time.Now()
 	g.now = func() time.Time { return now }
@@ -170,7 +175,7 @@ func newClubEnv(t *testing.T) *clubEnv {
 	m.Sample = []SampleUser{{"admin", 453800951}, {"resident", 490685605}, {"lead", 999}}
 	// The script's bundle is the server's own unless a test changes it.
 	f.bundle = func() []byte {
-		parts, _, err := g.ServerBundle(context.Background())
+		parts, _, err := g.ServerBundle(context.Background(), 0)
 		if err != nil {
 			return []byte(`{"error":"x"}`)
 		}

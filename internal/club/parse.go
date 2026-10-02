@@ -35,7 +35,26 @@ const (
 	SheetMeetingLog = "Лог встреч"
 	SheetSettings   = "Настройки"
 	SheetFormer     = "Бывшие резиденты"
+
+	// The app's own sections (migration step 3): kept as displayed in
+	// club_sheets and read by sections.go the way the script reads them.
+	SheetWheel       = "Колесо"
+	SheetLeads       = "CRM Лиды"
+	SheetProblems    = "Стоимость проблем"
+	SheetResTasks    = "Задачи резидентов"
+	SheetSmm         = "СММ план"
+	SheetContent     = "Контент" // the script's contentPlan reads «Контент», not «Контент-план»
+	SheetLeadmagnets = "Лид-магниты"
+	SheetLMHistory   = "История лид-магнитов"
+	// SheetScriptProps is not a sheet: the script's properties the app's
+	// sections need (WHEEL_AXES_<имя>, USEFUL_CL_IDX) as rows [key, value].
+	// Its presence marks an import from a script that sends the sections.
+	SheetScriptProps = "_props"
 )
+
+// SectionSheets are the app's section sheets the script sends since v33.
+var SectionSheets = []string{SheetWheel, SheetLeads, SheetProblems, SheetResTasks, SheetSmm, SheetContent,
+	SheetLeadmagnets, SheetLMHistory, SheetScriptProps}
 
 // Parse reads every sheet the club needs. It never guesses silently: every
 // row it cannot read is listed in the returned warnings.
@@ -63,7 +82,9 @@ func Parse(s Sheets) (*Snapshot, []string, error) {
 	snap.PL = parsePL(s[SheetPL], w)
 	snap.Raw = Sheets{}
 	for name, rows := range s {
-		if !parsedSheets[name] || name == SheetPL {
+		// The debet sheet is kept as displayed too: the data audit reads cells
+		// the tables keep only as numbers («Месяцев» holding a partner's name).
+		if !parsedSheets[name] || name == SheetPL || name == SheetDebet {
 			snap.Raw[name] = rows
 		}
 	}

@@ -53,6 +53,7 @@ var undoTables = map[string]bool{"club_fines": true, "club_payments": true, "clu
 type undoStep struct {
 	T    string          `json:"t"`
 	ID   int64           `json:"id"`
+	N    string          `json:"n,omitempty"` // club_sheets: the sheet's name
 	Prev json.RawMessage `json:"prev,omitempty"`
 }
 
@@ -102,6 +103,12 @@ func (a *applier) delete(table string, id int64) error {
 func undoAll(ctx context.Context, tx pgx.Tx, steps []undoStep) error {
 	for i := len(steps) - 1; i >= 0; i-- {
 		s := steps[i]
+		if s.T == "club_sheets" {
+			if err := undoSheet(ctx, tx, s); err != nil {
+				return err
+			}
+			continue
+		}
 		if !undoTables[s.T] {
 			return fmt.Errorf("undo: table %q", s.T)
 		}
@@ -454,10 +461,14 @@ func (a *applier) offlineAddress() string {
 // ApplyClubAction changes the club tables for one write; the returned undo
 // steps bring them back. ErrNothingToApply: the action changes nothing here.
 func applyClubAction(ctx context.Context, tx pgx.Tx, action string, p map[string]string, at time.Time) ([]undoStep, error) {
+	a := &applier{ctx: ctx, tx: tx, at: at}
+	if f := extraApply[action]; f != nil { // the app's sections, setResidentField (club_sections.go)
+		err := f(a, p)
+		return a.undo, err
+	}
 	if !clubApplyActions[action] {
 		return nil, ErrNothingToApply
 	}
-	a := &applier{ctx: ctx, tx: tx, at: at}
 	err := a.apply(action, p)
 	return a.undo, err
 }
@@ -825,6 +836,9 @@ func seenInSheet(ctx context.Context, q pgx.Tx, action string, p map[string]stri
 		err = q.QueryRow(ctx, `SELECT count(*) FROM club_meetings WHERE date = $1 AND time = $2`,
 			d.Format("2006-01-02"), appTime(p["time"], "12:00")).Scan(&n)
 	default:
+		if f := extraSeen[action]; f != nil {
+			return f(a, p)
+		}
 		return nil, nil
 	}
 	if err != nil {

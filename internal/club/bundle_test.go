@@ -284,7 +284,7 @@ func TestParseKeepsWhatTheBundleShows(t *testing.T) {
 	if s.Reports[0].ShownAt == nil || s.Reports[0].ShownAt.Format("15:04") != "22:10" || s.MeetingLog[0].Time != "29.09.2026 16:00" {
 		t.Fatalf("reports %+v log %+v", s.Reports, s.MeetingLog)
 	}
-	if !s.Residents[1].Archived || s.Residents[0].Archived || len(s.Raw) != 2 || s.Raw[SheetProfiles] == nil || s.Raw[SheetPL] == nil {
+	if !s.Residents[1].Archived || s.Residents[0].Archived || len(s.Raw) != 3 || s.Raw[SheetDebet] == nil || s.Raw[SheetProfiles] == nil || s.Raw[SheetPL] == nil {
 		t.Fatalf("archived / raw sheets: %+v %v", s.Residents, s.Raw)
 	}
 }

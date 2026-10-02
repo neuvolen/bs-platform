@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/club"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -240,7 +241,7 @@ func (r *ClubRepo) ReapplyAfterImport(ctx context.Context, tx pgx.Tx, sheetAt ti
 	n := 0
 	for i := range list {
 		w := &list[i]
-		if !clubApplyActions[w.Action] || (!w.Applied && w.ApplyError == "") {
+		if !appliesHere(w.Action) || (!w.Applied && w.ApplyError == "") {
 			continue // the server never changed its tables for this write
 		}
 		seen, err := seenInSheet(ctx, tx, w.Action, w.Params, w.At)
@@ -256,7 +257,7 @@ func (r *ClubRepo) ReapplyAfterImport(ctx context.Context, tx pgx.Tx, sheetAt ti
 			}
 			continue
 		}
-		if w.Status == WriteSent && seen == nil && !reapplyAfterSend[w.Action] {
+		if w.Status == WriteSent && seen == nil && !reapplyAfterSend[w.Action] && !club.SectionReapplyAfterSend[w.Action] {
 			continue // cannot tell whether the copy has it; adding it twice would be worse
 		}
 		undo, ok, aerr, err := applyIn(ctx, tx, w)
@@ -285,6 +286,9 @@ type WriteStats struct {
 	Rejected24h   int        `json:"rejected24h"`
 	ApplyFailed24 int        `json:"applyFailed24h"`
 	Total         int        `json:"total"`
+	// Failed: refused by the script in the last 24 hours (the server's change undone)
+	Failed   int        `json:"failed"`
+	LastSent *time.Time `json:"lastSent,omitempty"`
 }
 
 func (r *ClubRepo) WriteStats(ctx context.Context) (WriteStats, error) {
@@ -297,8 +301,10 @@ func (r *ClubRepo) WriteStats(ctx context.Context) (WriteStats, error) {
 		count(*) FILTER (WHERE status = 'sent' AND at > now() - interval '24 hours'),
 		count(*) FILTER (WHERE status = 'rejected' AND at > now() - interval '24 hours'),
 		count(*) FILTER (WHERE apply_error <> '' AND at > now() - interval '24 hours'),
-		count(*)
-		FROM club_writes`).Scan(&s.Pending, &s.Unknown, &s.OldestOpenAt, &s.LastError, &s.Sent24h, &s.Rejected24h, &s.ApplyFailed24, &s.Total)
+		count(*),
+		max(sent_at)
+		FROM club_writes`).Scan(&s.Pending, &s.Unknown, &s.OldestOpenAt, &s.LastError, &s.Sent24h, &s.Rejected24h, &s.ApplyFailed24, &s.Total, &s.LastSent)
+	s.Failed = s.Rejected24h
 	return s, err
 }
 
