@@ -1,0 +1,695 @@
+[
+ {
+  "id": "g001",
+  "organ": "Финансы",
+  "title": "Финансы под контролем",
+  "key": "cashflow",
+  "existing": false
+ },
+ {
+  "id": "g002",
+  "organ": "Финансы",
+  "title": "Платёжный календарь за один вечер",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g003",
+  "organ": "Финансы",
+  "title": "Управленческий учёт с нуля",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g004",
+  "organ": "Финансы",
+  "title": "Юнит-экономика: сколько вы зарабатываете на одном клиенте",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g005",
+  "organ": "Финансы",
+  "title": "Кассовые разрывы: как их не допускать",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g006",
+  "organ": "Финансы",
+  "title": "Как поднять цены и не потерять клиентов",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g007",
+  "organ": "Финансы",
+  "title": "Дебиторка: как вернуть свои деньги",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g008",
+  "organ": "Финансы",
+  "title": "Налоги ИП и ТОО в Казахстане: законная оптимизация",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g009",
+  "organ": "Финансы",
+  "title": "Себестоимость: где прячется прибыль",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g010",
+  "organ": "Финансы",
+  "title": "Отчёт о прибыли за 30 минут в месяц",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g011",
+  "organ": "Финансы",
+  "title": "Финансовая подушка бизнеса",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g012",
+  "organ": "Финансы",
+  "title": "Распределение денег по фондам",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g013",
+  "organ": "Финансы",
+  "title": "Кредит, рассрочка, лизинг: когда брать",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g014",
+  "organ": "Финансы",
+  "title": "Бюджет компании на год",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g015",
+  "organ": "Продажи",
+  "title": "Реанимация продаж",
+  "key": "sales",
+  "existing": true
+ },
+ {
+  "id": "g016",
+  "organ": "Продажи",
+  "title": "Скрипты для WhatsApp",
+  "key": "scripts",
+  "existing": false
+ },
+ {
+  "id": "g017",
+  "organ": "Продажи",
+  "title": "Отдел продаж с нуля",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g018",
+  "organ": "Продажи",
+  "title": "Найм и обучение менеджера по продажам",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g019",
+  "organ": "Продажи",
+  "title": "CRM за 14 дней",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g020",
+  "organ": "Продажи",
+  "title": "Работа с возражениями",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g021",
+  "organ": "Продажи",
+  "title": "Дожим: 9 касаний до сделки",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g022",
+  "organ": "Продажи",
+  "title": "Повторные продажи и LTV",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g023",
+  "organ": "Продажи",
+  "title": "Как поднять средний чек",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g024",
+  "organ": "Продажи",
+  "title": "Продажи на Kaspi",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g025",
+  "organ": "Продажи",
+  "title": "Продажи B2B: длинная сделка",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g026",
+  "organ": "Продажи",
+  "title": "Холодные продажи, которые не раздражают",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g027",
+  "organ": "Продажи",
+  "title": "Мотивация отдела продаж",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g028",
+  "organ": "Продажи",
+  "title": "Воронка продаж: где утекают деньги",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g029",
+  "organ": "Маркетинг",
+  "title": "Маркетинг без бюджета",
+  "key": "marketing",
+  "existing": true
+ },
+ {
+  "id": "g030",
+  "organ": "Маркетинг",
+  "title": "Позиционирование: почему выбирают вас",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g031",
+  "organ": "Маркетинг",
+  "title": "Портрет клиента и его боли",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g032",
+  "organ": "Маркетинг",
+  "title": "Instagram для бизнеса",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g033",
+  "organ": "Маркетинг",
+  "title": "Reels, которые приводят клиентов",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g034",
+  "organ": "Маркетинг",
+  "title": "Threads для предпринимателя",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g035",
+  "organ": "Маркетинг",
+  "title": "Таргет без слива бюджета",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g036",
+  "organ": "Маркетинг",
+  "title": "Сарафан и реферальная программа",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g037",
+  "organ": "Маркетинг",
+  "title": "2GIS и карты: бесплатный поток клиентов",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g038",
+  "organ": "Маркетинг",
+  "title": "Лид-магнит и воронка в Telegram",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g039",
+  "organ": "Маркетинг",
+  "title": "Контент-план на месяц за 2 часа",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g040",
+  "organ": "Маркетинг",
+  "title": "Личный бренд владельца",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g041",
+  "organ": "Маркетинг",
+  "title": "Упаковка оффера",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g042",
+  "organ": "Маркетинг",
+  "title": "Отзывы и кейсы, которые продают",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g043",
+  "organ": "Команда",
+  "title": "Найм команды",
+  "key": "hire",
+  "existing": true
+ },
+ {
+  "id": "g044",
+  "organ": "Команда",
+  "title": "Команда без выгорания",
+  "key": "team_culture",
+  "existing": false
+ },
+ {
+  "id": "g045",
+  "organ": "Команда",
+  "title": "Онбординг: первые 30 дней сотрудника",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g046",
+  "organ": "Команда",
+  "title": "Оргструктура бизнеса",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g047",
+  "organ": "Команда",
+  "title": "Операционный директор: когда и как",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g048",
+  "organ": "Команда",
+  "title": "KPI для сотрудников",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g049",
+  "organ": "Команда",
+  "title": "Система мотивации",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g050",
+  "organ": "Команда",
+  "title": "Увольнение без конфликта",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g051",
+  "organ": "Команда",
+  "title": "Ценности и культура команды",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g052",
+  "organ": "Команда",
+  "title": "Планёрки, которые работают",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g053",
+  "organ": "Команда",
+  "title": "Наставничество внутри компании",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g054",
+  "organ": "Команда",
+  "title": "Как удержать ключевых сотрудников",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g055",
+  "organ": "Команда",
+  "title": "Удалённая команда",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g056",
+  "organ": "Команда",
+  "title": "Руководители среднего звена",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g057",
+  "organ": "Процессы",
+  "title": "Хирургия рутины",
+  "key": "delegate",
+  "existing": true
+ },
+ {
+  "id": "g058",
+  "organ": "Процессы",
+  "title": "Регламенты и стандарты (SOP)",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g059",
+  "organ": "Процессы",
+  "title": "Карта бизнес-процессов",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g060",
+  "organ": "Процессы",
+  "title": "Автоматизация рутины",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g061",
+  "organ": "Процессы",
+  "title": "Стандарты сервиса",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g062",
+  "organ": "Процессы",
+  "title": "Контроль качества",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g063",
+  "organ": "Процессы",
+  "title": "Закупки и склад",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g064",
+  "organ": "Процессы",
+  "title": "Управление задачами в команде",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g065",
+  "organ": "Процессы",
+  "title": "Второй филиал: масштабирование",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g066",
+  "organ": "Процессы",
+  "title": "Готов ли бизнес к франшизе",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g067",
+  "organ": "Процессы",
+  "title": "Путь клиента (CJM)",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g068",
+  "organ": "Процессы",
+  "title": "Документы и договоры: порядок без юриста",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g069",
+  "organ": "Аналитика",
+  "title": "Метрики собственника",
+  "key": "metrics",
+  "existing": false
+ },
+ {
+  "id": "g070",
+  "organ": "Аналитика",
+  "title": "Дашборд собственника",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g071",
+  "organ": "Аналитика",
+  "title": "Воронка в цифрах",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g072",
+  "organ": "Аналитика",
+  "title": "Когортный анализ: возвращаются ли клиенты",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g073",
+  "organ": "Аналитика",
+  "title": "ROMI: какой канал окупается",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g074",
+  "organ": "Аналитика",
+  "title": "Анализ конкурентов",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g075",
+  "organ": "Аналитика",
+  "title": "CustDev: интервью с клиентами",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g076",
+  "organ": "Аналитика",
+  "title": "Гипотезы и тесты (HADI)",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g077",
+  "organ": "Аналитика",
+  "title": "Отчётность команды за 15 минут в неделю",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g078",
+  "organ": "Стратегия",
+  "title": "Анатомия бизнеса",
+  "key": "unit",
+  "existing": false
+ },
+ {
+  "id": "g079",
+  "organ": "Стратегия",
+  "title": "Кризис в бизнесе",
+  "key": "crisis",
+  "existing": false
+ },
+ {
+  "id": "g080",
+  "organ": "Стратегия",
+  "title": "Стратегия на год",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g081",
+  "organ": "Стратегия",
+  "title": "Цели и декомпозиция",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g082",
+  "organ": "Стратегия",
+  "title": "Новое направление: проверка до запуска",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g083",
+  "organ": "Стратегия",
+  "title": "Выход в другой город",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g084",
+  "organ": "Стратегия",
+  "title": "Партнёрство и доли",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g085",
+  "organ": "Стратегия",
+  "title": "Сколько стоит ваш бизнес",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g086",
+  "organ": "Стратегия",
+  "title": "Как привлечь инвестиции",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g087",
+  "organ": "Стратегия",
+  "title": "Гранты и господдержка в Казахстане",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g088",
+  "organ": "Стратегия",
+  "title": "Риски: как бизнес переживёт удар",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g089",
+  "organ": "Стратегия",
+  "title": "Точка А и точка Б",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g090",
+  "organ": "Собственник",
+  "title": "Энергия собственника",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g091",
+  "organ": "Собственник",
+  "title": "Неделя собственника",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g092",
+  "organ": "Собственник",
+  "title": "Решения и приоритеты",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g093",
+  "organ": "Собственник",
+  "title": "Окружение предпринимателя",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g094",
+  "organ": "Собственник",
+  "title": "Учиться и внедрять",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g095",
+  "organ": "Собственник",
+  "title": "Семья и бизнес",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g096",
+  "organ": "Собственник",
+  "title": "Личные финансы предпринимателя",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g097",
+  "organ": "Собственник",
+  "title": "Выгорание собственника",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g098",
+  "organ": "Собственник",
+  "title": "Привычки, которые держат бизнес",
+  "key": "",
+  "existing": false
+ },
+ {
+  "id": "g099",
+  "organ": "Собственник",
+  "title": "Выступления: как говорить на публике",
+  "key": "",
+  "existing": false
+ }
+]

@@ -19,7 +19,7 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 	if h.repo != nil {
 		go m.AI.EventsLoop(context.Background())
 		go m.AI.LoadEmbedded(context.Background(), a.botToken)
-		go m.AI.SeedChecklists(context.Background())
+		go m.AI.SeedGuides(context.Background())
 		go m.AI.SeedMarketing(context.Background())
 		go m.AI.ThreadsLoop(context.Background())
 		go m.AI.SetupWhatsApp(context.Background())
@@ -60,6 +60,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/ai/jobs", m.AI.Jobs)
 	g.POST("/ai/events", m.AI.RefreshEvents)
 	g.POST("/ai/marketing", m.AI.Marketing)
+	g.GET("/guide/:id", m.AI.GuideForPlatform)
 	g.GET("/ops", m.AI.OpsList)
 	g.POST("/threads/publish", m.AI.ThreadsNow)
 	g.GET("/crm/wa/status", m.AI.WAStatus)

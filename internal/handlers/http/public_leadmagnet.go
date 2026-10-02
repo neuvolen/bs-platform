@@ -17,7 +17,6 @@ import (
 // GET /api/v1/public/leadmagnet/:key  (sales, unit, delegate, hire, marketing)
 var leadMagnets = map[string]struct{ Title, FileID string }{
 	"sales":     {"Реанимация продаж", "BQACAgIAAxkBAAIKbWobYv3Qvl14K0O4hW7XH_UGVLVoAAJmlAACg9bhSJKa-UezEAPuOwQ"},
-	"unit":      {"Анатомия бизнеса", "BQACAgIAAxkBAAIKcGobYwlY8n8cjoT0CciaS2eObE9-AAJnlAACg9bhSGAPhdTinrfBOwQ"},
 	"delegate":  {"Хирургия рутины", "BQACAgIAAxkBAAIKZGobYtEDwafV4ZhdrJaYtbPJXLsEAAJjlAACg9bhSE-1YQG5I7sHOwQ"},
 	"hire":      {"Найм команды", "BQACAgIAAxkBAAIKZ2obYuSnMLVusQ678xJoXDSno6KJAAJklAACg9bhSIyhXQrIdDstOwQ"},
 	"marketing": {"Маркетинг без бюджета", "BQACAgIAAxkBAAIKamobYvO9CRxr8bbhj2sy-hzsDqDaAAJllAACg9bhSAXaF1Fgz-a8OwQ"},

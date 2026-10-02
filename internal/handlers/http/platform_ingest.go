@@ -189,16 +189,20 @@ func (h *PlatformAI) attachBook(ctx context.Context, id, name string) string {
 	return ""
 }
 
-// SeedChecklists writes the shipped checklists into the club document
-// bs_checklists = {"version": "...", "items": [...]}, once per shipped version.
-func (h *PlatformAI) SeedChecklists(ctx context.Context) {
+// SeedGuides writes the catalogue of the 99 guides into the club document
+// bs_guides = {"version": "...", "items": [...]} once per shipped version, and
+// removes the old short checklists (bs_checklists).
+func (h *PlatformAI) SeedGuides(ctx context.Context) {
 	if h.repo == nil {
 		return
 	}
-	ver := content.ChecklistsVersion()
+	ver := content.GuidesVersion()
+	if d, err := h.repo.GetDoc(ctx, "club", "bs_checklists"); err == nil && d != nil && !d.Deleted {
+		_, _ = h.repo.PutDoc(ctx, "club", "bs_checklists", d.Version, "", true, "server:content")
+	}
 	for try := 0; try < 3; try++ {
 		base := 0
-		if d, err := h.repo.GetDoc(ctx, "club", "bs_checklists"); err == nil && d != nil {
+		if d, err := h.repo.GetDoc(ctx, "club", "bs_guides"); err == nil && d != nil {
 			base = d.Version
 			var cur struct {
 				Version string `json:"version"`
@@ -207,10 +211,20 @@ func (h *PlatformAI) SeedChecklists(ctx context.Context) {
 				return
 			}
 		}
-		val := `{"version":"` + ver + `","items":` + string(content.Checklists) + `}`
-		if _, err := h.repo.PutDoc(ctx, "club", "bs_checklists", base, val, false, "server:content"); err == nil {
-			log.Printf("checklists: version %s stored", ver)
+		if _, err := h.repo.PutDoc(ctx, "club", "bs_guides", base, string(content.GuidesIndex()), false, "server:content"); err == nil {
+			log.Printf("guides: version %s stored", ver)
 			return
 		}
 	}
+}
+
+// GuideForPlatform: GET /api/v1/platform/guide/:id (team and residents).
+func (h *PlatformAI) GuideForPlatform(c *gin.Context) {
+	b := content.Guide(c.Param("id"))
+	if b == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=3600")
+	c.Data(http.StatusOK, "application/json; charset=utf-8", b)
 }

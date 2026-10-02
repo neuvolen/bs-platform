@@ -71,6 +71,15 @@ func startSource(p string) string {
 	if l, ok := m[p]; ok {
 		return l
 	}
+	if strings.HasPrefix(p, "pdf_") || strings.HasPrefix(p, "guide_") {
+		id := p[strings.Index(p, "_")+1:]
+		if t := content.GuideTitle(id); t != "" {
+			if strings.HasPrefix(p, "pdf_") {
+				return "PDF-гайд: " + t
+			}
+			return "Гайд: " + t
+		}
+	}
 	for pre, l := range map[string]string{"threads_": "Threads", "ig_": "Instagram", "car_": "Карусель", "ad_": "Реклама", "wa_": "WhatsApp"} {
 		if strings.HasPrefix(p, pre) {
 			return l + ": " + strings.ReplaceAll(strings.TrimPrefix(p, pre), "_", " ")
@@ -133,16 +142,15 @@ func addLog(lead map[string]any, at time.Time, text string) {
 	lead["log"] = lg
 }
 
-// exampleTitles: three checklist titles for the welcome, different every day.
+// exampleTitles: three guide titles for the welcome, different every day.
 func exampleTitles(day int) []string {
-	var items []struct{ Title string }
-	_ = json.Unmarshal(content.Checklists, &items)
+	items := content.Guides()
 	if len(items) == 0 {
 		return nil
 	}
 	var out []string
 	for i := 0; i < 3; i++ {
-		out = append(out, items[(day*7+i*33)%len(items)].Title)
+		out = append(out, items[(day*7+i*33)%len(items)]["title"].(string))
 	}
 	return out
 }
@@ -155,7 +163,7 @@ func welcomeText(first string, examples []string) string {
 		b.WriteString("Привет! 👋\n\n")
 	}
 	b.WriteString("Это Business Surgery, клуб бизнес-трекинга в Алматы.\n\n")
-	b.WriteString("Для вас открыты 99 чек-листов по всем органам бизнеса: финансы, продажи, команда, маркетинг, стратегия, процессы, аналитика. Каждый занимает от 15 минут и показывает, где бизнес теряет деньги.\n\n")
+	b.WriteString("Для вас открыты 99 гайдов-чек-листов по всем органам бизнеса: финансы, продажи, команда, маркетинг, стратегия, процессы, аналитика. В каждом история предпринимателя с цифрами до и после, шаги с таблицами и чек-листом. Читаются за 15 минут, PDF можно скачать.\n\n")
 	if len(examples) > 0 {
 		b.WriteString("Например:\n")
 		for _, e := range examples {
@@ -199,7 +207,7 @@ func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
 			"date": now.In(almaty).Format("02.01.2006"), "funnel": "bot",
 			"startAt": now.UTC().Format(time.RFC3339), "lastStart": now.UTC().Format(time.RFC3339), "warm": 0,
 		}
-		addLog(lead, now, "Нажал Старт в боте ("+src+"), позван в приложение к 99 чек-листам")
+		addLog(lead, now, "Нажал Старт в боте ("+src+"), позван в приложение к 99 гайдам")
 		crm["leads"] = append([]any{lead}, leads...)
 		return true
 	})
@@ -211,8 +219,15 @@ func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
 		return true // the second /start within a minute: quiet, like the script
 	}
 	text := welcomeText(st.FirstName, exampleTitles(now.YearDay()))
+	first := row(f.appBtn("📘 Открыть 99 гайдов", "checklists"))
+	if i := strings.Index(st.Param, "g"); (strings.HasPrefix(st.Param, "guide_") || strings.HasPrefix(st.Param, "pdf_")) && i > 0 {
+		if t := content.GuideTitle(st.Param[i:]); t != "" {
+			first = row(f.appBtn("📘 "+t, "guide_"+st.Param[i:]))
+		}
+	}
 	keys := kb(
-		row(f.appBtn("📋 Открыть 99 чек-листов", "checklists")),
+		first,
+		row(f.appBtn("📚 Все 99 гайдов", "checklists")),
 		row(f.appBtn("🔬 Диагностика бизнеса", "diagnostic")),
 		row(map[string]any{"text": "✋ Я резидент BS", "callback_data": "i_am_resident"}),
 	)
@@ -226,7 +241,7 @@ func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
 			who += " @" + st.Username
 		}
 		for _, a := range f.admins {
-			_ = f.send(ctx, a, fmt.Sprintf("Новый лид: %s\nИсточник: %s\n🆔 %d\n\nПозван в приложение к чек-листам, карточка в CRM платформы.", who, src, st.ChatID), nil)
+			_ = f.send(ctx, a, fmt.Sprintf("Новый лид: %s\nИсточник: %s\n🆔 %d\n\nПозван в приложение к гайдам, карточка в CRM платформы.", who, src, st.ChatID), nil)
 		}
 	}
 	return true
@@ -318,7 +333,7 @@ func (f *LeadFunnel) Progress(ctx context.Context, tg int64, name, username, rol
 		}
 		if !seen {
 			started = append(started, r.ID)
-			addLog(lead, now, "Открыл чек-лист «"+r.Title+"»")
+			addLog(lead, now, "Открыл гайд «"+r.Title+"»")
 		}
 		ck["started"] = started
 		ck["last"] = r.Title
@@ -334,17 +349,17 @@ func (f *LeadFunnel) Progress(ctx context.Context, tg int64, name, username, rol
 			if !has {
 				ck["done"] = append(done, r.ID)
 				lead["hot"] = true
-				addLog(lead, now, "Прошёл чек-лист «"+r.Title+"» до конца")
+				addLog(lead, now, "Прошёл гайд «"+r.Title+"» до конца")
 			}
 		}
 		lead["ck"] = ck
 		return true
 	})
 	if nudge {
-		text := fmt.Sprintf("Чек-лист «%s» пройден ✅\n\nСамое ценное сейчас: понять, какие пункты дадут деньги именно вашему бизнесу и в каком порядке их внедрять.\n\nДля этого есть разбор: час с основателями BS, ваши цифры и план на 10 дней. 30 000 ₸.", r.Title)
+		text := fmt.Sprintf("Гайд «%s» пройден ✅\n\nСамое ценное сейчас: понять, какие пункты дадут деньги именно вашему бизнесу и в каком порядке их внедрять.\n\nДля этого есть разбор: час с основателями BS, ваши цифры и план на 10 дней. 30 000 ₸.", r.Title)
 		keys := kb(
 			row(f.appBtn("📅 Записаться на разбор", "razbor")),
-			row(f.appBtn("📋 Следующий чек-лист", "checklists")),
+			row(f.appBtn("📘 Следующий гайд", "checklists")),
 		)
 		if err := f.send(ctx, tg, text, keys); err != nil {
 			log.Printf("funnel: nudge %d: %v", tg, err)
@@ -354,7 +369,7 @@ func (f *LeadFunnel) Progress(ctx context.Context, tg int64, name, username, rol
 			who += " @" + username
 		}
 		for _, a := range f.admins {
-			_ = f.send(ctx, a, fmt.Sprintf("🔥 Лид %s прошёл чек-лист «%s» до конца. Бот позвал на разбор, самое время позвонить.", who, r.Title), nil)
+			_ = f.send(ctx, a, fmt.Sprintf("🔥 Лид %s прошёл гайд «%s» до конца. Бот позвал на разбор, самое время позвонить.", who, r.Title), nil)
 		}
 	}
 	return nil
@@ -410,10 +425,10 @@ type warmStep struct {
 
 func warmSteps() []warmStep {
 	open := func(f *LeadFunnel) map[string]any {
-		return kb(row(f.appBtn("📋 Открыть чек-листы", "checklists")), row(f.appBtn("🔬 Диагностика бизнеса", "diagnostic")))
+		return kb(row(f.appBtn("📘 Открыть гайды", "checklists")), row(f.appBtn("🔬 Диагностика бизнеса", "diagnostic")))
 	}
 	razbor := func(f *LeadFunnel) map[string]any {
-		return kb(row(f.appBtn("📅 Записаться на разбор", "razbor")), row(f.appBtn("📋 Чек-листы", "checklists")))
+		return kb(row(f.appBtn("📅 Записаться на разбор", "razbor")), row(f.appBtn("📘 Гайды", "checklists")))
 	}
 	hi := func(first string) string {
 		if first == "" {
@@ -424,22 +439,22 @@ func warmSteps() []warmStep {
 	return []warmStep{
 		{1, func(first, last string, opened, done int) string {
 			if opened == 0 {
-				return hi(first) + "вы ещё не открыли чек-листы.\n\nНачните с одного, это 15 минут. Большинство с первого же чек-листа находят место, где бизнес теряет деньги каждый месяц."
+				return hi(first) + "вы ещё не открыли гайды.\n\nНачните с одного, это 15 минут чтения. Большинство уже с первого гайда находят место, где бизнес теряет деньги каждый месяц."
 			}
-			return hi(first) + "вижу, вы открыли «" + last + "». Дошли до конца?\n\nОбычно после первого чек-листа видно 2-3 места, где теряются деньги. Отметьте пункты в приложении, прогресс сохраняется."
+			return hi(first) + "вижу, вы открыли «" + last + "». Дошли до конца?\n\nОбычно после первого гайда видно 2-3 места, где теряются деньги. Отметьте пункты чек-листа в приложении, прогресс сохраняется."
 		}, open},
 		{3, func(first, last string, opened, done int) string {
 			return hi(first) + "одна идея.\n\nЧек-лист показывает, что делать. Диагностика показывает, с чего начать именно вам: за 5 минут видно, какой орган бизнеса болит сильнее остальных.\n\nРезультат сразу в приложении."
 		}, open},
 		{7, func(first, last string, opened, done int) string {
-			s := hi(first) + "вопрос по делу.\n\nЧто из чек-листов вы уже внедрили?\n\n"
+			s := hi(first) + "вопрос по делу.\n\nЧто из гайдов вы уже внедрили?\n\n"
 			if done > 0 {
-				s = hi(first) + "вы прошли чек-листов до конца: " + strconv.Itoa(done) + ". Это больше, чем делает большинство.\n\n"
+				s = hi(first) + "вы прошли гайдов до конца: " + strconv.Itoa(done) + ". Это больше, чем делает большинство.\n\n"
 			}
 			return s + "Между «понял» и «сделал» обычно стоит операционка, которая съедает неделю за неделей. Разбор нужен ровно для этого: час, ваши цифры, план на 10 дней. Проводим вдвоём с Береке, 30 000 ₸."
 		}, razbor},
 		{14, func(first, last string, opened, done int) string {
-			return hi(first) + "последнее сообщение от меня.\n\nЕсли тема сейчас не актуальна, просто игнорируйте. Если актуальна, но что-то останавливает, напишите одним словом что именно. Отвечу лично.\n\nЧек-листы остаются вашими, они всегда в приложении."
+			return hi(first) + "последнее сообщение от меня.\n\nЕсли тема сейчас не актуальна, просто игнорируйте. Если актуальна, но что-то останавливает, напишите одним словом что именно. Отвечу лично.\n\nГайды остаются вашими, они всегда в приложении."
 		}, razbor},
 	}
 }
@@ -566,4 +581,30 @@ func (f *LeadFunnel) WarmLoop(ctx context.Context) {
 		}
 		cancel()
 	}
+}
+
+// Downloaded notes in the lead's card that they took the PDF.
+func (f *LeadFunnel) Downloaded(ctx context.Context, tg int64, id, title string) error {
+	now := f.now()
+	return f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
+		leads, _ := crm["leads"].([]any)
+		lead := findLeadByTg(leads, tg)
+		if lead == nil {
+			return false
+		}
+		ck, _ := lead["ck"].(map[string]any)
+		if ck == nil {
+			ck = map[string]any{}
+		}
+		pdfs, _ := ck["pdf"].([]any)
+		for _, x := range pdfs {
+			if x == id {
+				return false
+			}
+		}
+		ck["pdf"] = append(pdfs, id)
+		lead["ck"] = ck
+		addLog(lead, now, "Скачал PDF «"+title+"»")
+		return true
+	})
 }

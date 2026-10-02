@@ -58,7 +58,7 @@ func TestLeadFunnel(t *testing.T) {
 	e.script.mu.Unlock()
 
 	w := sentTo(777)
-	if len(w) != 1 || !strings.Contains(w[0]["text"].(string), "99 чек-листов") {
+	if len(w) != 1 || !strings.Contains(w[0]["text"].(string), "99 гайдов") {
 		t.Fatalf("welcome: %v", w)
 	}
 	kbs, _ := json.Marshal(w[0]["reply_markup"])
