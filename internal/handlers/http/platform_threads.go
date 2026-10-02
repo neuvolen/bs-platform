@@ -30,6 +30,9 @@ const (
 	threadsMaxText = 500
 )
 
+// threadsWait: Threads asks to wait a moment between creating and publishing a post.
+var threadsWait = 2 * time.Second
+
 type threadsState struct {
 	Token     string `json:"token"`
 	Refreshed string `json:"refreshed"`
@@ -156,6 +159,52 @@ func threadsText(title, txt string) string {
 	return strings.TrimSpace(cut) + "…"
 }
 
+// PublishThreadsText publishes a ready text (the content queue) and returns
+// the post id and its link. The text must fit Threads' 500 characters.
+func (h *PlatformAI) PublishThreadsText(ctx context.Context, title, text string) (postID, link string, err error) {
+	text = strings.TrimSpace(text)
+	if n := len([]rune(text)); n > threadsMaxText {
+		return "", "", fmt.Errorf("Текст длиннее %d знаков (%d): сократите его на платформе", threadsMaxText, n)
+	}
+	if text == "" {
+		return "", "", errors.New("Пустой текст")
+	}
+	tok := h.threadsToken(ctx)
+	if tok == "" {
+		h.saveThreadsStatus(ctx, threadsStatus{Error: "Нет THREADS_TOKEN в переменных Railway"})
+		return "", "", errors.New("Нет THREADS_TOKEN в переменных Railway")
+	}
+	tok = h.refreshThreadsToken(ctx, tok)
+	me, err := h.threadsCall(ctx, "GET", "/v1.0/me", url.Values{"fields": {"id,username"}, "access_token": {tok}})
+	if err != nil {
+		h.saveThreadsStatus(ctx, threadsStatus{Error: err.Error()})
+		return "", "", err
+	}
+	uid, _ := me["id"].(string)
+	username, _ := me["username"].(string)
+	cr, err := h.threadsCall(ctx, "POST", "/v1.0/"+uid+"/threads", url.Values{"media_type": {"TEXT"}, "text": {text}, "access_token": {tok}})
+	if err != nil {
+		h.saveThreadsStatus(ctx, threadsStatus{Connected: true, Username: username, Error: err.Error()})
+		return "", "", err
+	}
+	cid, _ := cr["id"].(string)
+	time.Sleep(threadsWait)
+	pub, err := h.threadsCall(ctx, "POST", "/v1.0/"+uid+"/threads_publish", url.Values{"creation_id": {cid}, "access_token": {tok}})
+	if err != nil {
+		h.saveThreadsStatus(ctx, threadsStatus{Connected: true, Username: username, Error: err.Error()})
+		return "", "", err
+	}
+	postID, _ = pub["id"].(string)
+	if pl, err := h.threadsCall(ctx, "GET", "/v1.0/"+postID, url.Values{"fields": {"permalink"}, "access_token": {tok}}); err == nil {
+		link, _ = pl["permalink"].(string)
+	}
+	if link == "" && username != "" {
+		link = "https://www.threads.net/@" + username
+	}
+	h.saveThreadsStatus(ctx, threadsStatus{Connected: true, Username: username, Last: time.Now().UTC().Format(time.RFC3339), LastTitle: title})
+	return postID, link, nil
+}
+
 // PublishNextThreads posts the next «Полезное» item. Returns its title.
 func (h *PlatformAI) PublishNextThreads(ctx context.Context) (string, error) {
 	tok := h.threadsToken(ctx)
@@ -209,7 +258,7 @@ func (h *PlatformAI) PublishNextThreads(ctx context.Context) (string, error) {
 		return "", err
 	}
 	cid, _ := cr["id"].(string)
-	time.Sleep(2 * time.Second) // Threads asks to wait a moment before publishing
+	time.Sleep(threadsWait)
 	pub, err := h.threadsCall(ctx, "POST", "/v1.0/"+uid+"/threads_publish", url.Values{"creation_id": {cid}, "access_token": {tok}})
 	if err != nil {
 		h.saveThreadsStatus(ctx, threadsStatus{Connected: true, Username: username, Queue: queue, Error: err.Error()})
@@ -249,7 +298,9 @@ func (h *PlatformAI) PublishNextThreads(ctx context.Context) (string, error) {
 	return title, nil
 }
 
-// ThreadsLoop publishes once a day at THREADS_HOUR (Almaty).
+// ThreadsLoop publishes once a day at THREADS_HOUR (Almaty), unless the
+// content queue (bs_content) has a Threads post that day: then the content
+// engine publishes it at its own time and «Полезное» waits.
 func (h *PlatformAI) ThreadsLoop(ctx context.Context) {
 	loc := time.FixedZone("Almaty", 5*3600)
 	for {
@@ -264,6 +315,10 @@ func (h *PlatformAI) ThreadsLoop(ctx context.Context) {
 		case <-time.After(next.Sub(a)):
 		}
 		if strings.TrimSpace(os.Getenv("THREADS_TOKEN")) == "" {
+			continue
+		}
+		if f := h.queueOwns.Load(); f != nil && *f != nil && (*f)(ctx, next) {
+			log.Printf("threads: today's post comes from the content queue")
 			continue
 		}
 		c, cancel := context.WithTimeout(ctx, 2*time.Minute)

@@ -211,7 +211,7 @@ func BuildClubModule(d *Deps, jwtSecret, telegramBotToken, staticSeed string) ht
 }
 
 // BuildPlatformModule wires the BS platform: its storage API and Telegram login.
-func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) httpapi.RoutesRegistrar {
+func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) *httpapi.PlatformModule {
 	m := httpapi.NewPlatformModule(
 		httpapi.NewPlatformHandler(d.PlatformRepo),
 		httpapi.NewPlatformAuthHandler(telegramBotToken, team, jwtSecret),
@@ -219,6 +219,28 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) http
 	)
 	m.AI.Ops = pg.NewClubRepo(d.DB)
 	return m
+}
+
+// BuildContent wires the content engine (bs_content): planning, the owner's
+// morning preview in the bot, publishing to Threads and the Telegram channel.
+func BuildContent(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, jwtSecret, team string) httpapi.RoutesRegistrar {
+	if d.PlatformRepo == nil {
+		return httpapi.NewContentModule(httpapi.NewContentEngine(nil), []byte(jwtSecret))
+	}
+	e := httpapi.NewContentEngine(d.PlatformRepo)
+	e.Owner = httpapi.FirstTeamID(team)
+	if pm != nil && pm.AI != nil {
+		e.Threads = pm.AI.PublishThreadsText
+		pm.AI.SetQueueOwnsThreads(e.OwnsThreadsDay)
+	}
+	if botSvc != nil && botSvc.Enabled() {
+		e.Channel, e.Send, e.Edit = botSvc.SendChannel, botSvc.SendMessageID, botSvc.EditMessageKB
+		botSvc.SetTeamCallbackHook("cnt_", e.HandleCallback)
+	}
+	if os.Getenv("CONTENT_ENGINE") != "off" {
+		go e.Loop(context.Background())
+	}
+	return httpapi.NewContentModule(e, []byte(jwtSecret))
 }
 
 // BuildBot wires the Telegram webhook on the server and its relay to the

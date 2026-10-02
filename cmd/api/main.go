@@ -76,13 +76,15 @@ func main() {
 
 	deps := app.BuildDeps(db, cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	modules := app.BuildHTTPModules(deps, cfg.JWTSecret, googleOAuthConfig, cfg.FrontendURL)
-	modules = append(modules, app.BuildPlatformModule(deps, cfg.JWTSecret, cfg.TelegramBotToken, cfg.PlatformTeam))
+	platformMod := app.BuildPlatformModule(deps, cfg.JWTSecret, cfg.TelegramBotToken, cfg.PlatformTeam)
+	modules = append(modules, platformMod)
 	modules = append(modules, app.BuildClubModule(deps, cfg.JWTSecret, cfg.TelegramBotToken, web.Seed()))
 	if cfg.BotRelayPattern != "" {
 		bot.RelayURLPattern = regexp.MustCompile(cfg.BotRelayPattern)
 	}
 	botSvc, botModule := app.BuildBot(deps, cfg.TelegramBotToken, cfg.PlatformTeam, cfg.TelegramAPIBase, cfg.PublicURL, cfg.BotShadowNotify)
 	modules = append(modules, botModule)
+	modules = append(modules, app.BuildContent(deps, platformMod, botSvc, cfg.JWTSecret, cfg.PlatformTeam))
 	modules = append(modules, app.BuildAppGateway(deps, cfg.TelegramBotToken, cfg.JWTSecret, web.Seed(), botSvc)...)
 	botCtx, botStop := context.WithCancel(context.Background())
 	defer botStop()

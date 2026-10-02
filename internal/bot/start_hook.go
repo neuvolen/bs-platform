@@ -9,6 +9,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -97,10 +98,13 @@ func (s *Service) takeStart(ctx context.Context, body []byte) bool {
 	return true
 }
 
-// CallbackUpdate: a button of the old script menus pressed by a lead.
+// CallbackUpdate: a button pressed in the bot, by a lead (the script's old
+// menus) or by the team (the server's own buttons, see TeamCallbackHook).
 type CallbackUpdate struct {
 	ID        string
 	ChatID    int64
+	MessageID int64
+	FromID    int64
 	Data      string
 	FirstName string
 	Username  string
@@ -115,18 +119,42 @@ func (s *Service) SetCallbackHook(h CallbackHook) {
 	s.mu.Unlock()
 }
 
+// TeamCallbackHook answers a button of the server's own messages to the team
+// (callback_data with the hook's prefix, pressed by someone in PLATFORM_TEAM).
+// toast is shown to the person who pressed; ok false leaves it to the script.
+type TeamCallbackHook func(ctx context.Context, cb CallbackUpdate) (toast string, ok bool)
+
+// SetTeamCallbackHook registers h for callback_data starting with prefix (e.g. "cnt_").
+func (s *Service) SetTeamCallbackHook(prefix string, h TeamCallbackHook) {
+	s.mu.Lock()
+	if s.teamCb == nil {
+		s.teamCb = map[string]TeamCallbackHook{}
+	}
+	if h == nil {
+		delete(s.teamCb, prefix)
+	} else {
+		s.teamCb[prefix] = h
+	}
+	s.mu.Unlock()
+}
+
+func (s *Service) teamHook(data string) TeamCallbackHook {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for p, h := range s.teamCb {
+		if strings.HasPrefix(data, p) {
+			return h
+		}
+	}
+	return nil
+}
+
 // LeadCallbacks: the script's lead-magnet menu buttons the server now answers.
 func LeadCallbacks(data string) bool {
 	return data == "sub_leadmagnets" || data == "sub_menu" || strings.HasPrefix(data, "lm_")
 }
 
 func (s *Service) takeCallback(ctx context.Context, body []byte) bool {
-	s.mu.RLock()
-	h := s.cbHook
-	s.mu.RUnlock()
-	if h == nil {
-		return false
-	}
 	var u struct {
 		Callback *struct {
 			ID   string `json:"id"`
@@ -137,17 +165,41 @@ func (s *Service) takeCallback(ctx context.Context, body []byte) bool {
 				Username  string `json:"username"`
 			} `json:"from"`
 			Message *struct {
-				Chat struct {
+				MessageID int64 `json:"message_id"`
+				Chat      struct {
 					ID   int64  `json:"id"`
 					Type string `json:"type"`
 				} `json:"chat"`
 			} `json:"message"`
 		} `json:"callback_query"`
 	}
-	if json.Unmarshal(body, &u) != nil || u.Callback == nil || u.Callback.Message == nil || u.Callback.Message.Chat.Type != "private" {
+	if json.Unmarshal(body, &u) != nil || u.Callback == nil || u.Callback.Message == nil {
 		return false
 	}
 	cb := u.Callback
+	up := CallbackUpdate{ID: cb.ID, ChatID: cb.Message.Chat.ID, MessageID: cb.Message.MessageID, FromID: cb.From.ID,
+		Data: cb.Data, FirstName: cb.From.FirstName, Username: cb.From.Username}
+	// The team's buttons on the server's own messages.
+	if th := s.teamHook(cb.Data); th != nil && s.isAdmin(cb.From.ID) {
+		c, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+		toast, ok := th(c, up)
+		if !ok {
+			return false
+		}
+		p := map[string]any{"callback_query_id": cb.ID}
+		if toast != "" {
+			p["text"] = toast
+		}
+		_, _ = s.call(ctx, "answerCallbackQuery", p)
+		return true
+	}
+	s.mu.RLock()
+	h := s.cbHook
+	s.mu.RUnlock()
+	if h == nil || cb.Message.Chat.Type != "private" {
+		return false
+	}
 	if !LeadCallbacks(cb.Data) || s.isAdmin(cb.From.ID) {
 		return false
 	}
@@ -156,11 +208,59 @@ func (s *Service) takeCallback(ctx context.Context, body []byte) bool {
 	}
 	c, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	if !h(c, CallbackUpdate{ID: cb.ID, ChatID: cb.Message.Chat.ID, Data: cb.Data, FirstName: cb.From.FirstName, Username: cb.From.Username}) {
+	if !h(c, up) {
 		return false
 	}
 	_, _ = s.call(ctx, "answerCallbackQuery", map[string]any{"callback_query_id": cb.ID})
 	return true
+}
+
+// SendMessageID sends text with an inline keyboard and returns the message id.
+func (s *Service) SendMessageID(ctx context.Context, chatID int64, text string, kb map[string]any) (int64, error) {
+	p := map[string]any{"chat_id": chatID, "text": text, "disable_web_page_preview": true}
+	if kb != nil {
+		p["reply_markup"] = kb
+	}
+	raw, err := s.call(ctx, "sendMessage", p)
+	if err != nil {
+		return 0, err
+	}
+	var m struct {
+		MessageID int64 `json:"message_id"`
+	}
+	_ = json.Unmarshal(raw, &m)
+	return m.MessageID, nil
+}
+
+// SendChannel posts text to a channel (chat "@name" or "-100…"); the bot must
+// be its admin. Returns the message id.
+func (s *Service) SendChannel(ctx context.Context, chat, text string) (int64, error) {
+	var id any = chat
+	if n, err := strconv.ParseInt(chat, 10, 64); err == nil {
+		id = n
+	}
+	raw, err := s.call(ctx, "sendMessage", map[string]any{"chat_id": id, "text": text})
+	if err != nil {
+		return 0, err
+	}
+	var m struct {
+		MessageID int64 `json:"message_id"`
+	}
+	_ = json.Unmarshal(raw, &m)
+	return m.MessageID, nil
+}
+
+// EditMessageKB replaces the text and the buttons of a message the bot sent.
+func (s *Service) EditMessageKB(ctx context.Context, chatID, msgID int64, text string, kb map[string]any) error {
+	p := map[string]any{"chat_id": chatID, "message_id": msgID, "text": text, "disable_web_page_preview": true}
+	if kb != nil {
+		p["reply_markup"] = kb
+	}
+	_, err := s.call(ctx, "editMessageText", p)
+	if err != nil && strings.Contains(err.Error(), "message is not modified") {
+		return nil
+	}
+	return err
 }
 
 // SendPhotoKB sends a picture (uploaded once, then by file_id) with a caption.

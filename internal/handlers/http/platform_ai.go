@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/ai"
@@ -41,6 +42,9 @@ type PlatformAI struct {
 		Ops(ctx context.Context, limit int) ([]pg.ClubOp, error)
 	}
 	AI *ai.Client
+	// queueOwns: the content queue has a Threads post on that day, so the
+	// daily «Полезное» post is not made (content_engine.go).
+	queueOwns atomic.Pointer[func(ctx context.Context, day time.Time) bool]
 	// Run starts background work; tests replace it to run inline.
 	Run func(func())
 }
@@ -50,6 +54,11 @@ func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {
 		c = ai.FromEnv()
 	}
 	return &PlatformAI{repo: repo, AI: c, Run: func(f func()) { go f() }}
+}
+
+// SetQueueOwnsThreads: f tells the daily «Полезное» post that the content queue has that day.
+func (h *PlatformAI) SetQueueOwnsThreads(f func(ctx context.Context, day time.Time) bool) {
+	h.queueOwns.Store(&f)
 }
 
 func newID() string {

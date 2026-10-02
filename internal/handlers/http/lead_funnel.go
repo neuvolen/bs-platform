@@ -85,7 +85,13 @@ func startSource(p string) string {
 			return "Гайд: " + t
 		}
 	}
-	for pre, l := range map[string]string{"threads_": "Threads", "ig_": "Instagram", "car_": "Карусель", "ad_": "Реклама", "wa_": "WhatsApp"} {
+	// The content engine's links: th_g003, tg_case_isfandiyar, ig_g010 (content_engine.go).
+	for pre, l := range map[string]string{"th_": "Threads", "tg_": "Telegram-канал", "ig_": "Instagram"} {
+		if rest := strings.TrimPrefix(p, pre); rest != p && rest != "" {
+			return l + ": " + content.LinkTitle(rest)
+		}
+	}
+	for pre, l := range map[string]string{"threads_": "Threads", "car_": "Карусель", "ad_": "Реклама", "wa_": "WhatsApp"} {
 		if strings.HasPrefix(p, pre) {
 			return l + ": " + strings.ReplaceAll(strings.TrimPrefix(p, pre), "_", " ")
 		}
