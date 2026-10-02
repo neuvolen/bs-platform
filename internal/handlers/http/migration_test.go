@@ -252,7 +252,7 @@ func TestClubWritesServerFirstAndRetry(t *testing.T) {
 	if err := e.mig.SetStage(ctx, StageServer, "test"); err != nil {
 		t.Fatal(err)
 	}
-	w := get(e.r, url.Values{"action": {"getBotCache"}, "_tg": {makeInitData(testBotToken, 490685605, "Альтаир", *e.now)}})
+	w := get(e.r, url.Values{"action": {"getBotCache"}, "_tg": {makeInitData(testBotToken, 453800951, "Рустам", *e.now)}})
 	var b struct {
 		Fines []club.BundleFine
 		Leads map[string]any

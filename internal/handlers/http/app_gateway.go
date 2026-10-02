@@ -399,7 +399,7 @@ func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, for
 
 	if body != nil && age >= 0 && age < bundleStale {
 		c.Header("X-BS-Bundle-Age", strconv.Itoa(int(age.Seconds())))
-		c.Data(http.StatusOK, "application/json; charset=utf-8", hideDone(body, g.doneSet(c.Request.Context()), g.now()))
+		c.Data(http.StatusOK, "application/json; charset=utf-8", g.forUser(u.ID, hideDone(body, g.doneSet(c.Request.Context()), g.now())))
 		if refresh {
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), appScriptTimout)
@@ -430,7 +430,7 @@ func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, for
 		g.mu.Unlock()
 		if old != nil {
 			c.Header("X-BS-Bundle-Age", strconv.Itoa(int(g.now().Sub(old.at).Seconds())))
-			c.Data(http.StatusOK, "application/json; charset=utf-8", hideDone(old.body, g.doneSet(c.Request.Context()), g.now()))
+			c.Data(http.StatusOK, "application/json; charset=utf-8", g.forUser(u.ID, hideDone(old.body, g.doneSet(c.Request.Context()), g.now())))
 			return
 		}
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
@@ -440,7 +440,7 @@ func (g *AppGateway) bundle(c *gin.Context, q url.Values, u *platformTgUser, for
 	g.bundles[key] = &cachedBundle{body: fresh, at: g.now()}
 	g.mu.Unlock()
 	c.Header("X-BS-Bundle-Age", "0")
-	c.Data(http.StatusOK, "application/json; charset=utf-8", hideDone(fresh, g.doneSet(c.Request.Context()), g.now()))
+	c.Data(http.StatusOK, "application/json; charset=utf-8", g.forUser(u.ID, hideDone(fresh, g.doneSet(c.Request.Context()), g.now())))
 }
 
 // Post godoc

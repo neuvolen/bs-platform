@@ -130,7 +130,7 @@ func (g *AppGateway) serveServerBundle(c *gin.Context, q url.Values, u *platform
 	g.note(true, u.ID)
 	c.Header("X-BS-Bundle-Source", "server")
 	c.Header("X-BS-Bundle-Age", "0")
-	c.Data(http.StatusOK, "application/json; charset=utf-8", hideDone(body, g.doneSet(ctx), g.now()))
+	c.Data(http.StatusOK, "application/json; charset=utf-8", g.forUser(u.ID, hideDone(body, g.doneSet(ctx), g.now())))
 	return true
 }
 
