@@ -590,3 +590,44 @@ func isEmptyJSON(v any) bool {
 	}
 	return false
 }
+
+// DocVersions: earlier states of a section, newest first. Team only.
+// GET /api/v1/platform/docs/:key/versions[?scope=me]
+func (h *PlatformHandler) DocVersions(c *gin.Context) {
+	if isResident(c) {
+		forbidden(c, "team_only")
+		return
+	}
+	key := c.Param("key")
+	list, err := h.repo.DocVersions(c.Request.Context(), platformScopeFor(c, key, c.Query("scope")), key)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": list})
+}
+
+// DocVersion: one earlier state with its value.
+// GET /api/v1/platform/docs/:key/versions/:version
+func (h *PlatformHandler) DocVersion(c *gin.Context) {
+	if isResident(c) {
+		forbidden(c, "team_only")
+		return
+	}
+	v, err := strconv.Atoi(c.Param("version"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad version"})
+		return
+	}
+	key := c.Param("key")
+	out, err := h.repo.DocVersion(c.Request.Context(), platformScopeFor(c, key, c.Query("scope")), key, v)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	if out == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}

@@ -306,10 +306,11 @@ func (r *PlatformRepo) PutDoc(ctx context.Context, scope, key string, baseVersio
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var curVersion int
-	var curValue string
+	var curValue, curBy string
 	var curDeleted bool
-	err = tx.QueryRow(ctx, `SELECT version, value, deleted FROM platform_docs WHERE scope = $1 AND key = $2 FOR UPDATE`, scope, key).
-		Scan(&curVersion, &curValue, &curDeleted)
+	var curAt time.Time
+	err = tx.QueryRow(ctx, `SELECT version, value, deleted, updated_at, updated_by FROM platform_docs WHERE scope = $1 AND key = $2 FOR UPDATE`, scope, key).
+		Scan(&curVersion, &curValue, &curDeleted, &curAt, &curBy)
 	exists := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -344,6 +345,18 @@ func (r *PlatformRepo) PutDoc(ctx context.Context, scope, key string, baseVersio
 		return cur, tx.Commit(ctx)
 	}
 
+	// The state being replaced goes to history first.
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO platform_doc_versions (scope, key, version, value, deleted, updated_at, updated_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+		scope, key, curVersion, curValue, curDeleted, curAt, curBy); err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(ctx, `
+		DELETE FROM platform_doc_versions WHERE scope = $1 AND key = $2 AND version <= $3 - 100`,
+		scope, key, curVersion); err != nil {
+		return nil, err
+	}
 	var out PlatformDoc
 	err = tx.QueryRow(ctx, `
 		UPDATE platform_docs
@@ -529,4 +542,50 @@ func (r *PlatformRepo) PutServerDoc(ctx context.Context, key, value string) erro
 		    rev = nextval('platform_rev_seq'), deleted = false, updated_at = now(), updated_by = 'server'
 		WHERE platform_docs.value IS DISTINCT FROM EXCLUDED.value OR platform_docs.deleted`, key, value)
 	return err
+}
+
+// PlatformDocVersion is one earlier state of a section.
+type PlatformDocVersion struct {
+	Version   int       `json:"version"`
+	Value     string    `json:"value,omitempty"`
+	Deleted   bool      `json:"deleted"`
+	Size      int       `json:"size"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	UpdatedBy string    `json:"updatedBy"`
+}
+
+// DocVersions lists the earlier states of a section, newest first (no values).
+func (r *PlatformRepo) DocVersions(ctx context.Context, scope, key string) ([]PlatformDocVersion, error) {
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT version, deleted, length(value), updated_at, updated_by FROM platform_doc_versions
+		WHERE scope = $1 AND key = $2 ORDER BY version DESC LIMIT 100`, scope, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PlatformDocVersion{}
+	for rows.Next() {
+		var v PlatformDocVersion
+		if err := rows.Scan(&v.Version, &v.Deleted, &v.Size, &v.UpdatedAt, &v.UpdatedBy); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// DocVersion returns one earlier state of a section, or nil.
+func (r *PlatformRepo) DocVersion(ctx context.Context, scope, key string, version int) (*PlatformDocVersion, error) {
+	var v PlatformDocVersion
+	err := r.db.Pool.QueryRow(ctx, `
+		SELECT version, value, deleted, length(value), updated_at, updated_by FROM platform_doc_versions
+		WHERE scope = $1 AND key = $2 AND version = $3`, scope, key, version).
+		Scan(&v.Version, &v.Value, &v.Deleted, &v.Size, &v.UpdatedAt, &v.UpdatedBy)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
 }

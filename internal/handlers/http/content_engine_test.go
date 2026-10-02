@@ -90,6 +90,32 @@ func cntLib() []*content.LibItem {
 	return out
 }
 
+// The planning tests were written with both channels on.
+func init() { contentTelegramDefault = true }
+
+func TestContentTelegramOffRev2(t *testing.T) {
+	ctx := context.Background()
+	docs := &cntDocs{}
+	old, _ := json.Marshal(map[string]any{
+		"settings": map[string]any{"channels": map[string]any{"threads": map[string]any{"on": true, "time": "10:00"}, "telegram": map[string]any{"on": true, "chat": "@x", "time": "19:00"}}, "days": []int{1, 2, 3, 4, 5, 6}, "approval": "auto", "previewHour": 9},
+		"queue": []map[string]any{
+			{"id": "tg1", "channel": "telegram", "kind": "telegram", "text": "a", "at": "2026-10-05T19:00:00+05:00", "status": "planned"},
+			{"id": "tg2", "channel": "telegram", "kind": "telegram", "text": "b", "at": "2026-10-05T19:00:00+05:00", "status": "planned", "edited": true},
+			{"id": "th1", "channel": "threads", "kind": "threads", "text": "c", "at": "2026-10-05T10:00:00+05:00", "status": "planned"},
+		}})
+	_, _ = docs.PutDoc(ctx, "club", contentKey, 0, string(old), false, "t")
+	now := time.Date(2026, 10, 5, 8, 0, 0, 0, almaty)
+	e := cntEngine(docs, &now)
+	d, _, err := e.load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := parseContentSettings(d.Settings)
+	if st.Channels.Telegram.On || st.Rev != 2 || !st.Channels.Threads.On || len(d.Queue) != 2 || findContent(d, "tg1") != nil {
+		t.Fatalf("rev2: %+v %d", st, len(d.Queue))
+	}
+}
+
 func cntEngine(docs funnelDocs, now *time.Time) *ContentEngine {
 	e := NewContentEngine(docs)
 	e.Lib = cntLib

@@ -4659,6 +4659,23 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
 .gu-qt{border-left-color:var(--ptx)}
 @media(max-width:1100px){.gu-res{grid-template-columns:1fr}.gu-cvi{display:none}.gu-cover.g12c{grid-template-columns:1fr}}
 @media(max-width:700px){.gu-of,.g12b .gu-lvf{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-right:-16px;padding-right:16px}.gu-of .pf-fl,.g12b .gu-lvf .pf-fl{flex-shrink:0}.gu-min{padding:18px 16px}.gu-min .gu-take ol{grid-template-columns:1fr}.gu-br{grid-template-columns:1fr;gap:6px}.gu-bv{grid-template-columns:minmax(0,1fr) 96px}.gu-hcard .gu-bg{grid-template-columns:1fr}.gu-sec.g12-st{padding:18px 16px}.g12-st .gu-stn{font-size:36px;min-width:44px}.gu-bb{font-size:28px}.g12h .gu-hn{gap:18px}.gu-grid.g12g{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.gu-cv{padding:12px}.gu-cv .gu-t{font-size:13.5px}.gu-mk{font-size:22px}}
+#phAct .dh-btn{height:38px}
+.dh-btn svg{margin-right:6px;vertical-align:-3px}
+.dh-sheet .sb{padding-top:6px}
+.dh-row{border:1px solid var(--bd);border-radius:12px;margin-bottom:8px;background:var(--card2);cursor:pointer;transition:border-color .15s}
+.dh-row:hover,.dh-row.on{border-color:var(--bd2)}
+.dh-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px}
+.dh-w{min-width:0;display:flex;flex-direction:column;gap:2px}
+.dh-w b{font-size:14px;font-weight:700;color:var(--tx)}
+.dh-w span{font-size:12px;color:var(--t3)}
+.dh-s{font-size:12.5px;color:var(--t2);text-align:right;flex-shrink:0}
+.dh-pv{padding:0 14px 14px;cursor:default}
+.dh-ls{margin:0 0 12px;padding-left:20px;max-height:260px;overflow:auto;font-size:13px;color:var(--t2);line-height:1.55}
+.dh-mut{font-size:12.5px;color:var(--t3);margin-bottom:10px}
+.dh-rs{width:100%}
+.dh-rs.arm{background:var(--bad);border-color:var(--bad);color:#fff}
+.dh-empty{padding:28px 6px;text-align:center;color:var(--t3);font-size:13.5px}
+@media(max-width:700px){.dh-h{flex-direction:column;align-items:flex-start}.dh-s{text-align:left}}
 </style>
 <script>
 /* ═══ BS Sync: данные платформы на сервере ═══
@@ -4676,12 +4693,58 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   var P = Storage.prototype;
   var rawSet = P.setItem, rawGet = P.getItem, rawRemove = P.removeItem;
   var LOCAL_ONLY = {bs_lastsync:1, bs_peer:1, bs_seed:1};   // bs_seed пишет только сервер
-  var K_TOKEN = 'bsx_token', K_USER = 'bsx_user', K_STATE = 'bsx_state';
+  var K_TOKEN = 'bsx_token', K_USER = 'bsx_user', K_STATE = 'bsx_state', K_UNSENT = 'bsx_unsent';
 
-  function lsGet(k){ try{ return rawGet.call(LS, k); }catch(e){ return null; } }
-  function lsSet(k, v){ try{ rawSet.call(LS, k, v); return true; }catch(e){ return false; } }
-  function lsDel(k){ try{ rawRemove.call(LS, k); }catch(e){} }
+  // Память браузера (5 МБ) может закончиться: обложки разборов и т. п. Тогда запись
+  // в localStorage падает. Значение остаётся в памяти страницы (OV), читается оттуда
+  // и всё равно уходит на сервер. Старая копия на диске удаляется, чтобы после
+  // перезагрузки не выдать себя за свежую правку.
+  var OV = Object.create(null), ovNoted = false, ovWant = false;
+  function hasOv(k){ return Object.prototype.hasOwnProperty.call(OV, k); }
+  function lsGet(k){ if(hasOv(k)) return OV[k]; try{ return rawGet.call(LS, k); }catch(e){ return null; } }
+  function lsSet(k, v){
+    v = String(v);
+    try{ rawSet.call(LS, k, v); delete OV[k]; return true; }catch(e){}
+    var c = spare(k);
+    for(var j = 0; j < c.length; j++){
+      OV[c[j].k] = c[j].v;
+      try{ rawRemove.call(LS, c[j].k); }catch(e){}
+      try{ rawSet.call(LS, k, v); delete OV[k]; quotaNote(); return true; }catch(e){}
+    }
+    OV[k] = v;
+    try{ rawRemove.call(LS, k); }catch(e){}
+    quotaNote();
+    return false;
+  }
+  function lsDel(k){ delete OV[k]; try{ rawRemove.call(LS, k); }catch(e){} }
   function parse(s, d){ try{ var v = JSON.parse(s); return v == null ? d : v; }catch(e){ return d; } }
+  // Что можно убрать с диска: документы, которые уже лежат на сервере без
+  // несохранённых правок (сервер пришлёт их заново при следующем открытии).
+  // В этой вкладке они остаются в памяти (OV) и читаются как раньше. Крупные первыми.
+  function spare(except){
+    var c = [];
+    try{
+      for(var i = 0; i < LS.length; i++){
+        var k = LS.key(i);
+        if(!k || k === except || hasOv(k) || !isSyncKey(k) || (dirty && dirty[k]) || (unsent && unsent[k])) continue;
+        var raw = rawGet.call(LS, k); if(raw == null || raw.length < 1024) continue;
+        if(k === 'bs_boards'){
+          var list = parse(raw, null); if(!Array.isArray(list)) continue;
+          if(!list.every(function(b){ var s = b && b.id && st.boards[b.id]; return s && !s.deleted && s.h === hb(b); })) continue;
+        } else {
+          var s = st.docs[k]; if(!s || s.deleted || s.h !== hash(raw)) continue;
+        }
+        c.push({k: k, v: raw});
+      }
+    }catch(e){}
+    return c.sort(function(a, b){ return b.v.length - a.v.length; });
+  }
+  function quotaNote(){
+    if(ovNoted) return;
+    if(!noteEl){ ovWant = true; return; }
+    ovNoted = true;
+    note('Память браузера заполнена: данные сохраняются на сервер напрямую');
+  }
 
   // ── Сравнение и хеш ─────────────────────────────────────────────────────
   function canon(v){
@@ -4770,25 +4833,42 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   var token = lsGet(K_TOKEN) || '';
   var base = {boards:{}, docs:{}};              // последние копии с сервера, для слияния
   var dirty = {};
-  var booted = false, busy = false, tickTimer = null, pollTimer = null;
+  // Ключи с правками, которые ещё не дошли до сервера. Хранится на диске: только эти
+  // ключи при открытии сливаются с серверной версией. Всё остальное в кеше браузера
+  // считается старой копией, и побеждает сервер (иначе старый кеш затирает свежие данные).
+  var unsent = parse(lsGet(K_UNSENT), {}) || {};
+  var booted = false, pulled = false, starting = false, busy = false, tickTimer = null, pollTimer = null;
   var failures = 0, lastOk = 0, bootFn = null;
 
   function saveState(){
     lsSet(K_STATE, JSON.stringify({boards: st.boards, docs: st.docs}));
   }
   function isSyncKey(k){ return typeof k === 'string' && k.indexOf('bs_') === 0 && !LOCAL_ONLY[k]; }
+  function saveUnsent(){ lsSet(K_UNSENT, JSON.stringify(unsent)); }
+  function wantSend(k){ if(!unsent[k]){ unsent[k] = 1; saveUnsent(); } }
+  function settled(k){ if(unsent[k] && !dirty[k]){ delete unsent[k]; saveUnsent(); } }
 
-  // Перехват записи: всё, что платформа сохраняет, уходит на сервер
+  // Перехват записи: всё, что платформа сохраняет, уходит на сервер.
+  // Если память браузера заполнена, значение остаётся в памяти страницы и всё равно уходит.
   P.setItem = function(k, v){
-    rawSet.call(this, k, v);
-    if(this === LS && isSyncKey(k)) markDirty(k);
+    if(this !== LS) return rawSet.call(this, k, v);
+    lsSet(k, v);
+    if(isSyncKey(k)) markDirty(k);
+  };
+  P.getItem = function(k){
+    if(this === LS && hasOv(k)) return OV[k];
+    return rawGet.call(this, k);
   };
   P.removeItem = function(k){
+    if(this === LS) delete OV[k];
     rawRemove.call(this, k);
     if(this === LS && isSyncKey(k)) markDirty(k);
   };
   function markDirty(k){
     dirty[k] = 1;
+    // До первой сверки с сервером запись делает сама страница (миграции, чистки), а не человек.
+    // Так же и при запуске без связи: загрузчики разделов переписывают старый кеш
+    if(booted && !(starting && !pulled)) wantSend(k);
     if(!booted || !token) return;
     setStatus('saving');
     clearTimeout(tickTimer);
@@ -4822,7 +4902,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     dirty = {};
     var chain = Promise.resolve();
     keys.forEach(function(k){
-      chain = chain.then(function(){ return k === 'bs_boards' ? pushBoards() : pushDoc(k, 0); });
+      chain = chain.then(function(){ return (k === 'bs_boards' ? pushBoards() : pushDoc(k, 0)).then(function(){ settled(k); }); });
     });
     return chain.catch(function(e){ keys.forEach(function(k){ dirty[k] = 1; }); throw e; });
   }
@@ -4832,13 +4912,16 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   function pushBoards(){
     var list = localBoards(), byId = {}, chain = Promise.resolve();
     list.forEach(function(b){ if(b && b.id) byId[b.id] = b; });
+    var own = !!unsent.bs_boards;   // без правки человека отправляем только новые разборы
+    if(!own && !lsGet('bs_boards')) return chain;
     Object.keys(byId).forEach(function(id){
       var s = st.boards[id];
       if(s && !s.deleted && s.h === hb(byId[id])) return;
+      if(s && !own) return;
       chain = chain.then(function(){ return putBoard(id, byId[id], 0); });
     });
     Object.keys(st.boards).forEach(function(id){
-      if(!byId[id] && !st.boards[id].deleted) chain = chain.then(function(){ return delBoard(id); });
+      if(own && !byId[id] && !st.boards[id].deleted) chain = chain.then(function(){ return delBoard(id); });
     });
     return chain;
   }
@@ -4900,6 +4983,9 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     var s = st.docs[k];
     if(s && s.h === hash(val) && !!s.deleted === del) return Promise.resolve();
     if(!s && del) return Promise.resolve();
+    // Документ уже есть на сервере, а правки человека не было: на этом устройстве старая
+    // или неполная копия (кеш, переполненная память). Её не отправляем, иначе затрём сервер
+    if(s && !unsent[k]) return Promise.resolve();
     return api('PUT', '/docs/' + k, {version: s ? s.v : 0, value: val, deleted: del}).then(function(r){
       if(r.status === 200){
         st.docs[k] = {v: r.j.version, h: hash(val), deleted: del};
@@ -4936,10 +5022,17 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   }
 
   function apply(j){
+    var fresh = !booted && !unsent.bs_boards, local0 = null;
     var incoming = (j.boards || []).filter(function(rb){
       var s = st.boards[rb.id];
       if(s && s.v >= rb.version){
         if(!rb.deleted && base.boards[rb.id] === undefined) base.boards[rb.id] = rb.data;
+        // При открытии без неотправленных правок копия на этом устройстве должна совпасть с сервером
+        if(fresh){
+          if(!local0){ local0 = {}; localBoards().forEach(function(b){ if(b && b.id) local0[b.id] = b; }); }
+          var lb = local0[rb.id];
+          if(rb.deleted ? !!lb : (!lb || hb(lb) !== hb(rb.data))) return true;
+        }
         return false;
       }
       return true;
@@ -4960,7 +5053,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
       incoming.forEach(function(rb){
         var s = st.boards[rb.id], oldBase = base.boards[rb.id];
         var li = idx[rb.id], mine = li === undefined ? undefined : list[li];
-        var pending = mine !== undefined && (!s || s.h !== hb(mine));
+        var pending = mine !== undefined && (!s || s.h !== hb(mine)) && (booted || !!unsent.bs_boards);
         if(rb.deleted){
           st.boards[rb.id] = {v: rb.version, h: '', deleted: true};
           delete base.boards[rb.id];
@@ -4972,7 +5065,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
         base.boards[rb.id] = rb.data;
         if(li === undefined){ list.unshift(next); idx = {}; list.forEach(function(b, i){ idx[b.id] = i; }); }
         else list[li] = next;
-        if(pending && hb(next) !== hb(rb.data)) dirty.bs_boards = 1;
+        if(pending && hb(next) !== hb(rb.data)){ dirty.bs_boards = 1; wantSend('bs_boards'); }
         if(window.curBoard && window.curBoard.id === rb.id){ changedOpen = true; who1 = who(rb.updatedBy); }
       });
       list = list.filter(function(b){ return !(b && removed[b.id]); });
@@ -4985,20 +5078,33 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
       var s = st.docs[d.key];
       if(s && s.v >= d.version){
         if(base.docs[d.key] === undefined) base.docs[d.key] = d.deleted ? null : d.value;
+        // При открытии: копия на этом устройстве без неотправленных правок = серверная
+        // (запись могла не поместиться в память браузера и не сохраниться)
+        if(!booted && !unsent[d.key]){
+          var th = d.deleted ? null : d.value;
+          if(lsGet(d.key) !== th){
+            if(th === null) lsDel(d.key); else lsSet(d.key, th);
+            st.docs[d.key] = {v: d.version, h: hash(th || ''), deleted: !!d.deleted};
+            keys.push(d.key);
+          }
+        }
         return;
       }
       var mine = lsGet(d.key), oldBase = base.docs[d.key];
       var pending = s ? hash(mine === null ? '' : mine) !== s.h || (mine === null) !== !!s.deleted
                       : (mine !== null && mine !== d.value);
+      // При открытии страницы своей правкой считается только то, что записано как неотправленное
+      if(!booted && !unsent[d.key]) pending = false;
       var theirs = d.deleted ? null : d.value;
       st.docs[d.key] = {v: d.version, h: hash(theirs || ''), deleted: !!d.deleted};
       base.docs[d.key] = theirs;
       var next = pending ? mergeStr(s ? oldBase : undefined, mine, theirs) : theirs;
       if(next === null) lsDel(d.key); else lsSet(d.key, next);
-      if(pending && next !== theirs) dirty[d.key] = 1;
+      if(pending && next !== theirs){ dirty[d.key] = 1; wantSend(d.key); }
       keys.push(d.key);
     });
     if(j.rev > st.rev) st.rev = j.rev;
+    pulled = true;
     saveState();
     if(booted && keys.indexOf('bs_seed') >= 0) applySeed();
     if(booted && keys.length) reloadKeys(keys);
@@ -5250,7 +5356,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   }
   function logout(){
     var go = function(){
-      lsDel(K_TOKEN); lsDel(K_USER); lsDel(K_STATE);
+      lsDel(K_TOKEN); lsDel(K_USER); lsDel(K_STATE); lsDel(K_UNSENT);
       var ks = []; for(var i = 0; i < LS.length; i++){ var k = LS.key(i); if(k && k.indexOf('bs_') === 0) ks.push(k); }
       ks.forEach(lsDel);
       // Сначала сервер снимает куку, потом перезагрузка покажет страницу входа
@@ -5379,8 +5485,12 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     ui();
     booted = true;
     for(var i = 0; i < LS.length; i++){ var k = LS.key(i); if(isSyncKey(k)) dirty[k] = 1; }
+    Object.keys(OV).forEach(function(k){ if(isSyncKey(k)) dirty[k] = 1; });
+    if(ovWant) quotaNote();
     applySeed();
+    starting = true;
     try{ bootFn(); }catch(e){ console.error(e); }
+    starting = false;
     applyRole();
     setStatus(Object.keys(dirty).length ? 'saving' : 'ok');
     lastOk = Date.now();
@@ -5417,6 +5527,15 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
       return fetch(API + path, {method: method, headers: h, body: body || undefined});
     },
     online: function(){ return !!token; },
+    // Данные с сервера уже на месте: страница запущена и первая сверка прошла.
+    // До этого код страницы не должен переписывать документы bs_* (кеш может быть старым)
+    ready: function(){ return booted && pulled; },
+    // Имя участника команды по id (для истории версий)
+    teamName: function(id){
+      if(!id) return '';
+      if(auth.user && String(auth.user.id) === String(id)) return auth.user.name || '';
+      return (auth.team && auth.team[id]) || '';
+    },
     user: function(){ return auth.user || null; },
     isResident: isResidentUser,
     logout: function(){ logout(); },
@@ -16231,6 +16350,7 @@ function renderLeads(){
         return '<div class="cx-fl' + (CRMV.src === s ? ' on' : '') + '" data-s="' + escA(s) + '" onclick="CRMV.src=this.dataset.s;crmFlPaint();renderCrmMain()">' + (s || 'Все') + '</div>';
       }).join('') + '<div class="cx-fl cx-hot' + (CRMV.hot ? ' on' : '') + '" id="crmHot" onclick="CRMV.hot=!CRMV.hot;crmFlPaint();renderCrmMain()">🔥 Горячие</div>' +
         (CRMV.base ? '<div class="cx-fl on cx-basef" onclick="CRMV.base=\'\';renderLeads()" title="Снять фильтр">База: ' + esc(CRMV.base) + ' ✕</div>' : '') + '</div>' +
+      dhBtn('crmHistBtn', 'crmHistory') +
       '<button class="btn pf-b" id="crmSelBtn" onclick="crmSelToggle()">Выбрать</button>' +
       '<button class="btn pf-b" id="impBtn" onclick="impOpen()">Импорт базы</button>' +
       '<button class="btn pf-b pf-p" onclick="newLead()">+ Новый лид</button>' +
@@ -18145,6 +18265,7 @@ function r8MergeKB(kb){
 function r8DocMigrate(force){
   try{
     if(!force && localStorage.getItem('bs_doc_seed') === R8DOC.ver) return -1;
+    if(!bsDataReady()) return -1;   // с сервера: только поверх данных, пришедших с сервера
     if(window.BSSync && BSSync.isResident && BSSync.isResident()) return -1;
     var n = 0, v, a;
     v = r8Get('bs_tools');     if(Array.isArray(v) && v.length){ a = r8MergeTools(v); if(a){ r8Put('bs_tools', v); n += a; } }
@@ -19231,6 +19352,9 @@ function migCheck(){
 var R12_GID = ['1mIQJCfcNLeJmi08' + 'ZXfBhn1H8bis9sGBY1GInEwKCzzw', '1D-D4P5G9cmX1tdy' + 'luWe88sNTVGGqJqQWA4NvrvTbrYE'];
 var R12_URL_RE = new RegExp('(?:https?:\\/\\/)?docs\\.google\\.com\\/(?:document|spreadsheets)\\/d\\/(?:' + R12_GID.join('|') + ')[^\\s"\'<>)»\\]]*', 'g');
 var R12_LINKK = ['u', 'url', 'href', 'link', 'src'];
+// Можно ли переписывать документы bs_* (миграции, чистки при загрузке): из файла всегда,
+// с сервера только после первой сверки, когда в хранилище уже серверные данные
+function bsDataReady(){ try{ return !(window.BS_SERVER && window.BSSync && typeof BSSync.ready === 'function') || BSSync.ready(); }catch(e){ return true; } }
 function r12HasGl(s){ return typeof s === 'string' && (s.indexOf(R12_GID[0]) >= 0 || s.indexOf(R12_GID[1]) >= 0); }
 function r12CleanStr(s){
   return s.replace(R12_URL_RE, '').replace(/\(\s*\)/g, '').replace(/[ \t]{2,}/g, ' ').replace(/[ \t]*(\|\||:|-|·)[ \t]*$/gm, '').trim();
@@ -19261,6 +19385,8 @@ function r12Sweep(){
   var n = 0;
   try{
     if(window.BSSync && BSSync.isResident && BSSync.isResident()) return 0;
+    // С сервера: до первой сверки в браузере может лежать старый кеш, его не трогаем
+    if(!bsDataReady()) return 0;
     var keys = [];
     for(var i = 0; i < localStorage.length; i++){ var k = localStorage.key(i); if(k && k.indexOf('bs_') === 0) keys.push(k); }
     keys.forEach(function(k){
@@ -19394,6 +19520,134 @@ function kb12Snap(){ return JSON.stringify(KANBAN); }
 function kb12Rest(s){ KANBAN = kb12Norm(JSON.parse(s)); saveKanban(); if(section === 'kanban') renderKanban(); if(KB12.edit && document.getElementById('kbSheet').classList.contains('on')){ var c = kb12Find(KB12.edit); if(c){ KB12.draft = c; kb12Paint(); } else closeSheet('kbSheet'); } }
 function kb12CountsN(){ return KANBAN.cards.length; }
 
+// ═══ История версий документа (с сервера) ═══
+// docHistory(key, title, onRestore): список прошлых состояний документа bs_* на сервере,
+// просмотр и «Восстановить эту версию» (второе нажатие подтверждает). onRestore(value)
+// перечитывает раздел после записи. Описание версии (счётчики, заголовки) берётся из DH_DESC.
+var DH = {key:'', title:'', onRestore:null, items:[], vals:{}, open:'', arm:'', armT:0, seq:0};
+var DH_DESC = {
+  bs_kanban: {
+    sum: function(v){
+      var K = JSON.parse(v) || {}, cards = Array.isArray(K.cards) ? K.cards.filter(Boolean) : [], g = 0;
+      try{ g12Norm(K.goals).sections.forEach(function(s){ if(s.kind !== 'links') g += s.items.length; }); }catch(e){}
+      return cards.length + ' ' + r12Pl(cards.length, 'карточка', 'карточки', 'карточек') + ' · ' + g + ' ' + r12Pl(g, 'цель', 'цели', 'целей');
+    },
+    items: function(v){ var K = JSON.parse(v) || {}; return (Array.isArray(K.cards) ? K.cards : []).filter(Boolean).map(function(c){ return String(c.t || 'Без названия'); }); }
+  },
+  bs_crm: {
+    sum: function(v){ var C = JSON.parse(v) || {}, n = Array.isArray(C.leads) ? C.leads.filter(Boolean).length : 0; return n + ' ' + r12Pl(n, 'лид', 'лида', 'лидов'); },
+    items: function(v){ var C = JSON.parse(v) || {}; return (Array.isArray(C.leads) ? C.leads : []).filter(Boolean).map(function(l){ return String(l.name || l.phone || 'Без имени'); }); }
+  }
+};
+function dhAvail(){ try{ return !!(window.BS_SERVER && window.BSSync && BSSync.online && BSSync.online() && BSSync.api); }catch(e){ return false; } }
+function dhBtn(id, fn){ return dhAvail() ? '<button class="btn pf-b dh-btn" id="' + id + '" onclick="' + fn + '()" title="Прошлые версии на сервере">' + r12I('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>', 15) + 'История</button>' : ''; }
+function dhWhen(t){
+  var d = new Date(t); if(isNaN(d)) return '';
+  var o = {day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'};
+  try{ return d.toLocaleString('ru-RU', Object.assign({timeZone:'Asia/Almaty'}, o)).replace(' г.', '').replace(' в ', ', '); }catch(e){ return d.toLocaleString('ru-RU', o); }
+}
+function dhWho(id){ var n = ''; try{ n = window.BSSync && BSSync.teamName ? BSSync.teamName(id) : ''; }catch(e){} return n || (id ? 'Команда' : ''); }
+function dhSheet(){
+  var el = document.getElementById('dhSheet');
+  if(el) return el;
+  el = document.createElement('div'); el.className = 'sheet dh-sheet'; el.id = 'dhSheet';
+  el.onclick = function(e){ if(e.target === el) closeSheet('dhSheet'); };
+  el.innerHTML = '<div class="si"><div class="sh"><div><div class="st" id="dhTitle">История</div><div class="ss" id="dhSub"></div></div>' +
+    '<div class="x" onclick="closeSheet(\'dhSheet\')">✕</div></div><div class="sb" id="dhBody"></div></div>';
+  document.body.appendChild(el);
+  return el;
+}
+function docHistory(key, title, onRestore){
+  var seq = ++DH.seq;
+  DH.key = key; DH.title = title || key; DH.onRestore = onRestore || null; DH.items = []; DH.vals = {}; DH.open = ''; DH.arm = '';
+  dhSheet().classList.add('on');
+  document.getElementById('dhTitle').textContent = 'История: ' + DH.title;
+  document.getElementById('dhSub').textContent = 'Прошлые версии на сервере, новые сверху';
+  document.getElementById('dhBody').innerHTML = '<div class="dh-empty">Загружаю…</div>';
+  if(!dhAvail()){ document.getElementById('dhBody').innerHTML = '<div class="dh-empty">История доступна, когда платформа открыта с сервера</div>'; return; }
+  BSSync.api('GET', '/docs/' + encodeURIComponent(key) + '/versions').then(function(r){
+    return r.json().catch(function(){ return null; }).then(function(j){ return {ok: r.ok, j: j}; });
+  }).then(function(x){
+    if(seq !== DH.seq) return;
+    if(!x.ok || !x.j){ document.getElementById('dhBody').innerHTML = '<div class="dh-empty">Сервер не отдал историю. Попробуйте позже</div>'; return; }
+    DH.items = (Array.isArray(x.j.items) ? x.j.items : Array.isArray(x.j) ? x.j : []).slice(0, 50);
+    dhPaint();
+    dhFetchAll(seq);
+  }, function(){ if(seq === DH.seq) document.getElementById('dhBody').innerHTML = '<div class="dh-empty">Нет связи с сервером</div>'; });
+}
+function dhGet(v){
+  if(DH.vals[v] !== undefined) return Promise.resolve(DH.vals[v]);
+  return BSSync.api('GET', '/docs/' + encodeURIComponent(DH.key) + '/versions/' + encodeURIComponent(v)).then(function(r){
+    return r.ok ? r.json() : null;
+  }).then(function(j){ DH.vals[v] = j && typeof j.value === 'string' ? j.value : null; return DH.vals[v]; }, function(){ return null; });
+}
+function dhFetchAll(seq){
+  var q = DH.items.map(function(it){ return it.version; }), run = function(){
+    if(seq !== DH.seq || !q.length) return Promise.resolve();
+    var v = q.shift();
+    return dhGet(v).then(function(){ if(seq === DH.seq) dhPaintRow(v); }).then(run);
+  };
+  for(var i = 0; i < 4; i++) run();
+}
+function dhSum(v){
+  var val = DH.vals[v], d = DH_DESC[DH.key];
+  if(val === undefined) return '…';
+  if(val === null || val === '') return 'пустая версия';
+  try{ if(d && d.sum) return d.sum(val); }catch(e){}
+  return Math.max(1, Math.round(val.length / 1024)) + ' КБ';
+}
+function dhRowHTML(it){
+  var v = String(it.version), on = DH.open === v, val = DH.vals[v], d = DH_DESC[DH.key], prev = '';
+  if(on){
+    if(val === undefined) prev = '<div class="dh-pv dh-mut">Загружаю…</div>';
+    else if(!val) prev = '<div class="dh-pv dh-mut">В этой версии документ пустой</div>';
+    else {
+      var list = []; try{ list = d && d.items ? d.items(val) : []; }catch(e){}
+      prev = '<div class="dh-pv">' + (list.length ? '<ol class="dh-ls">' + list.slice(0, 40).map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>' +
+        (list.length > 40 ? '<div class="dh-mut">и ещё ' + (list.length - 40) + '</div>' : '') : '<div class="dh-mut">Размер ' + Math.max(1, Math.round(val.length / 1024)) + ' КБ</div>') +
+        '<button class="btn pf-b dh-rs' + (DH.arm === v ? ' arm' : '') + '" data-v="' + escA(v) + '" onclick="event.stopPropagation();dhRestore(this.dataset.v)">' +
+        (DH.arm === v ? 'Нажмите ещё раз, чтобы восстановить' : 'Восстановить эту версию') + '</button></div>';
+    }
+  }
+  return '<div class="dh-row' + (on ? ' on' : '') + '" data-v="' + escA(v) + '" onclick="dhToggle(this.dataset.v)">' +
+    '<div class="dh-h"><div class="dh-w"><b>' + esc(dhWhen(it.updatedAt) || 'Версия ' + v) + '</b><span>' + esc(dhWho(it.updatedBy)) + '</span></div>' +
+    '<div class="dh-s">' + esc(dhSum(v)) + '</div></div>' + prev + '</div>';
+}
+function dhPaint(){
+  var b = document.getElementById('dhBody'); if(!b) return;
+  b.innerHTML = DH.items.length ? DH.items.map(dhRowHTML).join('') : '<div class="dh-empty">Прошлых версий пока нет</div>';
+}
+function dhPaintRow(v){
+  var it = DH.items.find(function(x){ return String(x.version) === String(v); }), el = document.querySelector('#dhBody .dh-row[data-v="' + String(v).replace(/"/g, '') + '"]');
+  if(!it || !el) return;
+  var t = document.createElement('div'); t.innerHTML = dhRowHTML(it); el.replaceWith(t.firstChild);
+}
+function dhToggle(v){
+  DH.open = DH.open === v ? '' : v; DH.arm = '';
+  dhPaint();
+  if(DH.open && DH.vals[v] === undefined) dhGet(v).then(function(){ dhPaintRow(v); });
+}
+function dhRestore(v){
+  if(DH.arm !== v){
+    DH.arm = v; dhPaintRow(v);
+    clearTimeout(DH.armT); DH.armT = setTimeout(function(){ if(DH.arm === v){ DH.arm = ''; dhPaintRow(v); } }, 4000);
+    return;
+  }
+  clearTimeout(DH.armT); DH.arm = '';
+  var val = DH.vals[v]; if(!val) return;
+  var key = DH.key, fn = DH.onRestore, prev = localStorage.getItem(key), it = DH.items.find(function(x){ return String(x.version) === String(v); }) || {};
+  var put = function(x){ if(x === null) localStorage.removeItem(key); else localStorage.setItem(key, x); try{ if(fn) fn(x); }catch(e){ console.error(e); } };
+  put(val);
+  closeSheet('dhSheet');
+  r11Undo('Восстановлена версия от ' + (dhWhen(it.updatedAt) || v), function(){ put(prev); toast('Возвращено как было'); }, 7000);
+}
+function kb12History(){
+  docHistory('bs_kanban', 'Цели и задачи', function(){ loadKanban(); if(section === 'kanban') renderKanban(); });
+}
+function crmHistory(){
+  docHistory('bs_crm', 'CRM лидов', function(){ loadCRM(); if(section === 'leads') renderLeads(); });
+}
+
 function renderKanban(){
   if(!KANBAN) loadKanban(); else kb12Norm(KANBAN);
   var pg = document.getElementById('pg-stub');
@@ -19406,6 +19660,7 @@ function renderKanban(){
     nc + ' ' + r12Pl(nc, 'карточка', 'карточки', 'карточек') + (od ? ' · просрочено ' + od : '') + ' · перетаскивайте карточки и колонки';
   var pa = document.getElementById('phAct');
   if(pa) pa.innerHTML =
+    dhBtn('kbHistBtn', 'kb12History') +
     '<button class="btn pf-b kb-archb' + (KB12.arch ? ' on' : '') + '" id="kbArchBtn" onclick="kb12ArchView()">' + (KB12.arch ? r12I(R12_IC.back, 15) + 'К доске' : r12I(R12_IC.arch, 15) + 'Архив' + (na ? ' <b>' + na + '</b>' : '')) + '</button>' +
     '<button class="btn pf-b pf-p kb-addtop" id="kbAddTop" onclick="addCard(KANBAN.cols[0].id)">+ Добавить</button>';
   pg.querySelector('#stubBody').innerHTML = g12HTML() + (KB12.arch ? kb12ArchHTML() : kb12BoardHTML());

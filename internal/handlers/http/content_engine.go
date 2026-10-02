@@ -71,16 +71,21 @@ type contentSettings struct {
 	Days        []int  `json:"days"`
 	Approval    string `json:"approval"`
 	PreviewHour int    `json:"previewHour"`
+	Rev         int    `json:"rev,omitempty"` // settings layout; 2: Telegram channel off by default
 }
+
+// contentTelegramDefault: the Telegram channel is off unless the team turns it on.
+var contentTelegramDefault = false
 
 func defaultContentSettings() contentSettings {
 	var s contentSettings
 	s.Channels.Threads = contentChan{On: true, Time: "10:00"}
-	s.Channels.Telegram = contentChan{On: true, Chat: "@bsurgery_kz", Time: "19:00"}
+	s.Channels.Telegram = contentChan{On: contentTelegramDefault, Chat: "@bsurgery_kz", Time: "19:00"}
 	s.Channels.Instagram = contentChan{On: false, Time: "12:00"}
 	s.Days = []int{1, 2, 3, 4, 5, 6}
 	s.Approval = "auto"
 	s.PreviewHour = 9
+	s.Rev = 2
 	return s
 }
 
@@ -358,6 +363,24 @@ func (e *ContentEngine) load(ctx context.Context) (*contentDoc, int, error) {
 	}
 	if d.Queue == nil {
 		d.Queue = []*contentItem{}
+	}
+	// Rev 2: the owner publishes to Threads, not to the Telegram channel.
+	// Earlier docs had Telegram on: switch it off and drop its untouched plan.
+	var rv struct {
+		Rev int `json:"rev"`
+	}
+	_ = json.Unmarshal(d.Settings, &rv)
+	if st := parseContentSettings(d.Settings); rv.Rev < 2 {
+		st.Channels.Telegram.On, st.Rev = false, 2
+		d.Settings, _ = json.Marshal(st)
+		q := d.Queue[:0]
+		for _, it := range d.Queue {
+			if it.Channel == "telegram" && it.Status != "published" && !it.Edited {
+				continue
+			}
+			q = append(q, it)
+		}
+		d.Queue = q
 	}
 	if d.History == nil {
 		d.History = []*contentItem{}
