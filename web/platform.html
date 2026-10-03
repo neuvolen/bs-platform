@@ -3297,6 +3297,18 @@ body.light .cz{--cz-s2:rgba(20,20,22,.48);--cz-s3:rgba(20,20,22,.2)}
 .cz-cell:hover .cz-add{opacity:1}
 .cz-add:hover{color:var(--ptx);background:var(--ph)}
 @media(hover:none){.cz-add{opacity:.6}}
+/* Threads: пачка дня (16 постов) */
+.cz-thh{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11.5px;font-weight:700;color:var(--pm);padding:0 2px}
+.cz-thh b{color:var(--ptx);font-weight:800}
+.cz-thh.low b{color:var(--pred)}
+.cz-thm{font-size:11.5px;font-weight:700;color:var(--ptx);padding:4px 6px;border-radius:8px;cursor:pointer;text-align:center;border:1px dashed var(--pi)}
+.cz-thm:hover{background:var(--ph)}
+.cz-thb{font-size:11px;font-weight:800;color:var(--ptx);border:1px solid var(--pi);border-radius:8px;padding:3px 8px;background:none;cursor:pointer;font-family:inherit}
+.cz-thb:disabled{opacity:.5;cursor:default}
+.cz-fm{font-size:10px;font-weight:800;color:var(--pm);letter-spacing:.3px}
+.cz-cta{font-size:10px;font-weight:800;color:var(--ptx);border:1px solid var(--ptx);border-radius:5px;padding:0 5px}
+.cz-pd{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12.5px;font-weight:600;color:var(--pm)}
+.cz-pd input{width:76px}
 /* Редактор */
 .cz-eh{font-size:11px;font-weight:800;letter-spacing:1.2px;color:var(--pl);text-transform:uppercase;margin-bottom:6px}
 .cz-et{font-size:19px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -7845,13 +7857,58 @@ window.bsAddFine = function(){
     {k:'amount', label:'Сумма, тенге', type:'text', value:'10000'}
   ], function(v){ return BSSync.club('addFine', {name: v.name, type: v.type, amount: bsMoneyIn(v.amount)}); });
 };
+// R30: штраф открывается по клику, как в приложении: подробности, «Отметить оплаченным», «Удалить штраф».
+// Те же действия и параметры, что у приложения (updateFine, deleteFine): запись идёт через очередь сервера в таблицу
+function bsFineParams(f){
+  return {row: f.row ? String(f.row) : '', name: f.res, date: f.date, type: f.type || '', kind: f.type || '', amount: String(f.amount)};
+}
+function bsFineAct(f, action, extra, okText){
+  var i = (FINES||[]).indexOf(f), keep = Object.assign({}, f);
+  // Сразу в списке, сервер подтверждает; при ошибке запись возвращается
+  if(action === 'deleteFine'){ if(i >= 0) FINES.splice(i, 1); } else { f.status = 'Оплатил'; }
+  if(section === 'fines') renderFines();
+  BSSync.club(action, Object.assign(bsFineParams(keep), extra || {})).then(function(r){
+    if(r && r.ok){ toast(okText); return; }
+    if(action === 'deleteFine'){ FINES.splice(Math.max(0, Math.min(i, FINES.length)), 0, f); } else { f.status = keep.status; }
+    if(section === 'fines') renderFines();
+    toast('Не получилось: ' + ((r && (r.detail || r.error)) || 'нет ответа'));
+  });
+}
 window.bsFinePaid = function(i){
   var f = (FINES||[])[i]; if(!f) return;
+  closeSheet('cardSheet');
   askConfirm('Отметить оплаченным?', f.res + ', ' + f.type + ', ' + money(String(f.amount)) + ' ₸ от ' + f.date, function(){
-    BSSync.club('updateFine', {name: f.res, date: f.date, type: f.type, amount: String(f.amount), status: 'Оплатил'}).then(function(r){
-      if(!r || !r.ok) toast((r && (r.detail || r.error)) || 'Не получилось');
-    });
+    bsFineAct(f, 'updateFine', {status: 'Оплатил'}, 'Отмечено оплаченным');
+  }, 'Оплачен');
+};
+window.bsFineDel = function(i){
+  var f = (FINES||[])[i]; if(!f) return;
+  closeSheet('cardSheet');
+  askConfirm('Удалить штраф?', f.res + ', ' + f.type + ', ' + money(String(f.amount)) + ' ₸ от ' + f.date + '. Запись удалится из таблицы полностью.', function(){
+    bsFineAct(f, 'deleteFine', null, 'Штраф удалён');
   });
+};
+window.bsFineOpen = function(i, local){
+  var f = local ? (window._bsLocalFines || [])[i] : (FINES||[])[i]; if(!f) return;
+  var paid = f.status === 'Оплатил', team = bsIsTeam();
+  window._cardCv = false;
+  document.getElementById('cardTitle').textContent = 'Штраф: ' + (f.res || '');
+  document.getElementById('cardSub').textContent = (f.type || 'Штраф') + (local ? ' · с доски' : '');
+  var row = function(k, v){ return '<div class="pf-li pf-row3"><span class="pf-ld">' + k + '</span><span class="pf-lt">' + v + '</span></div>'; };
+  var h = '<div class="pf-card" id="fineCard">' +
+    row('Резидент', esc(f.res || '')) + row('За что', esc(f.type || 'Штраф')) +
+    row('Сумма', '<b class="num">' + money(String(f.amount)) + ' ₸</b>') + row('Дата', esc(f.date || '')) +
+    row('Статус', '<span style="color:' + (paid ? 'var(--t2)' : '#FF4D4D') + ';font-weight:800">' + esc(f.status || 'Не оплатил') + '</span>') + '</div>';
+  if(local){
+    h += '<div class="pf-note" style="font-size:12.5px;color:var(--t3);margin-top:10px">Начислен на доске резидента. Изменить или удалить его можно на доске.</div>';
+  } else if(team){
+    h += '<div class="pf-acts" style="margin-top:14px">' +
+      (paid ? '' : '<button class="btn pf-b pf-p" id="fineOk" onclick="bsFinePaid(' + i + ')">Отметить оплаченным</button>') +
+      '<button class="btn pf-b" id="fineDel" style="color:#FF4D4D" onclick="bsFineDel(' + i + ')">Удалить штраф</button></div>';
+  }
+  document.getElementById('cardBody').innerHTML = h;
+  var cb0 = document.getElementById('coverBtn'); if(cb0) cb0.style.display = 'none';
+  openSheet('cardSheet');
 };
 window.bsAddMeeting = function(){
   bsForm('+ ВСТРЕЧА', [
@@ -7859,6 +7916,67 @@ window.bsAddMeeting = function(){
     {k:'date', label:'Дата', type:'text', value: bsTodayStr(), ph:'30.09.2026'},
     {k:'time', label:'Время', type:'text', value:'12:00', ph:'15:00'}
   ], function(v){ return BSSync.club('addSchedule', {res: v.res, date: v.date, time: v.time}); });
+};
+// R30: то, что команда делает в приложении, есть и здесь: офлайн-день, новый резидент, пакет встреч, NPS
+function bsResByName(name){ if(typeof name === 'number') return (RESIDENTS||[])[name] || null; return (RESIDENTS||[]).find(function(x){ return x.name === name; }) || null; }
+window.bsAddOffline = function(){
+  bsForm('+ ОФЛАЙН-ДЕНЬ', [
+    {k:'date', label:'Дата', type:'text', value: bsTodayStr(), ph:'30.09.2026'},
+    {k:'time', label:'Время', type:'text', value:'10:00', ph:'10:00'}
+  ], function(v){
+    return BSSync.club('addOfflineGroup', {date: v.date, time: v.time}).then(function(r){
+      if(r && r.ok && r.script && r.script.count) setTimeout(function(){ try{ toast('Создано встреч: ' + r.script.count); }catch(e){} }, 300);
+      return r;
+    });
+  });
+};
+window.bsAddResident = function(){
+  bsForm('+ РЕЗИДЕНТ', [
+    {k:'name', label:'Имя', type:'text', ph:'Имя и бизнес'},
+    {k:'tariff', label:'Тариф за месяц, тенге', type:'text', value:'100000', ph:'100 000'},
+    {k:'visits', label:'Встреч в месяц', type:'select', options:['3','4'], value:'3'},
+    {k:'format', label:'Формат', type:'select', options:['Онлайн','Офлайн'], value:'Онлайн'},
+    {k:'source', label:'Откуда пришёл', type:'text', ph:'Рекомендация, Instagram'},
+    {k:'partner', label:'Партнёр', type:'select', options:[''].concat(bsResNames())}
+  ], function(v){
+    if(!v.name) return Promise.resolve({error:'Введите имя'});
+    var t = bsMoneyIn(v.tariff);
+    return BSSync.club('addResident', {name: v.name, tariff: t, debt: t, visits: v.visits, format: v.format, source: v.source, partner: v.partner});
+  });
+};
+window.bsSetMeetings = function(name){
+  var r = bsResByName(name) || {}; if(typeof name === 'number') name = r.name; if(!name) return;
+  closeSheet('cardSheet');
+  bsForm('ВСТРЕЧИ: ' + String(name).toUpperCase(), [
+    {k:'done', label:'Проведено', type:'number', value: String(r.done || 0)},
+    {k:'granted', label:'Оплачено встреч', type:'number', value: String(r.granted || 0)}
+  ], function(v){
+    return BSSync.club('setMeetings', {name: name, done: String(parseInt(v.done, 10) || 0), granted: String(parseInt(v.granted, 10) || 0)}).then(function(res){
+      if(res && res.ok && r.name){ r.done = parseInt(v.done, 10) || 0; r.granted = parseInt(v.granted, 10) || 0; }
+      return res;
+    });
+  });
+};
+window.bsRenewMeetings = function(name){
+  if(typeof name === 'number') name = (bsResByName(name) || {}).name; if(!name) return;
+  closeSheet('cardSheet');
+  askConfirm('Продлить пакет?', name + ': счётчик обнулится, неиспользованные встречи перейдут в новый пакет.', function(){
+    BSSync.club('renewMeetings', {name: name}).then(function(r){
+      if(!(r && r.ok)){ toast('Не получилось: ' + ((r && (r.detail || r.error)) || 'нет ответа')); return; }
+      var s = r.script || {}, t = 'Пакет продлён' + (s.pack ? ': ' + s.pack + ' встреч' : '');
+      if(s.carried > 0) t += ', перенесено ' + s.carried;
+      toast(t);
+    });
+  }, 'Продлить');
+};
+window.bsRunNPS = function(){
+  askConfirm('Запустить NPS?', 'Опрос уйдёт всем резидентам в Telegram. Повторно можно через 30 дней.', function(){
+    BSSync.club('runNPS', {}).then(function(r){
+      var s = (r && r.script) || {};
+      if(r && r.ok) toast(s.sent != null ? 'Опрос отправлен: ' + s.sent : 'Опрос запущен');
+      else toast('Не получилось: ' + ((r && (r.detail || r.error)) || 'нет ответа'));
+    });
+  }, 'Запустить');
 };
 function bsTeamBar(buttons){
   if(!bsIsTeam()) return '';
@@ -7872,6 +7990,7 @@ function renderFines(){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   // Штрафы из таблицы плюс начисленные на досках
   var all = FINES.map(function(f, i){ return Object.assign({_i: i}, f); });
+  window._bsLocalFines = [];
   boards.forEach(function(b){
     (b.nodes||[]).filter(n=>n.type==='fine').forEach(function(n){
       all.push({res:(b.info&&b.info.res)||b.name,
@@ -7894,7 +8013,8 @@ function renderFines(){
     '</div></div>' +
     (all.length ? all.map(function(x){
       var paid = x.status==='Оплатил';
-      return '<div class="row" style="cursor:default">' +
+      var open = x.local ? 'bsFineOpen(' + (window._bsLocalFines.push(x) - 1) + ',1)' : 'bsFineOpen(' + x._i + ')';
+      return '<div class="row fine-row" style="cursor:pointer" onclick="' + open + '">' +
         '<div class="row-bar" style="background:'+(paid?'var(--gold)':'#FF4D4D')+'"></div>' +
         '<div style="flex:1;min-width:0"><div class="row-t">'+esc(x.res)+'</div>' +
         '<div class="row-d">'+esc(x.type)+(x.local?' · с доски':'')+'</div></div>' +
@@ -7902,7 +8022,7 @@ function renderFines(){
           '<div style="font-size:16px;font-weight:900;color:'+(paid?'var(--t3)':'#FF4D4D')+'">'+
             money(String(x.amount))+' ₸</div>' +
           '<div class="row-m">'+esc(x.date||'')+' · '+esc(x.status||'')+'</div>' +
-          (!paid && !x.local && bsIsTeam() ? '<button onclick="bsFinePaid('+x._i+')" style="margin-top:6px;padding:5px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.45);background:none;color:var(--gold);font-weight:800;font-size:11px;cursor:pointer">Оплачен</button>' : '') +
+          (!paid && !x.local && bsIsTeam() ? '<button onclick="event.stopPropagation();bsFinePaid('+x._i+')" style="margin-top:6px;padding:5px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.45);background:none;color:var(--gold);font-weight:800;font-size:11px;cursor:pointer">Оплачен</button>' : '') +
           '</div></div>';
     }).join('') : '<div class="empt">Штрафов нет</div>');
   pg.classList.add('on');
@@ -7989,6 +8109,13 @@ function openResident(i){
     cell('Оплачено', money(String(r.paid||0))||'0', r.tariff ? 'тариф ' + money(String(r.tariff)) : '') +
     cell('Штрафы', money(String(r.fines||0))||'0', fines.length ? fines.length + ' начислений' : '', !!r.fines) +
     '</div></div>';
+  // R30: пакет встреч, как в приложении («Посещения»): поправить счётчик или продлить
+  if(bsIsTeam()){
+    var ri = (RESIDENTS || []).indexOf(r);
+    if(ri >= 0) h += '<div class="pf-acts" id="resPack" style="margin:-4px 0 12px">' +
+      '<button class="btn pf-b" onclick="bsSetMeetings(' + ri + ')">Изменить встречи</button>' +
+      '<button class="btn pf-b" onclick="bsRenewMeetings(' + ri + ')">Продлить пакет</button></div>';
+  }
   // R23: настройки резидента (исключение, формат, дата входа, партнёр, Chat ID): только команде
   if(window.r23ResSlot) h += r23ResSlot(r);
   if(board){
@@ -8006,7 +8133,7 @@ function openResident(i){
   }
   if(fines.length){
     h += '<div class="pf-card"><div class="pf-lbl">Штрафы</div>' + fines.map(function(f){
-      return '<div class="pf-li pf-row3"><span class="pf-ld">'+esc(f.date||'')+'</span><span class="pf-lt">'+esc(f.type||'Штраф')+
+      return '<div class="pf-li pf-row3"' + (bsIsTeam() ? ' style="cursor:pointer" onclick="bsFineOpen(' + FINES.indexOf(f) + ')"' : '') + '><span class="pf-ld">'+esc(f.date||'')+'</span><span class="pf-lt">'+esc(f.type||'Штраф')+
         (f.status?' <span class="pf-ld">· '+esc(f.status)+'</span>':'')+'</span><b class="pf-red">'+money(String(f.amount||0))+'</b></div>';
     }).join('') + '</div>';
   }
@@ -8048,7 +8175,7 @@ function renderSalesRes(){
   pg.querySelector('.psub').textContent = 'Клуб · ' + RESIDENTS.length + ' резидентов · данные из BS - Finance';
   var F = [['all','Все',RESIDENTS.length],['debt','Должники',debtors],
     ['on','Онлайн',RESIDENTS.filter(r=>srFmt(r,'онлайн')).length],['off','Офлайн',RESIDENTS.filter(r=>srFmt(r,'офлайн')).length]];
-  pg.querySelector('#stubBody').innerHTML =
+  pg.querySelector('#stubBody').innerHTML = bsTeamBar([['+ Резидент','bsAddResident()']]) +
     '<div class="pf-tools"><div class="search pf-search"><input id="srSearch" placeholder="Имя резидента" oninput="srRender()"></div>' +
     '<div class="pf-filters">' + F.filter(f=>f[0]==='all'||f[2]).map(function(f){
       return '<div class="pf-fl'+(srF===f[0]?' on':'')+'" data-f="'+f[0]+'" onclick="srF=\''+f[0]+'\';document.querySelectorAll(\'.pf-fl\').forEach(x=>x.classList.toggle(\'on\',x.dataset.f===srF));srRender()">'+f[1]+' · '+f[2]+'</div>';
@@ -8259,7 +8386,7 @@ function renderNPS(){
   var avg = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : '-';
   pg.querySelector('.pt').textContent = 'NPS';
   pg.querySelector('.psub').textContent = scores.length + ' ответов из таблицы';
-  pg.querySelector('#stubBody').innerHTML =
+  pg.querySelector('#stubBody').innerHTML = bsTeamBar([['Запустить NPS','bsRunNPS()']]) +
     '<div class="card-sum"><div class="sum-row">' +
       '<div><div class="bs-l">NPS</div><div class="sum-v" style="color:'+(nps>=50?'var(--gold)':(nps>=0?'#DADADA':'#FF4D4D'))+'">'+nps+'</div></div>' +
       '<div><div class="bs-l">Средний балл</div><div class="sum-v">'+avg+'</div></div>' +
@@ -9071,6 +9198,10 @@ function setSummary(k, v){
 }
 
 var schedView = 'list';
+// R30: у админа «Расписание» открывается календарём; выбор «Список» помнится до перезагрузки страницы
+var schedViewAdm = '';
+function schedV(){ return MODE === 'admin' ? (schedViewAdm || 'cal') : schedView; }
+function schedSet(v){ if(MODE === 'admin') schedViewAdm = v; else schedView = v; }
 function renderSchedule(){
   var me = (curBoard && curBoard.info && curBoard.info.res) || '';
   var all = SDATA.schedule || [];
@@ -9080,13 +9211,13 @@ function renderSchedule(){
   var el = pgSet('Расписание', (MODE==='admin' ? 'Все встречи' : 'Ваши встречи') + ' · ' + sch.length);
 
   var head = '<div class="viewsw">' +
-    '<div class="vsb'+(schedView==='list'?' on':'')+'" onclick="schedView=\'list\';renderSchedule()">Список</div>' +
-    '<div class="vsb'+(schedView==='cal'?' on':'')+'" onclick="schedView=\'cal\';renderSchedule()">Календарь</div>' +
+    '<div class="vsb'+(schedV()==='list'?' on':'')+'" onclick="schedSet(\'list\');renderSchedule()">Список</div>' +
+    '<div class="vsb'+(schedV()==='cal'?' on':'')+'" onclick="schedSet(\'cal\');renderSchedule()">Календарь</div>' +
     '</div>';
 
-  if(!sch.length && schedView !== 'cal'){ el.innerHTML = head + '<div class="empt">Встреч пока нет</div>'; return; }
+  if(!sch.length && schedV() !== 'cal'){ el.innerHTML = head + '<div class="empt">Встреч пока нет</div>'; return; }
 
-  if(schedView === 'cal'){
+  if(schedV() === 'cal'){
     el.innerHTML = head + calendarHTML(sch);
     return;
   }
@@ -9736,7 +9867,7 @@ function aiwData(){
 function loadAIRecs(){
   if(typeof section !== 'undefined' && section === 'aiRec' && !document.querySelector('.sheet.on')) renderAIRec();
 }
-var AIW_ST = {'new':'Новая', added:'В библиотеке', rejected:'Отклонена'};
+var AIW_ST = {'new':'Новая', ask:'Ждёт решения', added:'В библиотеке', rejected:'Отклонена'};
 function aiwCard(x){
   var st = x.status || 'new', steps = Array.isArray(x.steps) ? x.steps : [], op = !!AIW.open[x.id], bz = AIW.busy[x.id];
   var src = [x.source, x.company, x.author].filter(Boolean).join(' · ');
@@ -9752,7 +9883,9 @@ function aiwCard(x){
       (op ? '<ol>' + steps.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>' : '') + '</div>' : '') +
     (x.metrics ? '<div class="aiw-b"><b>Как измерить</b><span>' + esc(x.metrics) + '</span></div>' : '') +
     (x.adapt ? '<div class="aiw-b"><b>Для Казахстана</b><span>' + esc(x.adapt) + '</span></div>' : '') +
-    (st === 'new' ? '<div class="aiw-acts"><button type="button" class="btn bg" ' + (bz ? 'disabled' : '') + ' onclick="aiwAct(\'' + escA(x.id) + '\',\'add\')">' + (bz === 'add' ? 'Добавляю…' : 'Добавить в библиотеку') + '</button>' +
+    (x.note ? '<div class="aiw-b"><b>История</b><span>' + esc(x.note) + '</span></div>' : '') +
+    (st === 'new' || st === 'ask' ? '<div class="aiw-acts"><button type="button" class="btn bg" ' + (bz ? 'disabled' : '') + ' onclick="aiwAct(\'' + escA(x.id) + '\',\'add\')">' + (bz === 'add' ? 'Добавляю…' : 'Добавить в библиотеку') + '</button>' +
+      (x.similar ? '<button type="button" class="btn bs" ' + (bz ? 'disabled' : '') + ' onclick="aiwAct(\'' + escA(x.id) + '\',\'replace\')">' + (bz === 'replace' ? 'Заменяю…' : 'Заменить «' + esc(x.similar) + '»') + '</button>' : '') +
       '<button type="button" class="btn bs" ' + (bz ? 'disabled' : '') + ' onclick="aiwAct(\'' + escA(x.id) + '\',\'reject\')">' + (bz === 'reject' ? 'Отклоняю…' : 'Отклонить') + '</button></div>' : '') +
   '</div>';
 }
@@ -9780,8 +9913,8 @@ function aiwAct(id, action){
     if(!j || j.error){ AIW.err = (j && j.error) || 'Не получилось'; aiwPaint(); return; }
     // Сразу показываем новый статус, потом подтягиваем документы (bs_ai_recs, bs_tools, bs_diag)
     try{ var d = aiwData(), it = d.items.find(function(x){ return x.id === id; });
-      if(it){ it.status = action === 'add' ? 'added' : 'rejected'; localStorage.setItem('bs_ai_recs', JSON.stringify(d)); } }catch(e){}
-    toast(action === 'add' ? 'Добавлено в библиотеку' : 'Рекомендация отклонена');
+      if(it){ it.status = action === 'reject' ? 'rejected' : 'added'; localStorage.setItem('bs_ai_recs', JSON.stringify(d)); } }catch(e){}
+    toast(action === 'reject' ? 'Рекомендация отклонена' : (action === 'replace' ? 'Заменено в библиотеке' : 'Добавлено в библиотеку'));
     aiwPaint();
     aiwReload().then(function(){ try{ loadLibs(); }catch(e){} if(section === 'aiRec') aiwPaint(); });
   });
@@ -11194,17 +11327,17 @@ function renderAdminSched(){
   var el = pgSet('Расписание', 'Все встречи клуба');
   var all = (SDATA.schedule||[]).slice().reverse();
   var on = all.filter(function(s){ return s.format==='online'; }).length;
-  el.innerHTML = bsTeamBar([['+ Встреча','bsAddMeeting()']]) +
+  el.innerHTML = bsTeamBar([['+ Встреча','bsAddMeeting()'], ['+ Офлайн-день','bsAddOffline()']]) +
     '<div class="card-sum" style="margin-bottom:14px"><div class="sum-row">' +
       '<div><div class="bs-l">Всего встреч</div><div class="sum-v">'+all.length+'</div></div>' +
       '<div><div class="bs-l">Онлайн</div><div class="sum-v">'+on+'</div></div>' +
       '<div><div class="bs-l">Офлайн</div><div class="sum-v" style="color:var(--gold)">'+(all.length-on)+'</div></div>' +
     '</div></div>' +
     '<div class="viewsw" style="margin-bottom:14px">' +
-      '<div class="vsb'+(schedView==='list'?' on':'')+'" onclick="schedView=\'list\';renderAdminSched()">Список</div>' +
-      '<div class="vsb'+(schedView==='cal'?' on':'')+'" onclick="schedView=\'cal\';renderAdminSched()">Календарь</div>' +
+      '<div class="vsb'+(schedV()==='list'?' on':'')+'" onclick="schedSet(\'list\');renderAdminSched()">Список</div>' +
+      '<div class="vsb'+(schedV()==='cal'?' on':'')+'" onclick="schedSet(\'cal\');renderAdminSched()">Календарь</div>' +
     '</div>' +
-    (schedView==='cal' ? calendarHTML(all) : mtList(all));
+    (schedV()==='cal' ? calendarHTML(all) : mtList(all));
 }
 
 // ═══ ОТЧЁТЫ РЕЗИДЕНТОВ (АДМИН) ═══
@@ -21585,8 +21718,11 @@ var CT_MON = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'ию�
 var CT_BOT = '@bsurgery_bot';
 
 // ── Данные ──
+// R28: Threads через пользу, пачка постов на день (сервер собирает её в 06:30, content_threads.go)
+var CT_FMT = {tip:'Совет', checklist:'Чек-лист', numbers:'Цифры', myth:'Миф', question:'Вопрос', 'case':'Кейс', symptom:'Симптом', series:'Серия', library:'Библиотека'};
+function czThN(){ var n = parseInt(czC().settings.channels.threads.perDay, 10); if(isNaN(n) || n < 1) n = 16; return Math.min(25, n); }
 function czDefaults(){
-  return {channels:{threads:{on:true, time:'10:00'}, telegram:{on:true, chat:'', time:'12:00'}, instagram:{on:false, time:'19:00'}},
+  return {channels:{threads:{on:true, time:'10:00', perDay:16}, telegram:{on:true, chat:'', time:'12:00'}, instagram:{on:false, time:'19:00'}},
     days:[1, 2, 3, 4, 5, 6], approval:'auto', previewHour:9};
 }
 function czNormItem(it){
@@ -21722,7 +21858,8 @@ function czCal(body){
     (fails ? '<span class="bad">Ошибки <b>' + fmtN(fails) + '</b></span>' : '') + '</div></div>';
   var h = '<div class="cz-grid" id="czGrid"><div class="cz-gh cz-g0"></div>' + CT_CH.map(function(ch){
     var s = c.settings.channels[ch.id];
-    return '<div class="cz-gh"><b>' + ch.n + '</b><span>' + (s.on ? (ch.id === 'instagram' ? 'вручную · ' : 'авто · ') + esc(s.time || '') : 'выкл') + '</span></div>';
+    var when = ch.id === 'threads' && czThN() > 1 ? fmtN(czThN()) + ' в день, 08:00-22:00' : esc(s.time || '');
+    return '<div class="cz-gh"><b>' + ch.n + '</b><span>' + (s.on ? (ch.id === 'instagram' ? 'вручную · ' : 'авто · ') + when : 'выкл') + '</span></div>';
   }).join('');
   days.forEach(function(d){
     var on = c.settings.days.indexOf(czWd(d)) >= 0, today = d === t, past = d < t;
@@ -21730,6 +21867,7 @@ function czCal(body){
       '<div class="cz-day"><b>' + czDayName(d) + '</b>' + (today ? '<small class="cz-now">сегодня</small>' : (on ? '' : '<small>без публикаций</small>')) + '</div>' +
       CT_CH.map(function(ch){
         var list = (by[d + '|' + ch.id] || []).sort(function(a, b){ return String(czHM(a.at)).localeCompare(czHM(b.at)); });
+        if(ch.id === 'threads' && czThN() > 1) return czThCell(d, list, on, past, today);
         return '<div class="cz-cell" data-ch="' + ch.n + '">' + list.map(czCard).join('') +
           (past ? '' : '<div class="cz-add" data-day="' + d + '" data-ch="' + ch.id + '" onclick="czAddFromCell(this.dataset.day,this.dataset.ch)">+ из библиотеки</div>') + '</div>';
       }).join('') + '</div>';
@@ -21739,10 +21877,49 @@ function czCal(body){
     '<button class="btn pf-b pf-p" onclick="czReplan()">Составить план</button></div>';
   body.innerHTML = head + empty + h;
 }
+// Ячейка Threads при пачке: «12 из 16», первые 3 поста, остальные по кнопке, «Собрать день»
+function czThCell(d, list, on, past, today){
+  var n = czThN(), live = list.filter(function(x){ return x.status !== 'skipped'; }).length, open = CT.thOpen && CT.thOpen[d];
+  var s = czC().settings.channels.threads;
+  var head = '';
+  if(s.on && on && (!past || list.length)){
+    head = '<div class="cz-thh' + (!past && list.length < n && list.length ? ' low' : '') + '" data-day="' + d + '"><span>Threads: <b>' + fmtN(live) + '</b> из ' + fmtN(n) + '</span>' +
+      (!past && MODE === 'admin' && list.length < n ? '<button class="cz-thb" data-day="' + d + '" onclick="czThBuild(this.dataset.day)"' + (CT.busy['th' + d] ? ' disabled' : '') + '>' + (CT.busy['th' + d] ? 'Собираю' : 'Собрать день') + '</button>' : '') + '</div>';
+    if(!list.length && !past) head += '<div class="cz-note">' + (today ? 'Пачка дня собирается в 06:30' : 'Соберётся в 06:30 этого дня') + '</div>';
+  }
+  var shown = open || list.length <= 4 ? list : list.slice(0, 3);
+  var more = list.length - shown.length;
+  return '<div class="cz-cell" data-ch="Threads">' + head + shown.map(czCard).join('') +
+    (more > 0 ? '<div class="cz-thm" data-day="' + d + '" onclick="czThMore(this.dataset.day)">Ещё ' + fmtN(more) + ' ' + czPl(more, 'пост', 'поста', 'постов') + '</div>' : '') +
+    (open && list.length > 4 ? '<div class="cz-thm" data-day="' + d + '" onclick="czThMore(this.dataset.day)">Свернуть</div>' : '') +
+    (past ? '' : '<div class="cz-add" data-day="' + d + '" data-ch="threads" onclick="czAddFromCell(this.dataset.day,this.dataset.ch)">+ из библиотеки</div>') + '</div>';
+}
+function czThMore(d){ CT.thOpen = CT.thOpen || {}; CT.thOpen[d] = !CT.thOpen[d]; czPaint(); }
+function czThBuild(d){
+  if(CT.busy['th' + d]) return;
+  if(!window.BSSync || !BSSync.api){ toast('Пачку собирает сервер платформы'); return; }
+  CT.busy['th' + d] = 1; czPaint();
+  r6Api('POST', '/content/threads/build', {day:d}).then(function(j){
+    delete CT.busy['th' + d];
+    if(!j || j.error || j.ok === false){ toast('Не собралось: ' + ((j && j.error) || 'нет ответа')); if(section === 'content') czPaint(); return; }
+    if(Array.isArray(j.queue)){
+      loadContent(); var cc = CONTENT, ids = {};
+      cc.queue.forEach(function(x){ ids[x.id] = 1; });
+      var add = j.queue.filter(function(x){ return x && x.id && !ids[x.id]; });
+      add.forEach(czNormItem);
+      cc.queue = cc.queue.concat(add).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); });
+      saveContent(); czPush();
+    }
+    var b = j.build || {};
+    toast(b.added ? 'Добавлено постов: ' + fmtN(b.added) + (b.aiError ? ' (ИИ не ответил, взяли готовые из библиотеки)' : '') : 'Свободных слотов нет');
+    if(section === 'content') czPaint();
+  });
+}
 function czCard(it){
   return '<div class="cz-c ' + it.status + '" data-id="' + escA(it.id) + '" onclick="czOpen(this.dataset.id)">' +
     '<div class="cz-cm">' + czPill(it) + '<span class="cz-tm">' + esc(czHM(it.at)) + '</span>' +
     (it.kind === 'carousel' || it.kind === 'reels' ? '<span class="cz-k">' + CT_KIND[it.kind] + '</span>' : '') +
+    (it.format && CT_FMT[it.format] ? '<span class="cz-fm">' + CT_FMT[it.format] + '</span>' : '') + (it.cta ? '<span class="cz-cta" title="Ссылка на 99 чек-листов">99</span>' : '') +
     (it.edited ? '<span class="cz-ed" title="Текст изменён вручную">изм.</span>' : '') + '</div>' +
     '<div class="cz-f">' + esc(czFirst(it)) + '</div></div>';
 }
@@ -21792,8 +21969,12 @@ function czEdPaint(){
   h += '<div class="cz-when"><label><span>Дата</span><input class="inp" type="date" id="czDate" value="' + day + '" onchange="czMove()"' + (done ? ' disabled' : '') + '></label>' +
     '<label><span>Время</span><input class="inp" type="time" id="czTime" value="' + czHM(it.at) + '" onchange="czMove()"' + (done ? ' disabled' : '') + '></label></div>';
   if(it.kind === 'threads' || it.kind === 'telegram'){
-    h += '<div class="dh">ТЕКСТ ПОСТА</div><textarea class="inp cz-ta" id="czTx" data-f="text" oninput="czIn(this)"' + (done ? ' readonly' : '') + '>' + esc(it.text || '') + '</textarea>' +
+    h += '<div class="dh">ТЕКСТ ПОСТА' + (it.format && CT_FMT[it.format] ? ' · ' + CT_FMT[it.format].toUpperCase() : '') + (it.cta ? ' · ССЫЛКА НА 99 ЧЕК-ЛИСТОВ' : '') + '</div><textarea class="inp cz-ta" id="czTx" data-f="text" oninput="czIn(this)"' + (done ? ' readonly' : '') + '>' + esc(it.text || '') + '</textarea>' +
       czCntHTML(it.text, lim);
+    // Серия: продолжения выходят ответами на первый пост, по цепочке
+    (Array.isArray(it.parts) ? it.parts : []).forEach(function(pt, i){
+      h += '<div class="dh">ПРОДОЛЖЕНИЕ ' + (i + 2) + ' ИЗ ' + (it.parts.length + 1) + '</div><textarea class="inp cz-ta sm" data-f="part" data-i="' + i + '" oninput="czIn(this)"' + (done ? ' readonly' : '') + '>' + esc(pt || '') + '</textarea>';
+    });
   } else if(it.kind === 'carousel'){
     h += '<div class="dh">СЛАЙДЫ</div><div class="cz-mini" id="czMini">' + (it.slides || []).map(function(s, i){ return '<div class="cz-mi" data-i="' + i + '"><span>' + (i + 1) + '</span></div>'; }).join('') + '</div>' +
       '<div class="cz-row2"><button class="btn pf-b" data-id="' + escA(it.id) + '" onclick="czToCar(this.dataset.id)">Слайды и скачивание</button></div>' +
@@ -21833,6 +22014,7 @@ function czIn(el){
   var it = czItem(CT.edId); if(!it) return;
   var f = el.dataset.f, v = el.value;
   if(f === 'beat'){ var i = +el.dataset.i; while(it.beats.length <= i) it.beats.push(''); if(it.beats[i] === v) return; it.beats[i] = v; }
+  else if(f === 'part'){ var pi = +el.dataset.i; if(!Array.isArray(it.parts) || it.parts[pi] === v) return; it.parts[pi] = v; }
   else { if((it[f] || '') === v) return; it[f] = v; }
   it.edited = true; it.editedAt = new Date().toISOString();
   if(f === 'text' || f === 'caption'){
@@ -21873,7 +22055,7 @@ function czPublish(){
   if(!window.BSSync || !BSSync.api){ toast('Публикация работает на сервере платформы'); return; }
   var id = it.id; CT.busy[id] = 1; czEdPaint();
   var body = {channel:it.channel, kind:it.kind};
-  ['text', 'caption', 'slides', 'hook', 'beats', 'cta', 'link'].forEach(function(k){ if(it[k] != null) body[k] = it[k]; });
+  ['text', 'caption', 'slides', 'hook', 'beats', 'cta', 'link', 'parts'].forEach(function(k){ if(it[k] != null) body[k] = it[k]; });
   r6Api('POST', '/content/publish/' + encodeURIComponent(id), body).then(function(j){
     delete CT.busy[id];
     var x = czItem(id); if(!x) return;
@@ -21908,7 +22090,9 @@ function czSetPaint(){
   };
   var hours = ''; for(var hh = 0; hh < 24; hh++) hours += '<option value="' + hh + '"' + (hh === s.previewHour ? ' selected' : '') + '>' + (hh < 10 ? '0' : '') + hh + ':00</option>';
   B.innerHTML = '<div class="dh">КАНАЛЫ</div>' +
-    row('threads', 'Threads', '', 'Посты до 500 знаков, ссылка на чек-лист в конце') +
+    row('threads', 'Threads', '<div class="cz-pd"><span>Постов в день</span><input class="inp" type="number" min="1" max="25" id="czThN" value="' + czThN() + '" onchange="czSetThN(this.value)"><span>' +
+      (czThN() > 1 ? 'с 08:00 до 22:00, у каждого поста своё время' : 'один пост во время слева') + '</span></div>',
+      czThN() > 1 ? 'Пачка дня собирается в 06:30: польза из библиотеки (шаг, ошибка, метрика, расчёт в ₸), примерно каждый 4-й пост со ссылкой на 99 чек-листов. Править и пропускать можно в календаре' : 'Посты до 500 знаков, ссылка на чек-лист в конце') +
     row('telegram', 'Telegram-канал', '<input class="inp cz-chat" id="czChat" placeholder="Канал: @bsurgery или -100…" value="' + escA(s.channels.telegram.chat || '') + '" oninput="czSetChat(this.value)">', '') +
     row('instagram', 'Instagram', '', 'Карусели и Reels публикуются вручную: скачайте слайды и подпись. Включённый канал публикует через сервер') +
     '<div class="dh">ДНИ ПУБЛИКАЦИЙ</div><div class="cz-days" id="czDays">' + [1, 2, 3, 4, 5, 6, 7].map(function(d){
@@ -21923,6 +22107,7 @@ function czSetPaint(){
 }
 function czSetSave(msg){ saveContent(); czPush(); if(msg) toast(msg); }
 function czSetCh(id){ var c = czC().settings.channels[id]; c.on = !c.on; czSetSave(czChName(id) + (c.on ? ': включён' : ': выключен')); czSetPaint(); }
+function czSetThN(v){ var n = Math.max(1, Math.min(25, parseInt(v, 10) || 16)); czC().settings.channels.threads.perDay = n; czSetSave('Threads: ' + n + ' ' + czPl(n, 'пост', 'поста', 'постов') + ' в день'); czSetPaint(); }
 function czSetTime(el){ if(!/^\d\d:\d\d$/.test(el.value)) return; czC().settings.channels[el.dataset.ch].time = el.value; czSetSave('Время ' + czChName(el.dataset.ch) + ': ' + el.value); }
 var _ctChT = null;
 function czSetChat(v){ czC().settings.channels.telegram.chat = v.trim(); clearTimeout(_ctChT); _ctChT = setTimeout(function(){ czSetSave(); }, 400); }
@@ -22512,6 +22697,7 @@ function czDeepLink(){
     if(!ok) return;
     goSection(s);
     if(s === 'mktA'){ var ch = q.get('view') || q.get('ch'); if(ch && MA_TABS.some(function(t){ return t.id === ch; })) goMA(ch); }
+    if(s === 'aiRec'){ var rid = q.get('id'); if(rid && typeof AIW !== 'undefined'){ AIW.open[rid] = true; try{ aiwPaint(); }catch(e){} } }
     if(s === 'content'){
       var v = q.get('view'); if(v && {cal:1, ideas:1, car:1, reels:1, an:1, lib:1, useful:1}[v]) czTab(v);
       var id = q.get('id'); if(id){ var it = czItem(id); if(it){ if(it.kind === 'carousel'){ CT.car = it.id; } czOpen(id); } else toast('Публикация не найдена'); }
@@ -23992,7 +24178,7 @@ function askAI(text, id){
     var cur = null; try{ cur = curBoard && curBoard.id === id ? savedGallup() : null; }catch(e){}
     if(!cur){ return; }
     var D = db(), keys = j.talents.map(function(t){ return t.key; }).filter(function(k){ return D[k]; });
-    var g = Object.assign({}, cur, {ai: {talents: j.talents, summary: j.summary || {}, complete: !!j.complete, at: new Date().toISOString()}});
+    var g = Object.assign({}, cur, {ai: {talents: j.talents, summary: j.summary || {}, complete: !!j.complete, at: new Date().toISOString(), v: j.v || 1, deep: j.deep || null}});
     if(keys.length >= (cur.themes || []).length) g.themes = keys;
     storeGallup(g);
     rerender();
@@ -24211,6 +24397,9 @@ window.renderGallupResult = function(g){
   h += '<div class="g16-meta" style="margin-top:18px">Профиль сохранён и учитывается при подготовке к встрече.</div></div>';
   return h;
 };
+// R29: разбор Gallup v2 (блок R29 в конце файла) берёт отсюда данные и состояние
+window.G16 = {talentList: talentList, DOMS: DOMS, RU: RU, GAI: GAI, boardId: boardId, savedGallup: savedGallup, storeGallup: storeGallup,
+  rerender: rerender, fallbackSummary: fallbackSummary, online: online, askAI: askAI, tier: tier, ROLES: ROLES};
 })();
 </script>
 <!-- /R16 -->
@@ -26839,6 +27028,614 @@ html.lead-user #aiBadge,html.lead-user #bsxPill,html.lead-user #tr16Help,html.le
   if(window.lhApplyPending){ window.lhApplyPending = false; lhApplyLead(); }
 })();
 </script>
+
+<!-- R29: Gallup v2. Разбор связей талантов, визуалы со смыслом, PDF -->
+<style id="r29Style">
+.g29-act{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.g29-pdf{display:inline-flex;align-items:center;gap:8px;background:var(--gi);color:var(--gc);border:1px solid var(--gi);font:800 12.5px 'Manrope',sans-serif;border-radius:10px;padding:8px 13px;cursor:pointer;white-space:nowrap}
+.g29-pdf:hover{opacity:.86}
+.g29-pdf[disabled]{opacity:.5;cursor:default}
+.g29-pdf svg{flex:0 0 auto}
+.g29-plain{font-size:15px;line-height:1.6;color:var(--gi);max-width:820px;margin:14px 0 0}
+.g29-sub{font-size:13px;line-height:1.55;color:var(--gm);margin:0 0 14px;max-width:820px}
+.g29-take{display:flex;gap:10px;align-items:flex-start;margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--gc2);font-size:13.5px;line-height:1.5;font-weight:700;color:var(--gi)}
+.g29-take::before{content:'';flex:0 0 3px;align-self:stretch;border-radius:2px;background:var(--gi)}
+/* домены */
+.g29-dm{display:grid;grid-template-columns:minmax(150px,210px) minmax(0,1fr) 64px;gap:14px;align-items:center;padding:9px 0;border-bottom:1px solid var(--gl)}
+.g29-dm:last-of-type{border-bottom:none}
+.g29-dm b{display:block;font-size:14px;font-weight:800}
+.g29-dm small{display:block;font-size:11.5px;color:var(--gs);margin-top:2px;line-height:1.3}
+.g29-bar{position:relative;height:12px;border-radius:6px;background:var(--gc2);overflow:hidden}
+.g29-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--gi)}
+.g29-bar.lo i{opacity:.35}
+.g29-bar::after{content:'';position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--gs);opacity:.6}
+.g29-dv{text-align:right;font-size:20px;font-weight:800;letter-spacing:-.5px;line-height:1}
+.g29-dv small{display:block;font-size:10.5px;font-weight:600;color:var(--gs);letter-spacing:0;margin-top:3px}
+/* карта связей */
+.g29-map{width:100%;height:auto;display:block;max-width:760px;margin:0 auto}
+#g29Roles .g29-map{max-width:500px}
+.g29-map text{font-family:'Manrope',sans-serif}
+.g29-leg{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--gm);margin-top:8px}
+.g29-leg span{display:inline-flex;align-items:center;gap:7px}
+.g29-leg svg{flex:0 0 auto}
+.g29-grp{margin-top:18px}
+.g29-grp > h4{margin:0 0 10px;font-size:15px;font-weight:800;letter-spacing:-.2px}
+.g29-grp > h4 small{font-size:12px;font-weight:600;color:var(--gs);margin-left:8px}
+.g29-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.g29-c{border:1px solid var(--gl);border-radius:16px;background:var(--gc);padding:16px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.g29-c h5{margin:0;font-size:14.5px;font-weight:800;line-height:1.3}
+.g29-chips{display:flex;flex-wrap:wrap;gap:5px}
+.g29-chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;border:1px solid var(--gl);border-radius:999px;padding:3px 9px;color:var(--gm)}
+.g29-chip b{font-weight:800;color:var(--gi)}
+.g29-chip.weak{border-style:dashed}
+.g29-chip.op{border:none;padding:3px 2px;color:var(--gs)}
+.g29-c p{margin:0;font-size:13px;line-height:1.5;color:var(--gm)}
+.g29-scene{border-left:2px solid var(--gs);background:var(--gc2);border-radius:0 10px 10px 0;padding:9px 12px;font-size:13px;line-height:1.5;color:var(--gi)}
+.g29-scene i{display:block;font-style:normal;font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--gs);margin-bottom:3px}
+.g29-fix{font-size:13px;line-height:1.5;font-weight:700;color:var(--gi)}
+.g29-fix i{font-style:normal;font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--gs);display:block;margin-bottom:2px}
+/* состояния */
+.g29-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.g29-l{margin:0;padding:0;list-style:none}
+.g29-l li{position:relative;padding:8px 0 8px 18px;font-size:13.5px;line-height:1.5;color:var(--gm);border-top:1px solid var(--gl)}
+.g29-l li:first-child{border-top:none;padding-top:0}
+.g29-l li::before{content:'';position:absolute;left:2px;top:15px;width:6px;height:6px;border-radius:50%;background:var(--gi)}
+.g29-l li:first-child::before{top:7px}
+.g29-l.dash li::before{background:none;border:1.5px solid var(--gi)}
+.g29-h4{margin:0 0 12px;font-size:14.5px;font-weight:800}
+/* бизнес */
+.g29-area{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;padding:14px 0;border-top:1px solid var(--gl)}
+.g29-area:first-child{border-top:none;padding-top:0}
+.g29-area > b{font-size:14px;font-weight:800;line-height:1.35}
+.g29-area p{margin:0 0 8px;font-size:13.5px;line-height:1.55;color:var(--gm)}
+.g29-do{display:flex;gap:8px;font-size:13.5px;line-height:1.5;font-weight:700}
+.g29-do::before{content:'→';color:var(--gs);flex:0 0 auto}
+.g29-rq{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start}
+.g29-rl{display:flex;flex-direction:column;gap:12px}
+.g29-rz h6{margin:0 0 6px;font-size:10.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--gs)}
+.g29-rr{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.4;padding:4px 0}
+.g29-rr em{flex:0 0 22px;height:22px;border-radius:50%;background:var(--gi);color:var(--gc);font:800 11px/22px 'Manrope',sans-serif;font-style:normal;text-align:center}
+.g29-rr b{font-weight:800;display:block}
+.g29-rr small{display:block;color:var(--gs);font-size:11.5px;margin-top:1px}
+/* риски, план */
+.g29-risk dl{margin:0;display:grid;grid-template-columns:118px minmax(0,1fr);gap:7px 12px}
+.g29-risk dt{font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--gs);padding-top:3px}
+.g29-risk dd{margin:0;font-size:13px;line-height:1.5;color:var(--gm)}
+.g29-risk dd.rule{color:var(--gi);font-weight:700}
+.g29-plan{counter-reset:p}
+.g29-st{display:grid;grid-template-columns:36px 110px minmax(0,1fr);gap:12px;align-items:start;padding:13px 0;border-top:1px solid var(--gl)}
+.g29-st:first-child{border-top:none;padding-top:0}
+.g29-st > em{width:30px;height:30px;border-radius:9px;background:var(--gi);color:var(--gc);font:800 13px/30px 'Manrope',sans-serif;font-style:normal;text-align:center}
+.g29-st > span{font-size:12px;font-weight:800;color:var(--gs);padding-top:6px;letter-spacing:.3px}
+.g29-st b{display:block;font-size:14px;line-height:1.45;font-weight:800}
+.g29-st small{display:block;font-size:12.5px;color:var(--gm);margin-top:3px;line-height:1.45}
+.g29-pill{display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--gs);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--gm);margin-top:14px}
+.g29-pill button{background:none;border:none;color:var(--gi);font:800 13px 'Manrope',sans-serif;cursor:pointer;padding:0;text-decoration:underline}
+.g29-pill.busy i{width:7px;height:7px;border-radius:50%;background:var(--gi);animation:g16b 1s ease-in-out infinite}
+.g29-who{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.g29-who div{border:1px solid var(--gl);border-radius:12px;padding:11px 13px;font-size:13px;line-height:1.5;color:var(--gi);background:var(--gc)}
+@media(max-width:760px){
+  .g29-act{width:100%}
+  .g29-act .g29-pdf{flex:1;justify-content:center}
+  .g29-plain{font-size:14px}
+  .g29-dm{grid-template-columns:minmax(0,1fr) 54px;gap:6px 10px}
+  .g29-dm .g29-bar{grid-column:1 / -1;grid-row:2}
+  .g29-cards,.g29-2,.g29-who,.g29-rq{grid-template-columns:1fr}
+  .g29-area{grid-template-columns:1fr;gap:6px}
+  .g29-risk dl{grid-template-columns:1fr;gap:2px}
+  .g29-risk dd{margin-bottom:6px}
+  .g29-st{grid-template-columns:30px minmax(0,1fr);gap:4px 10px}
+  .g29-st > span{grid-column:2;padding-top:0}
+  .g29-st > div{grid-column:2}
+  .g29-st > em{grid-row:1 / span 2;width:28px;height:28px;line-height:28px}
+}
+</style>
+<script id="r29Script">
+(function(){
+if(!window.G16) return;
+var G = window.G16;
+function ea(v){ return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function nd(s){ return String(s == null ? '' : s).replace(/\s*[\u2014\u2013]\s*/g, ' - '); } // бренд: без длинного тире
+function ru(k){ return G.RU[k] || k; }
+var G29 = window.G29 = {busy: {}, err: {}, tried: {}, pdfBusy: false, lastPdf: null};
+
+// ── Модель визуалов: считается из мест, одна и та же для экрана и PDF ──
+var DOMLEAD = {executing: 'вы доводите задуманное до результата, сила в исполнении', influencing: 'вы продаёте, убеждаете и ведёте за собой',
+  relationship: 'команда и клиенты держатся на доверии к вам', strategic: 'вы сначала видите варианты и думаете наперёд, потом действуете'};
+var DOMWEAK = {executing: 'доведение до результата и дисциплину процессов держит операционный человек, а не вы',
+  influencing: 'продажи и жёсткие переговоры лучше вести вместе с сильным продавцом',
+  relationship: 'климат в команде и удержание людей держит не собственник: нужен человек про людей',
+  strategic: 'цифры и выбор направлений сверяйте с аналитиком или партнёром'};
+var DOMNOTE = {executing: ['доводите до результата', 'исполнение держат другие'], influencing: ['продаёте и ведёте', 'влияние держат другие'],
+  relationship: ['держите людей', 'людей держат другие'], strategic: ['думаете наперёд', 'анализ держат другие']};
+
+// Роли собственника: на каких талантах роль едет (fuel) и без каких срывается (guard)
+var ROLES29 = [
+  {id: 'sales', s: 'продажи', ru: 'Продажи и привлечение клиентов', fuel: ['woo', 'communication', 'activator', 'competition', 'positivity', 'relator'], guard: ['self-assurance', 'woo']},
+  {id: 'neg', s: 'переговоры с сильными', ru: 'Переговоры с сильной стороной', fuel: ['command', 'competition', 'self-assurance', 'communication', 'strategic', 'significance'], guard: ['self-assurance', 'command']},
+  {id: 'strat', s: 'стратегия', ru: 'Стратегия и выбор направлений', fuel: ['strategic', 'futuristic', 'ideation', 'analytical', 'focus', 'context'], guard: ['focus', 'deliberative']},
+  {id: 'ops', s: 'операционка', ru: 'Операционка и исполнение', fuel: ['achiever', 'discipline', 'arranger', 'responsibility', 'consistency', 'focus', 'restorative'], guard: ['discipline', 'arranger']},
+  {id: 'team', s: 'команда', ru: 'Управление командой', fuel: ['developer', 'individualization', 'arranger', 'command', 'relator', 'responsibility', 'includer'], guard: ['individualization', 'command']},
+  {id: 'hire', s: 'найм', ru: 'Найм и расстановка людей', fuel: ['individualization', 'developer', 'relator', 'empathy', 'maximizer', 'arranger'], guard: ['individualization', 'empathy']},
+  {id: 'fin', s: 'финансы', ru: 'Финансы и контроль цифр', fuel: ['analytical', 'deliberative', 'discipline', 'consistency', 'focus', 'responsibility'], guard: ['analytical', 'deliberative']},
+  {id: 'pub', s: 'публичность', ru: 'Публичность и бренд собственника', fuel: ['communication', 'woo', 'significance', 'self-assurance', 'activator'], guard: ['self-assurance', 'communication']},
+  {id: 'crisis', s: 'кризисы', ru: 'Кризис и трудные решения', fuel: ['command', 'self-assurance', 'restorative', 'deliberative', 'belief', 'focus'], guard: ['command', 'self-assurance']}
+];
+var ZONES = [
+  {z: 'own', t: 'Ведите сами', d: 'роль на ваших сильных талантах'},
+  {z: 'guard', t: 'Ведите со страховкой', d: 'тяга есть, но слабый талант срывает в важный момент'},
+  {z: 'give', t: 'Отдайте', d: 'дорого по силам и рискованно'},
+  {z: 'low', t: 'Не приоритет', d: 'справитесь, но лучшее время сюда не тратьте'}
+];
+
+function model(T, deep){
+  var n = T.length, full = n >= 30, rank = {};
+  T.forEach(function(t){ rank[t.k] = t.rank; });
+  function s(k){ var r = rank[k]; if(!r) return full ? 0 : null; return n > 1 ? (n - r) / (n - 1) : 1; }
+  // 1. Домены: средняя сила всех тем домена в списке
+  var doms = G.DOMS.map(function(d){
+    var ks = T.filter(function(t){ return t.dom === d.k; });
+    var score = full ? Math.round(ks.reduce(function(a, t){ return a + s(t.k); }, 0) / Math.max(ks.length, 1) * 100)
+      : Math.round(ks.length / Math.max(n, 1) * 100);
+    var top10 = T.slice(0, 10).filter(function(t){ return t.dom === d.k; }).length;
+    return {k: d.k, ru: d.ru, score: score, top10: top10, note: score >= 58 ? DOMNOTE[d.k][0] : (score <= 42 ? DOMNOTE[d.k][1] : 'включается по ситуации')};
+  });
+  var bySc = doms.slice().sort(function(a, b){ return b.score - a.score; });
+  var lead = bySc[0], weak = bySc[bySc.length - 1];
+  var domLine = !n ? '' : (lead.score - weak.score < 14
+    ? 'Домены почти ровные (' + weak.score + '-' + lead.score + '): у вас нет одного доминирующего способа действовать, поэтому роль в компании выбирайте по топ-5, а не по домену.'
+    : 'Ведёт «' + lead.ru + '» (' + lead.score + '): ' + DOMLEAD[lead.k] + '. Слабее всего «' + weak.ru + '» (' + weak.score + '): ' + DOMWEAK[weak.k] + '.');
+  if(!full && n) domLine = 'В отчёте ' + n + ' тем, баланс по ним. ' + domLine;
+
+  // 2. Карта связей
+  var amp = (deep && deep.amplify) || [], conf = (deep && deep.conflict) || [], anc = (deep && deep.anchors) || [];
+  if(!amp.length){
+    try{ amp = GALLUP_COMBO.filter(function(c){ return rank[c.a] && rank[c.b] && rank[c.a] <= 10 && rank[c.b] <= 10; }).slice(0, 4)
+      .map(function(c){ return {keys: [c.a, c.b], title: c.t, effect: c.d, auto: 1}; }); }catch(e){}
+  }
+  var topSet = {};
+  T.slice(0, 5).forEach(function(t){ topSet[t.k] = 1; });
+  amp.concat(conf).forEach(function(l){ (l.keys || []).forEach(function(k){ if(rank[k] && rank[k] <= 15) topSet[k] = 1; }); });
+  anc.forEach(function(a){ (a.strong || []).forEach(function(k){ if(rank[k]) topSet[k] = 1; }); });
+  var tops = Object.keys(topSet).sort(function(a, b){ return rank[a] - rank[b]; }).slice(0, 10);
+  var weaks = [];
+  anc.forEach(function(a){ if(rank[a.weak] && weaks.indexOf(a.weak) < 0 && weaks.length < 4) weaks.push(a.weak); });
+  // Раскладка: места на эллипсе подбираются так, чтобы линии пересекались как можно реже,
+  // а связанные таланты стояли рядом (перебор обменов, детерминированно)
+  var E = [];
+  amp.forEach(function(l){ var ks = l.keys || []; for(var i = 0; i < ks.length; i++) for(var j = i + 1; j < ks.length; j++) E.push([ks[i], ks[j], 'amp']); });
+  conf.forEach(function(l){ var ks = l.keys || []; if(ks.length >= 2) E.push([ks[0], ks[1], 'conf']); });
+  anc.forEach(function(a){ (a.strong || []).forEach(function(k){ E.push([k, a.weak, 'anchor']); }); });
+  function cross(p1, p2, p3, p4){
+    function o(a, b, c){ var v = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y); return v > 1e-9 ? 1 : (v < -1e-9 ? -1 : 0); }
+    return o(p1, p2, p3) !== o(p1, p2, p4) && o(p3, p4, p1) !== o(p3, p4, p2);
+  }
+  function layout(W, H, cx, cy, rx, ry, ay){
+    var sT = tops.map(function(k, i){ var ang = -Math.PI / 2 + i / tops.length * Math.PI * 2; return {x: cx + Math.cos(ang) * rx, y: cy + Math.sin(ang) * ry}; });
+    var sA = weaks.map(function(k, i){ return {x: W / (weaks.length + 1) * (i + 1), y: ay}; });
+    var oT = tops.slice(), oA = weaks.slice();
+    function place(){ var P = {}; oT.forEach(function(k, i){ P[k] = sT[i]; }); oA.forEach(function(k, i){ P[k] = sA[i]; }); return P; }
+    function cost(){
+      var P = place(), c = 0, len = 0, es = E.filter(function(e){ return P[e[0]] && P[e[1]]; });
+      es.forEach(function(e){ var a = P[e[0]], b = P[e[1]]; len += Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)); });
+      for(var i = 0; i < es.length; i++) for(var j = i + 1; j < es.length; j++){
+        var e = es[i], f = es[j];
+        if(e[0] === f[0] || e[0] === f[1] || e[1] === f[0] || e[1] === f[1]) continue;
+        if(cross(P[e[0]], P[e[1]], P[f[0]], P[f[1]])) c++;
+      }
+      return c * 1000 + len;
+    }
+    var best = cost();
+    for(var it = 0, imp = true; imp && it < 30; it++){
+      imp = false;
+      [oT, oA].forEach(function(o){
+        for(var i = 0; i < o.length; i++) for(var j = i + 1; j < o.length; j++){
+          var t = o[i]; o[i] = o[j]; o[j] = t;
+          var c = cost();
+          if(c < best - 1e-6){ best = c; imp = true; } else { t = o[i]; o[i] = o[j]; o[j] = t; }
+        }
+      });
+    }
+    var P = place(), nodes = [], idx = {};
+    oT.forEach(function(k){ idx[k] = nodes.length; var q = P[k];
+      nodes.push({k: k, ru: ru(k), rank: rank[k], x: q.x, y: q.y, r: Math.max(11, 22 - (rank[k] - 1) * 0.8), kind: 'top', lab: q.y < cy - ry * 0.3 ? 'a' : 'b'}); });
+    oA.forEach(function(k){ idx[k] = nodes.length; var q = P[k]; nodes.push({k: k, ru: ru(k), rank: rank[k], x: q.x, y: q.y, r: 13, kind: 'anchor', lab: 'b'}); });
+    var edges = [];
+    E.forEach(function(e){ if(idx[e[0]] != null && idx[e[1]] != null && e[0] !== e[1]) edges.push({a: idx[e[0]], b: idx[e[1]], type: e[2]}); });
+    return {W: W, H: H, nodes: nodes, edges: edges, crossings: Math.floor(best / 1000)};
+  }
+  var hasA = weaks.length > 0;
+  var wide = layout(600, 380, 300, hasA ? 150 : 190, 215, hasA ? 104 : 140, 342);
+  var tall = layout(300, hasA ? 560 : 470, 150, 205, 96, 150, 482);
+  var mapLine = '';
+  if(amp.length){
+    var a0 = amp[0].keys.map(function(k){ return '«' + ru(k) + '»'; }).join(' + ');
+    mapLine = 'Двигатель: ' + a0 + '.';
+    if(conf.length) mapLine += ' Внутренний спор: «' + ru(conf[0].keys[0]) + '» против «' + ru(conf[0].keys[1]) + '».';
+    if(anc.length) mapLine += ' Тормоз: слабая «' + ru(anc[0].weak) + '» (место ' + rank[anc[0].weak] + ') подвешивает ' + (anc[0].strong.length > 1 ? 'таланты ' : 'талант ') +
+      anc[0].strong.map(function(k){ return '«' + ru(k) + '»'; }).join(' и ') + '.';
+    else if(!deep) mapLine += ' Конфликты и якоря появятся в персональном разборе.';
+  }
+
+  // 3. Энергия и риск по ролям
+  var roles = [], rolesLine = '';
+  if(full){
+    roles = ROLES29.map(function(r, i){
+      var e = Math.round(r.fuel.reduce(function(a, k){ return a + s(k); }, 0) / r.fuel.length * 100);
+      // риск срыва: худший из «страхующих» талантов весит больше среднего
+      var wk = r.guard.map(function(k){ return 1 - s(k); });
+      var rk = Math.round((Math.max.apply(null, wk) * 0.65 + wk.reduce(function(a, x){ return a + x; }, 0) / wk.length * 0.35) * 100);
+      var z = e >= 50 ? (rk >= 55 ? 'guard' : 'own') : (rk >= 55 ? 'give' : 'low');
+      var weakG = r.guard.slice().sort(function(a, b){ return rank[b] - rank[a]; })[0];
+      var bestF = r.fuel.slice().sort(function(a, b){ return rank[a] - rank[b]; })[0];
+      var why = (z === 'own' || z === 'low') ? 'опора: «' + ru(bestF) + '», место ' + rank[bestF] : 'слабое место: «' + ru(weakG) + '», место ' + rank[weakG];
+      return {n: i + 1, id: r.id, s: r.s, name: r.ru, energy: e, risk: rk, zone: z, why: why, weak: weakG};
+    });
+    var zl = function(z){ return roles.filter(function(r){ return r.zone === z; }); };
+    var parts = [];
+    if(zl('own').length) parts.push('Ведите сами: ' + zl('own').map(function(r){ return r.s; }).join(', ') + '.');
+    if(zl('guard').length){
+      // какой слабый талант чаще всего срывает роли «со страховкой»
+      var byW = {}; zl('guard').forEach(function(r){ byW[r.weak] = (byW[r.weak] || 0) + 1; });
+      var w0 = Object.keys(byW).sort(function(a, b){ return byW[b] - byW[a] || rank[b] - rank[a]; })[0];
+      parts.push('Со страховкой: ' + zl('guard').map(function(r){ return r.s; }).join(', ') + ', чаще всего срывает «' + ru(w0) + '» (место ' + rank[w0] + ').');
+    }
+    if(zl('give').length) parts.push('Отдайте: ' + zl('give').map(function(r){ return r.s; }).join(', ') + '.');
+    rolesLine = parts.join(' ');
+  }
+  return {doms: doms, domLine: domLine, wide: wide, tall: tall, mapLine: mapLine, amp: amp, conf: conf, anc: anc, roles: roles, rolesLine: rolesLine, rank: rank};
+}
+G29.model = model;
+
+// ── SVG ──
+var HYPH = {'Сосредоточенность': 'Сосредото|ченность', 'Ответственность': 'Ответствен|ность', 'Распорядитель': 'Распоря|дитель',
+  'Дисциплинированность': 'Дисциплини|рованность', 'Взаимосвязанность': 'Взаимо|связанность', 'Индивидуализация': 'Индивидуа|лизация',
+  'Осмотрительность': 'Осмотри|тельность', 'Справедливость': 'Справед|ливость', 'Восстановление': 'Восстанов|ление', 'Коммуникация': 'Коммуни|кация',
+  'Позитивность': 'Позитив|ность', 'Адаптивность': 'Адаптив|ность', 'Включенность': 'Включен|ность', 'Максимизатор': 'Максими|затор'};
+function splitName(s, max){
+  if(s.length <= max) return [s];
+  if(HYPH[s]){ var hp = HYPH[s].split('|'); return [hp[0] + '-', hp[1]]; }
+  var sp = s.indexOf(' '); if(sp > 0) return [s.slice(0, sp), s.slice(sp + 1)];
+  var cut = Math.ceil(s.length / 2); return [s.slice(0, cut) + '-', s.slice(cut)];
+}
+function mapSvg(L, small){
+  var fs = small ? 12 : 12.5, h = '';
+  h += '<svg class="g29-map" viewBox="0 0 ' + L.W + ' ' + L.H + '" role="img" aria-label="Карта связей талантов">';
+  h += '<defs><marker id="g29arr' + (small ? 's' : 'w') + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--gm)"/></marker></defs>';
+  L.edges.forEach(function(e){
+    var a = L.nodes[e.a], b = L.nodes[e.b], dx = b.x - a.x, dy = b.y - a.y, l = Math.sqrt(dx * dx + dy * dy) || 1;
+    var x1 = a.x + dx / l * (a.r + 2), y1 = a.y + dy / l * (a.r + 2), x2 = b.x - dx / l * (b.r + 3), y2 = b.y - dy / l * (b.r + 3);
+    var st = e.type === 'amp' ? 'stroke:var(--gi);stroke-width:3' : (e.type === 'conf' ? 'stroke:var(--gm);stroke-width:2;stroke-dasharray:7 5' : 'stroke:var(--gm);stroke-width:1.6;stroke-dasharray:2 4');
+    h += '<line data-e="' + e.type + '" x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" style="' + st + ';stroke-linecap:round"' +
+      (e.type === 'anchor' ? ' marker-end="url(#g29arr' + (small ? 's' : 'w') + ')"' : '') + '/>';
+  });
+  L.nodes.forEach(function(nd0){
+    var an = nd0.kind === 'anchor';
+    h += '<g data-n="' + nd0.k + '" data-kind="' + nd0.kind + '" style="cursor:pointer" onclick="g16Open(' + nd0.rank + ')">';
+    h += '<circle cx="' + nd0.x.toFixed(1) + '" cy="' + nd0.y.toFixed(1) + '" r="' + nd0.r.toFixed(1) + '" style="' + (an ? 'fill:var(--gc);stroke:var(--gm);stroke-width:1.5;stroke-dasharray:3 3' : 'fill:var(--gi)') + '"/>';
+    h += '<text x="' + nd0.x.toFixed(1) + '" y="' + (nd0.y + 4.5).toFixed(1) + '" text-anchor="middle" style="font-size:' + (an ? 12 : 12.5) + 'px;font-weight:800;fill:' + (an ? 'var(--gm)' : 'var(--gc)') + '">' + nd0.rank + '</text>';
+    var lines = splitName(nd0.ru, small ? 11 : 16), up = nd0.lab === 'a';
+    lines.forEach(function(t, i){
+      var y = up ? nd0.y - nd0.r - 6 - (lines.length - 1 - i) * (fs + 1) : nd0.y + nd0.r + fs + 3 + i * (fs + 1);
+      h += '<text x="' + nd0.x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" style="font-size:' + fs + 'px;font-weight:' + (an ? 600 : 800) + ';fill:' + (an ? 'var(--gm)' : 'var(--gi)') +
+        ';paint-order:stroke;stroke:var(--gc);stroke-width:4px;stroke-linejoin:round">' + ea(t) + '</text>';
+    });
+    h += '</g>';
+  });
+  return h + '</svg>';
+}
+function legend(){
+  function sw(st){ return '<svg width="30" height="8" aria-hidden="true"><line x1="1" y1="4" x2="29" y2="4" style="' + st + ';stroke-linecap:round"/></svg>'; }
+  return '<div class="g29-leg"><span>' + sw('stroke:var(--gi);stroke-width:3') + 'усиливают друг друга</span>' +
+    '<span>' + sw('stroke:var(--gm);stroke-width:2;stroke-dasharray:7 5') + 'тянут в разные стороны</span>' +
+    '<span>' + sw('stroke:var(--gm);stroke-width:1.6;stroke-dasharray:2 4') + 'слабый талант подвешивает сильный</span>' +
+    '<span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="6" style="fill:var(--gi)"/></svg>место в профиле, крупнее - сильнее</span></div>';
+}
+// Точки ролей: шкала 20..80 растянута на всё поле (значения у профиля кучкуются у середины),
+// наложения расталкиваются, но точка не уходит через границу своего квадранта
+function rolePos(roles, ox, oy, cw, ch){
+  function sc(v){ return Math.max(0.05, Math.min(0.95, (v - 20) / 60)); }
+  var P = roles.map(function(r){ return {x: ox + cw * sc(r.energy), y: oy + ch * (1 - sc(r.risk)), qx: r.energy >= 50, qy: r.risk >= 55}; });
+  for(var it = 0; it < 60; it++){
+    var moved = false;
+    for(var i = 0; i < P.length; i++) for(var j = i + 1; j < P.length; j++){
+      var a = P[i], b = P[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy);
+      if(d < 23){ if(d < 0.01){ dx = 1; dy = 0.3; d = 1; } var m = (23 - d) / 2 / d; a.x -= dx * m; a.y -= dy * m; b.x += dx * m; b.y += dy * m; moved = true; }
+    }
+    P.forEach(function(p){
+      var mx = ox + cw / 2, my = oy + ch / 2;
+      p.x = p.qx ? Math.max(mx + 11, Math.min(ox + cw - 11, p.x)) : Math.max(ox + 11, Math.min(mx - 11, p.x));
+      p.y = p.qy ? Math.max(oy + 26, Math.min(my - 11, p.y)) : Math.max(my + 11, Math.min(oy + ch - 24, p.y));
+    });
+    if(!moved) break;
+  }
+  return P;
+}
+G29.rolePos = rolePos;
+function rolesSvg(roles){
+  var W = 360, H = 300, pl = 26, pb = 24, cw = W - pl - 4, ch = H - pb - 4, ox = pl, oy = 4, h = '';
+  h += '<svg class="g29-map" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Энергия и риск по ролям собственника">';
+  h += '<rect x="' + ox + '" y="' + oy + '" width="' + cw + '" height="' + ch + '" rx="10" style="fill:var(--gc2)"/>';
+  h += '<rect x="' + (ox + cw / 2) + '" y="' + (oy + ch / 2) + '" width="' + (cw / 2) + '" height="' + (ch / 2) + '" style="fill:var(--gl)"/>';
+  h += '<line x1="' + (ox + cw / 2) + '" y1="' + oy + '" x2="' + (ox + cw / 2) + '" y2="' + (oy + ch) + '" style="stroke:var(--gs);stroke-width:1"/>';
+  h += '<line x1="' + ox + '" y1="' + (oy + ch / 2) + '" x2="' + (ox + cw) + '" y2="' + (oy + ch / 2) + '" style="stroke:var(--gs);stroke-width:1"/>';
+  var q = [['ОТДАЙТЕ', ox + 8, oy + 16, 'start'], ['СО СТРАХОВКОЙ', ox + cw - 8, oy + 16, 'end'], ['НЕ ПРИОРИТЕТ', ox + 8, oy + ch - 8, 'start'], ['ВЕДИТЕ САМИ', ox + cw - 8, oy + ch - 8, 'end']];
+  q.forEach(function(x){ h += '<text x="' + x[1] + '" y="' + x[2] + '" text-anchor="' + x[3] + '" style="font-size:10px;font-weight:800;letter-spacing:1px;fill:var(--gs)">' + x[0] + '</text>'; });
+  h += '<text x="' + (ox + cw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" style="font-size:11px;font-weight:700;fill:var(--gm)">Энергия: роль на ваших сильных талантах →</text>';
+  h += '<text transform="translate(13 ' + (oy + ch / 2) + ') rotate(-90)" text-anchor="middle" style="font-size:11px;font-weight:700;fill:var(--gm)">Риск срыва →</text>';
+  rolePos(roles, ox, oy, cw, ch).forEach(function(q, i){
+    var r = roles[i];
+    h += '<g data-role="' + r.id + '" data-zone="' + r.zone + '"><circle cx="' + q.x.toFixed(1) + '" cy="' + q.y.toFixed(1) + '" r="10" style="fill:var(--gi);stroke:var(--gc2);stroke-width:2"/>' +
+      '<text x="' + q.x.toFixed(1) + '" y="' + (q.y + 4).toFixed(1) + '" text-anchor="middle" style="font-size:11px;font-weight:800;fill:var(--gc)">' + r.n + '</text></g>';
+  });
+  return h + '</svg>';
+}
+
+// ── Персональный разбор ИИ: догрузка для профилей до R29 ──
+function upgrade(id, order){
+  if(!G.online() || G29.busy[id]) return;
+  G29.busy[id] = 1; delete G29.err[id]; G29.tried[id] = 1;
+  G.rerender();
+  Promise.resolve().then(function(){ return BSSync.api('POST', '/ai/gallup', {order: order}); }).then(function(r){
+    if(!r || !r.ok) throw new Error('status ' + (r && r.status));
+    return r.json();
+  }).then(function(j){
+    delete G29.busy[id];
+    if(!j || !j.deep) throw new Error('empty');
+    var cur = null; try{ cur = curBoard && curBoard.id === id ? G.savedGallup() : null; }catch(e){}
+    if(!cur) return;
+    G.storeGallup(Object.assign({}, cur, {ai: Object.assign({}, cur.ai || {}, {deep: j.deep, v: 2, deepAt: new Date().toISOString()})}));
+    G.rerender();
+    try{ toast('Готов расширенный разбор'); }catch(e){}
+  }).catch(function(){ delete G29.busy[id]; G29.err[id] = 1; G.rerender(); });
+}
+window.g29Upgrade = function(){
+  var id = G.boardId(), g = G.savedGallup(); if(!g) return;
+  upgrade(id, (g.themes || []).slice(0, 34));
+};
+
+// ── Документ для PDF: ровно то, что на экране ──
+function resName(){
+  try{
+    var i = (curBoard && curBoard.info) || {};
+    return String(i.res || [i.name, i.last].filter(Boolean).join(' ') || curBoard.resident || curBoard.name || '').trim();
+  }catch(e){ return ''; }
+}
+function pdfDoc(g){
+  var T = G.talentList(g), deep = (g.ai && g.ai.deep) || null, M = model(T, deep);
+  var cnt = {}; T.slice(0, 10).forEach(function(t){ cnt[t.dom] = (cnt[t.dom] || 0) + 1; });
+  var fs = G.fallbackSummary(T, cnt), sm = (g.ai && g.ai.summary) || {};
+  var P = (deep && deep.portrait) || {}, line5 = {};
+  (P.top5 || []).forEach(function(x){ line5[x.key] = x.line; });
+  var date = ''; try{ date = new Date(g.date).toLocaleDateString('ru'); }catch(e){}
+  var AREA = {sales: 'Как вы продаёте', negotiate: 'Как вы ведёте переговоры', team: 'Как вы управляете командой', decisions: 'Как вы принимаете решения', money: 'Деньги и финансовые привычки'};
+  function names(ks){ return (ks || []).map(function(k){ return ru(k) + ' (' + (M.rank[k] || '-') + ')'; }); }
+  var D = deep || {};
+  return {
+    name: resName(), date: date,
+    headline: P.headline || sm.headline || fs.headline, plain: P.plain || '',
+    top5: T.slice(0, 5).map(function(t){ return {rank: t.rank, name: t.n, ru: t.ru, domain: t.domRu, line: line5[t.k] || t.essence}; }),
+    top10: P.top10 || '',
+    domains: M.doms.map(function(d){ return {ru: d.ru, score: d.score, top10: d.top10, note: d.note}; }), domainLine: M.domLine,
+    map: {nodes: M.wide.nodes.map(function(n){ return {ru: n.ru, rank: n.rank, x: n.x / 600, y: n.y / 380, r: n.r, kind: n.kind, lab: n.lab}; }), edges: M.wide.edges, line: M.mapLine},
+    amplify: M.amp.map(function(l){ return {names: names(l.keys), title: l.title, effect: l.effect, scene: l.scene || '', fix: l.fix || ''}; }),
+    conflict: M.conf.map(function(l){ return {names: names(l.keys), title: l.title, effect: l.effect, scene: l.scene, fix: l.fix}; }),
+    anchors: M.anc.map(function(a){ return {names: ['слабый: ' + ru(a.weak) + ' (' + M.rank[a.weak] + ')'].concat(names(a.strong)), title: a.title, effect: a.effect, scene: a.scene, fix: a.fix}; }),
+    best: D.best || [], stress: D.stress || [], reset: D.reset || [],
+    blind: (D.blind || []).map(function(b){ return {a: b.title, b: b.text, c: b.check}; }),
+    keep: D.keep || (deep ? [] : (sm.roles && sm.roles.length ? sm.roles : fs.roles)), delegate: D.delegate || (deep ? [] : (sm.avoid && sm.avoid.length ? sm.avoid : fs.avoid)),
+    hires: (D.hires || []).map(function(h){ return {a: h.role, b: (h.talents || []).map(ru).join(' · '), c: h.why}; }),
+    areas: (D.areas || []).map(function(a){ return {a: AREA[a.area] || a.area, b: a.how, c: a.action}; }),
+    roles: (function(){ var q = rolePos(M.roles, 26, 4, 330, 272); return M.roles.map(function(r, i){ return {n: r.n, name: r.name, energy: Math.round((q[i].x - 26) / 3.3), risk: Math.round(100 - (q[i].y - 4) / 2.72), zone: r.zone, why: r.why}; }); })(), rolesLine: M.rolesLine,
+    risks: (D.risks || []).map(function(r){ return {a: r.title, b: r.trigger, c: r.signs, d: r.rule}; }),
+    plan: (D.plan || []).map(function(s){ return {a: s.when, b: s.action, c: s.result}; }),
+    workWithMe: D.workWithMe || [],
+    business: deep ? [] : (sm.business && sm.business.length ? sm.business : fs.business),
+    partners: deep ? [] : (sm.partners && sm.partners.length ? sm.partners : fs.partners),
+    talents: T.map(function(t){ return {rank: t.rank, name: t.n, ru: t.ru, domainRu: t.domRu, essence: t.essence, business: t.business, blind: t.blind, manage: t.manage}; })
+  };
+}
+G29.pdfDoc = pdfDoc;
+function fileName(n){ return 'BS_Gallup' + (n ? '_' + String(n).replace(/[^0-9A-Za-zА-Яа-яЁё]+/g, '_').replace(/^_+|_+$/g, '') : '') + '.pdf'; }
+window.g29Pdf = function(){
+  var g = G.savedGallup();
+  if(!g){ toast('Сначала загрузите отчёт Gallup'); return Promise.resolve(false); }
+  if(!G.online()){ toast('PDF собирается на сервере платформы: проверьте связь'); return Promise.resolve(false); }
+  if(G29.pdfBusy) return Promise.resolve(false);
+  G29.pdfBusy = true;
+  var btn = document.getElementById('g29Pdf'); if(btn){ btn.disabled = true; btn.lastChild.textContent = 'Готовим PDF'; }
+  var doc = pdfDoc(g), name = fileName(doc.name);
+  return Promise.resolve(BSSync.api('POST', '/gallup/pdf', doc)).then(function(res){
+    if(!res || !res.ok) throw new Error('сервер ответил ' + (res ? res.status : 'без ответа'));
+    var m = String(res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/);
+    if(m) name = m[1];
+    return res.blob();
+  }).then(function(b){
+    var u = URL.createObjectURL(b), a = document.createElement('a');
+    a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 4000);
+    G29.lastPdf = {size: b.size, type: b.type, name: name};
+    toast('PDF скачан: ' + name);
+    return true;
+  }).catch(function(e){ toast('PDF не скачался: ' + e.message); return false; }).then(function(ok){
+    G29.pdfBusy = false;
+    var b2 = document.getElementById('g29Pdf'); if(b2){ b2.disabled = false; b2.lastChild.textContent = 'Скачать PDF'; }
+    return ok;
+  });
+};
+
+// ── Экран ──
+var PDF_IC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
+function chips(ks, M, weak){
+  return '<div class="g29-chips">' + ks.map(function(k, i){
+    return (i && !weak ? '<span class="g29-chip op">+</span>' : '') + '<span class="g29-chip' + (weak && i === 0 ? ' weak' : '') + '"><b>' + (M.rank[k] || '') + '</b>' + ea(ru(k)) + '</span>';
+  }).join('') + '</div>';
+}
+function scene(lbl, s){ return s ? '<div class="g29-scene"><i>' + lbl + '</i>' + ea(nd(s)) + '</div>' : ''; }
+function fix(lbl, s){ return s ? '<div class="g29-fix"><i>' + lbl + '</i>' + ea(nd(s)) + '</div>' : ''; }
+function list(a, cls){ return '<ul class="g29-l' + (cls ? ' ' + cls : '') + '">' + (a || []).map(function(x){ return '<li>' + ea(nd(x)) + '</li>'; }).join('') + '</ul>'; }
+function sec(id, lbl, body){ return '<section class="g16-sec" id="' + id + '"><div class="g16-lbl">' + lbl + '</div>' + body + '</section>'; }
+
+window.renderGallupResult = function(g){
+  var T = G.talentList(g || {}), id = G.boardId();
+  if(!T.length){
+    if(G.GAI.busy[id]) return '<div class="g16"><div class="g16-hero"><div class="g16-kick">GALLUP · CLIFTONSTRENGTHS</div><div class="g16-h">ИИ читает отчёт</div>' +
+      '<div class="g16-meta"><span class="g16-pill busy"><i></i>Разбор 34 талантов и связей между ними займёт 1-2 минуты</span></div></div></div>';
+    return '';
+  }
+  var n = T.length, full = n >= 30, ai = g.ai || null, deep = (ai && ai.deep) || null, D = deep || {};
+  var M = model(T, deep), small = (window.innerWidth || 1000) < 640;
+  var cnt = {}; T.slice(0, 10).forEach(function(t){ cnt[t.dom] = (cnt[t.dom] || 0) + 1; });
+  var fs = G.fallbackSummary(T, cnt), sm = (ai && ai.summary) || {};
+  var P = D.portrait || {}, line5 = {};
+  (P.top5 || []).forEach(function(x){ line5[x.key] = x.line; });
+  var headline = P.headline || sm.headline || fs.headline;
+  var date = ''; try{ date = new Date(g.date).toLocaleDateString('ru'); }catch(e){}
+  // догружаем расширенный разбор для профиля, сохранённого до R29
+  if(!deep && n >= 5 && G.online() && !G.GAI.busy[id] && !G29.busy[id] && !G29.tried[id]){
+    setTimeout(function(){ upgrade(id, T.map(function(t){ return t.k; })); }, 0);
+  }
+  var status = G.GAI.busy[id] ? '<span class="g16-pill busy"><i></i>ИИ готовит персональный разбор</span>'
+    : (deep ? '<span class="g16-pill">Персональный разбор ИИ</span>'
+    : (G29.busy[id] ? '<span class="g16-pill busy"><i></i>Готовим разбор связей талантов</span>' : '<span class="g16-pill">' + (ai ? 'Разбор ИИ, первая версия' : 'Базовый разбор') + '</span>'));
+
+  // 1. Герой: кто вы, пятёрка
+  var h = '<div class="g16 g29" id="g16">' +
+    '<section class="g16-hero"><div class="g16-hh"><div>' +
+      '<div class="g16-kick">GALLUP · CLIFTONSTRENGTHS ' + (full ? '34' : '') + '</div>' +
+      '<div class="g16-h">' + ea(nd(headline)) + '</div>' +
+      '<div class="g16-meta"><span>' + (full ? 'Полный профиль: ' + n + ' талантов' : 'Тем в отчёте: ' + n) + '</span>' + (date ? '<span>· ' + date + '</span>' : '') + status + '</div>' +
+    '</div><div class="g29-act"><button type="button" class="g29-pdf" id="g29Pdf" onclick="g29Pdf()">' + PDF_IC + '<span>Скачать PDF</span></button>' +
+      '<button class="g16-del" onclick="deleteGallup()">Удалить тест</button></div></div>' +
+    (P.plain ? '<p class="g29-plain">' + ea(nd(P.plain)) + '</p>' : '') +
+    '<div class="g16-top5">' + T.slice(0, 5).map(function(t){
+      return '<button type="button" class="g16-tc" data-d="' + t.dom + '" onclick="g16Open(' + t.rank + ')">' +
+        '<div class="g16-tn">' + (t.rank < 10 ? '0' : '') + t.rank + '</div>' +
+        '<div class="g16-tname">' + ea(t.ru) + '</div><div class="g16-tru">' + ea(t.n) + '</div>' +
+        '<div class="g16-dom"><i></i>' + ea(t.domRu) + '</div>' +
+        '<div class="g16-tes">' + ea(nd(line5[t.k] || t.essence)) + '</div></button>';
+    }).join('') + '</div>' +
+    (P.top10 ? '<div class="g29-sub" style="margin:16px 0 0"><b style="color:var(--gi)">Места 6-10.</b> ' + ea(nd(P.top10)) + '</div>' : '') +
+    (!deep && G29.err[id] ? '<div class="g29-pill">Расширенный разбор пока не готов · <button onclick="g29Upgrade()">Повторить</button></div>' : '') +
+    (!deep && G29.busy[id] ? '<div class="g29-pill busy"><i></i>ИИ разбирает связи талантов, риски и план на 30 дней. Это 1-2 минуты.</div>' : '') +
+    (deep && deep.partial ? '<div class="g29-pill">Часть разбора не собралась · <button onclick="g29Upgrade()">Дополнить</button></div>' : '') +
+    '</section>';
+
+  // 2. Баланс доменов
+  h += sec('g29Dom', 'Баланс четырёх доменов', '<div class="g16-card">' +
+    '<p class="g29-sub">' + (full ? 'Сила домена - где стоят все его темы в вашем списке из 34: 100, если все на первых местах, 50 - середина списка.' : 'По темам, которые есть в отчёте.') + '</p>' +
+    M.doms.map(function(d){
+      return '<div class="g29-dm" data-d="' + d.k + '"><div><b>' + ea(d.ru) + '</b><small>' + ea(d.note) + ' · ' + d.top10 + ' в топ-10</small></div>' +
+        '<div class="g29-bar' + (d.score < 42 ? ' lo' : '') + '"><i style="width:' + Math.max(2, d.score) + '%"></i></div>' +
+        '<div class="g29-dv">' + d.score + '<small>из 100</small></div></div>';
+    }).join('') +
+    '<div class="g29-take">' + ea(M.domLine) + '</div></div>');
+
+  // 3. Связи талантов
+  var L = small ? M.tall : M.wide;
+  var inter = '<div class="g16-card">' + (L.nodes.length ? mapSvg(L, small) + legend() : '') +
+    (M.mapLine ? '<div class="g29-take">' + ea(M.mapLine) + '</div>' : '') + '</div>';
+  function linkCards(arr, weak){
+    return '<div class="g29-cards">' + arr.map(function(l){
+      var ks = weak ? [l.weak].concat(l.strong || []) : (l.keys || []);
+      return '<div class="g29-c">' + chips(ks, M, weak) + '<h5>' + ea(nd(l.title)) + '</h5>' + (l.effect ? '<p>' + ea(nd(l.effect)) + '</p>' : '') +
+        scene(weak ? 'Сцена' : 'Как это выглядит', l.scene) + fix(weak ? 'Что делать' : 'Как использовать', l.fix) + '</div>';
+    }).join('') + '</div>';
+  }
+  if(M.amp.length) inter += '<div class="g29-grp" id="g29Amp"><h4>Усиливают друг друга<small>связки, на которых стоит ваш бизнес</small></h4>' + linkCards(M.amp) + '</div>';
+  if(M.conf.length) inter += '<div class="g29-grp" id="g29Conf"><h4>Тянут в разные стороны<small>где вы застреваете</small></h4>' + linkCards(M.conf) + '</div>';
+  if(M.anc.length) inter += '<div class="g29-grp" id="g29Anc"><h4>Что подвешивает сильные стороны<small>слабый талант и момент, когда сила перестаёт работать</small></h4>' + linkCards(M.anc, true) + '</div>';
+  h += sec('g29Inter', 'Как таланты работают вместе', inter);
+
+  // 4. Состояния и слепые зоны
+  if(D.best || D.stress){
+    h += sec('g29State', 'В лучшей форме и под стрессом', '<div class="g29-2">' +
+      '<div class="g16-card"><h4 class="g29-h4">В лучшей форме</h4>' + list(D.best) + '</div>' +
+      '<div class="g16-card"><h4 class="g29-h4">Под стрессом</h4>' + list(D.stress, 'dash') + '</div></div>' +
+      ((D.reset || []).length ? '<div class="g16-card" style="margin-top:10px"><h4 class="g29-h4">Как быстро вернуться в форму</h4>' + list(D.reset) + '</div>' : ''));
+  }
+  if((D.blind || []).length){
+    h += sec('g29Blind', 'Слепые зоны', '<div class="g29-cards">' + D.blind.map(function(b){
+      return '<div class="g29-c"><h5>' + ea(nd(b.title)) + '</h5><p>' + ea(nd(b.text)) + '</p>' + fix('Как проверить', b.check) + '</div>';
+    }).join('') + '</div>');
+  }
+
+  // 5. Как применять в бизнесе
+  var AREA = {sales: 'Как вы продаёте', negotiate: 'Как вы ведёте переговоры', team: 'Как вы управляете командой', decisions: 'Как вы принимаете решения', money: 'Деньги и финансовые привычки'};
+  var biz = '';
+  if(deep){
+    biz += '<div class="g29-2"><div class="g16-card"><h4 class="g29-h4">Оставьте себе</h4>' + list(D.keep) + '</div>' +
+      '<div class="g16-card"><h4 class="g29-h4">Отдайте</h4>' + list(D.delegate, 'dash') + '</div></div>';
+    if((D.areas || []).length) biz += '<div class="g16-card" style="margin-top:10px">' + D.areas.map(function(a){
+      return '<div class="g29-area" data-area="' + ea(a.area) + '"><b>' + ea(AREA[a.area] || a.area) + '</b><div><p>' + ea(nd(a.how)) + '</p><div class="g29-do">' + ea(nd(a.action)) + '</div></div></div>';
+    }).join('') + '</div>';
+    if((D.hires || []).length) biz += '<div class="g29-grp"><h4>Кого взять рядом<small>люди, которые закрывают ваши слабые таланты</small></h4><div class="g29-cards">' + D.hires.map(function(x){
+      return '<div class="g29-c"><h5>' + ea(nd(x.role)) + '</h5>' + ((x.talents || []).length ? '<div class="g29-chips">' + x.talents.map(function(k){ return '<span class="g29-chip">' + ea(ru(k)) + '</span>'; }).join('') + '</div>' : '') + '<p>' + ea(nd(x.why)) + '</p></div>';
+    }).join('') + '</div></div>';
+  } else {
+    function pick(a, b){ return a && a.length ? a : b; }
+    biz += '<div class="g16-bl">' + pick(sm.business, fs.business).slice(0, 6).map(function(x, i){ return '<div class="g16-bi"><span>' + (i + 1) + '</span><div>' + ea(nd(x)) + '</div></div>'; }).join('') + '</div>' +
+      '<div class="g16-3" style="margin-top:10px"><div class="g16-card"><h4>Где вы сильнее всего</h4>' + list(pick(sm.roles, fs.roles)) + '</div>' +
+      '<div class="g16-card"><h4>Кого взять рядом</h4>' + list(pick(sm.partners, fs.partners)) + '</div>' +
+      '<div class="g16-card"><h4>Что делегировать</h4>' + list(pick(sm.avoid, fs.avoid)) + '</div></div>';
+  }
+  if(M.roles.length){
+    biz += '<div class="g29-grp" id="g29Roles"><h4>Энергия и риск по ролям собственника<small>какие роли вести самому</small></h4><div class="g16-card"><div class="g29-rq"><div>' + rolesSvg(M.roles) + '</div><div class="g29-rl">' +
+      ZONES.map(function(z){
+        var rs = M.roles.filter(function(r){ return r.zone === z.z; });
+        if(!rs.length) return '';
+        return '<div class="g29-rz" data-zone="' + z.z + '"><h6>' + z.t + '</h6>' + rs.map(function(r){ return '<div class="g29-rr"><em>' + r.n + '</em><div><b>' + ea(r.name) + '</b><small>' + ea(r.why) + '</small></div></div>'; }).join('') + '</div>';
+      }).join('') + '</div></div>' + (M.rolesLine ? '<div class="g29-take">' + ea(M.rolesLine) + '</div>' : '') + '</div></div>';
+  }
+  h += sec('g29Biz', 'Как применять в бизнесе', biz);
+
+  // 6. Риски, план, как работать со мной
+  if((D.risks || []).length){
+    h += sec('g29Risk', 'Риски для бизнеса', '<div class="g29-cards">' + D.risks.map(function(r){
+      return '<div class="g29-c g29-risk"><h5>' + ea(nd(r.title)) + '</h5><dl><dt>Когда включается</dt><dd>' + ea(nd(r.trigger)) + '</dd><dt>Ранние признаки</dt><dd>' + ea(nd(r.signs)) + '</dd>' +
+        '<dt>Правило</dt><dd class="rule">' + ea(nd(r.rule)) + '</dd></dl></div>';
+    }).join('') + '</div>');
+  }
+  if((D.plan || []).length){
+    h += sec('g29Plan', 'План на 30 дней', '<div class="g16-card g29-plan">' + D.plan.map(function(s, i){
+      return '<div class="g29-st"><em>' + (i + 1) + '</em><span>' + ea(nd(s.when)) + '</span><div><b>' + ea(nd(s.action)) + '</b>' + (s.result ? '<small>Результат: ' + ea(nd(s.result)) + '</small>' : '') + '</div></div>';
+    }).join('') + '</div>');
+  }
+  if((D.workWithMe || []).length){
+    h += sec('g29Who', 'Как работать со мной · для партнёров и команды', '<div class="g29-who">' + D.workWithMe.map(function(x){ return '<div>' + ea(nd(x)) + '</div>'; }).join('') + '</div>');
+  }
+
+  // 7. Все таланты
+  var TIERS = [[1, 10, 'Опора', 'Ставьте на них задачи и роль в компании'], [11, 24, 'По ситуации', 'Включаются, когда вы сознательно на них опираетесь'], [25, 34, 'Отдать другим', 'Сюда дешевле нанять, чем развивать']];
+  h += '<section class="g16-sec"><div class="g16-lbl">Разбор каждого таланта</div>' + TIERS.map(function(tr){
+    var rows = T.filter(function(t){ return t.rank >= tr[0] && t.rank <= tr[1]; });
+    if(!rows.length) return '';
+    return '<div class="g16-tier"><div class="g16-th"><b>' + tr[2] + ' · ' + tr[0] + '-' + Math.min(tr[1], n) + '</b><span>' + tr[3] + '</span></div>' + rows.map(function(t){
+      var cls = G.tier(t.rank) === 1 ? ' g16-hi' : (G.tier(t.rank) === 3 ? ' g16-lo' : '');
+      return '<div class="g16-row' + cls + '" id="g16r' + t.rank + '" data-d="' + t.dom + '">' +
+        '<button type="button" class="g16-rh" aria-expanded="false" onclick="g16Toggle(' + t.rank + ')"><span class="g16-rk">' + t.rank + '</span>' +
+          '<span class="g16-rn">' + ea(t.ru) + '<small>' + ea(t.n) + '</small><span class="g16-rs">' + ea(nd(t.essence)) + '</span></span>' +
+          '<span class="g16-dom" style="margin:0"><i></i>' + ea(t.domRu) + '</span><span class="g16-ch">+</span></button>' +
+        '<div class="g16-rb">' +
+          '<div class="g16-q"><b>Суть</b>' + ea(nd(t.essence)) + '</div>' +
+          '<div class="g16-q"><b>Как проявляется в бизнесе</b>' + ea(nd(t.business)) + '</div>' +
+          '<div class="g16-q"><b>Слепые зоны</b>' + ea(nd(t.blind)) + '</div>' +
+          '<div class="g16-q"><b>Как использовать в управлении</b>' + ea(nd(t.manage)) + '</div>' +
+        '</div></div>';
+    }).join('') + '</div>';
+  }).join('') + '</section>';
+  h += '<div class="g16-meta" style="margin-top:18px">Профиль сохранён и учитывается при подготовке к встрече.</div></div>';
+  return h;
+};
+// Смена ширины (телефон/компьютер): карта перестраивается под экран
+var rw = 0, wasSmall = (window.innerWidth || 1000) < 640;
+window.addEventListener('resize', function(){
+  clearTimeout(rw);
+  rw = setTimeout(function(){ var s = (window.innerWidth || 1000) < 640; if(s !== wasSmall){ wasSmall = s; try{ if(section === 'rGallup' && document.getElementById('g16')) G.rerender(); }catch(e){} } }, 200);
+});
+})();
+</script>
+<!-- /R29 -->
 
 </body>
 </html>

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
@@ -43,7 +44,7 @@ const (
 	contentDays     = 14
 	contentNoRepeat = 60 * 24 * time.Hour
 	contentLate     = 6 * time.Hour // a post this late is not published any more
-	contentHistory  = 200
+	contentHistory  = 600           // 16 Threads posts a day: about a month
 	contentBotLink  = "t.me/bsurgery_bot?start="
 )
 
@@ -60,6 +61,12 @@ type contentChan struct {
 	Time string `json:"time"`
 	Chat string `json:"chat,omitempty"`
 	Days []int  `json:"days,omitempty"` // optional: the channel's own days
+	// Threads only (content_threads.go): posts a day (1-25, 0: 16), the
+	// window they are spread over (08:00-22:00) and when the batch is made.
+	PerDay  int    `json:"perDay,omitempty"`
+	From    string `json:"from,omitempty"`
+	To      string `json:"to,omitempty"`
+	BuildAt string `json:"buildAt,omitempty"`
 }
 
 type contentSettings struct {
@@ -79,7 +86,7 @@ var contentTelegramDefault = false
 
 func defaultContentSettings() contentSettings {
 	var s contentSettings
-	s.Channels.Threads = contentChan{On: true, Time: "10:00"}
+	s.Channels.Threads = contentChan{On: true, Time: "10:00", PerDay: contentThreadsPerDay}
 	s.Channels.Telegram = contentChan{On: contentTelegramDefault, Chat: "@bsurgery_kz", Time: "19:00"}
 	s.Channels.Instagram = contentChan{On: false, Time: "12:00"}
 	s.Days = []int{1, 2, 3, 4, 5, 6}
@@ -102,6 +109,12 @@ func parseContentSettings(raw json.RawMessage) contentSettings {
 	}
 	if strings.TrimSpace(s.Channels.Telegram.Chat) == "" {
 		s.Channels.Telegram.Chat = "@bsurgery_kz"
+	}
+	if s.Channels.Threads.PerDay < 0 {
+		s.Channels.Threads.PerDay = 0
+	}
+	if s.Channels.Threads.PerDay > threadsPerDayMax {
+		s.Channels.Threads.PerDay = threadsPerDayMax
 	}
 	return s
 }
@@ -176,6 +189,13 @@ type contentItemData struct {
 	PublishedAt string          `json:"publishedAt,omitempty"`
 	ApprovedBy  string          `json:"approvedBy,omitempty"`
 	Stats       *contentStats   `json:"stats,omitempty"`
+	// The Threads batch (content_threads.go)
+	Format  string   `json:"format,omitempty"`  // tip, checklist, numbers, myth, question, case, symptom, series, library
+	Parts   []string `json:"parts,omitempty"`   // a series: the replies after the first post
+	Gen     string   `json:"gen,omitempty"`     // ai or lib: made by the daily batch
+	CTA     bool     `json:"cta,omitempty"`     // ends with the link to the 99 checklists
+	Tries   int      `json:"tries,omitempty"`   // failed attempts to publish
+	RetryAt string   `json:"retryAt,omitempty"` // not before
 }
 
 // contentItem keeps the fields the platform adds that the server does not know.
@@ -309,9 +329,19 @@ type ContentEngine struct {
 	PlatformURL string
 	// Lib is the content library (content.Library; tests give their own).
 	Lib func() []*content.LibItem
+	// AI writes the Threads batch (ai.Client.Text); nil: library posts only.
+	AI func(ctx context.Context, system, prompt string) (string, error)
+	// ThreadsReply publishes a reply (a series' next part).
+	ThreadsReply func(ctx context.Context, replyTo, text string) (string, error)
+	// Go runs the batch build in the background (tests run it inline).
+	Go func(func())
 
-	now   func() time.Time
-	pubMu sync.Mutex
+	now      func() time.Time
+	pubMu    sync.Mutex
+	building atomic.Bool
+	thMu     sync.Mutex
+	thHold   time.Time // Threads waits until then (token, limits)
+	thLast   time.Time // the last Threads post
 }
 
 func NewContentEngine(docs funnelDocs) *ContentEngine {
@@ -698,6 +728,16 @@ func (s contentSettings) fits(it *contentItem, at time.Time) bool {
 	if !c.On || !s.dayOn(it.Channel, at) {
 		return false
 	}
+	if it.Channel == "threads" && (it.Gen != "" || s.threadsBatch()) {
+		// a batch post fits while the batch is on; a classic one gives way to the batch
+		if it.Gen == "" {
+			return false
+		}
+		from, to := s.threadsWindow()
+		a := at.In(almaty)
+		m := a.Hour()*60 + a.Minute()
+		return s.threadsBatch() && m >= from && m < to
+	}
 	hh, mm := s.clock(it.Channel)
 	a := at.In(almaty)
 	return a.Hour() == hh && a.Minute() == mm
@@ -720,7 +760,7 @@ func (e *ContentEngine) plan(d *contentDoc, now time.Time, reset bool) int {
 		if it.ID == "" {
 			it.ID = "x-" + newID()[:10]
 		}
-		if !it.Edited && it.Auto && it.Src != "" {
+		if !it.Edited && it.Auto && it.Src != "" && it.Gen == "" {
 			if li := bySrc[it.Src]; li != nil {
 				if tx, ok := libContent(li, it.Kind, it.V); ok && strings.TrimSpace(tx.text) != strings.TrimSpace(it.Text) {
 					it.Edited = true
@@ -743,14 +783,14 @@ func (e *ContentEngine) plan(d *contentDoc, now time.Time, reset bool) int {
 			continue
 		case ok && (it.Status == "skipped" || it.Status == "failed") && at.Before(today.AddDate(0, 0, -14)):
 			continue
-		case ok && it.Auto && !it.Edited && it.Status == "planned" && at.After(now) && (reset || !st.fits(it, at)):
-			continue // re-planned below
-		case ok && it.Auto && !it.Edited && it.Status == "planned" && it.Src != "" && bySrc[it.Src] == nil && at.After(now):
+		case ok && it.Auto && !it.Edited && it.Status == "planned" && at.After(now) && ((reset && it.Gen == "") || !st.fits(it, at)):
+			continue // re-planned below (the Threads batch stays: it is made once a day)
+		case ok && it.Auto && !it.Edited && it.Status == "planned" && it.Src != "" && it.Gen == "" && bySrc[it.Src] == nil && at.After(now):
 			continue // gone from the library
 		}
 		keep = append(keep, it)
 	}
-	d.Queue = keep
+	d.Queue = threadsTrim(keep, st, now)
 	sort.SliceStable(d.History, func(i, j int) bool { return d.History[i].At < d.History[j].At })
 	var hist []*contentItem
 	for _, it := range d.History {
@@ -773,8 +813,8 @@ func (e *ContentEngine) plan(d *contentDoc, now time.Time, reset bool) int {
 	for i := 0; i < contentDays; i++ {
 		day := today.AddDate(0, 0, i)
 		for _, ch := range contentChannels {
-			if !st.channel(ch).On || !st.dayOn(ch, day) {
-				continue
+			if !st.channel(ch).On || !st.dayOn(ch, day) || (ch == "threads" && st.threadsBatch()) {
+				continue // several Threads posts a day come from the daily batch
 			}
 			hh, mm := st.clock(ch)
 			slot := time.Date(day.Year(), day.Month(), day.Day(), hh, mm, 0, 0, almaty)
@@ -893,7 +933,7 @@ func (e *ContentEngine) Publish(ctx context.Context, id string, force bool) (*co
 	if !force && !(it.Status == "approved" || (it.Status == "planned" && st.Approval != "manual")) {
 		return it, nil
 	}
-	var postID, url string
+	var postID, url, partErr string
 	var perr error
 	switch it.Channel {
 	case "threads":
@@ -901,6 +941,24 @@ func (e *ContentEngine) Publish(ctx context.Context, id string, force bool) (*co
 			perr = errors.New("Threads не подключён")
 		} else {
 			postID, url, perr = e.Threads(ctx, it.Title, it.Text)
+			e.thSet(time.Time{}, e.now())
+		}
+		// a series: the next parts as replies, each to the one before
+		prev := postID
+		for i, part := range it.Parts {
+			if perr != nil || strings.TrimSpace(part) == "" {
+				break
+			}
+			if e.ThreadsReply == nil {
+				partErr = "Продолжение серии не вышло: ответы Threads не подключены"
+				break
+			}
+			id, err := e.ThreadsReply(ctx, prev, part)
+			if err != nil {
+				partErr = fmt.Sprintf("Часть %d серии не вышла: %v", i+2, err)
+				break
+			}
+			prev = id
 		}
 	case "telegram":
 		chat := st.Channels.Telegram.Chat
@@ -919,6 +977,27 @@ func (e *ContentEngine) Publish(ctx context.Context, id string, force bool) (*co
 		perr = fmt.Errorf("Неизвестный канал %q", it.Channel)
 	}
 	now := e.now().UTC().Format(time.RFC3339)
+	// Threads, by itself: a token, limit or network error waits and tries again
+	kind, retryAt := "", ""
+	if perr != nil && it.Channel == "threads" {
+		kind = threadsErrKind(perr)
+		var wait time.Duration
+		switch kind {
+		case "auth":
+			wait = 30 * time.Minute
+			e.thSet(e.now().Add(wait), time.Time{})
+		case "rate":
+			wait = time.Hour
+			e.thSet(e.now().Add(wait), time.Time{})
+		case "temp":
+			if it.Tries < 2 {
+				wait = []time.Duration{3 * time.Minute, 10 * time.Minute}[it.Tries]
+			}
+		}
+		if wait > 0 && !force {
+			retryAt = e.now().Add(wait).In(almaty).Format(time.RFC3339)
+		}
+	}
 	var out *contentItem
 	_, uerr := e.update(ctx, func(d *contentDoc) bool {
 		x := findContent(d, id)
@@ -931,10 +1010,15 @@ func (e *ContentEngine) Publish(ctx context.Context, id string, force bool) (*co
 			x = &cp
 			d.History = append(d.History, x)
 		}
-		if perr != nil {
-			x.Status, x.Error = "failed", perr.Error()
-		} else {
-			x.Status, x.Error, x.PostID, x.URL, x.PublishedAt = "published", "", postID, url, now
+		switch {
+		case perr != nil && retryAt != "":
+			x.Tries++
+			x.RetryAt = retryAt
+			x.Error = "Повтор в " + atClock(retryAt) + ": " + perr.Error()
+		case perr != nil:
+			x.Status, x.Error, x.RetryAt = "failed", perr.Error(), ""
+		default:
+			x.Status, x.Error, x.PostID, x.URL, x.PublishedAt, x.RetryAt = "published", partErr, postID, url, now, ""
 		}
 		out = x
 		return true
@@ -947,8 +1031,20 @@ func (e *ContentEngine) Publish(ctx context.Context, id string, force bool) (*co
 	}
 	if perr != nil {
 		log.Printf("content: %s %s: %v", it.Channel, id, perr)
-		e.tellOwner(ctx, fmt.Sprintf("⚠️ Пост не вышел\n%s · %s\n«%s»\n\n%s", contentChannelName[it.Channel], atClock(it.At), content.FirstLine(it.Text, 80), perr.Error()))
+		if it.Channel != "threads" {
+			e.tellOwner(ctx, fmt.Sprintf("⚠️ Пост не вышел\n%s · %s\n«%s»\n\n%s", contentChannelName[it.Channel], atClock(it.At), content.FirstLine(it.Text, 80), perr.Error()))
+		} else if retryAt == "" || kind != "temp" {
+			// once a day per kind: 16 posts a day must not bring 16 messages
+			key := "th_" + kind
+			if kind == "other" {
+				key += ":" + content.FirstLine(perr.Error(), 40)
+			}
+			e.alertOnce(ctx, key, threadsAlertText(kind, it, perr))
+		}
 		return out, perr
+	}
+	if it.Channel == "threads" {
+		e.threadsRecovered(ctx)
 	}
 	log.Printf("content: %s %s published %s", it.Channel, id, url)
 	return out, nil
@@ -970,14 +1066,23 @@ func atClock(at string) string {
 	return ""
 }
 
-// due: the items to publish now; too late ones are closed.
+// due: the items to publish now; too late ones are closed. Threads gets one
+// post per call (the earliest), not while it waits after an error, not
+// within 2 minutes of the last one and not over the 24-hour limit.
 func (e *ContentEngine) due(ctx context.Context) []string {
 	now := e.now()
 	var ids []string
+	quotaFull := false
 	_, err := e.update(ctx, func(d *contentDoc) bool {
 		ids = ids[:0]
 		st := parseContentSettings(d.Settings)
 		changed := false
+		thOK := !e.thHeld(now)
+		if n, _ := threads24h(d, now); n >= threadsQuotaSafe {
+			thOK, quotaFull = false, true
+		}
+		var th *contentItem
+		var thAt time.Time
 		for _, it := range d.Queue {
 			if it.Manual || (it.Channel != "threads" && it.Channel != "telegram") || !st.channel(it.Channel).On {
 				continue
@@ -987,10 +1092,32 @@ func (e *ContentEngine) due(ctx context.Context) []string {
 				continue
 			}
 			publish := it.Status == "approved" || (it.Status == "planned" && st.Approval != "manual")
-			late := now.Sub(at) > contentLate
+			batch := it.Channel == "threads" && (it.Gen != "" || st.threadsBatch())
+			lim := contentLate
+			if batch {
+				lim = threadsLateBatch
+			}
+			late := now.Sub(at) > lim
+			waiting := false
+			if r, ok := parseContentAt(it.RetryAt); ok && r.After(now) {
+				waiting = true
+			}
 			switch {
+			case publish && !late && it.Channel == "threads":
+				if thOK && !waiting && (th == nil || at.Before(thAt)) {
+					th, thAt = it, at
+				}
 			case publish && !late:
 				ids = append(ids, it.ID)
+			case publish && late && batch:
+				// a batch post that missed its time is not published in a heap with the next ones
+				it.Status, it.RetryAt = "skipped", ""
+				if it.Error == "" {
+					it.Error = "Не вышел вовремя: пропущен, чтобы посты не шли пачкой"
+				} else {
+					it.Error = "Не вышел вовремя. " + it.Error
+				}
+				changed = true
 			case publish && late:
 				it.Status, it.Error = "failed", "Не опубликовано вовремя: сервер был недоступен"
 				changed = true
@@ -999,21 +1126,31 @@ func (e *ContentEngine) due(ctx context.Context) []string {
 				changed = true
 			}
 		}
+		if th != nil {
+			ids = append([]string{th.ID}, ids...)
+		}
 		return changed
 	})
 	if err != nil {
 		log.Printf("content: due: %v", err)
 		return nil
 	}
+	if quotaFull {
+		e.alertOnce(ctx, "th_quota", threadsAlertText("quota", nil, nil))
+	}
 	return ids
 }
 
-// Tick: publish what is due and send the morning preview (every minute).
+// Tick: publish what is due, make the day's Threads batch after 06:30 and
+// send the morning preview (every minute).
 func (e *ContentEngine) Tick(ctx context.Context) {
 	for _, id := range e.due(ctx) {
-		c, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		c, cancel := context.WithTimeout(ctx, 3*time.Minute)
 		_, _ = e.Publish(c, id, false)
 		cancel()
+	}
+	if d, _, err := e.load(ctx); err == nil {
+		e.buildDue(ctx, d)
 	}
 	e.Preview(ctx, false)
 }
@@ -1023,6 +1160,11 @@ func (e *ContentEngine) Tick(ctx context.Context) {
 type contentState struct {
 	Preview string `json:"preview,omitempty"` // the day (20261002) the preview went out
 	Msg     int64  `json:"msg,omitempty"`
+	// Threads (content_threads.go): the owner's alerts (kind → day told),
+	// the daily batches and the posts of the last 45 days for dedupe.
+	Alerts  map[string]string           `json:"alerts,omitempty"`
+	Threads map[string]*threadsDayState `json:"threads,omitempty"`
+	Recent  []threadsSig                `json:"recent,omitempty"`
 }
 
 func (e *ContentEngine) state(ctx context.Context) (contentState, int) {
@@ -1087,7 +1229,11 @@ func previewText(items []*contentItem, approval, day string) string {
 		if it.Kind == "carousel" && it.Caption != "" {
 			text = it.Caption
 		}
-		b.WriteString("\n" + head + "\n" + content.FirstLine(strings.ReplaceAll(text, "\n", " "), 120) + "\n")
+		short := 120
+		if len(items) > 8 { // 16 Threads posts a day still fit one message
+			short = 70
+		}
+		b.WriteString("\n" + head + "\n" + content.FirstLine(strings.ReplaceAll(text, "\n", " "), short) + "\n")
 	}
 	if approval == "manual" {
 		b.WriteString("\nРучной режим: выйдут только подтверждённые посты. Нажмите «Всё ок», если тексты в порядке.")
@@ -1161,10 +1307,8 @@ func (e *ContentEngine) Preview(ctx context.Context, force bool) bool {
 			log.Printf("content: preview: %v", err)
 		}
 	}
-	val, _ := json.Marshal(contentState{Preview: day, Msg: mid})
-	if _, err := e.docs.PutDoc(ctx, "server", contentStateKey, base, string(val), false, "server:content"); err != nil {
-		log.Printf("content: preview state: %v", err)
-	}
+	_ = base
+	e.saveState(ctx, func(s *contentState) { s.Preview, s.Msg = day, mid })
 	return len(items) > 0
 }
 

@@ -249,6 +249,9 @@ func StartParam(text string) string {
 // LinkTitle: what a start parameter's tail (g003, case, case_isfandiyar,
 // razbor) is called in a lead's source.
 func LinkTitle(rest string) string {
+	if rest == "99" || rest == "checklists" { // th_99: the Threads posts' link to the 99 checklists
+		return "99 чек-листов"
+	}
 	if t := GuideTitle(rest); t != "" {
 		return t
 	}

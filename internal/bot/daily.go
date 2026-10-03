@@ -18,18 +18,25 @@ import (
 	"github.com/bnursik/business_surgery_backend/internal/club"
 )
 
-// The daily check, as the script's dailyCheck does it at 14:30: yesterday's
-// reports, the stop rule, fines for the rest, a note to each fined resident
-// and a summary to the admins. The fines go into the sheet's «Штрафы»
-// through the script (the sheet still holds the club's money).
+// The daily check at 10:00 Almaty: yesterday's reports (a report counts for
+// the day it was sent, deadline 23:59, so by the morning the day is closed),
+// the stop rule, fines for the rest, a note to each fined resident and one
+// summary to the admins. The fines go into the sheet's «Штрафы» through the
+// script (the sheet still holds the club's money). While the server does the
+// check (daily_check), the script does not: one sender, no duplicates.
+//
+// Exceptions, admins and former residents are never checked. A resident
+// without a Chat ID is not checked either and is not named in the summary:
+// the bot cannot see his reports, so that is not news for the daily note
+// (the sheet's «Диагностика бота» lists them for the team).
 const (
 	FineAmount    = 10000
 	FineType      = "Не сдан отчёт"
 	KaspiLink     = "https://pay.kaspi.kz/pay/ri6h2lj5"
 	WebAppBase    = "https://neuvolen.github.io/bs-app/"
-	dailyFromHour = 14
-	dailyFromMin  = 30
-	dailyUntil    = 18 // after this the day is left alone, the owner is told
+	dailyFromHour = 10
+	dailyFromMin  = 0
+	dailyUntil    = 14 // after this the day is left alone
 )
 
 func webApp(page string) string { return WebAppBase + "?p=" + page }
@@ -114,15 +121,26 @@ func fill(tpl string, vars map[string]string) string {
 	return tpl
 }
 
-// DailySummary is the admins' note, worded as the script's.
+// DailySummary is the admins' note: who submitted, who did not. Residents
+// without a Chat ID are left out of it altogether (not checked, not counted).
 func DailySummary(r DayResult, fined []string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "📋 Ночная проверка за %s\n\n", r.Day)
-	done := r.Active - len(r.WouldFine) - len(r.NoChatID)
-	fmt.Fprintf(&b, "Сдали отчёт: %d из %d\n\n", done, r.Active)
-	if len(fined) > 0 {
-		b.WriteString("❌ Не сдали (штраф 10,000 тг):\n")
-		for _, n := range fined {
+	fmt.Fprintf(&b, "📋 Проверка отчётов за %s\n\n", r.Day)
+	total := r.Active - len(r.NoChatID)
+	done := total - len(r.WouldFine)
+	if done < 0 {
+		done = 0
+	}
+	fmt.Fprintf(&b, "Сдали отчёт: %d из %d\n\n", done, total)
+	// Everyone who did not submit is named, also when the fine was already
+	// in the sheet (fined holds only the rows added now).
+	missed := r.WouldFine
+	if len(missed) == 0 {
+		missed = fined
+	}
+	if len(missed) > 0 {
+		b.WriteString("❌ Не сдали (штраф 10 000 тг):\n")
+		for _, n := range missed {
 			fmt.Fprintf(&b, "  • %s\n", n)
 		}
 	} else {
@@ -131,14 +149,7 @@ func DailySummary(r DayResult, fined []string) string {
 	if len(r.Meeting) > 0 {
 		fmt.Fprintf(&b, "\n\nБыла встреча, отчёт не нужен: %s", strings.Join(r.Meeting, ", "))
 	}
-	if len(r.NoChatID) > 0 {
-		b.WriteString("\n\n⚠️ Не проверены. в таблице пустой Chat ID:\n")
-		for _, n := range r.NoChatID {
-			fmt.Fprintf(&b, "  • %s\n", n)
-		}
-		b.WriteString("Пока Chat ID пуст, бот не видит их отчёты и не штрафует.")
-	}
-	return b.String()
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func (s *Service) maybeDailyCheck(ctx context.Context, now time.Time) (*DailyOutcome, error) {
@@ -167,7 +178,7 @@ func (s *Service) maybeDailyCheck(ctx context.Context, now time.Time) (*DailyOut
 	out := &DailyOutcome{Day: res.Day}
 	if res.StopCrane || res.Partial {
 		out.Stopped = true
-		out.Summary = "🚨 ШТРАФЫ НЕ ВЫСТАВЛЕНЫ. ПОХОЖЕ НА СБОЙ\n\nНочная проверка за " + res.Day + " остановлена.\n\n" +
+		out.Summary = "🚨 ШТРАФЫ НЕ ВЫСТАВЛЕНЫ. ПОХОЖЕ НА СБОЙ\n\nПроверка отчётов за " + res.Day + " остановлена.\n\n" +
 			fmt.Sprintf("Почему: за день ни одного отчёта (активных резидентов %d), или сервер получал сообщения бота не весь день.\n\n", res.Active) +
 			"Штрафовать вслепую нельзя: если бот не получает сообщения, резиденты не виноваты.\n\n" +
 			"Что сделать: в таблице меню BS → «Диагностика бота»."
@@ -185,7 +196,7 @@ func (s *Service) maybeDailyCheck(ctx context.Context, now time.Time) (*DailyOut
 	if len(fines) > 0 {
 		if err := s.ScriptCall(ctx, "addFines", map[string]any{"fines": fines}, &added); err != nil {
 			if s.once(ctx, "daily_fail:"+day.Format("2006-01-02"), 3*time.Hour) {
-				s.sysNote("Ночная проверка за " + res.Day + ": штрафы не записались в таблицу (" + err.Error() + "), повтор через 10 минут")
+				s.sysNote("Проверка отчётов за " + res.Day + ": штрафы не записались в таблицу (" + err.Error() + "), повтор через 10 минут")
 			}
 			return nil, err
 		}

@@ -17,6 +17,8 @@ import (
 //	POST /api/v1/platform/content/plan          {reset?: bool} re-plan the queue
 //	POST /api/v1/platform/content/publish/:id   publish a queue item now
 //	GET  /api/v1/platform/content/library       the library index (?src=g003 with texts, ?full=1 all texts)
+//	GET  /api/v1/platform/content/threads       Threads per day for the planner: {perDay, from, to, buildAt, days:[{day, on, count, build}]}
+//	POST /api/v1/platform/content/threads/build {day: "2026-10-05", force?: bool} make that day's Threads batch now
 type ContentModule struct {
 	E      *ContentEngine
 	secret []byte
@@ -33,6 +35,62 @@ func (m *ContentModule) Register(r *gin.Engine) {
 	g.POST("/plan", m.plan)
 	g.POST("/publish/:id", m.publish)
 	g.GET("/library", m.library)
+	g.GET("/threads", m.threadsDays)
+	g.POST("/threads/build", m.threadsBuild)
+}
+
+func (m *ContentModule) threadsDays(c *gin.Context) {
+	if !m.ready(c) {
+		return
+	}
+	out, err := m.E.ThreadsDays(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func (m *ContentModule) threadsBuild(c *gin.Context) {
+	if !m.ready(c) {
+		return
+	}
+	var req struct {
+		Day   string `json:"day"`
+		Force bool   `json:"force"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	day := m.E.now().In(almaty)
+	if req.Day != "" {
+		t, err := time.ParseInLocation("2006-01-02", req.Day, almaty)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "day: YYYY-MM-DD"})
+			return
+		}
+		if t.Before(dayStart(day)) || t.After(dayStart(day).AddDate(0, 0, contentDays)) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Собрать можно сегодня и на 2 недели вперёд"})
+			return
+		}
+		day = t
+	}
+	if !m.E.building.CompareAndSwap(false, true) {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": "Пачка уже собирается, обновите через минуту"})
+		return
+	}
+	defer m.E.building.Store(false)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 6*time.Minute)
+	defer cancel()
+	res, err := m.E.BuildThreadsDay(ctx, day, req.Force)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+	d, _, _ := m.E.load(ctx)
+	out := gin.H{"ok": true, "build": res}
+	if d != nil {
+		out["queue"] = d.Queue
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 func (m *ContentModule) ready(c *gin.Context) bool {

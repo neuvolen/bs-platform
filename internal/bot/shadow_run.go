@@ -9,13 +9,14 @@ import (
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 )
 
-// The daily comparison runs for yesterday once the sheet's own check (14:30)
-// has run and its result has come over with an hourly import.
+// The daily comparison runs for yesterday once the sheet's own check (10:00,
+// with the hourly dispatcher, so by 11:00) has run and its result has come
+// over with an hourly import.
 const (
-	shadowFromHour = 16
-	shadowGiveUpAt = 20 // after this, compare even without a fresh import
-	sheetCheckHour = 14
-	sheetCheckMin  = 35
+	shadowFromHour = 11
+	shadowGiveUpAt = 14 // after this, compare even without a fresh import
+	sheetCheckHour = 10
+	sheetCheckMin  = 5
 )
 
 // shadowUpdate judges one group message by the report rules and keeps the verdict.

@@ -19,7 +19,7 @@ import (
 
 // The whole "listen, don't fine" day on a real database: group messages come
 // in through Receive, the sheet's data comes in as an import would leave it,
-// and at 16:00 the server compares and tells the owner once.
+// and after 11:00 the server compares and tells the owner once.
 func TestShadowDayEndToEnd(t *testing.T) {
 	dsn := os.Getenv("BS_TEST_DSN")
 	if dsn == "" {
@@ -55,8 +55,8 @@ func TestShadowDayEndToEnd(t *testing.T) {
 	_ = s.SetRelayURL(ctx, "http://127.0.0.1:1/exec") // the bot comes through the server
 
 	t0 := club.Today()
-	now := time.Date(t0.Year(), t0.Month(), t0.Day(), 16, 5, 0, 0, club.Almaty)
-	day := now.AddDate(0, 0, -1).Truncate(time.Hour).Add(-16 * time.Hour)
+	now := time.Date(t0.Year(), t0.Month(), t0.Day(), 11, 5, 0, 0, club.Almaty)
+	day := now.AddDate(0, 0, -1)
 	day = time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, club.Almaty)
 	dd := func(d time.Time) string { return d.Format("02.01") }
 	ex := func(q string, a ...any) {
@@ -108,15 +108,15 @@ func TestShadowDayEndToEnd(t *testing.T) {
 
 	// The server started before that day.
 	ex(`UPDATE bot_updates SET received_at = $1 WHERE update_id = 1`, day.Add(-2*time.Hour))
-	// The sheet: its log and the fines its 14:30 check set.
+	// The sheet: its log and the fines its 10:00 check set.
 	ex(`INSERT INTO club_reports (at, name, tg_user_id, late) VALUES ($1, 'Альтаир', 1001, false), ($2, 'Даниил Раскрутов', NULL, false)`,
 		day.Add(21*time.Hour), day.Add(19*time.Hour))
 	ex(`INSERT INTO club_meeting_log (date, resident) VALUES ($1, 'Даулёт')`, day.Format("2006-01-02"))
 	ex(`INSERT INTO club_fines (resident, type, amount, date) VALUES ('Асет', 'Не сдан отчёт', 10000, $1), ('Марат', 'Не сдан отчёт', 10000, $1), ('Асет', 'Опоздание', 5000, $1)`, day.Format("2006-01-02"))
 
-	// Before 16:00 nothing happens.
+	// Before 11:00 nothing happens.
 	if r, _ := s.maybeDailyShadow(ctx, now.Add(-2*time.Hour)); r != nil {
-		t.Fatal("ran before 16:00")
+		t.Fatal("ran before 11:00")
 	}
 	// No import since the sheet's check: wait.
 	ex(`INSERT INTO club_imports (at, by, dry_run, raw, report) VALUES ($1, 'sheet', false, '{}', '{}')`, now.Add(-3*time.Hour))

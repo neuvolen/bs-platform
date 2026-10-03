@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/bnursik/business_surgery_backend/internal/ai"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
@@ -47,9 +48,11 @@ type gallupSummary struct {
 }
 
 type gallupProfile struct {
+	V        int            `json:"v,omitempty"`
 	Talents  []gallupTalent `json:"talents"`
 	Summary  gallupSummary  `json:"summary"`
 	Complete bool           `json:"complete"`
+	Deep     *gallupDeep    `json:"deep,omitempty"` // R29, platform_gallup_deep.go
 }
 
 // The 34 themes: key, English name, Russian name, domain.
@@ -234,10 +237,17 @@ func gallupClean(s string) string {
 
 func (h *PlatformAI) Gallup(c *gin.Context) {
 	var req struct {
-		Text string `json:"text"`
+		Text  string   `json:"text"`
+		Order []string `json:"order"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_request"})
+		return
+	}
+	// The AI answer takes longer than the server's 60 s write timeout.
+	longBody(c)
+	if strings.TrimSpace(req.Text) == "" && len(req.Order) > 0 {
+		h.gallupDeepOnly(c, req.Order)
 		return
 	}
 	text := strings.TrimSpace(req.Text)
@@ -252,7 +262,8 @@ func (h *PlatformAI) Gallup(c *gin.Context) {
 		}
 	}
 	sum := sha256.Sum256([]byte(text))
-	key := "gal_" + hex.EncodeToString(sum[:])[:48]
+	// gal2_: R29 profiles with the deep analysis (gal_ held the talents only)
+	key := "gal2_" + hex.EncodeToString(sum[:])[:48]
 	ctx := c.Request.Context()
 	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
 		c.Header("X-Gallup-Cache", "hit")
@@ -263,21 +274,119 @@ func (h *PlatformAI) Gallup(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no_ai"})
 		return
 	}
-	actx, cancel := context.WithTimeout(ctx, 170*time.Second)
+	actx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
-	raw, err := h.AI.JSON(actx, gallupSystem, gallupPrompt(text))
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "ai_failed", "detail": err.Error()})
+	// A full ranked list in the text: the deep analysis starts at once, in
+	// parallel with the talents; otherwise it waits for the model's order.
+	scan := gallupScanOrder(text)
+	type deepRes struct {
+		d     *gallupDeep
+		err   error
+		order []string
+	}
+	var early chan deepRes
+	if len(scan) == len(gallupThemes) {
+		early = make(chan deepRes, 1)
+		go func() {
+			d, err := h.gallupDeepFor(actx, scan)
+			early <- deepRes{d, err, scan}
+		}()
+	}
+	var p *gallupProfile
+	var err error
+	prompt := gallupPrompt(text)
+	for try := 0; try < 2; try++ {
+		var raw string
+		raw, err = h.AI.JSON(actx, gallupSystem, prompt)
+		if err != nil {
+			if actx.Err() != nil {
+				break
+			}
+			continue
+		}
+		if p, err = parseGallupAI(raw); err == nil {
+			break
+		}
+		prompt = gallupPrompt(text) + "\n\nПредыдущий ответ не прошёл проверку: " + err.Error() + ". Верни полный ответ заново строго в формате JSON."
+	}
+	if p == nil {
+		code := "ai_failed"
+		if err != nil && actx.Err() == nil && !isAIHTTP(err) {
+			code = "ai_parse"
+		}
+		c.JSON(http.StatusBadGateway, gin.H{"error": code, "detail": errText(err)})
 		return
 	}
-	p, err := parseGallupAI(raw)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "ai_parse", "detail": err.Error()})
-		return
+	order := make([]string, len(p.Talents))
+	for i, t := range p.Talents {
+		order[i] = t.Key
 	}
+	var dr deepRes
+	if early != nil {
+		dr = <-early
+	}
+	if early == nil || !sameOrder(dr.order, order) {
+		d, err := h.gallupDeepFor(actx, order)
+		dr = deepRes{d, err, order}
+	}
+	p.V = 2
+	p.Deep = dr.d
 	b, _ := json.Marshal(p)
-	if p.Complete {
+	if p.Complete && p.Deep != nil && !p.Deep.Partial {
 		_ = h.repo.PutFile(context.Background(), pg.PlatformFile{ID: key, Name: "gallup.json", Mime: "application/json", Data: b}, platformUser(c))
 	}
 	c.Data(http.StatusOK, "application/json; charset=utf-8", b)
+}
+
+// gallupDeepOnly: POST {order:[keys]} - the deep analysis for a profile
+// saved before R29 (its order is known, the report text is not kept).
+func (h *PlatformAI) gallupDeepOnly(c *gin.Context, in []string) {
+	var order []string
+	seen := map[string]bool{}
+	for _, x := range in {
+		if k := gallupKeyOf(x); k != "" && !seen[k] {
+			seen[k] = true
+			order = append(order, k)
+		}
+	}
+	if len(order) < 5 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "order"})
+		return
+	}
+	sum := sha256.Sum256([]byte(strings.Join(order, ",")))
+	key := "gal2o_" + hex.EncodeToString(sum[:])[:46]
+	ctx := c.Request.Context()
+	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
+		c.Header("X-Gallup-Cache", "hit")
+		c.Data(http.StatusOK, "application/json; charset=utf-8", f.Data)
+		return
+	}
+	if h.AI == nil || (h.AI.Gemini == "" && h.AI.Anthropic == "" && h.AI.OpenAI == "") {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no_ai"})
+		return
+	}
+	actx, cancel := context.WithTimeout(ctx, 240*time.Second)
+	defer cancel()
+	d, err := h.gallupDeepFor(actx, order)
+	if d == nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "ai_failed", "detail": errText(err)})
+		return
+	}
+	b, _ := json.Marshal(gin.H{"v": 2, "order": order, "deep": d})
+	if !d.Partial {
+		_ = h.repo.PutFile(context.Background(), pg.PlatformFile{ID: key, Name: "gallup_deep.json", Mime: "application/json", Data: b}, platformUser(c))
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", b)
+}
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func isAIHTTP(err error) bool {
+	var he *ai.HTTPError
+	return errors.As(err, &he)
 }

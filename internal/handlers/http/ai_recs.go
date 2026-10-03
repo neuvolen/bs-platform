@@ -20,16 +20,20 @@ import (
 // сильную мировую практику, инструмент или фреймворк для собственника малого
 // и среднего бизнеса в Казахстане, проверяет, что её ещё нет в библиотеке
 // (bs_tools, bs_diag, расширение библиотеки, прошлые рекомендации), и кладёт
-// в club doc bs_ai_recs. Команда потом добавляет её в библиотеку одной
-// кнопкой (POST /ai/recs/:id {"action":"add"}) или отклоняет.
+// в club doc bs_ai_recs. Дальше сервер решает сам (ai_recs_auto.go):
+// понятное добавляет в библиотеку в полном формате, кардинальное спрашивает
+// у владельца в боте. Команда может решить и на платформе
+// (POST /ai/recs/:id {"action":"add"|"replace"|"reject"}).
 //
 // bs_ai_recs = {"updated": RFC3339, "items": [rec...]}, новые сверху.
-// rec = {id, date: "YYYY-MM-DD", at, status: "new"|"added"|"rejected",
+// rec = {id, date: "YYYY-MM-DD", at, status: "new"|"ask"|"added"|"rejected",
 //        kind: "tool"|"diag", organ, title, summary, source, company, author,
 //        url, why, steps: [5], metrics: [], adapt,
 //        item: готовая карточка в формате bs_tools / bs_diag,
 //        t, d, k: "world" (как карточки страницы «Рекомендации ИИ»),
-//        addedAt, addedTo, rejectedAt}
+//        addedAt, addedTo, rejectedAt,
+//        note: строка истории («Добавлено автоматически», «Ждёт решения владельца: ...»),
+//        auto, askWhy, similar, askSent, replaced, by}
 
 const (
 	aiRecsKey  = "bs_ai_recs"
@@ -408,22 +412,40 @@ func untilAlmatyHour(now time.Time, hh int) time.Duration {
 // 07:00 the day's one is made if it is missing).
 func (h *PlatformAI) RecsLoop(ctx context.Context) {
 	t := time.NewTimer(3 * time.Minute)
+	started := false
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
+		if !started && h.repo != nil {
+			started = true
+			c, cancel := context.WithTimeout(ctx, time.Minute)
+			if err := h.LoadRichExtra(c); err != nil {
+				log.Printf("ai recs: rich items: %v", err)
+			}
+			cancel()
+			go h.recsAskLoop(ctx)
+		}
 		now := time.Now()
 		if now.In(almaty).Hour() >= aiRecsHour && h.AI.Status()["text"] != "" {
-			c, cancel := context.WithTimeout(ctx, 10*time.Minute)
+			c, cancel := context.WithTimeout(ctx, 20*time.Minute)
 			rec, err := h.dailyRec(c, now, false)
-			cancel()
-			if err != nil && err != errRecDone {
+			if err == errRecDone {
+				// Found earlier but not decided on (a restart in between).
+				if d, e := h.repo.GetDoc(c, "club", aiRecsKey); e == nil && d != nil && !d.Deleted {
+					_, items := readRecs(d.Value)
+					rec, err = pendingAutoRec(items, now.In(almaty).Format("2006-01-02")), nil
+				}
+			}
+			if err != nil {
 				log.Printf("ai recs: %v", err)
 			} else if rec != nil {
-				log.Printf("ai recs: %s (%s)", rec["title"], rec["organ"])
+				out, aerr := h.autoRec(c, rec, now)
+				log.Printf("ai recs: %s (%s): %s %v", rec["title"], rec["organ"], out, aerr)
 			}
+			cancel()
 		}
 		t.Reset(untilAlmatyHour(time.Now(), aiRecsHour))
 	}
@@ -444,9 +466,10 @@ func (h *PlatformAI) RecsNow(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"rec": rec})
 }
 
-// RecAction: POST /ai/recs/:id {"action": "add"|"reject"} (team).
+// RecAction: POST /ai/recs/:id {"action": "add"|"replace"|"reject"} (team).
 // add puts rec.item into bs_tools (kind tool) or bs_diag (kind diag) unless a
-// card with that title is there, and marks the rec "added".
+// card with that title is there, and marks the rec "added"; replace puts it
+// in place of rec.similar. The rich card made for it goes into the library.
 func (h *PlatformAI) RecAction(c *gin.Context) {
 	if !teamOnly(c) {
 		return
@@ -455,7 +478,7 @@ func (h *PlatformAI) RecAction(c *gin.Context) {
 		Action string `json:"action"`
 	}
 	_ = c.ShouldBindJSON(&req)
-	if req.Action != "add" && req.Action != "reject" {
+	if req.Action != "add" && req.Action != "reject" && req.Action != "replace" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "action"})
 		return
 	}
@@ -464,54 +487,9 @@ func (h *PlatformAI) RecAction(c *gin.Context) {
 }
 
 func (h *PlatformAI) recAction(ctx context.Context, id, action string) (int, gin.H) {
-	var rec map[string]any
-	if d, err := h.repo.GetDoc(ctx, "club", aiRecsKey); err == nil && d != nil && !d.Deleted {
-		_, items := readRecs(d.Value)
-		for _, it := range items {
-			if recStr(it, "id") == id {
-				rec, _ = it.(map[string]any)
-			}
-		}
-	}
-	if rec == nil {
-		return http.StatusNotFound, gin.H{"error": "not_found"}
-	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	key, added := "", false
-	if action == "add" {
-		item, _ := rec["item"].(map[string]any)
-		if item == nil {
-			return http.StatusBadRequest, gin.H{"error": "no_item"}
-		}
-		key = "bs_tools"
-		if recStr(rec, "kind") == "diag" {
-			key = "bs_diag"
-		}
-		if h.clubDocInt(ctx, "bs_libver") < libExtMinLib {
-			return http.StatusConflict, gin.H{"error": "Библиотека ещё не сохранена на сервере: откройте её на платформе и повторите"}
-		}
-		var err error
-		if added, err = h.appendLibItem(ctx, key, item); err != nil {
-			return http.StatusConflict, gin.H{"error": err.Error()}
-		}
-	}
-	err := h.updateRecs(ctx, func(items []any) ([]any, bool) {
-		for _, it := range items {
-			if m, ok := it.(map[string]any); ok && recStr(m, "id") == id {
-				if action == "add" {
-					m["status"], m["addedAt"], m["addedTo"] = "added", now, key
-				} else {
-					m["status"], m["rejectedAt"] = "rejected", now
-				}
-				return items, true
-			}
-		}
-		return items, false
-	})
-	if err != nil {
-		return http.StatusConflict, gin.H{"error": err.Error()}
-	}
-	return http.StatusOK, gin.H{"ok": true, "status": map[string]string{"add": "added", "reject": "rejected"}[action], "key": key, "added": added}
+	note := map[string]string{"add": "Добавлено командой на платформе", "replace": "Заменено командой на платформе",
+		"reject": "Отклонено командой на платформе"}[action]
+	return h.recApply(ctx, id, action, "platform", note)
 }
 
 // appendLibItem adds a card to bs_tools / bs_diag unless its title is there.

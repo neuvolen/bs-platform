@@ -87,13 +87,24 @@ func (h *PlatformAI) threadsCall(ctx context.Context, method, path string, q url
 	var out map[string]any
 	_ = json.Unmarshal(b, &out)
 	if res.StatusCode >= 300 {
-		msg := string(b)
+		// the code tells a dead token (190) from the limits (4, 17, 32, 613): content_threads.go
+		ae := &threadsAPIError{Status: res.StatusCode, Msg: strings.TrimSpace(string(b))}
 		if e, ok := out["error"].(map[string]any); ok {
 			if m, _ := e["message"].(string); m != "" {
-				msg = m
+				ae.Msg = m
+			}
+			ae.Type, _ = e["type"].(string)
+			if c, ok := e["code"].(float64); ok {
+				ae.Code = int(c)
+			}
+			if c, ok := e["error_subcode"].(float64); ok {
+				ae.Subcode = int(c)
 			}
 		}
-		return out, fmt.Errorf("Threads: %s", msg)
+		if len([]rune(ae.Msg)) > 300 {
+			ae.Msg = string([]rune(ae.Msg)[:300])
+		}
+		return out, ae
 	}
 	return out, nil
 }
@@ -203,6 +214,38 @@ func (h *PlatformAI) PublishThreadsText(ctx context.Context, title, text string)
 	}
 	h.saveThreadsStatus(ctx, threadsStatus{Connected: true, Username: username, Last: time.Now().UTC().Format(time.RFC3339), LastTitle: title})
 	return postID, link, nil
+}
+
+// PublishThreadsReply publishes a reply to a post (the next part of a series).
+func (h *PlatformAI) PublishThreadsReply(ctx context.Context, replyTo, text string) (string, error) {
+	text = strings.TrimSpace(text)
+	if n := len([]rune(text)); n > threadsMaxText {
+		return "", fmt.Errorf("Текст длиннее %d знаков (%d)", threadsMaxText, n)
+	}
+	if text == "" || replyTo == "" {
+		return "", errors.New("Пустой ответ")
+	}
+	tok := h.threadsToken(ctx)
+	if tok == "" {
+		return "", errors.New("Нет THREADS_TOKEN в переменных Railway")
+	}
+	me, err := h.threadsCall(ctx, "GET", "/v1.0/me", url.Values{"fields": {"id"}, "access_token": {tok}})
+	if err != nil {
+		return "", err
+	}
+	uid, _ := me["id"].(string)
+	cr, err := h.threadsCall(ctx, "POST", "/v1.0/"+uid+"/threads", url.Values{"media_type": {"TEXT"}, "text": {text}, "reply_to_id": {replyTo}, "access_token": {tok}})
+	if err != nil {
+		return "", err
+	}
+	cid, _ := cr["id"].(string)
+	time.Sleep(threadsWait)
+	pub, err := h.threadsCall(ctx, "POST", "/v1.0/"+uid+"/threads_publish", url.Values{"creation_id": {cid}, "access_token": {tok}})
+	if err != nil {
+		return "", err
+	}
+	id, _ := pub["id"].(string)
+	return id, nil
 }
 
 // PublishNextThreads posts the next «Полезное» item. Returns its title.

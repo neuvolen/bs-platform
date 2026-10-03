@@ -28,11 +28,26 @@ import (
 
 // ClubActions lists what the platform may do, with the parameters the script
 // expects.
+// R30: everything the team does in the app on fines and meetings is here too
+// (delete a fine, a meeting passed, attendance, move, delete, offline day,
+// meetings package), with the same parameters, so the platform and the app
+// go through the same write queue.
 var clubActions = map[string][]string{
-	"addPayment":  {"type", "src", "amount", "isCash", "resident"},
-	"addFine":     {"name", "type", "amount"},
-	"updateFine":  {"name", "date", "type", "amount", "status"},
-	"addSchedule": {"res", "date", "time"},
+	"addPayment":      {"type", "src", "amount", "isCash", "resident"},
+	"addFine":         {"name", "type", "amount"},
+	"updateFine":      {"row", "name", "date", "type", "kind", "amount", "status"},
+	"deleteFine":      {"row", "name", "date", "type", "kind", "amount"},
+	"addSchedule":     {"res", "date", "time"},
+	"deleteSchedule":  {"res", "date", "time"},
+	"updateMeeting":   {"oldRes", "oldDate", "oldTime", "newDate", "newTime"},
+	"confirmMeeting":  {"res", "date", "time"},
+	"markAttendance":  {"names", "date"},
+	"addOfflineGroup": {"date", "time"},
+	"setMeetings":     {"name", "done", "granted"},
+	"renewMeetings":   {"name"},
+	"addResident":     {"name", "tariff", "debt", "visits", "source", "format", "partner"},
+	// Not a club write: the script sends the NPS poll to every resident (at most once in 30 days).
+	"runNPS": {},
 }
 
 type ClubActionHandler struct {
@@ -53,7 +68,7 @@ type clubActionReq struct {
 
 // Action godoc
 // @Summary  Enter a payment, fine, paid fine or meeting from the platform
-// @Description  Team only. {action: addPayment|addFine|updateFine|addSchedule, params:{…}} with the Telegram app's parameters. Written into the sheet by the script while the sheet keeps the club's data.
+// @Description  Team only. {action: addPayment|addFine|updateFine|deleteFine|addSchedule|deleteSchedule|updateMeeting|confirmMeeting|markAttendance|addOfflineGroup|setMeetings|renewMeetings, params:{…}} with the Telegram app's parameters. Written into the sheet by the script while the sheet keeps the club's data.
 // @Tags     club
 // @Security BearerAuth
 // @Router   /api/v1/club/action [post]
@@ -88,7 +103,7 @@ func (h *ClubActionHandler) Action(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "not_telegram_user"})
 		return
 	}
-	if h.gw.Writes != nil {
+	if h.gw.Writes != nil && pg.ClubWriteActions[req.Action] {
 		// The server first, then the sheet; a write the script does not take waits on the server.
 		in := url.Values{}
 		for k, v := range params {
@@ -164,12 +179,70 @@ func validateClubAction(action string, p map[string]string) string {
 		if p["type"] == "" {
 			p["type"] = "Штраф"
 		}
-	case "updateFine":
+	case "updateFine", "deleteFine":
 		if p["name"] == "" || p["date"] == "" || !num("amount") {
 			return "нужны резидент, дата и сумма штрафа"
 		}
-		if p["status"] == "" {
+		if p["kind"] == "" {
+			p["kind"] = p["type"]
+		}
+		if action == "updateFine" && p["status"] == "" {
 			p["status"] = "Оплатил"
+		}
+	case "deleteSchedule", "confirmMeeting":
+		if p["res"] == "" || p["date"] == "" {
+			return "нужны резидент и дата встречи"
+		}
+	case "updateMeeting":
+		if p["oldRes"] == "" || p["oldDate"] == "" || (p["newDate"] == "" && p["newTime"] == "") {
+			return "нужны встреча и новая дата или время"
+		}
+		if p["newDate"] != "" {
+			if _, err := time.Parse("02.01.2006", p["newDate"]); err != nil {
+				return "дата в виде 30.09.2026"
+			}
+		}
+		if p["newTime"] != "" {
+			if _, err := time.Parse("15:04", p["newTime"]); err != nil {
+				return "время в виде 15:00"
+			}
+		}
+	case "markAttendance":
+		if p["names"] == "" || p["date"] == "" {
+			return "нужны резиденты и дата"
+		}
+	case "addOfflineGroup":
+		if p["date"] == "" || p["time"] == "" {
+			return "нужны дата и время"
+		}
+	case "setMeetings":
+		for _, k := range []string{"done", "granted"} {
+			if n, err := strconv.ParseInt(p[k], 10, 64); err != nil || n < 0 {
+				return "встречи: целые числа от 0"
+			}
+		}
+		if p["name"] == "" {
+			return "нужен резидент"
+		}
+	case "renewMeetings":
+		if p["name"] == "" {
+			return "нужен резидент"
+		}
+	case "addResident":
+		if p["name"] == "" {
+			return "нужно имя резидента"
+		}
+		if p["tariff"] != "" && !num("tariff") {
+			return "тариф: сумма в тенге"
+		}
+		if p["debt"] == "" {
+			p["debt"] = p["tariff"]
+		}
+		if p["visits"] != "3" && p["visits"] != "4" {
+			p["visits"] = "3"
+		}
+		if p["format"] != "Офлайн" {
+			p["format"] = "Онлайн"
 		}
 	case "addSchedule":
 		if p["res"] == "" {
@@ -224,6 +297,20 @@ func (h *ClubActionHandler) mirror(ctx context.Context, action string, p map[str
 		d, _ := time.Parse("02.01.2006", p["date"])
 		_, err := db.Exec(ctx, `INSERT INTO club_meetings (resident, date, time) VALUES ($1,$2,$3)`, p["res"], d.Format("2006-01-02"), p["time"])
 		return err
+	case "deleteFine":
+		d, err := time.Parse("02.01.2006", p["date"])
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec(ctx, `DELETE FROM club_fines
+			WHERE id = (SELECT id FROM club_fines WHERE resident = $1 AND ($2 = '' OR type = $2) AND amount = $3 AND date = $4 ORDER BY id LIMIT 1)`,
+			p["name"], p["kind"], amount, d.Format("2006-01-02"))
+		return err
+	}
+	// The other actions reach the server's tables through the write queue
+	// (club_apply.go); here the hourly import brings them.
+	if _, ok := clubActions[action]; ok {
+		return nil
 	}
 	return fmt.Errorf("unknown action %s", action)
 }

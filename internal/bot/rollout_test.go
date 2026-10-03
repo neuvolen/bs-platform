@@ -85,9 +85,15 @@ func TestDueReminders(t *testing.T) {
 func TestDailySummaryWording(t *testing.T) {
 	r := DayResult{Day: "29.09.2026", Active: 10, WouldFine: []string{"Асет"}, NoChatID: []string{"Даниил"}, Meeting: []string{"Даулет"}}
 	m := DailySummary(r, []string{"Асет"})
-	for _, want := range []string{"📋 Ночная проверка за 29.09.2026", "Сдали отчёт: 8 из 10", "• Асет", "Даниил", "Даулет"} {
+	for _, want := range []string{"📋 Проверка отчётов за 29.09.2026", "Сдали отчёт: 8 из 9", "• Асет", "штраф 10 000 тг", "Даулет"} {
 		if !strings.Contains(m, want) {
 			t.Fatalf("%q not in\n%s", want, m)
+		}
+	}
+	// A resident without a Chat ID is not named, and there is no Chat ID noise.
+	for _, bad := range []string{"Даниил", "Chat ID", "Ночная", "\u2014"} {
+		if strings.Contains(m, bad) {
+			t.Fatalf("%q in\n%s", bad, m)
 		}
 	}
 	_ = context.Background()

@@ -24,7 +24,7 @@ const (
 	FeatureReportFeedback = "report_feedback"
 	// FeatureEveningReminder: 22:00 reminder to those without a report today.
 	FeatureEveningReminder = "evening_reminder"
-	// FeatureDailyCheck: the 14:30 check of yesterday's reports and the fines.
+	// FeatureDailyCheck: the 10:00 check of yesterday's reports and the fines.
 	FeatureDailyCheck = "daily_check"
 	// FeatureMeetingReminders: 3 days, 1 day and 1 hour before a meeting.
 	FeatureMeetingReminders = "meeting_reminders"

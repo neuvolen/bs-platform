@@ -47,6 +47,8 @@ type SeedFine struct {
 	Amount int64  `json:"amount"`
 	Date   string `json:"date"`
 	Status string `json:"status"`
+	// Row: the sheet row, sent back to find the fine (as the app does).
+	Row int `json:"row,omitempty"`
 }
 
 // SeedMeeting is one line of the platform's SDATA.schedule.
@@ -91,7 +93,7 @@ func SeedFines(fines []Fine) []SeedFine {
 			st = "Оплатил"
 		}
 		d := f.Date
-		out = append(out, SeedFine{Res: f.Name, Type: f.Type, Amount: f.Amount, Date: day(&d), Status: st})
+		out = append(out, SeedFine{Res: f.Name, Type: f.Type, Amount: f.Amount, Date: day(&d), Status: st, Row: f.Row})
 	}
 	return out
 }

@@ -565,7 +565,7 @@ function _sendAnalytics(cid){
     totalRes++;
     totalDebt+=Number(wsR.getRange(r, RC.total).getValue())||0;
     totalFines+=Number(wsR.getRange(r, RC.fine).getValue())||0;
-    if(!wsR.getRange(r, RC.chat).getValue())noChat++;
+    if(!wsR.getRange(r, RC.chat).getValue() && wsR.getRange(r, RC.except).getValue()!=="Да" && wsR.getRange(r, RC.admin).getValue()!=="Да")noChat++;
     var fmt=String(wsR.getRange(r, RC.format)?wsR.getRange(r, RC.format).getValue():"Офлайн");
     if(fmt==="Онлайн")online++;else offline++;
     if(wsR.getRange(r, RC.admin)&&wsR.getRange(r, RC.admin).getValue()==="Да")admins++;
@@ -2779,7 +2779,7 @@ function _alert(m){
 // ═══════════════════════════════════════════════════════════════
 // Месяц, с которого считается касса. 3 = апрель, счёт был обнулён
 var CASH_START_MONTH = 3;
-var BS_VERSION = "2026-10-03-38";
+var BS_VERSION = "2026-10-03-39";
 
 // ═══════════════════════════════════════════════════════════════
 // КАРТА КОЛОНОК ЛИСТА РЕЗИДЕНТОВ
@@ -5121,11 +5121,10 @@ function _onCheckbox(ws, row, col){
         Logger.log("⚠️ Пустой шаблон сообщения для "+key);
       }
     } else {
-      // Chat ID отсутствует у резидента. сообщаем админам
+      // Chat ID отсутствует у резидента
       Logger.log("❌ У резидента "+name+" нет Chat ID в столбце N листа \"BS - резиденты дебет\"");
-      try{
-        bsSysNote("⚠️ <b>Не отправлено уведомление о завершённой встрече</b>\n\n👤 "+name+"\n📋 Галочка №"+checkNum+"\n\n🔴 Причина: <b>не привязан Chat ID</b> в листе \"BS - резиденты дебет\" (колонка N)\n\nКак исправить:\n1. Открой лист \"BS - резиденты дебет\"\n2. Найди строку с резидентом "+name+"\n3. В колонку N (Chat ID) вставь его Telegram ID\n\nПодсказка: ID можно посмотреть в листе \"Подписчики канала\" (если он раньше писал боту)", {parse_mode:"HTML"});
-      }catch(e){}
+      // Без Chat ID уведомление просто не отправляется: в чат команды об этом не пишем
+      // (список резидентов без Chat ID: меню BS → «Диагностика бота»)
     }
   }
 
@@ -7222,8 +7221,8 @@ function dailyCheck(){
   if(bsServerOwns("daily_check")) return;   // проверку и штрафы делает сервер
   try{
   var cache=CacheService.getScriptCache();
-  // Запускается в 02:00. поздние отчёты успевают записаться
-  // (отчёты должны быть сданы ДО полуночи)
+  // Запускается утром в 10:00 по Алматы из bsHourly (запасной запуск в 14:30 из bsDaily).
+  // Отчёты за вчера должны быть сданы до 23:59 вчера
   var yesterdayDate=new Date();
   yesterdayDate.setDate(yesterdayDate.getDate()-1);
   var checkDate=bsDayStr(yesterdayDate);
@@ -7300,7 +7299,7 @@ function dailyCheck(){
   }).length;
 
   // Ноль отчётов при живых резидентах. это не прогул десяти человек, это поломка
-  // Проверка идёт в 14:30, поэтому пороги с запасом: ночью и утром тишина. это норма
+  // Пороги с запасом: ночью и рано утром тишина. это норма
   var systemDown = (_actives>=3 && sentCount===0) || hoursSilent>48 || updSilentH>24;
   if(systemDown){
     var why=[];
@@ -7308,7 +7307,7 @@ function dailyCheck(){
     if(hoursSilent>48) why.push("последняя запись в логе отчётов была "+(hoursSilent>=9999?"очень давно":hoursSilent+" ч назад"));
     if(updSilentH>24) why.push("бот не получал сообщений из Telegram "+updSilentH+" ч");
     var alarm="🚨 ШТРАФЫ НЕ ВЫСТАВЛЕНЫ. ПОХОЖЕ НА СБОЙ\n\n"+
-      "Ночная проверка за "+checkDate+" остановлена.\n\n"+
+      "Проверка отчётов за "+checkDate+" остановлена.\n\n"+
       "Почему:\n• "+why.join("\n• ")+"\n\n"+
       "Штрафовать вслепую нельзя: если бот не получает сообщения, резиденты не виноваты.\n\n"+
       "Что сделать: в таблице меню BS → «Диагностика бота». Там видно, жив ли вебхук.";
@@ -7422,30 +7421,23 @@ function dailyCheck(){
   recalcResidents();
   try{ bsPurgeFines(true); }catch(pE){ Logger.log("purge: "+pE); }
 
-  // Сводка админам
-  var summary="📋 Ночная проверка за "+checkDate+"\n\n";
-  // Считаем только тех, кого реально проверяли: без бывших, исключений и админов
+  // Сводка админам: кто сдал, кто нет.
+  // Исключения, админы и резиденты без Chat ID в сводке не упоминаются и не считаются
+  var summary="📋 Проверка отчётов за "+checkDate+"\n\n";
   var totalActive=resData.filter(function(r){
     return r[RI.name] && r[RI.former]!=="Да" && r[RI.except]!=="Да" && r[RI.admin]!=="Да";
-  }).length;
-  var doneCount=totalActive-fined.length-noChatId.length;
-  var excCount=resData.filter(function(r){
-    return r[RI.name] && r[RI.former]!=="Да" && (r[RI.except]==="Да"||r[RI.admin]==="Да");
-  }).length;
-  summary+="Сдали отчёт: "+doneCount+" из "+totalActive+"\n";
-  if(excCount) summary+="Не проверялись (исключения и админы): "+excCount+"\n";
-  summary+="\n";
+  }).length-noChatId.length;
+  var doneCount=totalActive-fined.length;
+  if(doneCount<0) doneCount=0;
+  summary+="Сдали отчёт: "+doneCount+" из "+totalActive+"\n\n";
   if(fined.length>0){
-    summary+="❌ Не сдали (штраф "+FINE_AMT.toLocaleString()+" тг):\n";
+    summary+="❌ Не сдали (штраф 10 000 тг):\n";
     fined.forEach(function(n){summary+="  • "+n+"\n";});
   } else {
     summary+="✅ Все сдали отчёт!";
   }
-  if(noChatId.length){
-    summary+="\n\n⚠️ Не проверены. в таблице пустой Chat ID:\n";
-    noChatId.forEach(function(n){summary+="  • "+n+"\n";});
-    summary+="Пока Chat ID пуст, бот не видит их отчёты и не штрафует.";
-  }
+  // Без Chat ID бот не видит отчёты: не проверяем и не пишем об этом в сводку.
+  // Список таких резидентов есть в меню BS → «Диагностика бота»
   Logger.log("dailyCheck ИТОГ: сдали="+doneCount+", штрафы="+fined.length+", сообщение админам отправляется");
   try{
     tgSendAdmins(summary,"reports");
@@ -14665,6 +14657,7 @@ function checkMissingChatIds(){
       if(!name) return;
       if(String(row[RI.admin]||"").trim() === "Да") return;   // админ
       if(String(row[RI.former]||"").trim() === "Да") return;    // бывший
+      if(String(row[RI.except]||"").trim() === "Да") return;    // исключение
       var cid = _normId(row[RI.chat]);
       if(!cid) missing.push(name);
     });
@@ -17023,6 +17016,12 @@ function bsHourly(){
     // Данные клуба ведёт сервер: таблица только получает копию ДДС и PL
     try{ bsPullFromServer(); }catch(e){ Logger.log("h.pull: "+e); }
   } else {
+  // Проверка отчётов за вчера: утром в 10:00 по Алматы (первый запуск после 10:00).
+  // Отчёт засчитывается за день отправки, дедлайн 23:59, так что к утру день закрыт.
+  // Повторно не выполнится: dailyCheck помнит обработанные дни.
+  // Если проверку делает сервер (daily_check), dailyCheck сразу выходит: одна сводка, без дублей
+  var _hNow = parseInt(Utilities.formatDate(new Date(), "Asia/Almaty", "H"), 10);
+  if(_hNow >= 10 && _hNow < 14){ try{ dailyCheck(); }catch(e){ Logger.log("h.daily: "+e); } }
   try{ bsPurgeFines(true); }catch(e){ Logger.log("h.purge: "+e); }
   try{ bsPushResidentsToPlatform(true); }catch(e){ Logger.log("h.platform: "+e); }
   try{ bsClubImportHourly(); }catch(e){ Logger.log("h.clubImport: "+e); }
@@ -17042,8 +17041,8 @@ function bsHourly(){
 function bsDaily(){
   if(bsIsCopy()) return;
   // Диспетчер ежедневных задач. Запускается в 14:30 по Алматы.
-  // Почему не утром: отчёт, присланный до 14:00, засчитывается за вчерашний день.
-  // При проверке в 10:00 резидент получал штраф, хотя ещё мог дослать отчёт
+  // Проверка отчётов идёт утром в 10:00 из bsHourly (дедлайн отчёта 23:59 того же дня).
+  // Здесь только запасной запуск, если утром не получилось: второй раз день не проверяется
   var _master = bsServerIsMaster();
   if(!_master){ try{ dailyCheck(); }catch(e){ Logger.log("day.check: "+e); } }
   try{ publishScheduledSmm(); }catch(e){ Logger.log("day.smm: "+e); }

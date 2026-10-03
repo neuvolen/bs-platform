@@ -236,6 +236,9 @@ func WireCalls(pm *httpapi.PlatformModule, botSvc *bot.Service, team string) {
 	pm.AI.Owner = httpapi.FirstTeamID(team)
 	if botSvc != nil && botSvc.Enabled() {
 		pm.AI.Notify = botSvc.SendMessage
+		// Рекомендации ИИ: кардинальное решает владелец кнопками в боте (ai_recs_auto.go)
+		pm.AI.RecsBot = httpapi.RecsBot{Send: botSvc.SendMessageID, Edit: botSvc.EditMessageKB, Platform: httpapi.ContentPlatformURL()}
+		botSvc.SetTeamCallbackHook("airec_", pm.AI.HandleRecCallback)
 		// R27: the lead home books разбор: the confirmation goes to the lead, a note to the team
 		var admins []int64
 		for id := range httpapi.ParsePlatformTeam(team) {
@@ -256,6 +259,10 @@ func BuildContent(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, jwtS
 	e.Owner = httpapi.FirstTeamID(team)
 	if pm != nil && pm.AI != nil {
 		e.Threads = pm.AI.PublishThreadsText
+		e.ThreadsReply = pm.AI.PublishThreadsReply
+		if pm.AI.AI != nil {
+			e.AI = pm.AI.AI.Text // the daily Threads batch (content_threads.go)
+		}
 		pm.AI.SetQueueOwnsThreads(e.OwnsThreadsDay)
 	}
 	if botSvc != nil && botSvc.Enabled() {

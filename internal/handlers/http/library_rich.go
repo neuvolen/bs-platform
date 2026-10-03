@@ -170,41 +170,49 @@ func PublicTemplate(c *gin.Context) {
 }
 
 var (
-	tplZipOnce sync.Once
+	tplZipMu   sync.Mutex
+	tplZipEtag string // the library version the archive was built for
 	tplZip     []byte
 	tplZipErr  error
 )
 
-// LibraryTemplatesZip: every template in one archive (built once).
+// LibraryTemplatesZip: every template in one archive (built once per library
+// version: a tool added at runtime gets into it too).
 func LibraryTemplatesZip(c *gin.Context) {
-	tplZipOnce.Do(func() {
-		var buf bytes.Buffer
-		zw := zip.NewWriter(&buf)
-		seen := map[string]int{}
-		for _, t := range content.RichTools() {
-			if t.Template == nil {
-				continue
+	_, _, ver, _ := content.LibRich()
+	tplZipMu.Lock()
+	defer tplZipMu.Unlock()
+	if tplZipEtag != ver || (tplZip == nil && tplZipErr == nil) {
+		tplZipEtag, tplZipErr = ver, nil
+		func() {
+			var buf bytes.Buffer
+			zw := zip.NewWriter(&buf)
+			seen := map[string]int{}
+			for _, t := range content.RichTools() {
+				if t.Template == nil {
+					continue
+				}
+				_, b, _, err := TemplatePDF(t.ID)
+				if err != nil {
+					tplZipErr = err
+					return
+				}
+				_, name := tplFileNames(t.Template.Title)
+				if n := seen[name]; n > 0 {
+					name = strings.TrimSuffix(name, ".pdf") + "_" + string(rune('1'+n)) + ".pdf"
+				}
+				seen[name]++
+				f, err := zw.CreateHeader(&zip.FileHeader{Name: t.Organ + "/" + name, Method: zip.Store, Flags: 0x800})
+				if err != nil {
+					tplZipErr = err
+					return
+				}
+				_, _ = f.Write(b)
 			}
-			_, b, _, err := TemplatePDF(t.ID)
-			if err != nil {
-				tplZipErr = err
-				return
-			}
-			_, name := tplFileNames(t.Template.Title)
-			if n := seen[name]; n > 0 {
-				name = strings.TrimSuffix(name, ".pdf") + "_" + string(rune('1'+n)) + ".pdf"
-			}
-			seen[name]++
-			f, err := zw.CreateHeader(&zip.FileHeader{Name: t.Organ + "/" + name, Method: zip.Store, Flags: 0x800})
-			if err != nil {
-				tplZipErr = err
-				return
-			}
-			_, _ = f.Write(b)
-		}
-		tplZipErr = zw.Close()
-		tplZip = buf.Bytes()
-	})
+			tplZipErr = zw.Close()
+			tplZip = buf.Bytes()
+		}()
+	}
 	if tplZipErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "zip"})
 		return

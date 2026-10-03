@@ -108,6 +108,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/ai/recs/:id", m.AI.RecAction)
 	g.POST("/ai/marketing", m.AI.Marketing)
 	g.POST("/ai/gallup", m.AI.Gallup) // platform_gallup.go: 34 talents from a Gallup report
+	g.POST("/gallup/pdf", GallupPDF)  // platform_gallup_pdf.go: the analysis as a PDF (R29)
 	g.POST("/ai/health", m.AI.Health) // platform_health.go: organ scores for «Здоровье бизнеса»
 	g.POST("/tts", m.AI.TTS)          // platform_tts.go: voice guide (onboarding)
 	g.POST("/tts/warm", m.AI.TTSWarm) // platform_tts_warm.go: the tour phrases made ahead of time

@@ -391,9 +391,8 @@ func (r DayResult) Message() string {
 	if len(r.Meeting) > 0 {
 		fmt.Fprintf(&b, "\n\nБыла встреча, отчёт не нужен: %s", strings.Join(r.Meeting, ", "))
 	}
-	if len(r.NoChatID) > 0 {
-		fmt.Fprintf(&b, "\n\nБез Chat ID (не проверялись): %s", strings.Join(r.NoChatID, ", "))
-	}
+	// Residents without a Chat ID are not checked and not named here: the
+	// bot cannot see them, that is not a difference between server and sheet.
 	return b.String()
 }
 

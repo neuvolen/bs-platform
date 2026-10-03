@@ -52,6 +52,8 @@ type PlatformAI struct {
 	Run func(func())
 	// ev: the events feed refresh in progress or last done (platform_events.go).
 	ev eventsRun
+	// RecsBot: the owner's questions about AI recommendations (ai_recs_auto.go).
+	RecsBot RecsBot
 }
 
 func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {

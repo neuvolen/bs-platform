@@ -170,6 +170,9 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.GET("/api/v1/app/avatar/:id", m.g.Avatar)
 	r.GET("/api/v1/app/referral", appGzip, m.g.Referral)
 	r.GET("/api/v1/app/slots", appGzip, m.g.Slots)
+	r.GET("/api/v1/app/nav", appGzip, m.g.Nav) // app_nav.go
+	r.GET("/api/v1/app/team/doc", appGzip, m.g.TeamDoc) // app_team_doc.go
+	r.PUT("/api/v1/app/team/doc", m.g.TeamDoc)
 	r.POST("/api/v1/app/book", m.g.Book)
 	r.POST("/api/v1/app/book/cancel", m.g.BookCancel)
 	r.POST("/api/v1/bot/claim", m.g.ClaimFromScript) // resident_claim.go, signed by the script
