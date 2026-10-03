@@ -79,8 +79,13 @@ func TestResidentEditWritePath(t *testing.T) {
 		r.ServeHTTP(w, req)
 		return w
 	}
+	// The editor's answer comes at once; the sheet gets the change from the queue.
 	edit := func(body string) *httptest.ResponseRecorder {
-		return do(admin, http.MethodPost, "/api/v1/club/resident", body)
+		w := do(admin, http.MethodPost, "/api/v1/club/resident", body)
+		if _, err := e.writes.flush(ctx, true); err != nil { // what the loop does when woken
+			t.Fatal(err)
+		}
+		return w
 	}
 	reminded := func() bool {
 		s, err := e.repo.Load(ctx)
@@ -199,10 +204,131 @@ func TestResidentEditWritePath(t *testing.T) {
 		t.Fatalf("flushed %v", q)
 	}
 
-	// The script refuses: the server's change is undone, the editor gets the reason.
+	// The script refuses (the sheet has no such resident): the server's change is undone.
 	e.f.set("setResidentField", "error")
-	if w := edit(`{"name":"Альтаир","field":"format","value":"Офлайн"}`); w.Code != 422 ||
+	if w := edit(`{"name":"Альтаир","field":"format","value":"Офлайн"}`); w.Code != 200 ||
 		e.count(t, `SELECT count(*) FROM club_residents WHERE name = 'Альтаир' AND format = 'Офлайн'`) != 0 {
 		t.Fatalf("refused: %d %s", w.Code, w.Body.String())
+	}
+}
+
+// The owner's case: the app's deployment of the script is an old version
+// that answers "Unknown action" (or does not know the field). The editor
+// answers at once with the change saved, never shows the script's error; the
+// change waits on the server without holding other club writes, goes through
+// the bot's deployment when that one is new, and reaches the sheet once the
+// script has updated itself.
+func TestResidentEditOldScript(t *testing.T) {
+	e := newClubEnv(t)
+	ctx := context.Background()
+	h := NewClubActionHandler(e.g, e.repo, nil, "")
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	NewClubResidentModule(h, []byte("res-edit-secret")).Register(r)
+	acc, _, _ := auth.NewManager("res-edit-secret", time.Hour, time.Hour).GenerateTokens("tg:453800951", "admin", nil)
+	edit := func(body string) (*httptest.ResponseRecorder, time.Duration) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/club/resident", bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+acc)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		start := time.Now()
+		r.ServeHTTP(w, req)
+		return w, time.Since(start)
+	}
+	sent := func(field string) int {
+		n := 0
+		for _, q := range e.f.calls {
+			if q.Get("action") == "setResidentField" && q.Get("field") == field {
+				n++
+			}
+		}
+		return n
+	}
+
+	// A slow script does not slow the editor: it does not wait for it.
+	e.f.set("setResidentField", "unknown")
+	w, took := edit(`{"name":"Альтаир","field":"joinedAt","value":"15.08.2026"}`)
+	if w.Code != 200 || !bytes.Contains(w.Body.Bytes(), []byte(`"queued":true`)) || bytes.Contains(w.Body.Bytes(), []byte("nknown")) ||
+		!bytes.Contains(w.Body.Bytes(), []byte(`"joinedAt":"15.08.2026"`)) {
+		t.Fatalf("edit: %d %s", w.Code, w.Body.String())
+	}
+	if took > time.Second {
+		t.Fatalf("the editor waited %v", took)
+	}
+	if e.count(t, `SELECT count(*) FROM club_residents WHERE name = 'Альтаир' AND joined_at = '2026-08-15'`) != 1 {
+		t.Fatal("not saved on the server")
+	}
+	// The queue sends it: the script does not know it, the change stays and waits.
+	if n, err := e.writes.flush(ctx, true); err != nil || n != 0 || sent("joinedAt") != 1 {
+		t.Fatalf("flush %d %v, sent %d", n, err, sent("joinedAt"))
+	}
+	if e.count(t, `SELECT count(*) FROM club_writes WHERE action = 'setResidentField' AND status = 'pending' AND last_error LIKE 'скрипт ещё не знает%'`) != 1 ||
+		e.count(t, `SELECT count(*) FROM club_residents WHERE name = 'Альтаир' AND joined_at = '2026-08-15'`) != 1 {
+		t.Fatal("parked write lost the change")
+	}
+	// Another field with the v36 answer ("Поле … не меняется"): parked as well, saved.
+	e.f.set("setResidentField", "oldfield")
+	if w, _ := edit(`{"name":"Альтаир","field":"exception","value":"Да"}`); w.Code != 200 {
+		t.Fatalf("exception: %d %s", w.Code, w.Body.String())
+	}
+	if _, err := e.writes.flush(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	if e.count(t, `SELECT count(*) FROM club_residents WHERE name = 'Альтаир' AND exception`) != 1 ||
+		e.count(t, `SELECT count(*) FROM club_writes WHERE status = 'rejected'`) != 0 {
+		t.Fatal("the old script's answer undid the change")
+	}
+	// Other club writes are not held by the parked ones.
+	before := len(e.f.actions())
+	res := e.call(453800951, "addFine", "name", "Асет", "type", "Штраф", "amount", "10000")
+	if res["ok"] != true || res["queued"] == true || len(e.f.actions()) != before+1 {
+		t.Fatalf("a fine after a parked write: %v", res)
+	}
+	// An import of the old sheet meanwhile does not undo the waiting changes.
+	importSheet(t, e.repo, sheetSnap(), e.now.Add(-time.Minute))
+	if e.count(t, `SELECT count(*) FROM club_residents WHERE name = 'Альтаир' AND exception AND joined_at = '2026-08-15'`) != 1 {
+		t.Fatal("the import undid a parked change")
+	}
+	// Not tried again before its time, even when a new write wakes the queue.
+	n0 := sent("joinedAt")
+	if _, err := e.writes.flush(ctx, true); err != nil || sent("joinedAt") != n0 {
+		t.Fatalf("retried too early: %d", sent("joinedAt"))
+	}
+
+	// The bot's deployment is already new: the change goes there.
+	nf := &fakeClubScript{mode: map[string]string{}}
+	fb := httptest.NewServer(http.HandlerFunc(nf.handler))
+	defer fb.Close()
+	e.g.Fallback = func() string { return fb.URL + "/exec" }
+	*e.now = e.now.Add(11 * time.Minute)
+	if n, err := e.writes.Flush(ctx); err != nil || n != 2 {
+		t.Fatalf("through the bot's deployment: %d %v", n, err)
+	}
+	if len(nf.calls) != 2 || nf.calls[0].Get("field") != "joinedAt" || nf.calls[1].Get("field") != "exception" {
+		t.Fatalf("fallback got %v", nf.calls)
+	}
+	if e.count(t, `SELECT count(*) FROM club_writes WHERE action = 'setResidentField' AND status = 'sent'`) != 2 {
+		t.Fatal("not sent")
+	}
+
+	// Without a newer deployment: parked until the script has updated itself.
+	e.g.Fallback = nil
+	e.f.set("setResidentField", "unknown")
+	if w, _ := edit(`{"name":"Альтаир","field":"format","value":"Онлайн"}`); w.Code != 200 {
+		t.Fatalf("format: %d", w.Code)
+	}
+	if _, err := e.writes.flush(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	e.f.set("setResidentField", "ok") // v38 installed
+	*e.now = e.now.Add(11 * time.Minute)
+	if n, err := e.writes.Flush(ctx); err != nil || n != 1 {
+		t.Fatalf("after the update: %d %v", n, err)
+	}
+	if q := e.f.calls[len(e.f.calls)-1]; q.Get("field") != "format" || q.Get("value") != "Онлайн" {
+		t.Fatalf("sent %v", q)
+	}
+	if e.count(t, `SELECT count(*) FROM club_residents WHERE name = 'Альтаир' AND format = 'Онлайн'`) != 1 {
+		t.Fatal("format lost")
 	}
 }

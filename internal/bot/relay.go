@@ -60,6 +60,7 @@ type Service struct {
 	relayURL  string
 	startHook StartHook
 	cbHook    CallbackHook
+	claimHook CallbackHook // «Я резидент BS» (start_hook.go)
 	teamCb    map[string]TeamCallbackHook
 	files     sync.Map // Telegram file_id of what the server uploaded
 }

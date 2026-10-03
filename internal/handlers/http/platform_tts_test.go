@@ -88,7 +88,7 @@ func (f *fakeTTS) server() *httptest.Server {
 func TestPlatformTTS(t *testing.T) {
 	repo, db := platformTestRepo(t)
 	ctx := context.Background()
-	_, _ = db.Pool.Exec(ctx, `DELETE FROM platform_files WHERE id LIKE 'tts\_%'`)
+	_, _ = db.Pool.Exec(ctx, `DELETE FROM tts_audio`)
 	t.Setenv("AI_GEMINI_TTS_MODEL", "")
 	t.Setenv("AI_TTS_VOICE", "")
 	pcm := make([]byte, 4800) // 0.1 s of s16le mono 24 kHz

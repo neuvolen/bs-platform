@@ -2779,7 +2779,7 @@ function _alert(m){
 // ═══════════════════════════════════════════════════════════════
 // Месяц, с которого считается касса. 3 = апрель, счёт был обнулён
 var CASH_START_MONTH = 3;
-var BS_VERSION = "2026-10-02-37";
+var BS_VERSION = "2026-10-03-38";
 
 // ═══════════════════════════════════════════════════════════════
 // КАРТА КОЛОНОК ЛИСТА РЕЗИДЕНТОВ
@@ -5780,6 +5780,38 @@ function _bsSuDeploy(target, version){
   return {deploymentId: dep.deploymentId, versionNumber: v.versionNumber};
 }
 
+// v38: другие развёртывания веб-приложения, через которые ходит сервер (приложение в Telegram,
+// записи клуба с платформы). Раньше обновлялось только развёртывание бота, и приложение
+// оставалось на старом коде: новые действия отвечали «Unknown action». Каждое развёртывание
+// этого проекта из списка переводится на ту же версию; чужое или ненайденное пропускается.
+// versionNumber 0: взять новую версию проекта. Возвращает адреса, которые перевели
+function _bsSuDeployApps(apps, target, version, versionNumber){
+  var moved = [];
+  (apps || []).forEach(function(u){
+    try{
+      u = String(u || "").split("?")[0];
+      if(!u || u === String(target || "").split("?")[0]) return;
+      var live = _bsSuLiveVersion(u);
+      if(live && !bsVersionNewer(version, live)) return;          // уже на этой версии
+      var dep = _bsSuDeployment(u);
+      if(!dep){ Logger.log("selfUpdate: развёртывание " + u + " не из этого проекта"); return; }
+      var vn = versionNumber;
+      if(!vn){
+        var v = _bsSuApi("post", "/versions", {description: "BS " + version + " (автообновление)"});
+        vn = v.versionNumber;
+        if(!vn) return;
+      }
+      _bsSuApi("put", "/deployments/" + dep.deploymentId, {deploymentConfig: {
+        scriptId: ScriptApp.getScriptId(), versionNumber: vn,
+        manifestFileName: "appsscript", description: "BS " + version
+      }});
+      versionNumber = vn;
+      moved.push(u);
+    }catch(e){ Logger.log("selfUpdate app " + u + ": " + e); }
+  });
+  return moved;
+}
+
 // Версия, которую сейчас отдаёт веб-приложение ("" — не ответило)
 function _bsSuLiveVersion(target){
   try{
@@ -5800,9 +5832,17 @@ function _bsSuRun(manual){
     var live = _bsSuLiveVersion(target);
     if(live && bsVersionNewer(BS_VERSION, live)){
       var dp = _bsSuDeploy(target, BS_VERSION);
+      _bsSuDeployApps(L.apps, target, BS_VERSION, dp.versionNumber);
       bsSignedPost("/api/v1/script/updated", {version: BS_VERSION, from: live,
         deploymentId: dp.deploymentId, versionNumber: dp.versionNumber});
       return {ok: true, updated: true, deployOnly: true, version: BS_VERSION, from: live};
+    }
+    // v38: развёртывание приложения (через него сервер пишет в таблицу) тоже на новой версии
+    var moved = _bsSuDeployApps(L.apps, target, BS_VERSION, 0);
+    if(moved.length){
+      bsSignedPost("/api/v1/script/updated", {version: BS_VERSION, from: BS_VERSION,
+        deploymentId: "apps: " + moved.join(", "), versionNumber: 0});
+      return {ok: true, updated: true, deployOnly: true, version: BS_VERSION, apps: moved};
     }
     return {ok: true, upToDate: true, version: BS_VERSION, latest: L.version};
   }
@@ -5843,6 +5883,7 @@ function _bsSuRun(manual){
 
   _bsSuApi("put", "/content", {scriptId: ScriptApp.getScriptId(), files: out});
   var dp2 = _bsSuDeploy(target, L.version);
+  _bsSuDeployApps(L.apps, target, L.version, dp2.versionNumber);
   try{
     bsSignedPost("/api/v1/script/updated", {version: L.version, from: BS_VERSION,
       deploymentId: dp2.deploymentId, versionNumber: dp2.versionNumber});
@@ -12380,9 +12421,11 @@ function _upd(u){
       var result = _miniRequestResident({
         chatId: String(cid),
         userName: firstName,
-        userTg: userTg
+        userTg: userTg,
+        _via: "bot"
       });
-      
+
+      if(result.server) return; // сервер уже ответил человеку сам
       if(result.alreadyResident){
         tgSend(cid, "✅ Ты уже резидент BS. Можно открыть приложение и пользоваться.");
         return;
@@ -12410,6 +12453,11 @@ function _upd(u){
     }
     else if(data.indexOf("reject_res_")===0){
       var targetCid2=data.substring("reject_res_".length);
+      // v38: «Отклонить» больше не холодный отказ: сервер зовёт лида на экспресс-разбор и прогревает
+      try{
+        var rj=bsSignedPost("/api/v1/bot/claim",{chatId:String(targetCid2), action:"lead"});
+        if(rj.code===200 && rj.j && rj.j.ok){ tgSend(cid,"Лид: бот позвал на экспресс-разбор и прогреет."); return; }
+      }catch(e){ Logger.log("claim lead: "+e); }
       try{
         var ss=SpreadsheetApp.openById(SS_ID);
         var ws=ss.getSheetByName("Подписчики канала");
@@ -12425,7 +12473,7 @@ function _upd(u){
             }
           }
         }
-        tgSend(targetCid2,"К сожалению, мы не нашли тебя в списке резидентов BS. Если ты считаешь что это ошибка. напиши админу.");
+        tgSend(targetCid2,"Мы сверили список резидентов BS и не нашли вас в нём. Доступ резидента открыт участникам клуба, а вход в клуб начинается с экспресс-разбора с основателями: час на ваших цифрах и план на 10 дней.\n\nЗаписаться можно в приложении BS, раздел «Разбор». Если это ошибка, напишите админу.");
         tgSend(cid,"❌ Отклонено. Сообщение отправлено пользователю.");
       }catch(e){tgSend(cid,"Ошибка: "+e.message);}
       return;
@@ -16330,6 +16378,22 @@ function _miniCheckUserRole(p){
   }
 }
 
+// v38: «Я резидент BS» решает сервер платформы (resident_claim.go): сверка со
+// списком резидентов, автопривязка Chat ID, тёплый ответ и прогрев лида.
+function _bsServerClaim(chatId, name, username, via){
+  try{
+    var r = bsSignedPost("/api/v1/bot/claim", {chatId: String(chatId), name: String(name || ""), username: String(username || ""), via: via || "bot"});
+    if(r.code === 200 && r.j && r.j.ok) return r.j;
+    Logger.log("server claim: " + r.code + " " + String(r.raw || "").slice(0, 200));
+  }catch(e){ Logger.log("server claim: " + e); }
+  return null;
+}
+// Рабочее время команды: 10:00-20:00 Алматы
+function _bsDaytime(){
+  var h = Number(Utilities.formatDate(new Date(), "Asia/Almaty", "H"));
+  return h >= 10 && h < 20;
+}
+
 function _miniRequestResident(p){
   // Заявка от пользователя на резидентство. Шлёт админам на подтверждение.
   try{
@@ -16341,6 +16405,12 @@ function _miniRequestResident(p){
       return {error:"Не определён пользователь"};
     }
     
+    // v38: сначала сервер: сверка со списком резидентов, привязка, прогрев лида, команде только днём
+    var sc = _bsServerClaim(chatId, userName, userTg, p._via || "app");
+    if(sc){
+      return {ok:true, server:true, kind:sc.kind, alreadyResident:!!sc.alreadyResident, alreadyPending:sc.kind==="maybe"};
+    }
+
     // Проверим, не резидент ли уже
     var roleCheck = _miniCheckUserRole(p);
     if(roleCheck.role === "resident"){
@@ -16396,11 +16466,14 @@ function _miniRequestResident(p){
       ]]
     };
     
-    ADMIN_IDS.forEach(function(adminId){
-      try{
-        tgSend(adminId, msg, {parse_mode:"HTML", reply_markup:JSON.stringify(keyboard)});
-      }catch(e){ Logger.log("tg admin: "+e); }
-    });
+    // Сервер не ответил: старая заявка, но команде только днём (тихие часы Алматы)
+    if(_bsDaytime()){
+      ADMIN_IDS.forEach(function(adminId){
+        try{
+          tgSend(adminId, msg, {parse_mode:"HTML", reply_markup:JSON.stringify(keyboard)});
+        }catch(e){ Logger.log("tg admin: "+e); }
+      });
+    }
     
     // Ответ резиденту что заявка отправлена
     try{

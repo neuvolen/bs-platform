@@ -12,7 +12,20 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-func AuthJWT(secret []byte) gin.HandlerFunc {
+// RoleLead is the platform session of someone who is neither the team nor a
+// resident: they see only the lead home (/api/v1/platform/lead/*).
+const RoleLead = "lead"
+
+// AuthJWT checks the bearer token. A lead's token is refused here (403
+// lead_forbidden): every existing endpoint is closed to leads by default, and
+// only the routes registered with AuthJWTAllowLead let them in.
+func AuthJWT(secret []byte) gin.HandlerFunc { return authJWT(secret, false) }
+
+// AuthJWTAllowLead is AuthJWT that also lets a lead's token through; the
+// route still has to check the role (RequireRole).
+func AuthJWTAllowLead(secret []byte) gin.HandlerFunc { return authJWT(secret, true) }
+
+func authJWT(secret []byte, allowLead bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		h := c.GetHeader("Authorization")
 		if h == "" || !strings.HasPrefix(strings.ToLower(h), "bearer ") {
@@ -50,7 +63,13 @@ func AuthJWT(secret []byte) gin.HandlerFunc {
 		if sub, _ := claims["sub"].(string); sub != "" {
 			c.Set("userID", sub)
 		}
-		if role, _ := claims["role"].(string); role != "" {
+		role, _ := claims["role"].(string)
+		if role == RoleLead && !allowLead {
+			c.JSON(http.StatusForbidden, errorResponse{Error: "lead_forbidden"})
+			c.Abort()
+			return
+		}
+		if role != "" {
 			c.Set("role", role)
 		}
 

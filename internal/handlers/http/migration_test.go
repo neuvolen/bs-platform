@@ -47,6 +47,10 @@ func (f *fakeClubScript) handler(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"ok":true,"deduplicated":true}`))
 	case "garbage":
 		_, _ = w.Write([]byte(`undefined`))
+	case "unknown": // an older script that does not have the action
+		_, _ = w.Write([]byte(`{"error":"Unknown action"}`))
+	case "oldfield": // an older script whose setResidentField lacks the field
+		_, _ = w.Write([]byte(`{"error":"Поле «` + q.Get("field") + `» не меняется"}`))
 	default:
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}

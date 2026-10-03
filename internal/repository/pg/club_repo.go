@@ -187,6 +187,38 @@ func (r *ClubRepo) ReplaceAllThen(ctx context.Context, s *club.Snapshot, by stri
 
 func jsonInt(v int) string { b, _ := json.Marshal(v); return string(b) }
 
+// LoadResidents reads only the residents (one query): the resident editor
+// does not need the whole snapshot.
+func (r *ClubRepo) LoadResidents(ctx context.Context) ([]club.Resident, error) {
+	loc := club.Almaty
+	d2t := func(t *time.Time) *time.Time {
+		if t == nil {
+			return nil
+		}
+		v := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
+		return &v
+	}
+	rows, err := r.db.Pool.Query(ctx, `SELECT name, COALESCE(tg_id,0), format, tariff, meetings_granted, meetings_done,
+		paid_entry, rest_entry, renew_debt, former, exception, admin, source, joined_at, left_at, months, note, partner, archived
+		FROM club_residents ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []club.Resident
+	for rows.Next() {
+		var p club.Resident
+		var j, l *time.Time
+		if err := rows.Scan(&p.Name, &p.TgID, &p.Format, &p.Tariff, &p.Granted, &p.Done, &p.PaidEntry, &p.RestEntry,
+			&p.RenewDebt, &p.Former, &p.Exception, &p.Admin, &p.Source, &j, &l, &p.Months, &p.Note, &p.Partner, &p.Archived); err != nil {
+			return nil, err
+		}
+		p.JoinedAt, p.LeftAt = d2t(j), d2t(l)
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // Load reads everything back as a snapshot, to compute debts and the P&L.
 func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 	s := &club.Snapshot{}
@@ -199,26 +231,13 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 		return &v
 	}
 
-	rows, err := r.db.Pool.Query(ctx, `SELECT name, COALESCE(tg_id,0), format, tariff, meetings_granted, meetings_done,
-		paid_entry, rest_entry, renew_debt, former, exception, admin, source, joined_at, left_at, months, note, partner, archived
-		FROM club_residents ORDER BY id`)
+	res, err := r.LoadResidents(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		var p club.Resident
-		var j, l *time.Time
-		if err := rows.Scan(&p.Name, &p.TgID, &p.Format, &p.Tariff, &p.Granted, &p.Done, &p.PaidEntry, &p.RestEntry,
-			&p.RenewDebt, &p.Former, &p.Exception, &p.Admin, &p.Source, &j, &l, &p.Months, &p.Note, &p.Partner, &p.Archived); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		p.JoinedAt, p.LeftAt = d2t(j), d2t(l)
-		s.Residents = append(s.Residents, p)
-	}
-	rows.Close()
+	s.Residents = res
 
-	rows, err = r.db.Pool.Query(ctx, `SELECT COALESCE(sheet_row,0), date, income, expense, income_cat, resident, expense_cat, applied
+	rows, err := r.db.Pool.Query(ctx, `SELECT COALESCE(sheet_row,0), date, income, expense, income_cat, resident, expense_cat, applied
 		FROM club_payments ORDER BY date, id`)
 	if err != nil {
 		return nil, err

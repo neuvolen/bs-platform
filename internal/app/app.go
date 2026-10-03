@@ -33,6 +33,7 @@ import (
 	usersvc "github.com/bnursik/business_surgery_backend/internal/services/users"
 
 	"github.com/bnursik/business_surgery_backend/pkg/auth"
+	"github.com/bnursik/business_surgery_backend/web"
 	"golang.org/x/oauth2"
 )
 
@@ -218,6 +219,10 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) *htt
 		[]byte(jwtSecret),
 	)
 	m.AI.Ops = pg.NewClubRepo(d.DB)
+	if d.PlatformRepo != nil {
+		// The voice guide: every tour phrase made and kept before anyone opens the tour.
+		go m.AI.TourVoiceLoop(context.Background(), web.TourTexts)
+	}
 	return m
 }
 
@@ -231,6 +236,12 @@ func WireCalls(pm *httpapi.PlatformModule, botSvc *bot.Service, team string) {
 	pm.AI.Owner = httpapi.FirstTeamID(team)
 	if botSvc != nil && botSvc.Enabled() {
 		pm.AI.Notify = botSvc.SendMessage
+		// R27: the lead home books разбор: the confirmation goes to the lead, a note to the team
+		var admins []int64
+		for id := range httpapi.ParsePlatformTeam(team) {
+			admins = append(admins, id)
+		}
+		pm.WireLeadBot(botSvc.SendMessageKB, admins)
 	}
 	go pm.AI.ResumeCalls(context.Background(), 45*time.Second, 2*time.Minute, 3*time.Minute)
 }
@@ -281,6 +292,11 @@ func BuildBot(d *Deps, token, team, apiBase, publicURL, notify string) (*bot.Ser
 func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.Service) []httpapi.RoutesRegistrar {
 	g := httpapi.NewAppGateway(token, os.Getenv("APP_SCRIPT_URL"))
 	g.Admins = httpapi.ParsePlatformTeam(os.Getenv("PLATFORM_TEAM"))
+	if botSvc != nil {
+		// A club write the app's deployment of the script does not know yet
+		// goes to the bot's deployment, which the self-update moves first.
+		g.Fallback = botSvc.RelayURL
+	}
 	if d.PlatformRepo != nil {
 		g.Boards = d.PlatformRepo
 		g.Library = d.PlatformRepo
@@ -330,6 +346,24 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 	g.Club = clubRepo
 	writes := httpapi.NewClubWrites(clubRepo, g)
 	g.Writes = writes
+	// R27: «Я резидент BS»: the server checks the residents list itself, links
+	// a found resident, warms a lead, and asks the team only in doubtful
+	// cases and only in the daytime (resident_claim.go).
+	if g.Funnel != nil && botSvc != nil && botSvc.Enabled() {
+		claims := httpapi.NewResidentClaims(g.Funnel, clubRepo)
+		claims.Names = g.Admins
+		claims.Edit = botSvc.EditMessageKB
+		owner := httpapi.FirstTeamID(os.Getenv("PLATFORM_TEAM"))
+		claims.Link = func(ctx context.Context, name string, tg int64) error {
+			return g.LinkResidentTg(ctx, clubRepo, owner, name, tg)
+		}
+		g.Claims = claims
+		if os.Getenv("LEAD_FUNNEL") != "off" {
+			botSvc.SetClaimHook(claims.LeadCallback)
+			botSvc.SetTeamCallbackHook("rcl_", claims.TeamCallback)
+			go claims.Loop(context.Background())
+		}
+	}
 	var seedMu sync.Mutex
 	writes.Tables = func() { // the platform's club sections show the change at once
 		seedMu.Lock()

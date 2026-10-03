@@ -179,8 +179,15 @@ func welcomeText(first string) string {
 	return b.String()
 }
 
-// ensureLead finds or creates the lead of a Telegram user in the CRM.
+// ensureLead finds or creates the lead of a Telegram user in the CRM; a new
+// lead is announced to the team.
 func (f *LeadFunnel) ensureLead(ctx context.Context, chatID int64, first, last, username, src, logNew, logAgain string, quietRepeat bool) (isNew, repeat bool, err error) {
+	return f.ensureLeadN(ctx, chatID, first, last, username, src, logNew, logAgain, quietRepeat, true)
+}
+
+// ensureLeadN: ensureLead; notify false keeps the team chat quiet (the card
+// in the CRM is the only trace).
+func (f *LeadFunnel) ensureLeadN(ctx context.Context, chatID int64, first, last, username, src, logNew, logAgain string, quietRepeat, notify bool) (isNew, repeat bool, err error) {
 	now := f.now()
 	name := strings.TrimSpace(first + " " + last)
 	if name == "" {
@@ -223,7 +230,7 @@ func (f *LeadFunnel) ensureLead(ctx context.Context, chatID int64, first, last, 
 		crm["leads"] = append([]any{lead}, leads...)
 		return true
 	})
-	if isNew {
+	if isNew && notify {
 		who := name
 		if username != "" {
 			who += " @" + username
@@ -570,15 +577,40 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 		tg          int64
 		stage       int
 		first, last string
+		claim       bool // the «Я резидент» sequence (resident_claim.go)
 	}
 	var jobs []job
 	steps := warmSteps()
+	csteps := claimSteps()
 	_ = f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
 		leads, _ := crm["leads"].([]any)
 		changed := false
 		for _, l := range leads {
 			m, _ := l.(map[string]any)
-			if m == nil || m["funnel"] != "bot" || !warmCols[fmt.Sprint(m["col"])] || m["warmStop"] == true {
+			if m == nil || !warmCols[fmt.Sprint(m["col"])] || m["warmStop"] == true {
+				continue
+			}
+			// Wanted to be a resident: its own short sequence goes first.
+			if cst, cat, ok := claimWarmState(m); ok {
+				if tg := leadTg(m); tg != 0 && cst < len(csteps) && now.Sub(cat).Hours()/24 >= csteps[cst].day {
+					jobs = append(jobs, job{tg: tg, stage: cst, first: leadFirst(m), claim: true})
+					m["claimWarm"] = cst + 1
+					m["warmAt"] = now.UTC().Format(time.RFC3339)
+					addLog(m, now, fmt.Sprintf("Прогрев после «Я резидент»: касание %d из %d", cst+1, len(csteps)))
+					changed = true
+					if len(jobs) >= 25 {
+						break
+					}
+				}
+				if cst < len(csteps) {
+					continue
+				}
+			}
+			if m["funnel"] != "bot" {
+				continue
+			}
+			// one touch a day at most, whichever sequence sent it
+			if t, err := time.Parse(time.RFC3339, fmt.Sprint(m["warmAt"])); err == nil && now.Sub(t) < 20*time.Hour {
 				continue
 			}
 			tg := leadTg(m)
@@ -593,12 +625,7 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 			if stage >= len(steps) || now.Sub(start).Hours()/24 < steps[stage].day {
 				continue
 			}
-			first := strings.Fields(fmt.Sprint(m["name"]))
-			fn := ""
-			if len(first) > 0 && first[0] != "Без" {
-				fn = first[0]
-			}
-			jobs = append(jobs, job{tg, stage, fn, lastTitle[tg]})
+			jobs = append(jobs, job{tg: tg, stage: stage, first: leadFirst(m), last: lastTitle[tg]})
 			m["warm"] = stage + 1
 			m["warmAt"] = now.UTC().Format(time.RFC3339)
 			addLog(m, now, fmt.Sprintf("Прогрев: касание %d из %d", stage+1, len(steps)))
@@ -610,10 +637,23 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 		return changed
 	})
 	sent := 0
+	var slotLine string
+	for _, j := range jobs {
+		if j.claim && slotLine == "" {
+			slotLine = f.nearestSlotLine(ctx, now)
+		}
+	}
 	for _, j := range jobs {
 		st := stats[j.tg]
-		s := steps[j.stage]
-		if err := f.send(ctx, j.tg, s.text(j.first, j.last, st[0], st[1]), s.keys(f)); err != nil {
+		var text string
+		var keys map[string]any
+		if j.claim {
+			text, keys = csteps[j.stage].text(j.first, slotLine), csteps[j.stage].keys(f)
+		} else {
+			s := steps[j.stage]
+			text, keys = s.text(j.first, j.last, st[0], st[1]), s.keys(f)
+		}
+		if err := f.send(ctx, j.tg, text, keys); err != nil {
 			log.Printf("funnel: warm %d: %v", j.tg, err)
 			if strings.Contains(err.Error(), "blocked") || strings.Contains(err.Error(), "deactivated") {
 				_ = f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
@@ -650,6 +690,64 @@ func (f *LeadFunnel) WarmLoop(ctx context.Context) {
 		}
 		cancel()
 	}
+}
+
+// leadFirst: the first name of a CRM card for a greeting ("" for «Без имени»).
+func leadFirst(m map[string]any) string {
+	first := strings.Fields(fmt.Sprint(m["name"]))
+	if len(first) > 0 && first[0] != "Без" && first[0] != "<nil>" {
+		return first[0]
+	}
+	return ""
+}
+
+// PlatformLogin: a lead signed in to the platform with Telegram. A new card
+// gets source "platform_login"; an existing one keeps its source and only
+// notes the visit (at most twice a day). Nobody is told in the team chat.
+func (f *LeadFunnel) PlatformLogin(ctx context.Context, u *platformTgUser) error {
+	now := f.now()
+	return f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
+		leads, _ := crm["leads"].([]any)
+		lead := findLeadByTg(leads, u.ID)
+		if lead == nil {
+			// A lead the team deleted on the platform is not brought back.
+			if del, _ := crm["deleted"].([]any); len(del) > 0 {
+				for _, x := range del {
+					if fmt.Sprint(x) == fmt.Sprintf("tg%d", u.ID) {
+						return false
+					}
+				}
+			}
+			name := fullName(u)
+			if name == "" {
+				name = "Без имени"
+			}
+			tg := ""
+			if u.Username != "" {
+				tg = "@" + u.Username
+			}
+			lead = map[string]any{
+				"id": fmt.Sprintf("tg%d", u.ID), "col": "new", "name": name, "phone": "", "tg": tg,
+				"tgId": u.ID, "source": "platform_login", "niche": "", "note": "", "sum": "",
+				"date": now.In(almaty).Format("02.01.2006"), "funnel": "platform",
+				"platformAt": now.UTC().Format(time.RFC3339),
+			}
+			addLog(lead, now, "Вошёл на платформу app.bxclub.kz через Telegram (лид)")
+			crm["leads"] = append([]any{lead}, leads...)
+			return true
+		}
+		prev, perr := time.Parse(time.RFC3339, fmt.Sprint(lead["platformAt"]))
+		lead["platformAt"] = now.UTC().Format(time.RFC3339)
+		if perr != nil {
+			addLog(lead, now, "Вошёл на платформу app.bxclub.kz через Telegram (лид)")
+		} else if now.Sub(prev) > 12*time.Hour {
+			addLog(lead, now, "Снова зашёл на платформу")
+		}
+		if s, _ := lead["tg"].(string); s == "" && u.Username != "" {
+			lead["tg"] = "@" + u.Username
+		}
+		return true
+	})
 }
 
 // Downloaded notes in the lead's card that they took the PDF.

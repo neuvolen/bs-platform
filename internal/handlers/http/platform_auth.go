@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -32,6 +33,7 @@ type PlatformAuthHandler struct {
 	client   *http.Client
 	repo     *pg.PlatformRepo // set by NewPlatformModule
 	names    *residentNames
+	leads    *LeadFunnel // the CRM card of a lead who logs in (NewPlatformModule)
 
 	mu          sync.Mutex
 	botUsername string
@@ -152,7 +154,7 @@ type platformTgUser struct {
 
 // Login godoc
 // @Summary      Log in with Telegram
-// @Description  Body: {widget:{…fields from the Telegram Login Widget…}} or {initData:"…"} from a Mini App. Only team members get in.
+// @Description  Body: {widget:{…fields from the Telegram Login Widget…}} or {initData:"…"} from a Mini App. The team gets role admin, an active resident role resident, anyone else role lead (the lead home only).
 // @Tags         platform
 // @Accept       json
 // @Produce      json
@@ -193,11 +195,19 @@ func (h *PlatformAuthHandler) Login(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return
 		}
-		if !active {
-			c.JSON(http.StatusForbidden, gin.H{"error": "not_team", "telegramId": u.ID})
-			return
+		if active {
+			role, name = "resident", rname
+		} else {
+			// Anyone else with a valid Telegram login is a lead: the lead home
+			// only (every other endpoint refuses the role), and a card in the
+			// CRM without a word to the team chat.
+			role = "lead"
+			if h.leads != nil {
+				if err := h.leads.PlatformLogin(c.Request.Context(), u); err != nil {
+					log.Printf("platform login: lead %d not saved to the CRM: %v", u.ID, err)
+				}
+			}
 		}
-		role, name = "resident", rname
 	}
 	if name == "" {
 		name = strings.TrimSpace(u.FirstName + " " + u.LastName)

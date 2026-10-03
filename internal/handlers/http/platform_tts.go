@@ -17,8 +17,9 @@ import (
 // POST /api/v1/platform/tts {text, voice?} → audio/wav
 // The voice guide of the platform (onboarding tour, welcome): a calm, confident,
 // slightly ironic male butler-AI voice. Every phrase is synthesised once and kept
-// in platform_files under a hash of style, voice and text, so the tour phrases
+// under a hash of style, voice and text, so the tour phrases
 // cost nothing after the first listener. Team and residents may call it.
+// The phrases are kept in tts_audio (migration 0021): they survive redeploys.
 
 const ttsMaxRunes = 1200
 
@@ -68,10 +69,19 @@ func ttsLock(key string) func() {
 	}
 }
 
+// ttsListenWait: how long POST /tts waits for a phrase that is not kept yet
+// (the client's "wait", seconds, up to ttsListenMax). The synthesis goes on
+// after that and the phrase is kept: the next request gets it at once.
+var (
+	ttsListenWait = 25 * time.Second
+	ttsListenMax  = 60 * time.Second
+)
+
 func (h *PlatformAI) TTS(c *gin.Context) {
 	var req struct {
-		Text  string `json:"text"`
-		Voice string `json:"voice"`
+		Text  string  `json:"text"`
+		Voice string  `json:"voice"`
+		Wait  float64 `json:"wait"` // seconds; <0: do not wait, only make it (202)
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_request"})
@@ -97,21 +107,49 @@ func (h *PlatformAI) TTS(c *gin.Context) {
 		c.Header("X-TTS-Cache", map[bool]string{true: "hit", false: "miss"}[hit])
 		c.Data(http.StatusOK, "audio/wav", data)
 	}
-	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
-		serve(f.Data, true)
+	if data, err := h.repo.GetTTS(ctx, key); err == nil && data != nil {
+		serve(data, true)
 		return
 	}
 	if h.AI == nil || h.AI.Gemini == "" {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no_tts"})
 		return
 	}
-	sctx, cancel := context.WithTimeout(ctx, 90*time.Second)
-	defer cancel()
-	// One synthesis at a time on the server, a listener before the warm-up (platform_tts_warm.go).
-	wav, hit, err := h.speakCached(sctx, key, text, voice, true)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "tts_failed", "detail": err.Error()})
-		return
+	wait := ttsListenWait
+	if req.Wait > 0 {
+		wait = time.Duration(req.Wait * float64(time.Second))
+	} else if req.Wait < 0 {
+		wait = 0
 	}
-	serve(wav, hit)
+	if wait > ttsListenMax {
+		wait = ttsListenMax
+	}
+	// The synthesis does not depend on this request: a listener who gives up
+	// (or a slow, rate-limited model) does not lose the phrase, it is kept.
+	type res struct {
+		wav []byte
+		hit bool
+		err error
+	}
+	done := make(chan res, 1)
+	go func() {
+		sctx, cancel := context.WithTimeout(context.Background(), ttsWarmTimeout)
+		defer cancel()
+		// One synthesis at a time on the server, a listener before the warm-up (platform_tts_warm.go).
+		wav, hit, err := h.speakCached(sctx, key, text, voice, true)
+		done <- res{wav, hit, err}
+	}()
+	t := time.NewTimer(wait)
+	defer t.Stop()
+	select {
+	case r := <-done:
+		if r.err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "tts_failed", "detail": r.err.Error()})
+			return
+		}
+		serve(r.wav, r.hit)
+	case <-t.C:
+		c.JSON(http.StatusAccepted, gin.H{"pending": true})
+	case <-ctx.Done():
+	}
 }

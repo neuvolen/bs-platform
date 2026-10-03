@@ -19,9 +19,12 @@ import (
 // Исключение для отчётов, Формат (онлайн/офлайн), Дата входа, Партнёр and
 // Telegram Chat ID. A change goes the write-first way like every club write:
 // kept and applied on the server at once (the bot's report reminders and
-// fines read club_residents, so an exception counts immediately), then
-// written to «BS - резиденты дебет» by the script (setResidentField v37,
-// setPartner for the partner, both sides). The club journal (club_ops) keeps
+// fines read club_residents, so an exception counts immediately), and the
+// answer comes at once: the write queue takes it to «BS - резиденты дебет»
+// in the background (setResidentField v37, setPartner for the partner, both
+// sides). A script that does not know the field yet (an older version)
+// leaves the change waiting on the server until it updates itself; the
+// editor never sees its "Unknown action". The club journal (club_ops) keeps
 // who changed what, with the value before.
 
 // ResidentCard is what the editor shows for one resident.
@@ -142,13 +145,14 @@ func ResidentEditParams(list []club.Resident, name, field, value string) (string
 	return "setResidentField", p, res, nil
 }
 
+// debet: the residents only (one query, not the whole club snapshot).
 func (h *ClubActionHandler) debet(ctx context.Context) ([]club.Resident, error) {
-	snap, err := h.club.Load(ctx)
+	list, err := h.club.LoadResidents(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]club.Resident, 0, len(snap.Residents))
-	for _, r := range snap.Residents {
+	out := make([]club.Resident, 0, len(list))
+	for _, r := range list {
 		if !r.Archived {
 			out = append(out, r)
 		}
@@ -240,7 +244,22 @@ func (h *ClubActionHandler) EditResident(c *gin.Context) {
 		u.FirstName = n
 	}
 	q := h.gw.params(in, action, u)
-	body := h.gw.Writes.Do(ctx, "platform", u, action, q, true)
+	// Saved and applied on the server now; the sheet gets it from the write
+	// queue in the background (the editor does not wait for the script).
+	queued := true
+	body := queuedAnswer
+	if _, err := h.gw.Writes.Enqueue(ctx, "platform", u, action, q, true); err != nil {
+		// The server could not keep it: straight to the sheet, as before.
+		log.Printf("club resident %q: not kept on the server: %v", res.Name, err)
+		body = h.gw.Writes.Do(ctx, "platform", u, action, q, true)
+		var out map[string]any
+		_ = json.Unmarshal(body, &out)
+		if e, _ := out["error"].(string); e != "" && !scriptOutdated(action, e) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "script", "detail": e})
+			return
+		}
+		queued, _ = out["queued"].(bool)
+	}
 	// The journal: what changed, from what, by whom.
 	lq := url.Values{}
 	for k, v := range q {
@@ -249,16 +268,7 @@ func (h *ClubActionHandler) EditResident(c *gin.Context) {
 	lq.Set("edit", req.Field)
 	lq.Set("prev", cardValue(before, req.Field))
 	h.gw.logOp(ctx, "platform", u, action, lq, body)
-	var out map[string]any
-	_ = json.Unmarshal(body, &out)
-	if e, _ := out["error"].(string); e != "" {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "script", "detail": e})
-		return
-	}
 	log.Printf("club resident %q: %s %q → %q by %d", res.Name, req.Field, cardValue(before, req.Field), newValue, tg)
-	if err := RefreshPlatformSeed(ctx, h.club, h.platform, h.seed); err != nil {
-		log.Printf("platform seed: %v", err)
-	}
 	after := before
 	if l, err := h.debet(ctx); err == nil {
 		for _, r := range l {
@@ -267,7 +277,6 @@ func (h *ClubActionHandler) EditResident(c *gin.Context) {
 			}
 		}
 	}
-	queued, _ := out["queued"].(bool)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "queued": queued, "resident": after, "action": action})
 }
 
@@ -287,4 +296,5 @@ func (m *ClubResidentModule) Register(r *gin.Engine) {
 	g.Use(middleware.RequireRole("admin", "moderator"))
 	g.GET("/residents", m.h.Residents)
 	g.POST("/resident", m.h.EditResident)
+	g.POST("/claim", m.h.ResolveClaim) // resident_claim.go: «Это резидент» / «Это лид»
 }

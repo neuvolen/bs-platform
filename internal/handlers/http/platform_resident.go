@@ -40,6 +40,9 @@ func platformRole(c *gin.Context) string {
 
 func isResident(c *gin.Context) bool { return platformRole(c) == "resident" }
 
+// isLead: a lead's platform session (sees only /platform/lead/*).
+func isLead(c *gin.Context) bool { return platformRole(c) == "lead" }
+
 func platformTgID(c *gin.Context) int64 {
 	id, err := strconv.ParseInt(strings.TrimPrefix(platformUser(c), "tg:"), 10, 64)
 	if err != nil {

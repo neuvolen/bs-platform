@@ -5325,7 +5325,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
 
   // ── Цикл: отправить своё, забрать чужое ─────────────────────────────────
   function tick(){
-    if(busy || !token || !booted) return Promise.resolve();
+    if(busy || !token || !booted || isLeadUser()) return Promise.resolve(); // R27: у лида нет данных клуба
     busy = true; clearTimeout(tickTimer);
     return pushAll().then(pull).then(function(){
       failures = 0; lastOk = Date.now();
@@ -5522,6 +5522,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     firstSync();
   }
   function firstSync(){
+    if(isLeadUser()){ boot(); return; } // R27: лид видит только свою главную, данные клуба ему не грузятся
     showLoading('Загружаю данные с сервера…');
     pull().then(function(j){
       // Раздел bs_seed сервер кладёт сам, он не считается данными команды
@@ -5611,7 +5612,10 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     }
   }
   function isResidentUser(){ return !!(auth.user && auth.user.role === 'resident'); }
+  function isLeadUser(){ return !!(auth.user && auth.user.role === 'lead'); }
   function applyRole(){
+    // главная лида (блок R27 в конце страницы) может ещё не загрузиться: тогда она применится сама
+    if(isLeadUser()){ try{ if(window.lhApplyLead) window.lhApplyLead(); else window.lhApplyPending = true; }catch(e){ console.error(e); } return; }
     if(!isResidentUser()) return;
     try{
       window.setMode('res');
@@ -5701,6 +5705,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     },
     user: function(){ return auth.user || null; },
     isResident: isResidentUser,
+    isLead: isLeadUser,
     logout: function(){ logout(); },
     refresh: function(){ setStatus('saving'); return tick(); },
     tick: tick,
@@ -7245,8 +7250,7 @@ var BLOCKS = {
     {id:'aSched',   n:'Встречи'},
     {id:'aReports', n:'Отчёты'},
     {id:'fines',    n:'Штрафы'},
-    {id:'sFive',    n:'Пятёрки'},
-    {id:'events',   n:'Мероприятия'}]},
+    {id:'sFive',    n:'Пятёрки'}]},
   fin:     {name:'Учёт', tabs:[
     {id:'pl',       n:'PL и ДДС'},
     {id:'aNumbers', n:'В цифрах'},
@@ -7274,6 +7278,7 @@ var BLOCKS = {
   lib:     {name:'BS', tabs:[
     {id:'guides', n:'Интерактивные чек-листы'},
     {id:'kanban',   n:'Цели и задачи'},
+    {id:'events',   n:'Мероприятия'},     // R26: из «Клуба» в «BS», ссылка #events та же
     {id:'aiRec',    n:'Рекомендации ИИ'}]},
   rbs:     {name:'BS', tabs:[
     {id:'rAbout',   n:'О проекте'},
@@ -8034,6 +8039,7 @@ function newBoardFor(name){
 var srF = 'all';
 function srFmt(r, k){ return String(r.format||'').toLowerCase().indexOf(k) >= 0; }
 function renderSalesRes(){
+  if(window.r23ResWarm) r23ResWarm(); // R26: настройки резидентов подтягиваются заранее
   var pg = document.getElementById('pg-stub');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   var totalDebt = RESIDENTS.reduce((a,r)=>a+(r.total||0),0);
@@ -23207,6 +23213,123 @@ body.light .bo.hs.hw .bo-f,body.light .bo.hs.hw .bo-f2{fill:#FFFFFF;fill-opacity
 .bo.hs.hg .bo-halo{opacity:.22}
 body.light .bo.hs.hg .bo-halo{opacity:.14}
 </style>
+<style id="r26TourStyle">
+/* ═══ R26: призыв начать обучение. Всё, кроме кнопки, уходит в тень ═══ */
+#tr16 .tr16-hole{transition:box-shadow .5s ease}
+#tr16.cta .tr16-hole{box-shadow:0 0 0 200vmax rgba(0,0,0,.88)}
+#tr16.cta .tr16-card > :not(.tr16-nav):not(.tr16-cta){opacity:.16;transition:opacity .5s ease}
+#tr16.cta .tr16-skip{opacity:.45}
+#tr16.cta .tr16-btn.pri{outline:none;position:relative;font-size:14px;padding:13px 22px;border-radius:12px;
+  box-shadow:0 0 0 3px #0B0B0B,0 0 0 5px #fff,0 0 34px 6px rgba(255,255,255,.28);transition:box-shadow .3s ease,padding .3s ease}
+body.light #tr16.cta .tr16-btn.pri{box-shadow:0 0 0 3px #fff,0 0 0 5px #141414,0 10px 30px rgba(0,0,0,.25)}
+#tr16.cta .tr16-btn.pri::after{content:'';position:absolute;inset:-5px;border-radius:16px;border:2px solid #fff;pointer-events:none;animation:tr26ring 1.6s ease-out infinite}
+body.light #tr16.cta .tr16-btn.pri::after{border-color:#141414}
+@keyframes tr26ring{0%{transform:scale(1);opacity:.85}100%{transform:scale(1.16,1.5);opacity:0}}
+#tr16 .tr16-cta{display:flex;align-items:flex-end;justify-content:flex-end;gap:6px;margin:18px 4px -6px 0;text-align:right;
+  font-size:13.5px;font-weight:700;line-height:1.4;animation:tr26in .45s ease both}
+#tr16 .tr16-cta span{max-width:260px}
+#tr16 .tr16-cta svg{width:34px;height:34px;flex-shrink:0;margin-bottom:-8px}
+@keyframes tr26in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media (max-width:600px){#tr16 .tr16-cta span{max-width:none}#tr16.cta .tr16-btn.pri{padding:12px 18px}}
+@media (prefers-reduced-motion:reduce){#tr16.cta .tr16-btn.pri::after,#tr16 .tr16-cta{animation:none}}
+</style>
+<!-- R26: тексты голосового гида. Их читает и страница, и сервер (web/tour.go) -->
+<script type="application/json" id="bsTourTexts">
+{
+ "welcome": {
+  "admin": {
+   "t": "Добро пожаловать в Business Surgery",
+   "d": "Я голосовой гид платформы. За пару минут покажу, где что лежит, и постараюсь не занять у вас ни секундой больше, чем нужно."
+  },
+  "res": {
+   "t": "Добро пожаловать в Business Surgery",
+   "d": "Я ваш голосовой гид. За пару минут покажу, как устроена платформа, чтобы следующие десять дней прошли с пользой."
+  },
+  "lead": {
+   "t": "Добро пожаловать в Business Surgery",
+   "d": "Я голосовой гид клуба. Покажу, что можно сделать здесь уже сейчас, ещё до резидентства."
+  }
+ },
+ "nav": {
+  "track": "Трекинг. Здесь живут доски разборов: диагнозы, инструменты и задачи каждого резидента. День разумно начинать отсюда.",
+  "club": "Клуб. Резиденты, встречи, отчёты и штрафы. Всё, что держит ритм десяти дней.",
+  "fin": "Учёт. Деньги клуба: PL, движение денег и журнал операций. Цифры здесь честнее любых ощущений.",
+  "sales": "Продажи. CRM лидов, запись на разбор, рефералы и скрипты. Путь от первого сообщения до резидента.",
+  "mkt": "Маркетинг. Анализ рынка, контент-завод и публикации. Здесь клуб рассказывает о себе миру.",
+  "lib": "BS. Цели и задачи команды, мероприятия, интерактивные чек-листы и рекомендации ИИ.",
+  "rtrack": "Трекинг. Ваш разбор: точка А, точка Б, диагнозы и инструменты от трекера. Сюда стоит заглядывать перед каждой встречей.",
+  "rtask": "Задачи. Задания цикла, расписание встреч и ваш календарь. Отмечайте занятое время, трекеры подстроятся.",
+  "rrep": "Отчёт. Каждый день до 22:00 отмечаете сделанное. Опоздание стоит 10 000 тенге, так что я бы не рисковал.",
+  "rcont": "Ресурсы. Скидки партнёров, интерактивные чек-листы, книги и инструменты клуба.",
+  "rfive": "Участники. Ваша пятёрка и другие резиденты. Сильное окружение работает лучше любой мотивации.",
+  "rmeas": "Замеры. Колесо бизнеса, колесо баланса, диагностика и Gallup. Пять минут раз в цикл, и динамика видна как на ладони.",
+  "rme": "Профиль. Ваши данные, статус, достижения и штрафы.",
+  "rbs": "BS. О проекте, правила клуба и подробная инструкция.",
+  "lbs": "BS. Что такое клуб, его правила и полезные материалы.",
+  "ltrack": "Моя доска. Диагнозы и инструменты, которые трекер нашёл на разборе.",
+  "lmeas": "Замеры. Колесо бизнеса, баланс и диагностика: взгляд на бизнес со стороны, бесплатно.",
+  "lup": "Резидентство. Что даёт участие в клубе и как в него попасть."
+ },
+ "actions": [
+  {
+   "sel": ".side-search",
+   "modes": "admin res lead",
+   "t": "Поиск и команды",
+   "d": "Разделы, люди и действия находятся здесь. Ctrl K открывает поиск из любого места."
+  },
+  {
+   "sel": "#modeSw",
+   "modes": "admin",
+   "t": "Режимы",
+   "d": "Смотрите платформу глазами резидента или лида, чтобы точно знать, что видят они."
+  },
+  {
+   "sel": "#micBtn",
+   "modes": "admin",
+   "t": "Голосовой помощник",
+   "d": "Говорите, что добавить на доску, и помощник разложит это по местам."
+  },
+  {
+   "sel": "#callBtn",
+   "modes": "admin",
+   "t": "Запись созвона",
+   "d": "Запишите встречу, и платформа сделает расшифровку, итоги и чек-лист."
+  },
+  {
+   "sel": "#rpBtn",
+   "modes": "admin",
+   "t": "Панель резидента",
+   "d": "Данные резидента, тесты, замеры и подготовка к встрече в одной панели."
+  },
+  {
+   "sel": "#rpBtn",
+   "modes": "res",
+   "t": "Ваша панель",
+   "d": "Ваши данные, тесты и замеры в одной панели. Трекер видит то же самое."
+  },
+  {
+   "sel": "#thBtn",
+   "modes": "admin res lead",
+   "t": "Тема",
+   "d": "Светлая или тёмная. Переключается только этой кнопкой, больше ничем."
+  }
+ ],
+ "help": {
+  "t": "Обучение",
+  "d": "Если что-то забудется, экскурсию можно пройти заново здесь. Я никуда не денусь."
+ },
+ "bye": {
+  "t": "Готово",
+  "d": "На этом всё. Удачной работы. Если понадоблюсь, я в разделе «Обучение»."
+ },
+ "cta": {
+  "admin": "Нажмите «Начать обучение»: две минуты, и платформа станет понятной.",
+  "res": "Нажмите «Начать обучение»: две минуты, и платформа станет понятной.",
+  "lead": "Нажмите «Начать обучение»: две минуты, и платформа станет понятной."
+ },
+ "ctaHint": "Нажмите, чтобы начать обучение: 2\u00a0минуты, и платформа станет понятной"
+}
+</script>
 <script id="r16Script">
 (function(){
 'use strict';
@@ -23237,36 +23360,62 @@ var Voice = (function(){
   // serverDown: на сервере нет озвучки (503). Тогда весь тур говорит голосом браузера,
   // чтобы голос не менялся посреди обучения
   var serverDown = false;
-  function fetchAudio(text, again){
+  // R26: фраза с сервера. Ответ ждём не дольше wait + 3 с: сервер сам держит фразу не дольше wait
+  // и отвечает 202, если она ещё делается (она сохранится на сервере, следующий запрос возьмёт готовую).
+  // wait < 0: не ждать вовсе (скачивание заранее). Опоздавший ответ не пропадает, он ложится в кэш
+  var ready = {};
+  function fetchAudio(text, wait){
     if(cache[text]) return cache[text];
     if(!online() || serverDown) return Promise.resolve(null);
-    var p = Promise.resolve().then(function(){ return BSSync.api('POST', '/tts', {text: text}); }).then(function(r){
+    wait = wait == null ? 8 : wait;
+    var req = Promise.resolve().then(function(){ return BSSync.api('POST', '/tts', {text: text, wait: wait}); }).then(function(r){
       if(r && r.status === 503){ serverDown = true; throw new Error('down'); }
+      if(r && r.status === 202) throw new Error('pending');
       if(!r || !r.ok) throw new Error('tts ' + (r && r.status));
       return r.blob();
     }).then(function(b){
       if(!b || !b.size) throw new Error('empty');
-      fails = 0; return URL.createObjectURL(b);
-    }).catch(function(){
-      // R23: неудачу забываем, повторяет say(), пока шаг на экране
-      fails++; delete cache[text];
-      return null;
+      fails = 0; ready[text] = 1; return URL.createObjectURL(b);
+    });
+    var settled = false, p;
+    p = new Promise(function(resolve){
+      function fail(){ if(settled) return; settled = true; clearTimeout(tm); fails++; if(cache[text] === p) delete cache[text]; resolve(null); }
+      var tm = setTimeout(fail, Math.max(0, wait) * 1000 + 3000);
+      req.then(function(url){
+        if(!settled){ settled = true; clearTimeout(tm); resolve(url); }
+        else if(!cache[text]) cache[text] = Promise.resolve(url);
+      }, fail);
     });
     cache[text] = p;
     return p;
   }
-  // Все фразы тура по одной, по очереди: так лимит Gemini не срывает озвучку
-  var pq = [], prun = false;
-  function prefetch(list){
-    if(muted()) return;
-    list.slice(0, 3).forEach(function(t){ if(t && !cache[t] && pq.indexOf(t) < 0) pq.push(t); });
-    if(prun) return;
-    prun = true;
-    (function next(){
-      if(!pq.length || muted() || serverDown){ prun = false; return; }
-      fetchAudio(pq.shift()).then(next);
-    })();
+  // R26: все фразы обучения скачиваются заранее, по две сразу. Те, что сервер ещё делает,
+  // спрашиваются снова каждые 4 с (до 3 минут). Ничего не ждёт и ничего не держит
+  var plq = [], plLater = [], plRun = 0, plUntil = 0, plTimer = 0;
+  function preload(list){
+    if(muted() || serverDown || !online()) return;
+    plUntil = Date.now() + 180000;
+    (list || []).forEach(function(t){ if(t && !ready[t] && plq.indexOf(t) < 0 && plLater.indexOf(t) < 0) plq.push(t); });
+    pump();
   }
+  function pump(){
+    while(plRun < 2 && plq.length){
+      var t = plq.shift();
+      if(ready[t]) continue;
+      plRun++;
+      (function(t){
+        fetchAudio(t, -1).then(function(url){
+          plRun--;
+          if(!url && !serverDown && !muted() && Date.now() < plUntil) plLater.push(t);
+          pump();
+        });
+      })(t);
+    }
+    if(!plRun && !plq.length && plLater.length && !plTimer){
+      plTimer = setTimeout(function(){ plTimer = 0; plq = plq.concat(plLater); plLater = []; pump(); }, 4000);
+    }
+  }
+  function prefetch(list){ preload(list); }
   function stop(){
     token++;
     if(cur){ try{ cur.pause(); }catch(e){} cur = null; }
@@ -23302,92 +23451,89 @@ var Voice = (function(){
     }).then(function(j){ if(j && j.noTTS) serverDown = true; return j; }).catch(function(){ return null; });
   }
   // Сказать фразы по очереди. Ни одна ошибка не останавливает обучение:
-  // фраза, которая не пришла, запрашивается снова, пока шаг на экране; следующий шаг озвучивается всегда
-  function say(texts){
+  // R26: фраза, которая не пришла, запрашивается снова, но не дольше PHRASE_BUDGET; потом
+  // обучение идёт дальше без неё. Сторож у звука: не начался за 5 с или «ended» не пришёл: дальше.
+  // onEnd: все фразы сказаны (или пропущены); при stop() не вызывается
+  var PHRASE_BUDGET = 20000;
+  function play(url, text, my, done, onBlocked){
+    var a = new Audio(url), fin = false, wd = 0;
+    cur = a;
+    function end(bad){
+      if(fin) return; fin = true; clearTimeout(wd);
+      if(bad && cache[text]) delete cache[text];
+      if(my === token){ cur = null; emit(); done(); }
+    }
+    a.onended = function(){ end(false); };
+    a.onerror = function(){ end(true); };
+    a.onplaying = function(){
+      clearTimeout(wd);
+      var d = isFinite(a.duration) && a.duration > 0 ? a.duration : 40;
+      wd = setTimeout(function(){ try{ a.pause(); }catch(e){} end(false); }, Math.max(0, d - (a.currentTime || 0)) * 1000 + 2500);
+    };
+    wd = setTimeout(function(){ if(!fin && (a.paused || !a.currentTime)){ try{ a.pause(); }catch(e){} end(true); } }, 5000);
+    var pr;
+    try{ pr = a.play(); }catch(e){ end(true); return; }
+    emit();
+    if(pr && pr.catch) pr.catch(function(err){
+      if(fin || my !== token) return;
+      // Браузер не даёт играть звук до первого действия: ждём клика или клавиши
+      if(err && err.name === 'NotAllowedError'){ fin = true; clearTimeout(wd); cur = null; onBlocked(); emit(); return; }
+      end(true);
+    });
+  }
+  function say(texts, onEnd){
     if(typeof texts === 'string') texts = [texts];
     stop();
-    if(muted() || !texts.length) return;
+    if(muted() || !texts.length){ if(onEnd) setTimeout(onEnd, 0); return; }
     var my = token, i = 0;
     function one(){
       if(my !== token) return;
-      if(i >= texts.length){ setPrep(false); return; }
-      var text = texts[i++], tries = 0;
+      if(i >= texts.length){ setPrep(false); if(onEnd) onEnd(); return; }
+      var text = texts[i++], started = Date.now();
       var slow = setTimeout(function(){ if(my === token) setPrep(true); }, 600);
       function next(){ clearTimeout(slow); setPrep(false); one(); }
       (function attempt(){
-        fetchAudio(text).then(function(url){
+        if(my !== token) return;
+        var left = PHRASE_BUDGET - (Date.now() - started);
+        if(left < 2500){ next(); return; } // фраза так и не пришла: обучение не ждёт
+        fetchAudio(text, Math.max(1, Math.min(8, Math.floor(left / 1000) - 4))).then(function(url){
           if(my !== token) return;
           if(!url){
             if(serverDown){ clearTimeout(slow); setPrep(false); browserSay(text, my, one); return; }
-            // сервер занят или упёрся в лимит: ещё раз через пару секунд
-            if(++tries <= 8){ setPrep(true); setTimeout(function(){ if(my === token) attempt(); }, Math.min(1500 * tries, 6000)); return; }
-            next(); return;
+            setPrep(true);
+            setTimeout(attempt, 1200); return;
           }
           clearTimeout(slow); setPrep(false);
-          var a = new Audio(url); cur = a;
-          a.onended = function(){ if(my === token){ cur = null; emit(); one(); } };
-          a.onerror = function(){ if(my === token){ cur = null; delete cache[text]; one(); } };
-          var pr = a.play();
-          emit();
-          if(pr && pr.catch) pr.catch(function(){
-            // Браузер не даёт играть звук до первого действия: ждём клика или клавиши
-            if(my !== token) return;
-            cur = null; pending = {texts: texts.slice(i - 1), my: my}; emit();
-          });
+          play(url, text, my, one, function(){ pending = {texts: texts.slice(i - 1), my: my, onEnd: onEnd}; });
         });
       })();
     }
     one();
   }
-  function resume(){ if(pending && pending.my === token && !muted()){ var t = pending.texts; pending = null; say(t); } }
+  function resume(){ if(pending && pending.my === token && !muted()){ var t = pending.texts, f = pending.onEnd; pending = null; say(t, f); } }
   ['pointerdown', 'keydown'].forEach(function(ev){ document.addEventListener(ev, function(e){
     // кнопки обучения сами решают, что озвучить
     if(!pending || (e.target && e.target.closest && e.target.closest('#tr16 [data-a]')) || (ev === 'keydown' && document.getElementById('tr16'))) return;
     setTimeout(resume, 0);
   }, true); });
-  return {say: say, stop: stop, prefetch: prefetch, muted: muted, setMuted: setMuted, warm: warm,
+  return {say: say, stop: stop, prefetch: prefetch, preload: preload, muted: muted, setMuted: setMuted, warm: warm,
+    ready: function(t){ return !!ready[t]; },
     preparing: function(){ return prep; },
     speaking: function(){ return !!(cur || curUtter); }, blocked: function(){ return !!pending; },
     on: function(f){ listeners.push(f); }, _fetch: fetchAudio, _cache: cache};
 })();
 
 // ═══════════ Тексты обучения ═══════════
-var WELCOME = {
-  admin: {t:'Добро пожаловать в Business Surgery', d:'Я голосовой гид платформы. За пару минут покажу, где что лежит, и постараюсь не занять у вас ни секундой больше, чем нужно.'},
-  res:   {t:'Добро пожаловать в Business Surgery', d:'Я ваш голосовой гид. За пару минут покажу, как устроена платформа, чтобы следующие десять дней прошли с пользой.'},
-  lead:  {t:'Добро пожаловать в Business Surgery', d:'Я голосовой гид клуба. Покажу, что можно сделать здесь уже сейчас, ещё до резидентства.'}
-};
-var NAV = {
-  track: 'Трекинг. Здесь живут доски разборов: диагнозы, инструменты и задачи каждого резидента. День разумно начинать отсюда.',
-  club:  'Клуб. Резиденты, встречи, отчёты и штрафы. Всё, что держит ритм десяти дней.',
-  fin:   'Учёт. Деньги клуба: PL, движение денег и журнал операций. Цифры здесь честнее любых ощущений.',
-  sales: 'Продажи. CRM лидов, запись на разбор, рефералы и скрипты. Путь от первого сообщения до резидента.',
-  mkt:   'Маркетинг. Анализ рынка, контент-завод и публикации. Здесь клуб рассказывает о себе миру.',
-  lib:   'BS. Цели и задачи команды, интерактивные чек-листы и рекомендации ИИ.',
-  rtrack:'Трекинг. Ваш разбор: точка А, точка Б, диагнозы и инструменты от трекера. Сюда стоит заглядывать перед каждой встречей.',
-  rtask: 'Задачи. Задания цикла, расписание встреч и ваш календарь. Отмечайте занятое время, трекеры подстроятся.',
-  rrep:  'Отчёт. Каждый день до 22:00 отмечаете сделанное. Опоздание стоит 10 000 тенге, так что я бы не рисковал.',
-  rcont: 'Ресурсы. Скидки партнёров, интерактивные чек-листы, книги и инструменты клуба.',
-  rfive: 'Участники. Ваша пятёрка и другие резиденты. Сильное окружение работает лучше любой мотивации.',
-  rmeas: 'Замеры. Колесо бизнеса, колесо баланса, диагностика и Gallup. Пять минут раз в цикл, и динамика видна как на ладони.',
-  rme:   'Профиль. Ваши данные, статус, достижения и штрафы.',
-  rbs:   'BS. О проекте, правила клуба и подробная инструкция.',
-  lbs:   'BS. Что такое клуб, его правила и полезные материалы.',
-  ltrack:'Моя доска. Диагнозы и инструменты, которые трекер нашёл на разборе.',
-  lmeas: 'Замеры. Колесо бизнеса, баланс и диагностика: взгляд на бизнес со стороны, бесплатно.',
-  lup:   'Резидентство. Что даёт участие в клубе и как в него попасть.'
-};
-var ACTIONS = [
-  {sel:'.side-search', modes:'admin res lead', t:'Поиск и команды', d:'Разделы, люди и действия находятся здесь. Ctrl K открывает поиск из любого места.'},
-  {sel:'#modeSw', modes:'admin', t:'Режимы', d:'Смотрите платформу глазами резидента или лида, чтобы точно знать, что видят они.'},
-  {sel:'#micBtn', modes:'admin', t:'Голосовой помощник', d:'Говорите, что добавить на доску, и помощник разложит это по местам.'},
-  {sel:'#callBtn', modes:'admin', t:'Запись созвона', d:'Запишите встречу, и платформа сделает расшифровку, итоги и чек-лист.'},
-  {sel:'#rpBtn', modes:'admin', t:'Панель резидента', d:'Данные резидента, тесты, замеры и подготовка к встрече в одной панели.'},
-  {sel:'#rpBtn', modes:'res', t:'Ваша панель', d:'Ваши данные, тесты и замеры в одной панели. Трекер видит то же самое.'},
-  {sel:'#thBtn', modes:'admin res lead', t:'Тема', d:'Светлая или тёмная. Переключается только этой кнопкой, больше ничем.'}
-];
-var HELP = {t:'Обучение', d:'Если что-то забудется, экскурсию можно пройти заново здесь. Я никуда не денусь.'};
-var BYE = {t:'Готово', d:'На этом всё. Удачной работы. Если понадоблюсь, я в разделе «Обучение».'};
+// R26: тексты живут в одном месте, в блоке bsTourTexts выше. Сервер читает тот же блок
+// и заранее озвучивает каждую фразу (TourVoiceLoop), так что голос готов до первого входа
+var TT = (function(){ try{ return JSON.parse(document.getElementById('bsTourTexts').textContent); }catch(e){ return {}; } })();
+var WELCOME = TT.welcome || {admin:{t:'Добро пожаловать в Business Surgery', d:''}};
+var NAV = TT.nav || {};
+var ACTIONS = TT.actions || [];
+var HELP = TT.help || {t:'Обучение', d:''};
+var BYE = TT.bye || {t:'Готово', d:''};
+var CTA = TT.cta || {};
+var CTA_HINT = TT.ctaHint || 'Нажмите, чтобы начать обучение';
 
 function visible(el){
   if(!el || !el.isConnected) return false;
@@ -23478,9 +23624,44 @@ function showWelcome(m, auto){
   placeCenter(card);
   bindCard(card);
   setTimeout(function(){ try{ card.focus({preventScroll:true}); }catch(e){} }, 30);
-  // Озвучка приветствия: если браузер не даст играть сразу, она начнётся с первого клика
-  Voice.say([w.d]);
-  Voice.prefetch(T.steps.map(function(s){ return s.d; }));
+  // Озвучка приветствия: если браузер не даст играть сразу, она начнётся с первого клика.
+  // R26: когда приветствие сказано, гид зовёт нажать «Начать обучение» (ctaOn)
+  var my = T;
+  // голос выключен: призыв через пару секунд, когда приветствие прочитано (ctaLater)
+  Voice.say([w.d], Voice.muted() ? null : function(){ setTimeout(function(){ if(T === my) ctaOn(); }, 350); });
+  ctaLater(my, Date.now());
+  // R26: все фразы обучения скачиваются сразу, пока человек читает приветствие
+  Voice.preload([CTA[m]].concat(T.steps.map(function(s){ return s.d; })));
+}
+// R26: после приветствия всё, кроме «Начать обучение», уходит в тень: кольцо у кнопки, стрелка
+// и строка «Нажмите, чтобы начать». Без голоса (выключен, браузер молчит) это случается само через пару секунд
+var CTA_ARROW = '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6c14 1 23 9 24 24"/><path d="M25 25l7 6 5-8"/></svg>';
+function ctaLater(my, since){
+  setTimeout(function(){
+    if(T !== my || !T.welcome || T.cta) return;
+    var quiet = Voice.muted() || Voice.blocked() || (!Voice.speaking() && !Voice.preparing());
+    if(quiet && Date.now() - since > 3500) ctaOn();
+    else if(Date.now() - since > 30000) ctaOn();
+    else ctaLater(my, since);
+  }, 700);
+}
+function ctaOn(){
+  if(!T || !T.welcome || T.cta) return;
+  var r = document.getElementById('tr16'), card = r && r.querySelector('.tr16-card'), nav = card && card.querySelector('.tr16-nav');
+  if(!nav) return;
+  T.cta = true;
+  if(!card.querySelector('.tr16-cta')){
+    var d = document.createElement('div');
+    d.className = 'tr16-cta'; d.setAttribute('role', 'status');
+    d.innerHTML = '<span>' + ea(CTA_HINT) + '</span>' + CTA_ARROW;
+    nav.parentNode.insertBefore(d, nav);
+  }
+  r.classList.add('cta');
+  placeCenter(card);
+  var b = card.querySelector('[data-a="start"]');
+  if(b) try{ b.focus({preventScroll:true}); }catch(e){}
+  // приветствие ещё ждёт клика (браузер не дал звук): его не перебиваем
+  if(!Voice.blocked() && CTA[T.m]) Voice.say([CTA[T.m]]);
 }
 function startSteps(){
   if(!T) return;
@@ -23646,10 +23827,15 @@ function warmTour(){
     var texts = [];
     [m].concat(m === 'admin' ? ['res', 'lead'] : []).forEach(function(x){
       texts.push((WELCOME[x] || WELCOME.admin).d);
+      if(CTA[x]) texts.push(CTA[x]);
       buildSteps(x).forEach(function(s){ texts.push(s.d); });
     });
     // заранее скачивается только приветствие: остальное сервер отдаёт из готового за доли секунды
-    Voice.warm(texts).then(function(){ Voice.prefetch([(WELCOME[m] || WELCOME.admin).d]); });
+    // R26: после входа скачиваются приветствие, призыв и первые шаги; остальное при старте обучения
+    Voice.warm(texts).then(function(){
+      var st = buildSteps(m).map(function(s){ return s.d; });
+      Voice.preload([(WELCOME[m] || WELCOME.admin).d, CTA[m]].concat(st.slice(0, 4)));
+    });
   }catch(e){}
 }
 var waits = 0;
@@ -24918,6 +25104,51 @@ select.r23-in{max-width:200px;cursor:pointer}
 @keyframes r23spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){#tr16 .tr16-prep i{animation:none}}
 </style>
+<style id="r26Style">
+/* ═══ R26: дата входа и календарь ═══ */
+.r26-date{display:inline-flex;align-items:center;gap:8px;cursor:pointer;text-align:left;min-width:170px;font-weight:600}
+.r26-date svg{width:16px;height:16px;flex-shrink:0;opacity:.7}
+.r26-date:hover{border-color:var(--ptx)}
+.r26-date[aria-expanded="true"]{border-color:var(--ptx)}
+.dp26-back{display:none}
+.dp26{position:fixed;z-index:2147483100;width:304px;box-sizing:border-box;padding:14px 14px 10px;border-radius:16px;
+  background:var(--pc);color:var(--ptx);border:1px solid var(--pi);box-shadow:0 24px 60px rgba(0,0,0,.45);
+  font-family:'Manrope',-apple-system,sans-serif;animation:dp26in .16s ease both}
+body.light .dp26{box-shadow:0 20px 50px rgba(0,0,0,.16)}
+@keyframes dp26in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.dp26 button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.dp26 button:focus-visible{outline:2px solid var(--ptx);outline-offset:1px}
+.dp26-h{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.dp26-nb{width:34px;height:34px;border-radius:10px!important;border:1px solid var(--pi)!important;font-size:18px!important;line-height:1;flex-shrink:0}
+.dp26-nb:hover{background:var(--ph)!important}
+.dp26-tt{flex:1;height:34px;border-radius:10px;font-size:14.5px!important;font-weight:800;letter-spacing:-.2px;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.dp26-tt:hover{background:var(--ph)!important}
+.dp26-tt svg{width:15px;height:15px;opacity:.6}
+.dp26-w,.dp26-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dp26-w span{font-size:11px;font-weight:700;color:var(--pm);text-align:center;padding:4px 0 6px;letter-spacing:.3px}
+.dp26-d{height:36px;border-radius:10px;font-size:13.5px!important;font-weight:600;font-variant-numeric:tabular-nums}
+.dp26-d:hover:not([disabled]){background:var(--ph)!important}
+.dp26-d.out{color:var(--pdim)!important}
+.dp26-d.today{box-shadow:inset 0 0 0 1.5px var(--ptx)}
+.dp26-d.on{background:var(--pon)!important;color:var(--pontx)!important;font-weight:800}
+.dp26-d[disabled],.dp26-m[disabled]{opacity:.28;cursor:default}
+.dp26-mg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 0}
+.dp26-m{height:44px;border-radius:11px;font-size:13.5px!important;font-weight:700;border:1px solid var(--pb)!important}
+.dp26-m:hover:not([disabled]){background:var(--ph)!important}
+.dp26-m.cur{border-color:var(--ptx)!important}
+.dp26-m.on{background:var(--pon)!important;color:var(--pontx)!important}
+.dp26-f{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--pb)}
+.dp26-lk{font-size:12.5px!important;font-weight:800;padding:8px 10px;border-radius:9px}
+.dp26-lk:hover:not([disabled]){background:var(--ph)!important}
+@media (max-width:600px){
+  .dp26-back{display:block;position:fixed;inset:0;z-index:2147483099;background:rgba(0,0,0,.5)}
+  .dp26.dp26-sheet{left:12px;right:12px;bottom:12px;top:auto;width:auto;padding:16px 16px 12px;animation:dp26up .2s ease both}
+  .dp26.dp26-sheet .dp26-d{height:42px;font-size:15px!important}
+  .r26-date{width:100%;min-width:0}
+}
+@keyframes dp26up{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.dp26,.dp26.dp26-sheet{animation:none}}
+</style>
 <script id="r23Script">
 // R23: настройки резидента в его карточке (Клуб → Резиденты). Команда меняет «Исключение»,
 // формат, дату входа, партнёра и Telegram Chat ID: сервер сохраняет сразу (бот видит исключение
@@ -24930,9 +25161,32 @@ function api(method, path, body){
   if(typeof r11Club === 'function') return r11Club(method, path, body);
   return Promise.resolve(BSSync.clubApi(method, path, body)).then(function(r){ return r.json(); }).catch(function(){ return {error:'Нет связи с сервером'}; });
 }
-var S = {list: null};
+// R26: данные резидентов держатся в памяти и в этом браузере (r26_res_cache, только команда):
+// карточка открывается сразу с ними, свежие с сервера приходят следом. Сохранение
+// оптимистичное: значение меняется на экране сразу, при ошибке возвращается прежнее
+var CACHE_KEY = 'r26_res_cache';
+var S = {list: null, at: 0, loading: null, busy: {}};
+try{ var c0 = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); if(c0 && Array.isArray(c0.list)){ S.list = c0.list; S.at = 0; } }catch(e){}
+function keep(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify({list: S.list, at: Date.now()})); }catch(e){} }
 function iso(d){ var m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(d || ''); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; }
 function dots(v){ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); return m ? m[3] + '.' + m[2] + '.' + m[1] : ''; }
+var MON_G = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+function human(d){ var m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(d || ''); return m ? (+m[1]) + ' ' + MON_G[+m[2] - 1] + ' ' + m[3] : ''; }
+function fetchList(){
+  if(S.loading) return S.loading;
+  S.loading = api('GET', '/residents').then(function(j){
+    S.loading = null;
+    j = j || {};
+    if(j.error || !Array.isArray(j.residents)) return {error: j.error || 'Сервер не отдал данные резидентов'};
+    // правки, которые ещё в пути, не затираются ответом, ушедшим раньше них
+    var mine = {};
+    (S.list || []).forEach(function(x){ if(S.busy[x.name]) mine[x.name] = x; });
+    S.list = j.residents.map(function(x){ return mine[x.name] || x; });
+    S.at = Date.now(); keep();
+    return {ok: true};
+  }, function(){ S.loading = null; return {error: 'Нет связи с сервером'}; });
+  return S.loading;
+}
 window.r23ResSlot = function(r){
   if(!canEdit() || !r) return '';
   return '<div class="pf-card r23-res" id="r23Res" data-name="' + ea(r.name) + '"><div class="pf-lbl">Настройки резидента</div>' +
@@ -24940,19 +25194,26 @@ window.r23ResSlot = function(r){
 };
 window.r23ResLoad = function(name){
   var box = document.getElementById('r23Res'); if(!box || !canEdit()) return Promise.resolve();
-  return api('GET', '/residents').then(function(j){
-    j = j || {};
-    if(j.error || !Array.isArray(j.residents)){
-      var b = box.querySelector('.r23-body'); if(b) b.innerHTML = '<div class="r23-err">' + ea(j.error || 'Сервер не отдал данные резидентов') + '</div>';
+  if(S.list) draw(name); // сразу из памяти
+  if(S.at && Date.now() - S.at < 15000) return Promise.resolve();
+  return fetchList().then(function(res){
+    var cur = document.getElementById('r23Res'); if(!cur || cur.dataset.name !== name) return;
+    if(res.error){
+      if(!S.list){ var b = cur.querySelector('.r23-body'); if(b) b.innerHTML = '<div class="r23-err">' + ea(res.error) + '</div>'; }
       return;
     }
-    S.list = j.residents; draw(name);
+    // не перерисовываем под рукой: поле в фокусе или открыт календарь
+    if(cur.contains(document.activeElement) && document.activeElement !== cur || document.querySelector('.dp26')) return;
+    draw(name);
   });
 };
+// Резиденты клуба открылись: данные настроек подтягиваются заранее, карточка откроется мгновенно
+window.r23ResWarm = function(){ if(canEdit() && (!S.at || Date.now() - S.at > 60000)) fetchList(); };
 function row(field, k, h, ctrl){
   return '<div class="r23-row" data-f="' + field + '"><div><div class="r23-k">' + k + '</div>' + (h ? '<div class="r23-h">' + h + '</div>' : '') + '</div>' +
     '<div class="r23-c">' + ctrl + '</div><div class="r23-st" role="status"></div></div>';
 }
+var CAL_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
 function draw(name){
   var box = document.getElementById('r23Res'); if(!box || box.dataset.name !== name) return;
   var body = box.querySelector('.r23-body');
@@ -24966,7 +25227,8 @@ function draw(name){
       '<button type="button" class="r23-sw" role="switch" aria-label="Исключение для отчётов" aria-checked="' + (r.exception ? 'true' : 'false') + '" data-a="exc"><i></i></button>') +
     row('format', 'Формат', '', '<div class="r23-seg" role="group" aria-label="Формат">' +
       ['Онлайн', 'Офлайн'].map(function(v){ return '<button type="button" data-a="fmt" data-v="' + v + '" class="' + (fmt === v ? 'on' : '') + '" aria-pressed="' + (fmt === v) + '">' + v + '</button>'; }).join('') + '</div>') +
-    row('joinedAt', 'Дата входа', '', '<input class="r23-in" type="date" data-a="date" aria-label="Дата входа" value="' + ea(iso(r.joinedAt)) + '" min="2024-01-01">') +
+    row('joinedAt', 'Дата входа', '', '<button type="button" class="r23-in r26-date" data-a="date" aria-haspopup="dialog" aria-label="Дата входа: ' + ea(human(r.joinedAt) || 'не указана') + '">' +
+      CAL_IC + '<span>' + ea(human(r.joinedAt) || 'Выбрать дату') + '</span></button>') +
     row('partner', 'Партнёр', 'Пара резидентов: встречи и отчёты вместе', '<select class="r23-in" data-a="partner" aria-label="Партнёр"><option value="">Нет партнёра</option>' +
       others.map(function(x){ return '<option value="' + ea(x.name) + '"' + (x.name === r.partner ? ' selected' : '') + '>' + ea(x.name) + '</option>'; }).join('') + '</select>') +
     row('chatId', 'Telegram Chat ID', 'Только цифры. По нему бот узнаёт резидента',
@@ -24975,36 +25237,63 @@ function draw(name){
   bind(box, r);
 }
 function status(box, field, text, err){
-  var st = box.querySelector('.r23-row[data-f="' + field + '"] .r23-st'); if(!st) return;
+  var st = box && box.querySelector('.r23-row[data-f="' + field + '"] .r23-st'); if(!st) return;
   st.textContent = text || ''; st.classList.toggle('err', !!err);
+  clearTimeout(st._t);
+  if(text && !err) st._t = setTimeout(function(){ if(st.textContent === text) st.textContent = ''; }, 4000);
 }
-function save(box, r, field, value, ctrl){
+// Применить значение к карточке в памяти (и к паре партнёров)
+function applyLocal(name, field, value){
+  var prev = (S.list || []).map(function(x){ return Object.assign({}, x); });
+  S.list = (S.list || []).map(function(x){
+    if(x.name !== name) return x;
+    var y = Object.assign({}, x);
+    if(field === 'exception') y.exception = value === 'Да';
+    else if(field === 'format') y.format = value;
+    else if(field === 'joinedAt') y.joinedAt = value;
+    else if(field === 'chatId') y.chatId = value;
+    else if(field === 'partner') y.partner = value;
+    return y;
+  });
+  if(field === 'partner') S.list.forEach(function(x){
+    if(x.name === value) x.partner = name; else if(x.partner === name && x.name !== name) x.partner = '';
+  });
+  return prev;
+}
+function syncCard(nr){
+  try{
+    var R = (typeof RESIDENTS !== 'undefined' && RESIDENTS || []).find(function(x){ return x.name === nr.name; });
+    if(R){ R.format = nr.format; R.start = nr.joinedAt; }
+    var sub = document.getElementById('cardSub');
+    if(sub && R) sub.textContent = ['Клуб · Резиденты', R.format || '', R.start ? 'в клубе с ' + R.start : ''].filter(Boolean).join(' · ');
+    if(typeof srRender === 'function' && document.getElementById('srTbl')) srRender();
+  }catch(e){}
+}
+function save(box, r, field, value){
   var name = r.name;
-  status(box, field, 'Сохраняю…');
-  box.querySelectorAll('[data-a]').forEach(function(el){ el.disabled = true; });
+  var prev = applyLocal(name, field, value);
+  S.busy[name] = (S.busy[name] || 0) + 1;
+  draw(name);
+  var nr0 = S.list.find(function(x){ return x.name === name; }); if(nr0) syncCard(nr0);
+  status(document.getElementById('r23Res'), field, 'Сохраняю…');
   return api('POST', '/resident', {name: name, field: field, value: value}).then(function(j){
     j = j || {};
+    S.busy[name]--; if(!S.busy[name]) delete S.busy[name];
     var cur = document.getElementById('r23Res');
     if(j.error){
-      draw(name); if(cur) status(cur, field, j.detail || j.error, true);
+      // не сохранилось: на экране снова прежнее значение и причина
+      S.list = prev; keep();
+      var back = S.list.find(function(x){ return x.name === name; }); if(back) syncCard(back);
+      if(cur && cur.dataset.name === name){ draw(name); status(document.getElementById('r23Res'), field, j.detail || j.error, true); }
       return;
     }
     var nr = j.resident;
-    if(nr){
-      S.list = S.list.map(function(x){ return x.name === nr.name ? nr : x; });
-      if(field === 'partner') S.list.forEach(function(x){
-        if(x.name === value) x.partner = name; else if(x.partner === name && x.name !== name) x.partner = '';
-      });
-      try{
-        var R = (typeof RESIDENTS !== 'undefined' && RESIDENTS || []).find(function(x){ return x.name === nr.name; });
-        if(R){ R.format = nr.format; R.start = nr.joinedAt; }
-        var sub = document.getElementById('cardSub');
-        if(sub && R) sub.textContent = ['Клуб · Резиденты', R.format || '', R.start ? 'в клубе с ' + R.start : ''].filter(Boolean).join(' · ');
-        if(typeof srRender === 'function' && document.getElementById('srTbl')) srRender();
-      }catch(e){}
+    if(nr){ S.list = S.list.map(function(x){ return x.name === nr.name ? nr : x; }); syncCard(nr); }
+    keep();
+    if(cur && cur.dataset.name === name){
+      if(!(cur.contains(document.activeElement) && document.activeElement.matches('input'))) draw(name);
+      status(document.getElementById('r23Res'), field, j.unchanged ? 'Без изменений' : 'Сохранено');
     }
-    draw(name);
-    if(cur) status(document.getElementById('r23Res'), field, j.unchanged ? 'Без изменений' : (j.queued ? 'Сохранено на сервере · таблица обновится, как только ответит' : 'Сохранено · в таблице тоже'));
     if(!j.unchanged) toast(field === 'exception' ? (nr && nr.exception ? 'Резидент в исключении: без напоминаний и штрафов за отчёты' : 'Исключение снято') : 'Сохранено');
   });
 }
@@ -25012,19 +25301,18 @@ function bind(box, r){
   box.onclick = function(e){
     var a = e.target.closest && e.target.closest('[data-a]'); if(!a || a.disabled) return;
     var act = a.getAttribute('data-a');
-    if(act === 'exc'){ save(box, r, 'exception', r.exception ? 'Нет' : 'Да', a); }
-    else if(act === 'fmt'){ if(a.dataset.v !== r.format) save(box, r, 'format', a.dataset.v, a); }
+    if(act === 'exc'){ save(box, r, 'exception', r.exception ? 'Нет' : 'Да'); }
+    else if(act === 'fmt'){ if(a.dataset.v !== r.format) save(box, r, 'format', a.dataset.v); }
     else if(act === 'chatOk'){ chat(); }
-  };
-  var d = box.querySelector('[data-a="date"]');
-  d.onchange = function(){
-    if(!d.value){ status(box, 'joinedAt', 'Укажите дату', true); return; }
-    var v = dots(d.value);
-    if(!v || d.value < '2024-01-01'){ d.classList.add('bad'); status(box, 'joinedAt', 'Дата в виде 30.09.2026', true); return; }
-    if(v !== r.joinedAt) save(box, r, 'joinedAt', v, d);
+    else if(act === 'date'){
+      var max = new Date(); max.setDate(max.getDate() + 31);
+      window.bsDatePick(a, {value: iso(r.joinedAt), min: '2024-01-01', max: max.getFullYear() + '-' + ('0' + (max.getMonth() + 1)).slice(-2) + '-' + ('0' + max.getDate()).slice(-2),
+        title: 'Дата входа',
+        onPick: function(v){ var d = dots(v); if(d && d !== r.joinedAt) save(box, r, 'joinedAt', d); }});
+    }
   };
   var p = box.querySelector('[data-a="partner"]');
-  p.onchange = function(){ save(box, r, 'partner', p.value, p); };
+  p.onchange = function(){ save(box, r, 'partner', p.value); };
   var c = box.querySelector('[data-a="chat"]'), ok = box.querySelector('[data-a="chatOk"]');
   function check(){
     var v = c.value.trim(), good = /^\d{0,16}$/.test(v);
@@ -25033,10 +25321,126 @@ function bind(box, r){
     status(box, 'chatId', good ? '' : 'Chat ID: только цифры, без @ и пробелов', !good);
     return good;
   }
-  function chat(){ if(!check()) return; var v = c.value.trim(); if(v !== (r.chatId || '')) save(box, r, 'chatId', v, c); }
+  function chat(){ if(!check()) return; var v = c.value.trim(); if(v !== (r.chatId || '')) save(box, r, 'chatId', v); }
   c.oninput = check;
   c.onkeydown = function(e){ if(e.key === 'Enter'){ e.preventDefault(); chat(); } };
 }
+
+// ═══════════ R26: календарь в фирменном стиле ═══════════
+// bsDatePick(кнопка, {value:'2026-08-15', min, max, title, onPick(iso)}): сетка месяца, русские названия,
+// листание месяцев и лет, «Сегодня». На телефоне снизу во всю ширину. Клавиатура: стрелки, Enter, Esc, PageUp/PageDown
+var DP_MON = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+var DP_MON_S = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+var DP_DOW = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+function p2(n){ return ('0' + n).slice(-2); }
+function isoOf(y, m, d){ return y + '-' + p2(m + 1) + '-' + p2(d); }
+function todayIso(){ var t = new Date(); return isoOf(t.getFullYear(), t.getMonth(), t.getDate()); }
+window.bsDatePick = function(anchor, o){
+  o = o || {};
+  var old = document.querySelector('.dp26'); if(old){ old._close(); if(old._anchor === anchor) return; }
+  var sel = /^\d{4}-\d{2}-\d{2}$/.test(o.value || '') ? o.value : '';
+  var base = sel || todayIso();
+  var V = {y: +base.slice(0, 4), m: +base.slice(5, 7) - 1, view: 'days', focus: sel || todayIso()};
+  var min = o.min || '1900-01-01', max = o.max || '2999-12-31';
+  var el = document.createElement('div');
+  el.className = 'dp26'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', o.title || 'Выбор даты');
+  el._anchor = anchor;
+  var back = document.createElement('div'); back.className = 'dp26-back';
+  function ok(v){ return v >= min && v <= max; }
+  function render(){
+    var h = '<div class="dp26-h"><button type="button" class="dp26-nb" data-k="prev" aria-label="' + (V.view === 'days' ? 'Предыдущий месяц' : 'Предыдущий год') + '">‹</button>' +
+      '<button type="button" class="dp26-tt" data-k="view" aria-label="' + (V.view === 'days' ? 'Выбрать месяц и год' : 'Назад к дням') + '">' +
+      (V.view === 'days' ? DP_MON[V.m] + ' ' + V.y : V.y) + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button>' +
+      '<button type="button" class="dp26-nb" data-k="next" aria-label="' + (V.view === 'days' ? 'Следующий месяц' : 'Следующий год') + '">›</button></div>';
+    if(V.view === 'days'){
+      h += '<div class="dp26-w">' + DP_DOW.map(function(d, i){ return '<span' + (i > 4 ? ' class="we"' : '') + '>' + d + '</span>'; }).join('') + '</div><div class="dp26-g" role="grid">';
+      var first = new Date(V.y, V.m, 1), shift = (first.getDay() + 6) % 7, start = new Date(V.y, V.m, 1 - shift), td = todayIso();
+      for(var i = 0; i < 42; i++){
+        var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), v = isoOf(d.getFullYear(), d.getMonth(), d.getDate());
+        var cls = ['dp26-d'];
+        if(d.getMonth() !== V.m) cls.push('out');
+        if(v === td) cls.push('today');
+        if(v === sel) cls.push('on');
+        var dis = !ok(v);
+        h += '<button type="button" class="' + cls.join(' ') + '" data-v="' + v + '"' + (dis ? ' disabled' : '') + ' tabindex="' + (v === V.focus ? 0 : -1) + '"' +
+          ' aria-label="' + d.getDate() + ' ' + MON_G[d.getMonth()] + ' ' + d.getFullYear() + '"' + (v === sel ? ' aria-selected="true"' : '') + '>' + d.getDate() + '</button>';
+      }
+      h += '</div>';
+    } else {
+      h += '<div class="dp26-mg">' + DP_MON_S.map(function(n, i){
+        var a = isoOf(V.y, i, 1), z = isoOf(V.y, i, new Date(V.y, i + 1, 0).getDate());
+        var on = sel && +sel.slice(0, 4) === V.y && +sel.slice(5, 7) - 1 === i;
+        return '<button type="button" class="dp26-m' + (on ? ' on' : '') + (i === V.m ? ' cur' : '') + '" data-m="' + i + '"' + (z < min || a > max ? ' disabled' : '') + '>' + n + '</button>';
+      }).join('') + '</div>';
+    }
+    h += '<div class="dp26-f"><button type="button" class="dp26-lk" data-k="today"' + (ok(todayIso()) ? '' : ' disabled') + '>Сегодня</button>' +
+      '<button type="button" class="dp26-lk" data-k="close">Закрыть</button></div>';
+    el.innerHTML = h;
+  }
+  function focusDay(){ var b = el.querySelector('.dp26-d[data-v="' + V.focus + '"]'); if(b) try{ b.focus({preventScroll:true}); }catch(e){} }
+  function moveTo(v){
+    V.focus = v; var y = +v.slice(0, 4), m = +v.slice(5, 7) - 1;
+    if(y !== V.y || m !== V.m){ V.y = y; V.m = m; render(); }
+    else el.querySelectorAll('.dp26-d').forEach(function(b){ b.tabIndex = b.dataset.v === v ? 0 : -1; });
+    focusDay();
+  }
+  function shiftDays(n){ var f = V.focus, d = new Date(+f.slice(0, 4), +f.slice(5, 7) - 1, +f.slice(8, 10) + n); moveTo(isoOf(d.getFullYear(), d.getMonth(), d.getDate())); }
+  function shiftMonths(n){ var f = V.focus, d = new Date(+f.slice(0, 4), +f.slice(5, 7) - 1 + n, 1), last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    moveTo(isoOf(d.getFullYear(), d.getMonth(), Math.min(+f.slice(8, 10), last))); }
+  function pick(v){ if(!ok(v)) return; close(); try{ o.onPick && o.onPick(v); }catch(e){} }
+  function place(){
+    if(window.innerWidth <= 600){ el.classList.add('dp26-sheet'); el.style.left = el.style.top = ''; return; }
+    el.classList.remove('dp26-sheet');
+    var r = anchor.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight, W = window.innerWidth, H = window.innerHeight;
+    var left = Math.min(Math.max(12, r.right - w), W - w - 12), top = r.bottom + 8;
+    if(top + h > H - 12) top = Math.max(12, r.top - h - 8);
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+  }
+  function close(){
+    if(!el.isConnected) return;
+    el.remove(); back.remove();
+    document.removeEventListener('pointerdown', outside, true);
+    window.removeEventListener('resize', place);
+    try{ anchor.setAttribute('aria-expanded', 'false'); anchor.focus({preventScroll:true}); }catch(e){}
+  }
+  el._close = close;
+  function outside(e){ if(!el.contains(e.target) && !anchor.contains(e.target)) close(); }
+  el.addEventListener('click', function(e){
+    e.stopPropagation();
+    var b = e.target.closest('button'); if(!b || b.disabled) return;
+    var k = b.dataset.k;
+    if(b.dataset.v){ pick(b.dataset.v); return; }
+    if(b.dataset.m){ V.m = +b.dataset.m; V.view = 'days'; V.focus = isoOf(V.y, V.m, 1); render(); place(); return; }
+    if(k === 'prev' || k === 'next'){
+      var s = k === 'prev' ? -1 : 1;
+      if(V.view === 'days'){ var d = new Date(V.y, V.m + s, 1); V.y = d.getFullYear(); V.m = d.getMonth(); } else V.y += s;
+      render(); place();
+      var nb = el.querySelector('[data-k="' + k + '"]'); if(nb) try{ nb.focus({preventScroll:true}); }catch(e){}
+      return;
+    }
+    if(k === 'view'){ V.view = V.view === 'days' ? 'months' : 'days'; render(); place(); var t = el.querySelector('[data-k="view"]'); if(t) try{ t.focus({preventScroll:true}); }catch(e){} return; }
+    if(k === 'today'){ pick(todayIso()); return; }
+    if(k === 'close') close();
+  });
+  el.addEventListener('keydown', function(e){
+    var k = e.key;
+    if(k === 'Escape'){ e.preventDefault(); e.stopPropagation(); close(); return; }
+    if(V.view !== 'days' || !e.target.classList.contains('dp26-d')) return;
+    var mv = {ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7}[k];
+    if(mv){ e.preventDefault(); shiftDays(mv); }
+    else if(k === 'PageUp' || k === 'PageDown'){ e.preventDefault(); shiftMonths(k === 'PageUp' ? -1 : 1); }
+    else if(k === 'Home' || k === 'End'){ e.preventDefault(); var f = V.focus, d = new Date(+f.slice(0, 4), +f.slice(5, 7) - 1, +f.slice(8, 10)); shiftDays(k === 'Home' ? -((d.getDay() + 6) % 7) : 6 - (d.getDay() + 6) % 7); }
+  });
+  render();
+  document.body.appendChild(back);
+  document.body.appendChild(el);
+  place();
+  anchor.setAttribute('aria-expanded', 'true');
+  setTimeout(function(){ document.addEventListener('pointerdown', outside, true); }, 0);
+  window.addEventListener('resize', place);
+  focusDay();
+  return {close: close};
+};
 })();
 </script>
 
@@ -25782,6 +26186,658 @@ document.addEventListener('keydown', function(e){
 });
 // Библиотека подгружается после входа, чтобы списки сразу были с подзаголовками
 setTimeout(function(){ if(window.BSSync && BSSync.api) lib2Load(); }, 2500);
+</script>
+
+<!-- R27: главная лида. Лид входит через Telegram и видит только её; команда видит её же в режиме «Лид» -->
+<style>
+.lh{max-width:1080px;margin:0 auto;padding:4px 0 40px;color:var(--tx)}
+.lh *{box-sizing:border-box}
+.lh-pv{display:flex;gap:10px;align-items:center;border:1px dashed var(--bd2);border-radius:12px;padding:10px 14px;margin-bottom:18px;font-size:13px;color:var(--t2)}
+.lh-pv b{color:var(--tx);font-weight:700}
+.lh-hero{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:28px;align-items:stretch;margin-bottom:44px}
+.lh-kick{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--t3);font-weight:700;margin-bottom:16px}
+.lh-h1{font-size:44px;line-height:1.05;letter-spacing:-.03em;font-weight:800;margin:0 0 16px}
+.lh-h1 span{color:var(--t3)}
+.lh-lead{font-size:16px;line-height:1.55;color:var(--t2);max-width:560px;margin:0 0 24px}
+.lh-acts{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+.lh-b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 22px;border-radius:12px;font:inherit;font-size:14.5px;font-weight:700;cursor:pointer;border:1px solid var(--bd2);background:transparent;color:var(--tx);text-decoration:none;white-space:nowrap;transition:transform .12s,background .12s,opacity .12s}
+.lh-b:hover{background:var(--gs)}
+.lh-b:active{transform:scale(.98)}
+.lh-b.p{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.lh-b.p:hover{opacity:.9;background:var(--tx)}
+.lh-b.s{height:40px;padding:0 16px;font-size:13.5px;border-radius:10px}
+.lh-b[disabled]{opacity:.35;cursor:default;transform:none}
+.lh-b em{font-style:normal;opacity:.55;font-weight:600}
+.lh-nums{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--bd);padding-top:18px;gap:12px}
+.lh-nums b{display:block;font-size:26px;font-weight:800;letter-spacing:-.02em}
+.lh-nums span{font-size:12px;color:var(--t3);line-height:1.35;display:block;margin-top:2px}
+.lh-path{border:1px solid var(--bd);background:var(--card);border-radius:20px;padding:24px;display:flex;flex-direction:column}
+.lh-path h3{margin:0 0 4px;font-size:16px;font-weight:800}
+.lh-path p.lh-ps{margin:0 0 18px;font-size:13px;color:var(--t3)}
+.lh-st{display:grid;grid-template-columns:32px 1fr;gap:12px;padding:14px 0;border-top:1px solid var(--bd);align-items:start}
+.lh-st:first-of-type{border-top:0}
+.lh-st i{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--bd2);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:800;color:var(--t2)}
+.lh-st.lh-done i{background:var(--tx);border-color:var(--tx);color:var(--bg)}
+.lh-st.lh-cur i{border-color:var(--tx);color:var(--tx)}
+.lh-st b{display:block;font-size:14.5px;font-weight:700;margin-bottom:3px}
+.lh-st span{font-size:13px;color:var(--t2);line-height:1.45}
+.lh-path .lh-b{margin-top:auto;width:100%}
+.lh-sec{margin-bottom:44px}
+.lh-sh{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.lh-sh h2{font-size:26px;letter-spacing:-.02em;font-weight:800;margin:0}
+.lh-sh p{margin:6px 0 0;color:var(--t2);font-size:14px;line-height:1.5;max-width:620px}
+.lh-n{font-size:11px;letter-spacing:.16em;color:var(--t3);font-weight:700;margin-bottom:8px;text-transform:uppercase}
+.lh-card{border:1px solid var(--bd);background:var(--card);border-radius:20px;padding:26px}
+/* экспресс-диагностика */
+.lh-intro{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+.lh-intro h3{margin:0 0 8px;font-size:20px;font-weight:800;letter-spacing:-.01em}
+.lh-intro p{margin:0;color:var(--t2);font-size:14px;line-height:1.55;max-width:560px}
+.lh-meta{display:flex;gap:18px;margin-top:16px;flex-wrap:wrap;font-size:12.5px;color:var(--t3)}
+.lh-meta span b{color:var(--tx);font-weight:700}
+.lh-org8{display:flex;gap:6px;flex-wrap:wrap;margin-top:18px}
+.lh-org8 span{font-size:12px;border:1px solid var(--bd);border-radius:20px;padding:5px 11px;color:var(--t2)}
+.lh-prog{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-bottom:22px}
+.lh-prog i{height:4px;border-radius:2px;background:var(--bd)}
+.lh-prog i.lh-on{background:var(--tx)}
+.lh-qh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:6px}
+.lh-qh .lh-qo{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--t3);font-weight:700}
+.lh-qh .lh-qc{font-size:12.5px;color:var(--t3)}
+.lh-qt{font-size:22px;font-weight:800;letter-spacing:-.01em;margin:0 0 4px}
+.lh-qs{font-size:14px;color:var(--t2);margin:0 0 18px;line-height:1.5}
+.lh-q{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;padding:14px 0;border-top:1px solid var(--bd)}
+.lh-q p{margin:0;font-size:15px;line-height:1.45}
+.lh-yn{display:flex;border:1px solid var(--bd2);border-radius:10px;overflow:hidden}
+.lh-yn button{font:inherit;font-size:13.5px;font-weight:700;padding:9px 18px;border:0;background:transparent;color:var(--t2);cursor:pointer;min-width:64px}
+.lh-yn button+button{border-left:1px solid var(--bd2)}
+.lh-yn button.lh-on{background:var(--tx);color:var(--bg)}
+.lh-nav{display:flex;justify-content:space-between;gap:10px;margin-top:20px}
+.lh-map{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 20px}
+.lh-t{border:1px solid var(--bd);border-radius:16px;padding:16px;min-height:132px;display:flex;flex-direction:column;cursor:pointer;background:var(--card2);transition:transform .12s}
+.lh-t:hover{transform:translateY(-2px)}
+.lh-t .lh-to{font-size:16px;font-weight:800;margin-bottom:4px}
+.lh-t .lh-td{font-size:12.5px;color:var(--t2);line-height:1.4;margin-bottom:12px}
+.lh-t .lh-tf{margin-top:auto;display:flex;justify-content:space-between;align-items:center}
+.lh-t .lh-tl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.lh-dots{display:flex;gap:4px}
+.lh-dots i{width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;opacity:.5}
+.lh-dots i.lh-f1{background:currentColor;opacity:1}
+.lh-t.sick{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.lh-t.sick .lh-td{color:inherit;opacity:.72}
+.lh-t.risk{border:1.5px solid var(--tx);background:repeating-linear-gradient(135deg,transparent 0 9px,var(--gs) 9px 18px),var(--card2)}
+.lh-t.ok{color:var(--t2)}
+.lh-t.ok .lh-to{color:var(--tx)}
+.lh-sum{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;border-top:1px solid var(--bd);padding-top:18px}
+.lh-sum p{margin:0;font-size:15px;line-height:1.55;color:var(--t2)}
+.lh-sum p b{color:var(--tx)}
+.lh-leg{display:flex;gap:14px;font-size:12px;color:var(--t3);flex-wrap:wrap}
+.lh-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1.5px solid var(--tx)}
+.lh-leg i.lh-ls{background:var(--tx)}
+.lh-leg i.lh-lo{border-color:var(--bd2)}
+/* библиотека */
+.lh-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.lh-li{border:1px solid var(--bd);background:var(--card);border-radius:16px;padding:18px;cursor:pointer;display:flex;flex-direction:column;min-height:168px;transition:border-color .12s,transform .12s}
+.lh-li:hover{border-color:var(--bd2);transform:translateY(-2px)}
+.lh-li .lh-lik{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);font-weight:700;margin-bottom:10px}
+.lh-li b{font-size:16px;font-weight:800;line-height:1.25;margin-bottom:6px}
+.lh-li span.lh-lid{font-size:13px;color:var(--t2);line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.lh-li .lh-lir{margin-top:auto;padding-top:12px;font-size:13px;font-weight:700}
+.lh-more{display:flex;justify-content:center;margin-top:14px}
+.lh-lock{margin-top:14px;border:1px solid var(--bd);border-radius:20px;padding:22px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:24px;background:var(--card2)}
+.lh-lock h3{margin:0 0 8px;font-size:18px;font-weight:800}
+.lh-lock p{margin:0 0 14px;color:var(--t2);font-size:13.5px;line-height:1.5}
+.lh-oc{display:flex;flex-wrap:wrap;gap:6px}
+.lh-oc span{font-size:12px;border:1px solid var(--bd);border-radius:20px;padding:5px 10px;color:var(--t2)}
+.lh-oc span b{color:var(--tx);margin-left:4px}
+.lh-ll{display:flex;flex-direction:column}
+.lh-lr{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--bd);font-size:13.5px;cursor:pointer;color:var(--t2)}
+.lh-lr:first-child{border-top:0}
+.lh-lr svg{flex:none;opacity:.6}
+.lh-lr em{font-style:normal;margin-left:auto;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);white-space:nowrap}
+.lh-lr span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* чек-листы и мероприятия */
+.lh-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.lh-two.one{grid-template-columns:1fr}
+.lh-ck{display:flex;flex-direction:column}
+.lh-ck .lh-big{font-size:56px;font-weight:800;letter-spacing:-.04em;line-height:1}
+.lh-ck h3{margin:10px 0 8px;font-size:18px;font-weight:800}
+.lh-ck p{margin:0 0 18px;color:var(--t2);font-size:13.5px;line-height:1.55}
+.lh-ck .lh-b{margin-top:auto;align-self:flex-start}
+.lh-ev{display:grid;grid-template-columns:52px 1fr auto;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--bd)}
+.lh-ev:first-of-type{border-top:0}
+.lh-ev .lh-evd{border:1px solid var(--bd2);border-radius:12px;text-align:center;padding:6px 0}
+.lh-ev .lh-evd b{display:block;font-size:18px;font-weight:800;line-height:1.1}
+.lh-ev .lh-evd span{font-size:10.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em}
+.lh-ev .lh-evt{font-size:14px;font-weight:700;line-height:1.35}
+.lh-ev .lh-evm{font-size:12.5px;color:var(--t3);margin-top:2px}
+.lh-ev a{font-size:12.5px;font-weight:700;color:var(--tx);text-decoration:none;white-space:nowrap}
+.lh-card h3.lh-ch{margin:0 0 6px;font-size:18px;font-weight:800}
+.lh-card p.lh-cp{margin:0 0 10px;color:var(--t3);font-size:13px}
+/* как устроен клуб */
+.lh-how{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--bd);border-radius:20px;overflow:hidden;background:var(--card)}
+.lh-how>div{padding:22px;border-left:1px solid var(--bd)}
+.lh-how>div:first-child{border-left:0}
+.lh-how .lh-hn{font-size:12px;font-weight:800;color:var(--t3);letter-spacing:.1em;margin-bottom:26px}
+.lh-how b{display:block;font-size:16px;font-weight:800;margin-bottom:8px}
+.lh-how span{font-size:13px;color:var(--t2);line-height:1.5}
+.lh-get{display:grid;grid-template-columns:repeat(3,1fr);gap:0 24px;margin-top:16px}
+.lh-get>div{display:flex;gap:10px;padding:12px 0;border-top:1px solid var(--bd);font-size:13.5px;line-height:1.4;font-weight:600}
+.lh-get>div svg{flex:none;margin-top:2px}
+.lh-get>div span{color:var(--t3);display:block;font-size:12.5px;margin-top:2px;font-weight:500}
+.lh-fin{border-radius:24px;background:var(--tx);color:var(--bg);padding:34px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+.lh-fin h2{margin:0 0 8px;font-size:28px;letter-spacing:-.02em;font-weight:800}
+.lh-fin p{margin:0;opacity:.7;font-size:14.5px;line-height:1.5;max-width:560px}
+.lh-fin .lh-b{background:var(--bg);color:var(--tx);border-color:var(--bg)}
+.lh-fin .lh-b:hover{opacity:.9}
+.lh-err{color:#E5484D;font-size:13px;margin-top:10px;min-height:1px}
+.lh-load{padding:60px 0;text-align:center;color:var(--t3);font-size:14px}
+/* запись на разбор */
+.lh-ov{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
+.lh-ov.on{display:flex}
+.lh-dlg{width:100%;max-width:560px;max-height:calc(100vh - 32px);overflow:auto;background:var(--card);border:1px solid var(--bd2);border-radius:22px;padding:26px;color:var(--tx);position:relative}
+.lh-dlg h3{margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-.01em}
+.lh-dlg p.lh-ps{margin:0 0 18px;color:var(--t2);font-size:13.5px;line-height:1.5}
+.lh-x{position:absolute;top:16px;right:16px;width:34px;height:34px;border-radius:10px;border:1px solid var(--bd);background:transparent;color:var(--tx);cursor:pointer;font-size:15px}
+.lh-day{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);font-weight:700;margin:14px 0 8px}
+.lh-sl{display:flex;flex-wrap:wrap;gap:8px}
+.lh-sl button{font:inherit;font-size:14px;font-weight:700;padding:10px 14px;border-radius:10px;border:1px solid var(--bd2);background:transparent;color:var(--tx);cursor:pointer}
+.lh-sl button small{display:block;font-size:11px;font-weight:600;color:var(--t3)}
+.lh-sl button.lh-on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.lh-sl button.lh-on small{color:inherit;opacity:.7}
+.lh-f{display:block;margin-top:14px}
+.lh-f span{display:block;font-size:12.5px;color:var(--t3);margin-bottom:6px}
+.lh-f input,.lh-f textarea{width:100%;font:inherit;font-size:14.5px;padding:12px 14px;border-radius:12px;border:1px solid var(--bd2);background:var(--card2);color:var(--tx);outline:none}
+.lh-f input:focus,.lh-f textarea:focus{border-color:var(--tx)}
+.lh-f textarea{min-height:72px;resize:vertical}
+.lh-dlg .lh-b.p{width:100%;margin-top:18px}
+.lh-ok{text-align:center;padding:8px 0}
+.lh-ok .lh-oki{width:56px;height:56px;border-radius:50%;background:var(--tx);color:var(--bg);display:flex;align-items:center;justify-content:center;margin:4px auto 14px}
+.lh-kv{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;font-size:14px;margin:14px 0 4px;text-align:left}
+.lh-kv span{color:var(--t3)}
+@media(max-width:900px){
+  .lh-hero{grid-template-columns:minmax(0,1fr);gap:20px;margin-bottom:32px}
+  .lh-b{white-space:normal;text-align:center;height:auto;min-height:48px;padding:12px 18px}
+  .lh-b.s{min-height:40px;padding:8px 14px}
+  .lh-yn button{flex:1}
+  .lh-acts .lh-b.p{flex-direction:column;gap:2px}
+  .lh-b em{white-space:nowrap}
+  .lh-h1{font-size:32px}
+  .lh-lead{font-size:15px}
+  .lh-acts .lh-b{flex:1 1 100%}
+  .lh-nums{grid-template-columns:repeat(2,1fr)}
+  .lh-intro{grid-template-columns:1fr}
+  .lh-intro .lh-b{width:100%}
+  .lh-map{grid-template-columns:repeat(2,1fr)}
+  .lh-grid{grid-template-columns:1fr}
+  .lh-lock{grid-template-columns:1fr}
+  .lh-two{grid-template-columns:1fr}
+  .lh-how{grid-template-columns:1fr}
+  .lh-how>div{border-left:0;border-top:1px solid var(--bd)}
+  .lh-how>div:first-child{border-top:0}
+  .lh-how .lh-hn{margin-bottom:10px}
+  .lh-get{grid-template-columns:1fr}
+  .lh-fin{grid-template-columns:1fr;padding:26px}
+  .lh-fin .lh-b{width:100%}
+  .lh-sum{grid-template-columns:1fr}
+  .lh-sum .lh-b{width:100%}
+  .lh-q{grid-template-columns:1fr;gap:10px}
+  .lh-card{padding:20px}
+  .lh-sh h2{font-size:22px}
+  .lh-li{min-height:0}
+}
+/* CRM: «Хотели в резиденты» (кнопка «Я резидент BS» в боте) */
+.lh-cl{border:1px solid var(--bd);border-radius:14px;margin:0 0 14px;background:var(--card)}
+.lh-clh{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;font-size:13.5px;font-weight:700}
+.lh-clh span{color:var(--t3);font-weight:500}
+.lh-clh b.lh-clp{margin-left:auto;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--tx);border-radius:20px;padding:3px 9px}
+.lh-clr{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.6fr) auto;gap:14px;align-items:center;padding:11px 16px;border-top:1px solid var(--bd);font-size:13px}
+.lh-clr .lh-cln b{display:block;font-size:13.5px}
+.lh-clr .lh-cln span,.lh-clr .lh-clw{color:var(--t3);font-size:12.5px;line-height:1.4}
+.lh-clr .lh-cla{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+.lh-clr select{font:inherit;font-size:13px;padding:7px 10px;border-radius:9px;border:1px solid var(--bd2);background:var(--card2);color:var(--tx);max-width:220px}
+.lh-clr .lh-b.s{height:34px;font-size:12.5px;padding:0 12px}
+.lh-clr .lh-clerr{grid-column:1/-1;color:#E5484D;font-size:12.5px}
+@media(max-width:900px){.lh-clr{grid-template-columns:1fr}.lh-clr .lh-cla{justify-content:flex-start}}
+/* настоящий лид: только главная, без переключателя режимов */
+html.lead-user #navAdmin,html.lead-user #navRes,html.lead-user .modes,html.lead-user .mode-lbl{display:none!important}
+html.lead-user #navLead .nv:not([data-b="lhome"]),html.lead-user #navLead .side-subs{display:none!important}
+html.lead-user #modeFoot{margin-top:auto}
+html.lead-user #aiBadge,html.lead-user #bsxPill,html.lead-user #tr16Help,html.lead-user .side-search{display:none!important}
+</style>
+<script>
+(function(){
+  var LH = {data:null, load:null, err:'', run:null, res:null, showAll:false, bk:{slot:'', state:''}};
+  window.LH = LH;
+  var ORG_ORDER = ['Финансы', 'Продажи', 'Маркетинг', 'Команда', 'Процессы', 'Стратегия', 'Аналитика', 'Продукт'];
+  function E(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function M(n){ return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  function ic(p, s){ s = s || 16; return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>'; }
+  var IC = {
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    arr: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    ext: '<path d="M7 17L17 7M9 7h8v8"/>',
+    ok: '<path d="M5 12l5 5 9-10"/>',
+    tg: '<path d="M21 4L3 11l6 2 2 6 3-4 5 4z"/><path d="M9 13l12-9"/>'
+  };
+  function api(method, path, body){
+    if(!window.BSSync || !BSSync.api) return Promise.resolve({status:0, j:{error:'offline'}});
+    return Promise.resolve(BSSync.api(method, path, body)).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){ return {status:r.status, j:j}; });
+    }, function(){ return {status:0, j:{error:'net'}}; });
+  }
+  function isLeadUser(){ try{ return !!(window.BSSync && BSSync.isLead && BSSync.isLead()); }catch(e){ return false; } }
+  function price(){ return (LH.data && LH.data.razbor && LH.data.razbor.price) || 50000; }
+  function firstName(){
+    var n = (LH.data && LH.data.user && LH.data.user.name) || '';
+    if(!n && isLeadUser()){ try{ n = (BSSync.user() || {}).name || ''; }catch(e){} }
+    return String(n).trim().split(/\s+/)[0] || '';
+  }
+  function mount(){
+    var el = pgSet('', '');
+    var pg = document.getElementById('pg-stub');
+    var ph = pg && pg.querySelector('.ph'); if(ph) ph.style.display = 'none';
+    return el;
+  }
+  function load(force){
+    if(LH.data && !force) return Promise.resolve(LH.data);
+    if(LH.load) return LH.load;
+    LH.err = '';
+    LH.load = api('GET', '/lead/home').then(function(r){
+      LH.load = null;
+      if(r.status === 200 && r.j && r.j.express){
+        LH.data = r.j;
+        (r.j.lib && r.j.lib.open || []).forEach(function(it){ try{ LIB2.byId[it.id] = it; }catch(e){} });
+        if(r.j.result && r.j.result.results && !LH.res) LH.res = r.j.result.results;
+        return r.j;
+      }
+      LH.err = r.status === 403 ? 'Эта страница для гостей клуба' : 'Не удалось загрузить страницу. Обновите её через минуту';
+      return null;
+    });
+    return LH.load;
+  }
+
+  // ── Главная ──
+  window.lhRender = function(){
+    var el = mount();
+    if(!LH.data){
+      el.innerHTML = '<div class="lh"><div class="lh-load">' + (LH.err ? E(LH.err) : 'Загружаю…') + '</div></div>';
+      if(!LH.err) load().then(function(){ if(section === 'lHome') lhRender(); });
+      return;
+    }
+    var d = LH.data, fn = firstName(), lib = d.lib || {}, locked = lib.locked || [];
+    var done = !!(LH.res && LH.res.length), booked = !!(d.razbor && d.razbor.mine);
+    var h = '<div class="lh">';
+    if(d.preview) h += '<div class="lh-pv">' + ic('<circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/>') + '<div><b>Предпросмотр.</b> Так платформу видит лид после входа через Telegram. Ответы диагностики здесь не сохраняются, запись на разбор не бронирует окно.</div></div>';
+    h += '<section class="lh-hero"><div>' +
+      '<div class="lh-kick">Business Surgery · клуб бизнес-трекинга</div>' +
+      '<h1 class="lh-h1">' + (fn ? E(fn) + ', добро пожаловать<br><span>в Business Surgery</span>' : 'Добро пожаловать<br><span>в Business Surgery</span>') + '</h1>' +
+      '<p class="lh-lead">Здесь можно бесплатно проверить здоровье бизнеса, почитать часть библиотеки клуба и записаться на экспресс-разбор с основателями. Разбор показывает, где бизнес теряет деньги и что делать в ближайшие 10 дней.</p>' +
+      '<div class="lh-acts"><button class="lh-b p" data-act="book" onclick="lhBook()">' + (booked ? 'Моя запись на разбор' : 'Записаться на экспресс-разбор <em>· ' + M(price()) + ' ₸</em>') + '</button>' +
+      '<button class="lh-b" onclick="lhGo(\'lhDx\')">' + (done ? 'Моя карта органов' : 'Пройти диагностику') + '</button></div>' +
+      '<div class="lh-nums"><div><b>8</b><span>органов бизнеса в диагностике</span></div><div><b>' + (lib.diag || 72) + '</b><span>диагнозов в библиотеке</span></div>' +
+      '<div><b>' + (lib.tools || 110) + '</b><span>инструментов с шаблонами</span></div><div><b>10</b><span>дней длится цикл резидента</span></div></div>' +
+      '</div>' + pathHTML(done, booked) + '</section>';
+    h += '<section class="lh-sec" id="lhDx"><div class="lh-sh"><div><div class="lh-n">Шаг 1 · бесплатно</div><h2>Экспресс-диагностика бизнеса</h2>' +
+      '<p>8 ключевых диагнозов из библиотеки клуба, по 3 вопроса на каждый. Отвечайте честно: есть ли это у вас сейчас.</p></div></div>' +
+      '<div class="lh-card" id="lhDxBox">' + dxHTML() + '</div></section>';
+    h += libHTML(lib);
+    h += midHTML(d);
+    h += howHTML();
+    h += '<section class="lh-fin"><div><h2>Начните с экспресс-разбора</h2><p>Час с основателями BS на ваших цифрах. Находим, где бизнес теряет деньги, и составляем план на 10 дней. После разбора вы сами решаете, идти ли в клуб резидентом.</p></div>' +
+      '<button class="lh-b" onclick="lhBook()">' + (booked ? 'Моя запись' : 'Записаться · ' + M(price()) + ' ₸') + '</button></section>';
+    h += '</div>';
+    el.innerHTML = h;
+  };
+  function pathHTML(done, booked){
+    var st = function(cls, n, t, s){ return '<div class="lh-st ' + cls + '"><i>' + (cls === 'lh-done' ? ic(IC.ok, 15) : n) + '</i><div><b>' + t + '</b><span>' + s + '</span></div></div>'; };
+    return '<aside class="lh-path"><h3>Ваш путь в клуб</h3><p class="lh-ps">Три шага от знакомства до резидентства</p>' +
+      st(done ? 'lh-done' : 'lh-cur', 1, 'Экспресс-диагностика', '5 минут, бесплатно. Карта органов вашего бизнеса') +
+      st(booked ? 'lh-done' : (done ? 'lh-cur' : ''), 2, 'Экспресс-разбор', 'Час с основателями на ваших цифрах, план на 10 дней. ' + M(price()) + ' ₸') +
+      st('', 3, 'Резидентство', 'Разбор с трекером каждые 10 дней, задачи, пятёрка и вся библиотека') +
+      '<button class="lh-b" onclick="' + (done ? 'lhBook()' : 'lhGo(\'lhDx\')') + '">' + (booked ? 'Моя запись на разбор' : done ? 'Следующий шаг: разбор' : 'Начать с диагностики') + '</button></aside>';
+  }
+  window.lhGo = function(id){
+    var t = document.getElementById(id), pg = document.getElementById('pg-stub');
+    if(t && pg) pg.scrollTo({top: t.getBoundingClientRect().top - pg.getBoundingClientRect().top + pg.scrollTop - 20, behavior: 'smooth'});
+  };
+
+  // ── Экспресс-диагностика ──
+  function items(){ return (LH.data && LH.data.express && LH.data.express.items) || []; }
+  function dxHTML(){
+    var its = items();
+    if(LH.run) return runHTML();
+    if(LH.res && LH.res.length) return resHTML();
+    return '<div class="lh-intro"><div><h3>Где болит ваш бизнес</h3><p>Финансы, продажи, маркетинг, команда, процессы, стратегия, аналитика и продукт. В конце карта органов: что в норме, где риск и что уже болит.</p>' +
+      '<div class="lh-meta"><span><b>' + its.length * 3 + '</b> вопросов</span><span><b>5</b> минут</span><span>Результат увидит команда клуба перед разбором</span></div>' +
+      '<div class="lh-org8">' + its.map(function(x){ return '<span>' + E(x.organ) + '</span>'; }).join('') + '</div></div>' +
+      '<button class="lh-b p" data-act="dx-start" onclick="lhDxStart()">Начать диагностику</button></div>';
+  }
+  window.lhDxStart = function(){ LH.run = {i: 0, a: {}}; paintDx(); lhGo('lhDx'); };
+  function paintDx(){ var b = document.getElementById('lhDxBox'); if(b) b.innerHTML = dxHTML(); }
+  function runHTML(){
+    var its = items(), r = LH.run, it = its[r.i], a = r.a[it.id] || [];
+    var all = it.questions.every(function(_, k){ return a[k] === 0 || a[k] === 1; });
+    var last = r.i === its.length - 1;
+    return '<div class="lh-prog">' + its.map(function(_, k){ return '<i class="' + (k <= r.i ? 'lh-on' : '') + '"></i>'; }).join('') + '</div>' +
+      '<div class="lh-qh"><span class="lh-qo">' + E(it.organ) + '</span><span class="lh-qc">' + (r.i + 1) + ' из ' + its.length + '</span></div>' +
+      '<h3 class="lh-qt">' + E(it.title) + '</h3><p class="lh-qs">' + E(it.subtitle) + '</p>' +
+      it.questions.map(function(q, k){
+        return '<div class="lh-q"><p>' + E(q) + '</p><div class="lh-yn"><button class="' + (a[k] === 1 ? 'lh-on' : '') + '" data-q="' + k + '" data-v="1" onclick="lhAns(' + k + ',1)">Да</button>' +
+          '<button class="' + (a[k] === 0 ? 'lh-on' : '') + '" data-q="' + k + '" data-v="0" onclick="lhAns(' + k + ',0)">Нет</button></div></div>';
+      }).join('') +
+      '<div class="lh-nav"><button class="lh-b s" onclick="lhStep(-1)">' + (r.i ? 'Назад' : 'Отмена') + '</button>' +
+      '<button class="lh-b p s" data-act="dx-next" ' + (all ? '' : 'disabled') + ' onclick="lhStep(1)">' + (last ? 'Показать результат' : 'Дальше') + '</button></div>' +
+      '<div class="lh-err" id="lhDxErr"></div>';
+  }
+  window.lhAns = function(k, v){
+    var it = items()[LH.run.i]; var a = LH.run.a[it.id] = LH.run.a[it.id] || [];
+    a[k] = v;
+    paintDx();
+  };
+  window.lhStep = function(dir){
+    var its = items(), r = LH.run;
+    if(dir < 0){ if(r.i === 0){ LH.run = null; paintDx(); return; } r.i--; paintDx(); return; }
+    if(r.i < its.length - 1){ r.i++; paintDx(); return; }
+    var btn = document.querySelector('[data-act="dx-next"]'); if(btn){ btn.disabled = true; btn.textContent = 'Считаю…'; }
+    api('POST', '/lead/diag', {answers: r.a}).then(function(x){
+      if(x.status !== 200 || !x.j.results){
+        var e = document.getElementById('lhDxErr'); if(e) e.textContent = 'Результат не сохранился: ' + ((x.j && (x.j.detail || x.j.error)) || 'нет связи') + '. Попробуйте ещё раз';
+        if(btn){ btn.disabled = false; btn.textContent = 'Показать результат'; }
+        return;
+      }
+      LH.res = x.j.results; LH.run = null;
+      lhRender(); setTimeout(function(){ lhGo('lhDx'); }, 30);
+    });
+  };
+  var LV = {sick:'Болит', risk:'Риск', ok:'В норме'};
+  function resHTML(){
+    var res = LH.res.slice().sort(function(a, b){ return ORG_ORDER.indexOf(a.organ) - ORG_ORDER.indexOf(b.organ); });
+    var sick = res.filter(function(x){ return x.level === 'sick'; }), risk = res.filter(function(x){ return x.level === 'risk'; });
+    var line = sick.length ? 'Болит: <b>' + sick.map(function(x){ return E(x.organ); }).join(', ') + '</b>. ' : 'Явных болезней нет. ';
+    if(risk.length) line += 'В зоне риска: <b>' + risk.map(function(x){ return E(x.organ); }).join(', ') + '</b>. ';
+    line += sick.length ? 'С этих органов начнётся экспресс-разбор: найдём причину и составим план на 10 дней.' :
+      (risk.length ? 'На разборе проверим, во что риск обойдётся через полгода.' : 'На разборе найдём точку роста, которая даст больше всего денег.');
+    return '<div class="lh-sh" style="margin-bottom:0"><div><h3 style="margin:0;font-size:20px;font-weight:800">Карта органов вашего бизнеса</h3>' +
+      '<div class="lh-leg" style="margin-top:8px"><span><i class="lh-ls"></i>Болит</span><span><i></i>Риск</span><span><i class="lh-lo"></i>В норме</span></div></div>' +
+      '<button class="lh-b s" onclick="lhDxStart()">Пройти заново</button></div>' +
+      '<div class="lh-map">' + res.map(function(x){
+        return '<div class="lh-t ' + x.level + '" data-id="' + E(x.id) + '" onclick="lhOpen(\'' + E(x.id) + '\')" title="Открыть диагноз">' +
+          '<div class="lh-to">' + E(x.organ) + '</div><div class="lh-td">' + E(x.title) + '</div>' +
+          '<div class="lh-tf"><span class="lh-tl">' + LV[x.level] + '</span><span class="lh-dots">' + [0, 1, 2].map(function(k){ return '<i class="' + (k < x.score ? 'lh-f1' : '') + '"></i>'; }).join('') + '</span></div></div>';
+      }).join('') + '</div>' +
+      '<div class="lh-sum"><p>' + line + '</p><button class="lh-b p" onclick="lhBook()">Записаться на разбор · ' + M(price()) + ' ₸</button></div>';
+  }
+
+  // ── Библиотека ──
+  window.lhOpen = function(id){
+    var r = null; try{ r = LIB2.byId[id]; }catch(e){}
+    var open = (LH.data && LH.data.lib && LH.data.lib.open || []).some(function(x){ return x.id === id; });
+    if(!r || !open){ toast('Доступно резидентам клуба'); return; }
+    lib2Open(r.kind === 'diag' ? 'diag' : 'tool', -1, r);
+  };
+  function libHTML(lib){
+    var open = (lib.open || []).slice().sort(function(a, b){ return (a.kind === 'diag') - (b.kind === 'diag'); });
+    var shown = LH.showAll ? open : open.slice(0, 6), locked = lib.locked || [];
+    var cnt = {}; locked.forEach(function(x){ cnt[x.organ] = (cnt[x.organ] || 0) + 1; });
+    var orgs = Object.keys(cnt).sort(function(a, b){ return cnt[b] - cnt[a]; });
+    var sample = []; var seen = {};
+    locked.forEach(function(x){ if(sample.length < 6 && !seen[x.organ] && x.kind !== 'diag'){ seen[x.organ] = 1; sample.push(x); } });
+    return '<section class="lh-sec" id="lhLib"><div class="lh-sh"><div><div class="lh-n">Библиотека клуба</div><h2>Инструменты и диагнозы</h2>' +
+      '<p>Каждый материал разобран на истории предпринимателя с цифрами: признаки, причины, цена проблемы, шаги и шаблон. Часть открыта для вас целиком.</p></div></div>' +
+      '<div class="lh-grid">' + shown.map(function(x){
+        return '<div class="lh-li" data-id="' + E(x.id) + '" onclick="lhOpen(\'' + E(x.id) + '\')"><div class="lh-lik"><span>' + (x.kind === 'diag' ? 'Диагноз' : 'Инструмент') + '</span><span>' + E(x.organ) + '</span></div>' +
+          '<b>' + E(x.title) + '</b><span class="lh-lid">' + E(x.subtitle || x.promise || '') + '</span><span class="lh-lir">Читать ' + ic(IC.arr, 13) + '</span></div>';
+      }).join('') + '</div>' +
+      (open.length > 6 ? '<div class="lh-more"><button class="lh-b s" onclick="LH.showAll=!LH.showAll;lhRender();lhGo(\'lhLib\')">' + (LH.showAll ? 'Свернуть' : 'Показать всё открытое: ' + open.length) + '</button></div>' : '') +
+      '<div class="lh-lock"><div><h3>' + ic(IC.lock, 16) + ' Ещё ' + locked.length + ' материалов для резидентов</h3>' +
+      '<p>Полная база по всем органам бизнеса: инструменты с шаблонами PDF, диагнозы с тестами и лечением. Открывается после вступления в клуб.</p>' +
+      '<div class="lh-oc">' + orgs.slice(0, 10).map(function(o){ return '<span>' + E(o) + '<b>' + cnt[o] + '</b></span>'; }).join('') + '</div></div>' +
+      '<div class="lh-ll">' + sample.map(function(x){
+        return '<div class="lh-lr" onclick="toast(\'Доступно резидентам клуба\')">' + ic(IC.lock, 14) + '<span>' + E(x.title) + '</span><em>' + E(x.organ) + '</em></div>';
+      }).join('') + '</div></div></section>';
+  }
+
+  // ── Чек-листы и мероприятия ──
+  var MON = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  function midHTML(d){
+    var ev = d.events || [], bot = d.bot || {};
+    var ck = '<div class="lh-card lh-ck"><div class="lh-big">99</div><h3>чек-листов в Telegram</h3>' +
+      '<p>Пошаговые гайды по всем органам бизнеса: история предпринимателя с цифрами, шаги и таблицы. Открываются прямо в Telegram, прогресс сохраняется.</p>' +
+      '<a class="lh-b" href="' + E(bot.checklists || 'https://t.me/bsurgery_bot?start=99') + '" target="_blank" rel="noopener">' + ic(IC.tg, 16) + 'Открыть в боте BS</a></div>';
+    var evh = '';
+    if(ev.length){
+      evh = '<div class="lh-card"><h3 class="lh-ch">Ближайшие мероприятия</h3><p class="lh-cp">Открытые события для предпринимателей Алматы</p>' + ev.map(function(x){
+        var p = String(x.date || '').split('-');
+        var meta = [x.time, x.place, x.price].filter(Boolean).map(E).join(' · ');
+        return '<div class="lh-ev"><div class="lh-evd"><b>' + (+p[2] || '') + '</b><span>' + (MON[(+p[1] || 1) - 1]) + '</span></div><div><div class="lh-evt">' + E(x.title) + '</div>' + (meta ? '<div class="lh-evm">' + meta + '</div>' : '') + '</div>' +
+          (x.url ? '<a href="' + E(x.url) + '" target="_blank" rel="noopener">Подробнее ' + ic(IC.ext, 12) + '</a>' : '<span></span>') + '</div>';
+      }).join('') + '</div>';
+    }
+    return '<section class="lh-sec"><div class="lh-two' + (evh ? '' : ' one') + '">' + ck + evh + '</div></section>';
+  }
+
+  // ── Как устроен клуб ──
+  function howHTML(){
+    var steps = [['01', 'Экспресс-разбор', 'Час с основателями BS на ваших цифрах. Находим, где бизнес теряет деньги, и составляем план на 10 дней.'],
+      ['02', 'Вход в клуб', 'После разбора вы решаете, становиться ли резидентом. Открываются платформа, библиотека и чат резидентов.'],
+      ['03', 'Цикл 10 дней', 'Разбор с трекером каждые 10 дней, задачи на цикл и короткие отчёты. Видно, как бизнес меняется от цикла к циклу.'],
+      ['04', 'Пятёрка и клуб', 'Мини-группа, которая держит темп. Контакты клуба, проверенные подрядчики и скидки партнёров.']];
+    var get = [['Разбор с основателями', 'Каждые 10 дней на ваших цифрах'], ['Полная база диагнозов', 'Все органы бизнеса, с тестами'],
+      ['Все инструменты', 'С шаблонами PDF и примерами'], ['Задачи на цикл', 'Конкретный план, а не общие советы'],
+      ['Здоровье бизнеса', 'Оценка трекеров и динамика'], ['История разборов', 'Записи встреч и итоги каждого цикла']];
+    return '<section class="lh-sec" id="lhHow"><div class="lh-sh"><div><div class="lh-n">Как устроен клуб</div><h2>Хирургическая точность вместо общих советов</h2>' +
+      '<p>Business Surgery находит настоящие причины проблем бизнеса, а не симптомы, и ведёт резидента по плану циклами по 10 дней.</p></div></div>' +
+      '<div class="lh-how">' + steps.map(function(s){ return '<div><div class="lh-hn">' + s[0] + '</div><b>' + s[1] + '</b><span>' + s[2] + '</span></div>'; }).join('') + '</div>' +
+      '<div class="lh-get">' + get.map(function(g){ return '<div>' + ic(IC.ok, 15) + '<div>' + g[0] + '<span>' + g[1] + '</span></div></div>'; }).join('') + '</div></section>';
+  }
+
+  // ── Запись на экспресс-разбор ──
+  var DAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], MONF = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  function almaty(s){ var t = new Date(s); return new Date(t.getTime() + (5 * 60 + t.getTimezoneOffset()) * 60000); }
+  function dayKey(s){ var a = almaty(s); return DAYS[a.getDay()] + ', ' + a.getDate() + ' ' + MONF[a.getMonth()]; }
+  function hm(s){ var a = almaty(s); return ('0' + a.getHours()).slice(-2) + ':' + ('0' + a.getMinutes()).slice(-2); }
+  function ov(){
+    var o = document.getElementById('lhOv');
+    if(!o){
+      o = document.createElement('div'); o.className = 'lh-ov'; o.id = 'lhOv';
+      o.onclick = function(e){ if(e.target === o) lhBookClose(); };
+      o.innerHTML = '<div class="lh-dlg" role="dialog" aria-modal="true"><button class="lh-x" onclick="lhBookClose()" aria-label="Закрыть">✕</button><div id="lhDlg"></div></div>';
+      document.body.appendChild(o);
+    }
+    return o;
+  }
+  window.lhBookClose = function(){ var o = document.getElementById('lhOv'); if(o) o.classList.remove('on'); };
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') lhBookClose(); });
+  window.lhBook = function(){
+    if(!LH.data){ load().then(function(d){ if(d) lhBook(); }); return; }
+    ov().classList.add('on');
+    LH.bk.state = ''; paintBook();
+  };
+  function paintBook(){
+    var d = LH.data, rz = d.razbor || {}, box = document.getElementById('lhDlg'); if(!box) return;
+    var pv = d.preview ? '<div class="lh-pv" style="margin:0 0 14px">Предпросмотр: у команды кнопка не бронирует окно</div>' : '';
+    var pay = rz.kaspiLink ? '<a class="lh-b p" href="' + E(rz.kaspiLink) + '" target="_blank" rel="noopener">Оплатить ' + M(rz.price) + ' ₸ через Kaspi</a>' : '';
+    if(LH.bk.state === 'done' || (rz.mine && LH.bk.state !== 'req')){
+      var m = rz.mine || {}, sl = m.slot || {};
+      box.innerHTML = '<div class="lh-ok"><div class="lh-oki">' + ic(IC.ok, 26) + '</div><h3>Вы записаны на экспресс-разбор</h3>' +
+        '<div class="lh-kv"><span>Когда</span><b>' + E(dayKey(sl.start)) + ', ' + hm(sl.start) + ' (Алматы)</b><span>Формат</span><div>' + E(sl.format || 'Онлайн') + (sl.place ? ', ' + E(sl.place) : '') + '</div>' +
+        '<span>Длительность</span><div>' + (sl.dur || 60) + ' минут с основателями BS</div><span>Оплата</span><div>' + (m.paid ? 'Оплачено' : M(rz.price) + ' ₸, закрепляет время') + '</div></div>' +
+        (m.paid ? '' : pay) + '<p class="lh-ps" style="margin:14px 0 0">Подтверждение и напоминание придут в Telegram от бота BS. Перенести или отменить запись можно там же.</p></div>';
+      return;
+    }
+    if(LH.bk.state === 'sent'){
+      box.innerHTML = '<div class="lh-ok"><div class="lh-oki">' + ic(IC.ok, 26) + '</div><h3>Заявка принята</h3><p class="lh-ps">Команда BS свяжется с вами по телефону и подберёт удобное время для разбора.</p></div>';
+      return;
+    }
+    var slots = rz.slots || [];
+    var head = pv + '<h3>Экспресс-разбор</h3><p class="lh-ps">Час с основателями BS на ваших цифрах. Находим, где бизнес теряет деньги, и составляем план на 10 дней. Стоимость ' + M(rz.price || price()) + ' ₸, оплата через Kaspi после записи.</p>';
+    var fields = '<label class="lh-f"><span>Телефон для связи</span><input id="lhPh" type="tel" inputmode="tel" placeholder="+7 701 000 00 00" autocomplete="tel"></label>' +
+      '<label class="lh-f"><span>Чем занимается бизнес</span><input id="lhNi" placeholder="Например: сеть кофеен, 3 точки"></label>' +
+      '<label class="lh-f"><span>Главный вопрос на разбор</span><textarea id="lhQu" placeholder="Что хотите решить в первую очередь"></textarea></label>';
+    if(!slots.length || LH.bk.state === 'req'){
+      box.innerHTML = head + '<div class="lh-day">Свободных окон сейчас нет</div><p class="lh-ps" style="margin:0">Оставьте телефон: команда подберёт время и напишет вам.</p>' + fields +
+        '<button class="lh-b p" data-act="bk-req" onclick="lhBookSend(true)">Оставить заявку</button><div class="lh-err" id="lhBkErr"></div>';
+      return;
+    }
+    var by = {}, order = [];
+    slots.forEach(function(s){ var k = dayKey(s.start); if(!by[k]){ by[k] = []; order.push(k); } by[k].push(s); });
+    box.innerHTML = head + order.slice(0, 7).map(function(k){
+      return '<div class="lh-day">' + E(k) + '</div><div class="lh-sl">' + by[k].map(function(s){
+        return '<button class="' + (LH.bk.slot === s.id ? 'lh-on' : '') + '" data-slot="' + E(s.id) + '" onclick="lhPick(\'' + E(s.id) + '\')">' + hm(s.start) + '<small>' + E(s.format || 'Онлайн') + '</small></button>';
+      }).join('') + '</div>';
+    }).join('') + fields + '<button class="lh-b p" data-act="bk-send" onclick="lhBookSend(false)">Записаться</button><div class="lh-err" id="lhBkErr"></div>';
+  }
+  window.lhPick = function(id){
+    LH.bk.slot = id;
+    document.querySelectorAll('#lhDlg .lh-sl button').forEach(function(b){ b.classList.toggle('lh-on', b.dataset.slot === id); });
+  };
+  window.lhBookSend = function(req){
+    var err = document.getElementById('lhBkErr'), say = function(t){ if(err) err.textContent = t; };
+    var ph = (document.getElementById('lhPh') || {}).value || '', ni = (document.getElementById('lhNi') || {}).value || '', qu = (document.getElementById('lhQu') || {}).value || '';
+    if(!req && !LH.bk.slot){ say('Выберите время разбора'); return; }
+    if(String(ph).replace(/\D/g, '').length < 10){ say('Укажите телефон, чтобы команда могла связаться'); return; }
+    if(LH.data.preview){ say(''); toast('Предпросмотр: у лида здесь создаётся запись'); return; }
+    var btn = document.querySelector('#lhDlg .lh-b.p'); if(btn){ btn.disabled = true; btn.textContent = 'Отправляю…'; }
+    var body = {phone: ph, niche: ni, question: qu};
+    if(!req) body.slotId = LH.bk.slot;
+    api('POST', req ? '/lead/request' : '/lead/book', body).then(function(x){
+      if(x.status === 200){
+        if(req){ LH.bk.state = 'sent'; paintBook(); return; }
+        load(true).then(function(){ LH.bk.state = 'done'; paintBook(); if(section === 'lHome') lhRender(); });
+        return;
+      }
+      if(btn){ btn.disabled = false; btn.textContent = req ? 'Оставить заявку' : 'Записаться'; }
+      var e = x.j && x.j.error;
+      if(e === 'taken'){ say('Это время только что заняли. Выберите другое'); load(true).then(function(){ LH.bk.slot = ''; paintBook(); say('Это время только что заняли. Выберите другое'); }); return; }
+      if(e === 'already'){ load(true).then(function(){ paintBook(); }); return; }
+      say('Не получилось: ' + ((x.j && (x.j.detail || x.j.error)) || 'нет связи с сервером') + '. Попробуйте ещё раз');
+    });
+  };
+
+  // ── Встраивание: блок «Главная» в меню лида ──
+  BLOCKS.lhome = {name: 'Главная', tabs: [{id: 'lHome', n: 'Главная'}]};
+  try{ PF_NAV_IC.lhome = 'home'; }catch(e){}
+  (function(){
+    var nav = document.getElementById('navLead'); if(!nav || nav.querySelector('[data-b="lhome"]')) return;
+    var el = document.createElement('div');
+    el.className = 'nv'; el.draggable = true; el.dataset.b = 'lhome'; el.setAttribute('onclick', "goBlock('lhome')");
+    el.innerHTML = '<i class="nv-i">' + pfSvg('home', 19) + '</i>Главная';
+    nav.insertBefore(el, nav.firstChild);
+  })();
+  var _stub = renderStub;
+  renderStub = function(s){ if(s === 'lHome') return lhRender(); return _stub.apply(this, arguments); };
+  var _setMode = setMode;
+  setMode = function(m){
+    var r = _setMode.apply(this, arguments);
+    if(m === 'lead') goBlock('lhome');
+    return r;
+  };
+  // Ссылки на закрытые инструменты внутри читалки и шаблоны PDF: у лида только открытая часть
+  var _openTitle = lib2OpenTitle;
+  lib2OpenTitle = function(title){
+    if(MODE !== 'lead') return _openTitle.apply(this, arguments);
+    var k = lib2N(title), r = (LH.data && LH.data.lib && LH.data.lib.open || []).find(function(x){ return lib2N(x.title) === k; });
+    if(r){ lib2Open(r.kind === 'diag' ? 'diag' : 'tool', -1, LIB2.byId[r.id] || r); return true; }
+    toast('«' + title + '» доступен резидентам клуба');
+    return false;
+  };
+  var _dl = lib2Download;
+  lib2Download = function(id, title){
+    if(MODE === 'lead' && isLeadUser()){ window.open(lib2Pub(id), '_blank'); return Promise.resolve(true); }
+    return _dl.apply(this, arguments);
+  };
+  // ── CRM: «Хотели в резиденты» ──
+  // Кнопка «Я резидент BS» в боте больше не будит команду: сервер сверяет список сам, лида
+  // прогревает, а спорные случаи и решения команды здесь, одной полосой над канбаном лидов.
+  var CLM = {open: null, res: null, pick: {}, err: {}};
+  function claimLeads(){
+    var since = Date.now() - 30 * 864e5;
+    return ((typeof CRM !== 'undefined' && CRM && CRM.leads) || []).filter(function(l){
+      var c = l && l.claim; if(!c || !c.status || c.status === 'resident') return false;
+      var t = Date.parse(c.at || ''); return c.status === 'pending' || (t && t > since);
+    }).sort(function(a, b){ return (a.claim.status === 'pending' ? 0 : 1) - (b.claim.status === 'pending' ? 0 : 1) || String(b.claim.at).localeCompare(String(a.claim.at)); });
+  }
+  function claimResidents(){
+    if(CLM.res || CLM.loading || !window.BSSync || !BSSync.clubApi) return;
+    CLM.loading = true;
+    Promise.resolve(BSSync.clubApi('GET', '/residents')).then(function(r){ return r.json(); }).then(function(j){
+      CLM.res = (j.residents || []).filter(function(x){ return !x.former && !x.chatId; }).map(function(x){ return x.name; });
+      CLM.loading = false; claimPaint();
+    }, function(){ CLM.loading = false; });
+  }
+  function claimHTML(){
+    var list = claimLeads(); if(!list.length) return '';
+    var pend = list.filter(function(l){ return l.claim.status === 'pending'; }).length;
+    var open = CLM.open == null ? pend > 0 : CLM.open;
+    var h = '<div class="lh-clh" onclick="lhClaimToggle()">Хотели в резиденты <span>' + list.length + ' за 30 дней · кнопка «Я резидент BS» в боте</span>' +
+      (pend ? '<b class="lh-clp">ждут решения: ' + pend + '</b>' : '') + '<span style="margin-left:' + (pend ? '8px' : 'auto') + '">' + (open ? 'Свернуть' : 'Открыть') + '</span></div>';
+    if(!open) return h;
+    if(!CLM.res) claimResidents();
+    return h + list.map(function(l){
+      var c = l.claim, tg = l.tgId, st = c.status === 'pending' ? 'ждёт решения команды' : 'лид, бот прогревает (касание ' + ((Number(l.claimWarm) || 0) + 1) + ' из 3)';
+      var opts = (CLM.res || []).map(function(n){ return '<option' + ((CLM.pick[tg] || c.name) === n ? ' selected' : '') + '>' + E(n) + '</option>'; }).join('');
+      return '<div class="lh-clr" data-tg="' + E(tg) + '"><div class="lh-cln"><b>' + E(l.name || 'Без имени') + '</b><span>' + E([l.tg, new Date(c.at).toLocaleDateString('ru', {day: 'numeric', month: 'short'})].filter(Boolean).join(' · ')) + '</span></div>' +
+        '<div class="lh-clw">' + E(st) + (c.why ? '. ' + E(c.why) : '') + (c.name ? '. Похоже на «' + E(c.name) + '»' : '') + '</div>' +
+        '<div class="lh-cla"><select onchange="lhClaimPick(' + Number(tg) + ',this.value)"><option value="">Резидент без Chat ID…</option>' + opts + '</select>' +
+        '<button class="lh-b s" onclick="lhClaim(' + Number(tg) + ',\'resident\')">Это резидент</button>' +
+        (c.status === 'pending' ? '<button class="lh-b s" onclick="lhClaim(' + Number(tg) + ',\'lead\')">Это лид</button>' : '') + '</div>' +
+        (CLM.err[tg] ? '<div class="lh-clerr">' + E(CLM.err[tg]) + '</div>' : '') + '</div>';
+    }).join('');
+  }
+  function claimPaint(){
+    var box = document.getElementById('lhClaims');
+    if(box){ var h = claimHTML(); box.innerHTML = h; box.style.display = h ? '' : 'none'; }
+  }
+  window.lhClaimToggle = function(){ var list = claimLeads(); var pend = list.some(function(l){ return l.claim.status === 'pending'; }); CLM.open = !(CLM.open == null ? pend : CLM.open); claimPaint(); };
+  window.lhClaimPick = function(tg, v){ CLM.pick[tg] = v; };
+  window.lhClaim = function(tg, action){
+    var l = claimLeads().find(function(x){ return Number(x.tgId) === tg; }); if(!l) return;
+    var name = CLM.pick[tg] || (action === 'resident' ? l.claim.name : '') || '';
+    CLM.err[tg] = '';
+    if(action === 'resident' && !name){ CLM.err[tg] = 'Выберите резидента, к которому привязать этот Telegram'; claimPaint(); return; }
+    Promise.resolve(BSSync.clubApi('POST', '/claim', {tg: tg, action: action, name: name})).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){ return {s: r.status, j: j}; });
+    }).then(function(x){
+      if(x.s !== 200){ CLM.err[tg] = 'Не получилось: ' + ((x.j && (x.j.detail || x.j.error)) || x.s); claimPaint(); return; }
+      toast(x.j.result || 'Готово');
+      l.claim.status = action === 'resident' ? 'resident' : 'lead';
+      if(action === 'resident'){ l.col = 'won'; CLM.res = null; }
+      try{ BSSync.refresh(); }catch(e){}
+      claimPaint();
+    }, function(){ CLM.err[tg] = 'Нет связи с сервером'; claimPaint(); });
+  };
+  // Источник лида, вошедшего на платформу (platform_login), показывается по-русски
+  if(typeof crmSrc === 'function'){
+    var _cs = crmSrc;
+    crmSrc = function(v){ return String(v || '') === 'platform_login' ? 'Платформа' : _cs.apply(this, arguments); };
+  }
+  if(typeof renderLeads === 'function'){
+    var _rl = renderLeads;
+    renderLeads = function(){
+      var r = _rl.apply(this, arguments);
+      try{
+        var bar = document.querySelector('#stubBody .crm2 .cx-bar');
+        if(bar && MODE === 'admin'){
+          var box = document.createElement('div'); box.id = 'lhClaims'; box.className = 'lh-cl';
+          bar.parentNode.insertBefore(box, bar.nextSibling);
+          claimPaint();
+        }
+      }catch(e){ console.error(e); }
+      return r;
+    };
+  }
+  // Поиск по платформе лиду не нужен: он видит только главную
+  if(typeof openSearch === 'function'){
+    var _os = openSearch;
+    openSearch = function(){ if(document.documentElement.classList.contains('lead-user')) return; return _os.apply(this, arguments); };
+  }
+  // Настоящий лид (роль lead после входа): только главная
+  window.lhApplyLead = function(){
+    document.documentElement.classList.add('lead-user');
+    setMode('lead');
+    try{ renderSideAcc(); }catch(e){}
+  };
+  if(window.lhApplyPending){ window.lhApplyPending = false; lhApplyLead(); }
+})();
 </script>
 
 </body>

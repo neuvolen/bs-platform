@@ -140,26 +140,71 @@ func (w *ClubWrites) Do(ctx context.Context, source string, u *platformTgUser, a
 	}
 	defer w.unlock()
 	// Earlier writes still wait: they go first, now (the script may be back).
-	if open, err := w.repo.OpenWrites(ctx); err == nil && len(open) > 0 && open[0].ID < rec.ID {
+	// A write parked until the script updates itself does not hold the others.
+	if open, err := w.repo.OpenWrites(ctx); err == nil && waitsBefore(open, rec.ID) {
 		if _, err := w.flushLocked(ctx, true, rec.ID); err != nil {
 			log.Printf("club writes: %v", err)
 		}
-		if open, err := w.repo.OpenWrites(ctx); err != nil || len(open) == 0 || open[0].ID < rec.ID {
+		if open, err := w.repo.OpenWrites(ctx); err != nil || waitsBefore(open, rec.ID) {
 			w.kick()
 			w.changed()
 			return queuedAnswer
 		}
 	}
-	body, _ := w.deliver(ctx, rec)
+	body, _, _ := w.deliver(ctx, rec)
 	if body == nil {
 		return queuedAnswer
 	}
 	return body
 }
 
+// outdatedMark starts the last error of a write parked until the script
+// updates itself.
+const outdatedMark = "скрипт ещё не знает это действие: "
+
+// outdatedWait: the longest a parked write waits before it is tried again
+// (the script looks for a new version every hour).
+const outdatedWait = 10 * time.Minute
+
+// scriptOutdated: the script answered that it does not know the action (or,
+// for setResidentField, the field; the server checked the field already).
+// It runs an older version than the server: the write is not refused, it
+// waits on the server and goes again once the script has updated itself.
+func scriptOutdated(action, e string) bool {
+	l := strings.ToLower(strings.TrimSpace(e))
+	if strings.HasPrefix(l, "unknown action") {
+		return true
+	}
+	return action == "setResidentField" && strings.HasPrefix(e, "Поле «") && strings.HasSuffix(e, "» не меняется")
+}
+
+func answerError(body []byte) string {
+	var r map[string]any
+	if json.Unmarshal(body, &r) != nil {
+		return ""
+	}
+	e, _ := r["error"].(string)
+	return e
+}
+
+// parked: the write waits for the script's update (see scriptOutdated).
+func parked(rec *pg.ClubWrite) bool { return strings.HasPrefix(rec.LastError, outdatedMark) }
+
+// waitsBefore: a write older than id still waits (parked ones aside).
+func waitsBefore(open []pg.ClubWrite, id int64) bool {
+	for i := range open {
+		if open[i].ID < id && !parked(&open[i]) {
+			return true
+		}
+	}
+	return false
+}
+
 // deliver sends one write to the script and records the outcome. body is nil
 // when the script did not take it (the write waits); ok is false then too.
-func (w *ClubWrites) deliver(ctx context.Context, rec *pg.ClubWrite) ([]byte, bool) {
+// park: the script does not know the write yet; it waits for the script's
+// update without holding the writes after it.
+func (w *ClubWrites) deliver(ctx context.Context, rec *pg.ClubWrite) (body []byte, ok bool, park bool) {
 	defer w.changed()
 	in := url.Values{}
 	for k, v := range rec.Params {
@@ -178,7 +223,28 @@ func (w *ClubWrites) deliver(ctx context.Context, rec *pg.ClubWrite) ([]byte, bo
 		if e := w.repo.WriteFailed(context.WithoutCancel(ctx), rec.ID, err.Error(), unknown, next); e != nil {
 			log.Printf("club write %d: %v", rec.ID, e)
 		}
-		return nil, false
+		return nil, false, false
+	}
+	if e := answerError(body); scriptOutdated(rec.Action, e) {
+		// The app's deployment runs an older version: the bot's deployment
+		// (updated first) may know it already.
+		if fb := w.gw.fallbackURL(); fb != "" {
+			if b2, err2 := w.gw.getAt(ctx, fb, q); err2 == nil && !scriptOutdated(rec.Action, answerError(b2)) {
+				log.Printf("club write %d %s: the app's script does not know it, sent through the bot's deployment", rec.ID, rec.Action)
+				body, e = b2, ""
+			}
+		}
+		if e != "" {
+			wait := retryIn(rec.Tries + 1)
+			if wait > outdatedWait {
+				wait = outdatedWait
+			}
+			log.Printf("club write %d %s: the script does not know it yet (%s), waits for its update", rec.ID, rec.Action, e)
+			if err := w.repo.WriteFailed(context.WithoutCancel(ctx), rec.ID, outdatedMark+e, false, w.now().Add(wait)); err != nil {
+				log.Printf("club write %d: %v", rec.ID, err)
+			}
+			return nil, false, true
+		}
 	}
 	var r map[string]any
 	_ = json.Unmarshal(body, &r)
@@ -201,7 +267,31 @@ func (w *ClubWrites) deliver(ctx context.Context, rec *pg.ClubWrite) ([]byte, bo
 		}
 	}
 	w.gw.dropBundles()
-	return body, true
+	return body, true, false
+}
+
+// Enqueue keeps a write and makes its change on the server at once, and
+// leaves the sending to the loop: the caller answers without waiting for the
+// script (the resident editor). err: the server could not keep it.
+func (w *ClubWrites) Enqueue(ctx context.Context, source string, u *platformTgUser, action string, q url.Values, apply bool) (*pg.ClubWrite, error) {
+	apply = apply || pg.SectionWrite(action)
+	who := fullName(u)
+	if n, team := w.gw.Admins[u.ID]; team && n != "" {
+		who = n
+	}
+	rec, err := w.repo.NewWrite(ctx, pg.ClubWrite{Source: source, TgID: u.ID, Who: who, Action: action, Params: writeParams(q), At: w.now()}, apply)
+	if err != nil {
+		return nil, err
+	}
+	if rec.ApplyError != "" {
+		log.Printf("club write %d %s: server tables: %s", rec.ID, action, rec.ApplyError)
+	}
+	if rec.Applied {
+		w.tablesChanged()
+	}
+	w.kick()
+	w.changed()
+	return rec, nil
 }
 
 func (w *ClubWrites) kick() {
@@ -228,13 +318,15 @@ func (w *ClubWrites) Loop(ctx context.Context) {
 	t := time.NewTicker(20 * time.Second)
 	defer t.Stop()
 	for {
+		now := false
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		case <-w.wake:
+			now = true // a new write came: send it (and the ones before it) now
 		}
-		if n, err := w.Flush(ctx); err != nil {
+		if n, err := w.flush(ctx, now); err != nil {
 			log.Printf("club writes: %v", err)
 		} else if n > 0 {
 			log.Printf("club writes: %d reached the sheet", n)
@@ -248,12 +340,14 @@ const unknownWait = 3 * time.Hour
 
 // Flush sends the waiting writes in order, stopping at the first that the
 // script does not take. It returns how many were done.
-func (w *ClubWrites) Flush(ctx context.Context) (int, error) {
+func (w *ClubWrites) Flush(ctx context.Context) (int, error) { return w.flush(ctx, false) }
+
+func (w *ClubWrites) flush(ctx context.Context, now bool) (int, error) {
 	if !w.lock(ctx, time.Minute) {
 		return 0, nil // a write is on its way; the next round sends the rest
 	}
 	defer w.unlock()
-	return w.flushLocked(ctx, false, 0)
+	return w.flushLocked(ctx, now, 0)
 }
 
 // flushLocked sends the waiting writes older than before (0: all). now: do
@@ -274,6 +368,9 @@ func (w *ClubWrites) flushLocked(ctx context.Context, now bool, before int64) (i
 			return done, nil
 		}
 		t := w.now()
+		if parked(rec) && rec.NextTryAt.After(t) {
+			continue // waits for the script's update; the others go on
+		}
 		if rec.NextTryAt.After(t) && !(now && rec.Status == pg.WritePending) {
 			return done, nil
 		}
@@ -293,7 +390,10 @@ func (w *ClubWrites) flushLocked(ctx context.Context, now bool, before int64) (i
 				}
 			}
 		}
-		if _, ok := w.deliver(ctx, rec); !ok {
+		if _, ok, park := w.deliver(ctx, rec); !ok {
+			if park {
+				continue
+			}
 			return done, nil
 		}
 		done++

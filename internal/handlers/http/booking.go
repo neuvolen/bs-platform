@@ -297,6 +297,23 @@ func (g *AppGateway) Book(c *gin.Context) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	code, got, price, kaspi, err := f.BookSlot(ctx, u, r, "приложение")
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "storage"})
+		return
+	}
+	if code != "" {
+		bookErr(c, code)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "booking": gin.H{"slot": got.public(true), "price": price, "kaspiLink": kaspi}})
+}
+
+// BookSlot books a разбор slot for u: the slot, the CRM card («Записан на
+// разбор»), the confirmation with the Kaspi button in the bot and a note to
+// the team. via names where it was booked («приложение», «платформа»).
+// code is taken|past|already|not_found when nothing was booked.
+func (f *LeadFunnel) BookSlot(ctx context.Context, u *platformTgUser, r bookReq, via string) (code string, got slot, price int64, kaspi string, err error) {
 	now := f.now()
 	name := fullName(u)
 	if name == "" {
@@ -313,11 +330,7 @@ func (g *AppGateway) Book(c *gin.Context) {
 			}
 		}
 	}
-	var code string
-	var got slot
-	var price int64
-	var kaspi string
-	err := f.mutateIn(ctx, "club", slotsDoc, "server:booking", func(doc map[string]any) bool {
+	err = f.mutateIn(ctx, "club", slotsDoc, "server:booking", func(doc map[string]any) bool {
 		code, got = "", slot{}
 		price, kaspi = slotsPrice(doc)
 		list, _ := doc["slots"].([]any)
@@ -355,19 +368,17 @@ func (g *AppGateway) Book(c *gin.Context) {
 		got = target
 		return true
 	})
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "storage"})
-		return
-	}
-	if code != "" {
-		bookErr(c, code)
+	if err != nil || code != "" {
 		return
 	}
 	when := whenRu(got.Start)
 
 	// the CRM: the lead goes to «Встреча»
-	_, _, _ = f.ensureLead(ctx, u.ID, u.FirstName, u.LastName, u.Username, "Приложение: запись на разбор",
-		"Записался на разбор через приложение", "", false)
+	src, logNew := "Приложение: запись на разбор", "Записался на разбор через приложение"
+	if via == "платформа" {
+		src, logNew = "Платформа: запись на разбор", "Записался на разбор на платформе"
+	}
+	_, _, _ = f.ensureLead(ctx, u.ID, u.FirstName, u.LastName, u.Username, src, logNew, "", false)
 	_ = f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
 		leads, _ := crm["leads"].([]any)
 		lead := findLeadByTg(leads, u.ID)
@@ -381,6 +392,7 @@ func (g *AppGateway) Book(c *gin.Context) {
 		lead["nextAt"] = got.Start.In(almaty).Format("2006-01-02")
 		lead["razborSlot"] = got.ID
 		lead["razborAt"] = got.Start.UTC().Format(time.RFC3339)
+		lead["warmStop"] = true // записан: прогрев больше не нужен
 		if s, _ := lead["phone"].(string); s == "" && r.Phone != "" {
 			lead["phone"] = r.Phone
 		}
@@ -397,19 +409,23 @@ func (g *AppGateway) Book(c *gin.Context) {
 
 	text := "✅ Вы записаны на разбор\n\n📅 " + when + " (время Алматы)\n⏱ " + strconv.Itoa(got.Dur) + " минут с основателями BS\n" + f.placeLine(got) +
 		"\n\nСтоимость " + tenge(price) + ". Оплатите через Kaspi по кнопке ниже, чтобы закрепить время.\n\nПеренести или отменить запись можно в приложении."
-	if err := f.send(ctx, u.ID, text, f.payKB(got, price, kaspi, false)); err != nil {
-		log.Printf("booking: confirm %d: %v", u.ID, err)
+	if f.send != nil {
+		if err := f.send(ctx, u.ID, text, f.payKB(got, price, kaspi, false)); err != nil {
+			log.Printf("booking: confirm %d: %v", u.ID, err)
+		}
 	}
 	who := name
 	if u.Username != "" {
 		who += " @" + u.Username
 	}
-	note := fmt.Sprintf("📅 Запись на разбор: %s\n%s, %s\nТелефон: %s\nНиша: %s\nВопрос: %s\n🆔 %d", who, when, got.str("format"),
+	note := fmt.Sprintf("📅 Запись на разбор (%s): %s\n%s, %s\nТелефон: %s\nНиша: %s\nВопрос: %s\n🆔 %d", via, who, when, got.str("format"),
 		dash(r.Phone), dash(r.Niche), dash(r.Question), u.ID)
-	for _, a := range f.admins {
-		_ = f.send(ctx, a, note, nil)
+	if f.send != nil {
+		for _, a := range f.admins {
+			_ = f.send(ctx, a, note, nil)
+		}
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "booking": gin.H{"slot": got.public(true), "price": price, "kaspiLink": kaspi}})
+	return
 }
 
 func dash(s string) string {

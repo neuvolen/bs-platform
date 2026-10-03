@@ -103,6 +103,10 @@ func (c *Client) newestTTS(ctx context.Context, skip string) string {
 // TTSBackoff is shortened in tests.
 var TTSBackoff = func(d time.Duration) time.Duration { return d }
 
+// TTSAttemptTimeout: one generateContent call of Speak (a phrase takes a few
+// seconds; a call that hangs is cut and the phrase tried again later).
+var TTSAttemptTimeout = 45 * time.Second
+
 func (c *Client) Speak(ctx context.Context, text, voice, style string) ([]byte, error) {
 	if c.Gemini == "" {
 		return nil, errors.New("нет ключа для озвучки: добавьте GEMINI_API_KEY")
@@ -123,7 +127,10 @@ func (c *Client) Speak(ctx context.Context, text, voice, style string) ([]byte, 
 	rl := 0
 	for try := 0; ; try++ {
 		url := fmt.Sprintf("%s/v1beta/models/%s:generateContent?key=%s", c.GeminiBase, model, c.Gemini)
-		b, err := c.do(ctx, jsonReq("POST", url, body))
+		// One call that hangs does not hold the server's only TTS slot.
+		actx, cancel := context.WithTimeout(ctx, TTSAttemptTimeout)
+		b, err := c.do(actx, jsonReq("POST", url, body))
+		cancel()
 		if err == nil {
 			return speechWAV(b)
 		}

@@ -338,7 +338,7 @@ func (h *BotHandler) signedGet(c *gin.Context) bool {
 
 // ScriptLatest godoc
 // @Summary  The latest Apps Script code of the sheet, for its self-update
-// @Description  Signed GET by the sheet (see signedGet), query version = its own BS_VERSION. Answer {version, relay, files:[{name,type,source}]}; files are empty when the sheet already runs this version. The bot token in the code is the mark "__BS_BOT_TOKEN__"; the sheet puts its own back.
+// @Description  Signed GET by the sheet (see signedGet), query version = its own BS_VERSION. Answer {version, relay, apps:[web app urls], files:[{name,type,source}]}; files are empty when the sheet already runs this version. The bot token in the code is the mark "__BS_BOT_TOKEN__"; the sheet puts its own back.
 // @Tags     bot
 // @Router   /api/v1/script/latest [get]
 func (h *BotHandler) ScriptLatest(c *gin.Context) {
@@ -350,7 +350,10 @@ func (h *BotHandler) ScriptLatest(c *gin.Context) {
 		h.svc.NoteScript(c.Request.Context(), have)
 	}
 	v := content.ScriptVersion()
-	out := gin.H{"version": v, "relay": h.svc.RelayURL(), "files": []content.ScriptFile{}}
+	// apps: the other web app deployments the server calls (the Telegram
+	// app's and the platform's club writes go to APP_SCRIPT_URL): the sheet
+	// moves them to the new version too (v38), not only the bot's relay.
+	out := gin.H{"version": v, "relay": h.svc.RelayURL(), "apps": []string{AppScriptURL()}, "files": []content.ScriptFile{}}
 	if have == v {
 		out["upToDate"] = true
 	} else {

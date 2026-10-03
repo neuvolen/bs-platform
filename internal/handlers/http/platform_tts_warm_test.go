@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/ai"
+	"github.com/bnursik/business_surgery_backend/web"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,7 +25,7 @@ import (
 func TestTTSWarmMakesTheTourAhead(t *testing.T) {
 	repo, db := platformTestRepo(t)
 	ctx := context.Background()
-	_, _ = db.Pool.Exec(ctx, `DELETE FROM platform_files WHERE id LIKE 'tts\_%'`)
+	_, _ = db.Pool.Exec(ctx, `DELETE FROM tts_audio`)
 	t.Setenv("AI_GEMINI_TTS_MODEL", "gemini-3.1-flash-tts")
 	t.Setenv("AI_TTS_VOICE", "")
 	ai.TTSBackoff = func(time.Duration) time.Duration { return 20 * time.Millisecond }
@@ -142,6 +143,144 @@ func TestTTSWarmMakesTheTourAhead(t *testing.T) {
 	for _, tx := range texts {
 		if w := post("/tts", map[string]string{"text": tx}); w.Code != 200 || w.Header().Get("X-TTS-Cache") != "hit" {
 			t.Fatalf("%q: %d %s", tx, w.Code, w.Header().Get("X-TTS-Cache"))
+		}
+	}
+}
+
+// The tour's phrases are made by the server itself on start and kept in
+// tts_audio: a restart (a new handler, nothing in memory) serves them at
+// once. The model is slow, rate-limits, and hangs outright on one phrase:
+// that phrase is cut and made later; a listener waiting for a phrase never
+// waits longer than it asked (202, the phrase is kept when it is made).
+func TestTTSTourMadeOnStartAndKept(t *testing.T) {
+	repo, db := platformTestRepo(t)
+	ctx := context.Background()
+	_, _ = db.Pool.Exec(ctx, `DELETE FROM tts_audio`)
+	t.Setenv("AI_GEMINI_TTS_MODEL", "gemini-3.1-flash-tts")
+	t.Setenv("AI_TTS_VOICE", "")
+	ai.TTSBackoff = func(time.Duration) time.Duration { return 20 * time.Millisecond }
+	oldGap, oldRetry, oldAttempt := ttsWarmGap, ttsWarmRetry, ai.TTSAttemptTimeout
+	ttsWarmGap, ttsWarmRetry, ai.TTSAttemptTimeout = 5*time.Millisecond, 40*time.Millisecond, 300*time.Millisecond
+	defer func() {
+		ai.TTSBackoff = func(d time.Duration) time.Duration { return d }
+		ttsWarmGap, ttsWarmRetry, ai.TTSAttemptTimeout = oldGap, oldRetry, oldAttempt
+	}()
+	var mu sync.Mutex
+	calls := 0
+	hung := false
+	made := map[string]int{}
+	pcm := make([]byte, 480)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		var body struct {
+			Contents []struct {
+				Parts []struct{ Text string } `json:"parts"`
+			} `json:"contents"`
+		}
+		_ = json.Unmarshal(b, &body)
+		text := body.Contents[0].Parts[0].Text
+		mu.Lock()
+		calls++
+		n := calls
+		hang := strings.Contains(text, "Учёт") && !hung
+		if hang {
+			hung = true
+		}
+		mu.Unlock()
+		if hang { // the model hangs on this phrase once
+			select {
+			case <-r.Context().Done():
+			case <-time.After(5 * time.Second):
+			}
+			return
+		}
+		time.Sleep(30 * time.Millisecond)
+		if n%4 == 0 {
+			w.WriteHeader(429)
+			_, _ = w.Write([]byte(`{"error":{"code":429,"message":"quota"}}`))
+			return
+		}
+		mu.Lock()
+		made[text]++
+		mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{"candidates": []any{map[string]any{"content": map[string]any{"parts": []any{
+			map[string]any{"inlineData": map[string]any{"mimeType": "audio/L16;codec=pcm;rate=24000", "data": base64.StdEncoding.EncodeToString(pcm)}}}}}}})
+	}))
+	defer srv.Close()
+	client := &ai.Client{Gemini: "k", GeminiModel: "gemini-3.5-flash", GeminiBase: srv.URL, HTTP: srv.Client()}
+	page := []byte(`<script type="application/json" id="bsTourTexts">{"welcome":{"admin":{"t":"x","d":"Добро пожаловать."}},
+		"cta":{"admin":"Нажмите «Начать обучение»."},"nav":{"track":"Трекинг.","club":"Клуб.","fin":"Учёт. Деньги клуба."},
+		"actions":[{"d":"Поиск."}],"help":{"d":"Обучение."},"bye":{"d":"Готово."}}</script>`)
+	texts := web.ParseTourTexts(page)
+	if len(texts) != 8 || texts[0] != "Добро пожаловать." || texts[1] != "Нажмите «Начать обучение»." {
+		t.Fatalf("texts %q", texts)
+	}
+	h := NewPlatformAI(repo, client)
+	oldStart := tourVoiceStart
+	tourVoiceStart = 0
+	defer func() { tourVoiceStart = oldStart }()
+	lctx, stop := context.WithCancel(ctx)
+	defer stop()
+	go h.TourVoiceLoop(lctx, func() []string { return texts })
+
+	// A listener meanwhile, on the phrase that hangs: answered within its wait.
+	gin.SetMode(gin.TestMode)
+	route := func(h *PlatformAI) *gin.Engine {
+		r := gin.New()
+		r.POST("/tts", h.TTS)
+		return r
+	}
+	post := func(r *gin.Engine, v any) *httptest.ResponseRecorder {
+		jb, _ := json.Marshal(v)
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/tts", strings.NewReader(string(jb)))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		return w
+	}
+	start := time.Now()
+	w := post(route(h), map[string]any{"text": "Учёт. Деньги клуба.", "wait": 0.2})
+	if d := time.Since(start); d > time.Second || (w.Code != 202 && w.Code != 200) {
+		t.Fatalf("listener: %d after %v", w.Code, d)
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		var n int
+		_ = db.Pool.QueryRow(ctx, `SELECT count(*) FROM tts_audio`).Scan(&n)
+		if n == len(texts) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("made %d of %d: %v", n, len(texts), made)
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	var withText int
+	_ = db.Pool.QueryRow(ctx, `SELECT count(*) FROM tts_audio WHERE text <> '' AND style = $1 AND voice = 'Charon'`, ttsStyle).Scan(&withText)
+	if withText != len(texts) || !hung {
+		t.Fatalf("kept with text %d, hung %v", withText, hung)
+	}
+	// A restart: a new handler with nothing in memory serves every phrase at once, makes nothing.
+	mu.Lock()
+	before := calls
+	mu.Unlock()
+	r2 := route(NewPlatformAI(repo, client))
+	for _, tx := range texts {
+		if w := post(r2, map[string]any{"text": tx, "wait": 0.1}); w.Code != 200 || w.Header().Get("X-TTS-Cache") != "hit" {
+			t.Fatalf("%q after restart: %d", tx, w.Code)
+		}
+	}
+	if q, m := NewPlatformAI(repo, client).PrewarmTour(ctx, texts); q != 0 || m != 0 {
+		t.Fatalf("prewarm after restart: %d queued, %d missing", q, m)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != before {
+		t.Fatalf("made again after restart: %d calls", calls-before)
+	}
+	for tx, n := range made {
+		if n != 1 {
+			t.Fatalf("%q made %d times", tx, n)
 		}
 	}
 }

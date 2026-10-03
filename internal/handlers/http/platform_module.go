@@ -2,6 +2,9 @@ package http
 
 import (
 	"context"
+	"time"
+
+	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"github.com/bnursik/business_surgery_backend/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
@@ -10,12 +13,19 @@ type PlatformModule struct {
 	AI     *PlatformAI
 	h      *PlatformHandler
 	auth   *PlatformAuthHandler
+	lead   *LeadHome // lead_home.go
 	secret []byte
 }
 
 func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte) *PlatformModule {
 	a.repo, a.names = h.repo, h.names
+	if h.repo != nil {
+		a.leads = &LeadFunnel{docs: h.repo, now: time.Now}
+	}
 	m := &PlatformModule{h: h, auth: a, secret: secret, AI: NewPlatformAI(h.repo, nil)}
+	if a.leads != nil {
+		m.lead = &LeadHome{f: a.leads, bot: func() string { n, _ := a.username(); return n }}
+	}
 	if h.repo != nil {
 		go m.AI.EventsLoop(context.Background())
 		go m.AI.LoadEmbedded(context.Background(), a.botToken)
@@ -23,11 +33,23 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		go m.AI.MigrateRazborPrice(context.Background()) // price_migrate.go
 		go m.AI.LibExtLoop(context.Background())         // library_ext.go
 		go m.AI.RecsLoop(context.Background())           // ai_recs.go
-		go m.AI.SeedMarketing(context.Background())
+		go m.AI.SeedMarketingAll(context.Background())   // mkt_competitors.go
 		go m.AI.ThreadsLoop(context.Background())
 		go m.AI.SetupWhatsApp(context.Background())
 	}
 	return m
+}
+
+// WireLeadBot lets the lead home send through the bot: the booking's
+// confirmation to the lead and its note to the team.
+func (m *PlatformModule) WireLeadBot(send func(ctx context.Context, chatID int64, text string, kb map[string]any) error, admins []int64) {
+	if m.lead == nil {
+		return
+	}
+	m.lead.f.send, m.lead.f.admins = send, admins
+	if m.lead.f.app == "" {
+		m.lead.f.app = bot.WebAppBase
+	}
 }
 
 func (m *PlatformModule) Register(r *gin.Engine) {
@@ -43,6 +65,18 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	// R25: the branded template of a library tool by an open link (library_rich.go)
 	r.GET("/t/:file", PublicTemplate)
 	r.HEAD("/t/:file", PublicTemplate)
+
+	// R27: the lead's home. The only routes a lead's token opens; the team
+	// sees the same in the «Лид» preview (lead_home.go).
+	if m.lead != nil {
+		l := r.Group("/api/v1/platform/lead")
+		l.Use(middleware.AuthJWTAllowLead(m.secret))
+		l.Use(middleware.RequireRole("lead", "admin", "moderator"))
+		l.GET("/home", m.lead.Home)
+		l.POST("/diag", m.lead.Diag)
+		l.POST("/book", m.lead.Book)
+		l.POST("/request", m.lead.Request)
+	}
 
 	g := r.Group("/api/v1/platform")
 	g.Use(middleware.AuthJWT(m.secret))

@@ -10,13 +10,15 @@ import (
 	"time"
 	"unicode/utf8"
 
-	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
 
 // POST /api/v1/platform/tts/warm {texts[], voice?}
 //
-// The voice guide's phrases are made ahead of time. The page sends every
+// The voice guide's phrases are made ahead of time. The server makes every
+// phrase of the tour itself on start (TourVoiceLoop: the list is the page's
+// bsTourTexts block) and keeps them in tts_audio, so a redeploy loses
+// nothing. The page also sends every
 // phrase of the tour right after login, long before anyone opens the tour;
 // the server makes the missing ones one by one in the background and keeps
 // them (platform_files), so the tour starts speaking at once and Gemini's
@@ -66,8 +68,8 @@ var ttsW = &ttsWarmer{queued: map[string]bool{}}
 // speakCached returns the phrase, making it if it is not kept yet. urgent:
 // someone is waiting for it now.
 func (h *PlatformAI) speakCached(ctx context.Context, key, text, voice string, urgent bool) (data []byte, hit bool, err error) {
-	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
-		return f.Data, true, nil
+	if data, err := h.repo.GetTTS(ctx, key); err == nil && data != nil {
+		return data, true, nil
 	}
 	if urgent {
 		ttsUrgent.Add(1)
@@ -76,8 +78,8 @@ func (h *PlatformAI) speakCached(ctx context.Context, key, text, voice string, u
 	unlock := ttsLock(key)
 	defer unlock()
 	// Another request (or the background) may have made it meanwhile.
-	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
-		return f.Data, true, nil
+	if data, err := h.repo.GetTTS(ctx, key); err == nil && data != nil {
+		return data, true, nil
 	}
 	select {
 	case ttsGate <- struct{}{}:
@@ -89,7 +91,9 @@ func (h *PlatformAI) speakCached(ctx context.Context, key, text, voice string, u
 	if err != nil {
 		return nil, false, err
 	}
-	_ = h.repo.PutFile(context.Background(), pg.PlatformFile{ID: key, Name: "voice.wav", Mime: "audio/wav", Data: wav}, "server:tts")
+	if err := h.repo.PutTTS(context.Background(), key, voice, ttsStyle, text, wav); err != nil {
+		log.Printf("tts: not kept: %v", err)
+	}
 	return wav, false, nil
 }
 
@@ -185,13 +189,21 @@ func (h *PlatformAI) TTSWarm(c *gin.Context) {
 	var jobs []ttsJob
 	nReady := 0
 	seen := map[string]bool{}
+	keys := make([]string, len(req.Texts))
+	texts := make([]string, len(req.Texts))
 	for i, t := range req.Texts {
-		text := strings.Join(strings.Fields(t), " ")
-		if text == "" || utf8.RuneCountInString(text) > ttsMaxRunes {
+		texts[i] = strings.Join(strings.Fields(t), " ")
+		if texts[i] != "" && utf8.RuneCountInString(texts[i]) <= ttsMaxRunes {
+			keys[i] = ttsKey(voice, texts[i])
+		}
+	}
+	have, _ := h.repo.TTSHave(ctx, keys)
+	for i := range req.Texts {
+		text, key := texts[i], keys[i]
+		if key == "" {
 			continue
 		}
-		key := ttsKey(voice, text)
-		if h.repo.FileExists(ctx, key) {
+		if have[key] {
 			ready[i] = true
 			nReady++
 			continue
@@ -211,4 +223,67 @@ func (h *PlatformAI) TTSWarm(c *gin.Context) {
 	ttsW.mu.Unlock()
 	c.JSON(http.StatusOK, gin.H{"total": len(req.Texts), "ready": nReady, "items": ready, "queued": queued,
 		"waiting": waiting, "noTTS": noTTS})
+}
+
+// tourVoiceStart: the server makes the tour's phrases this long after start
+// (the boot's own work first); tourVoiceEvery: then checks again for any
+// phrase still missing (the model was down, the quota ran out).
+var (
+	tourVoiceStart = 20 * time.Second
+	tourVoiceEvery = 20 * time.Minute
+)
+
+// TourVoiceLoop makes every phrase of the tour ahead of time, so at login
+// everything is already kept: on start, then again for whatever is missing.
+func (h *PlatformAI) TourVoiceLoop(ctx context.Context, texts func() []string) {
+	if h.repo == nil || texts == nil {
+		return
+	}
+	t := time.NewTimer(tourVoiceStart)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		if n, missing := h.PrewarmTour(ctx, texts()); missing > 0 {
+			log.Printf("tts tour: %d phrases queued, %d missing", n, missing)
+		}
+		t.Reset(tourVoiceEvery)
+	}
+}
+
+// PrewarmTour queues the phrases not kept yet; it returns how many were
+// queued and how many are missing.
+func (h *PlatformAI) PrewarmTour(ctx context.Context, list []string) (queued, missing int) {
+	if h.AI == nil || h.AI.Gemini == "" || len(list) == 0 {
+		return 0, 0
+	}
+	voice := ttsDefaultVoice()
+	keys := make([]string, 0, len(list))
+	byKey := map[string]string{}
+	for _, t := range list {
+		text := strings.Join(strings.Fields(t), " ")
+		if text == "" || utf8.RuneCountInString(text) > ttsMaxRunes {
+			continue
+		}
+		k := ttsKey(voice, text)
+		if _, ok := byKey[k]; !ok {
+			byKey[k] = text
+			keys = append(keys, k)
+		}
+	}
+	have, err := h.repo.TTSHave(ctx, keys)
+	if err != nil {
+		log.Printf("tts tour: %v", err)
+		return 0, 0
+	}
+	var jobs []ttsJob
+	for _, k := range keys {
+		if !have[k] {
+			jobs = append(jobs, ttsJob{key: k, text: byKey[k], voice: voice})
+		}
+	}
+	return ttsW.add(h, jobs), len(jobs)
 }

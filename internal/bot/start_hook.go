@@ -107,6 +107,7 @@ type CallbackUpdate struct {
 	FromID    int64
 	Data      string
 	FirstName string
+	LastName  string
 	Username  string
 }
 
@@ -149,6 +150,17 @@ func (s *Service) teamHook(data string) TeamCallbackHook {
 	return nil
 }
 
+// ClaimCallbacks: «Я резидент BS» (the welcome's button, also the script's
+// old one) and «Я уже в клубе» under the server's answer.
+func ClaimCallbacks(data string) bool { return data == "i_am_resident" || data == "claim_recheck" }
+
+// SetClaimHook answers ClaimCallbacks; false leaves the button to the script.
+func (s *Service) SetClaimHook(h CallbackHook) {
+	s.mu.Lock()
+	s.claimHook = h
+	s.mu.Unlock()
+}
+
 // LeadCallbacks: the script's lead-magnet menu buttons the server now answers.
 func LeadCallbacks(data string) bool {
 	return data == "sub_leadmagnets" || data == "sub_menu" || strings.HasPrefix(data, "lm_")
@@ -162,6 +174,7 @@ func (s *Service) takeCallback(ctx context.Context, body []byte) bool {
 			From struct {
 				ID        int64  `json:"id"`
 				FirstName string `json:"first_name"`
+				LastName  string `json:"last_name"`
 				Username  string `json:"username"`
 			} `json:"from"`
 			Message *struct {
@@ -178,7 +191,7 @@ func (s *Service) takeCallback(ctx context.Context, body []byte) bool {
 	}
 	cb := u.Callback
 	up := CallbackUpdate{ID: cb.ID, ChatID: cb.Message.Chat.ID, MessageID: cb.Message.MessageID, FromID: cb.From.ID,
-		Data: cb.Data, FirstName: cb.From.FirstName, Username: cb.From.Username}
+		Data: cb.Data, FirstName: cb.From.FirstName, LastName: cb.From.LastName, Username: cb.From.Username}
 	// The team's buttons on the server's own messages.
 	if th := s.teamHook(cb.Data); th != nil && s.isAdmin(cb.From.ID) {
 		c, cancel := context.WithTimeout(ctx, 60*time.Second)
@@ -192,6 +205,23 @@ func (s *Service) takeCallback(ctx context.Context, body []byte) bool {
 			p["text"] = toast
 		}
 		_, _ = s.call(ctx, "answerCallbackQuery", p)
+		return true
+	}
+	// «Я резидент BS» and «Я уже в клубе»: the server checks the list itself
+	// (residents included: a resident pressing it gets «вы уже резидент»).
+	if ClaimCallbacks(cb.Data) && cb.Message.Chat.Type == "private" && !s.isAdmin(cb.From.ID) {
+		s.mu.RLock()
+		ch := s.claimHook
+		s.mu.RUnlock()
+		if ch == nil {
+			return false
+		}
+		c, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+		if !ch(c, up) {
+			return false
+		}
+		_, _ = s.call(ctx, "answerCallbackQuery", map[string]any{"callback_query_id": cb.ID})
 		return true
 	}
 	s.mu.RLock()

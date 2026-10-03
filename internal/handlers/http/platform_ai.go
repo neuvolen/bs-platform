@@ -73,7 +73,7 @@ func newID() string {
 }
 
 func teamOnly(c *gin.Context) bool {
-	if isResident(c) {
+	if isResident(c) || isLead(c) {
 		forbidden(c, "team_only")
 		return false
 	}

@@ -20,6 +20,12 @@ var guidesFS embed.FS
 //go:embed marketing.json
 var Marketing []byte
 
+// CompetitorsDirect: direct competitors (mentors, business schools, clubs)
+// merged once into an existing bs_mkt_analysis by name; "key" is the match.
+//
+//go:embed competitors_direct.json
+var CompetitorsDirect []byte
+
 // HowToApp: the picture in the bot's welcome showing how to open the app.
 //
 //go:embed howto_app.jpg

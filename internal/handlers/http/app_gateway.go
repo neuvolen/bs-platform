@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -75,6 +76,8 @@ type AppGateway struct {
 
 	// Writes: club changes go to the server first, then to the script.
 	Writes *ClubWrites
+	// Claims answers «Я резидент BS» (resident_claim.go).
+	Claims *ResidentClaims
 	// Stage says who answers the app's bundle: "sheet", "shadow" (the script,
 	// compared daily with the server) or "server" (migration.go).
 	Stage func(ctx context.Context) string
@@ -91,6 +94,9 @@ type AppGateway struct {
 	done    map[string]time.Time
 	doneImp map[string]bool
 	doneAt  time.Time
+
+	// Fallback: the script's relay deployment (the bot's), see fallbackURL.
+	Fallback func() string
 
 	token     string
 	scriptURL string
@@ -117,6 +123,14 @@ type appStats struct {
 	LastOK    time.Time `json:"lastOk"`
 	Users     map[int64]bool
 	CacheHits int `json:"cacheHits"`
+}
+
+// AppScriptURL: the script deployment the app gateway calls.
+func AppScriptURL() string {
+	if u := strings.TrimSpace(os.Getenv("APP_SCRIPT_URL")); u != "" {
+		return u
+	}
+	return DefaultAppScriptURL
 }
 
 func NewAppGateway(token, scriptURL string) *AppGateway {
@@ -158,6 +172,7 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.GET("/api/v1/app/slots", appGzip, m.g.Slots)
 	r.POST("/api/v1/app/book", m.g.Book)
 	r.POST("/api/v1/app/book/cancel", m.g.BookCancel)
+	r.POST("/api/v1/bot/claim", m.g.ClaimFromScript) // resident_claim.go, signed by the script
 }
 
 // AppSign is the signature the script checks on calls from the server:
@@ -292,7 +307,26 @@ func (g *AppGateway) signed(in url.Values, action, cid string) url.Values {
 }
 
 func (g *AppGateway) get(ctx context.Context, q url.Values) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.scriptURL+"?"+q.Encode(), nil)
+	return g.getAt(ctx, g.scriptURL, q)
+}
+
+// fallbackURL: the bot's deployment of the same script (the relay), when it
+// is another one than the app's. The script's self-update moves the relay to
+// a new version first; a club write the app's deployment does not know yet
+// goes there (ClubWrites.deliver).
+func (g *AppGateway) fallbackURL() string {
+	if g.Fallback == nil {
+		return ""
+	}
+	u := strings.TrimSpace(g.Fallback())
+	if u == "" || strings.Split(u, "?")[0] == strings.Split(g.scriptURL, "?")[0] {
+		return ""
+	}
+	return strings.Split(u, "?")[0]
+}
+
+func (g *AppGateway) getAt(ctx context.Context, base string, q url.Values) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -340,6 +374,9 @@ func (g *AppGateway) Call(c *gin.Context) {
 		return
 	}
 	if action == "checkUserRole" && g.serverRole(c, u) {
+		return
+	}
+	if action == "requestResident" && g.claimFromApp(c, u) {
 		return
 	}
 	if pg.ClubWriteActions[action] && g.Writes != nil {

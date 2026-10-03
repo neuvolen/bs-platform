@@ -79,8 +79,13 @@ func serveDL(c *gin.Context, secret []byte, cookie string) {
 		c.String(http.StatusNotFound, "Файл не найден")
 		return
 	}
-	if !validSession(c, secret, cookie) {
+	ok, role := session(c, secret, cookie)
+	if !ok {
 		c.String(http.StatusUnauthorized, "Войдите в платформу Business Surgery, чтобы скачать файл")
+		return
+	}
+	if role == "lead" {
+		c.String(http.StatusForbidden, "Файлы библиотеки доступны резидентам Business Surgery")
 		return
 	}
 	sum := sha256.Sum256(b)
@@ -218,9 +223,17 @@ func serve(c *gin.Context, p page) {
 
 // validSession checks the session cookie the same way the API checks tokens.
 func validSession(c *gin.Context, secret []byte, cookie string) bool {
+	ok, _ := session(c, secret, cookie)
+	return ok
+}
+
+// session: whether the cookie holds a valid access token, and its role
+// (admin, resident or lead: a lead gets the platform page with the lead home
+// only, the API decides what each role may read).
+func session(c *gin.Context, secret []byte, cookie string) (bool, string) {
 	raw, err := c.Cookie(cookie)
 	if err != nil || raw == "" {
-		return false
+		return false, ""
 	}
 	tkn, err := jwt.Parse(raw, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -229,14 +242,15 @@ func validSession(c *gin.Context, secret []byte, cookie string) bool {
 		return secret, nil
 	})
 	if err != nil || !tkn.Valid {
-		return false
+		return false, ""
 	}
 	claims, ok := tkn.Claims.(jwt.MapClaims)
 	if !ok {
-		return false
+		return false, ""
 	}
 	typ, _ := claims["typ"].(string)
-	return typ == "access"
+	role, _ := claims["role"].(string)
+	return typ == "access", role
 }
 
 // Register mounts the platform at / and /platform.
