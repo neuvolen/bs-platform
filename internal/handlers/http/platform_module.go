@@ -24,13 +24,18 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 	}
 	m := &PlatformModule{h: h, auth: a, secret: secret, AI: NewPlatformAI(h.repo, nil)}
 	m.AI.KeySecret = secret // R34a: seals the Claude key saved in the settings
+	// R36: the tour's premium voice (ElevenLabs), picked in the settings
+	m.AI.Premium = NewPremiumVoice(h.repo, m.AI.aiKeySecret, m.AI.tourTexts)
+	m.AI.Premium.OnReady = m.AI.premiumReadyNote
 	if a.leads != nil {
 		m.lead = &LeadHome{f: a.leads, bot: func() string { n, _ := a.username(); return n }}
 	}
 	if h.repo != nil {
 		lctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		m.AI.LoadAIKey(lctx) // platform_ai_key.go
+		m.AI.Premium.Load(lctx)
 		cancel()
+		m.AI.Premium.Start(context.Background())
 		go m.AI.EventsLoop(context.Background())
 		go m.AI.LoadEmbedded(context.Background(), a.botToken)
 		go m.AI.SeedGuides(context.Background())
@@ -133,6 +138,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/tts/warm", m.AI.TTSWarm)        // platform_tts_warm.go: the tour phrases made ahead of time
 	g.GET("/tts/manifest", m.AI.TTSManifest) // platform_tts_static.go: phrase → file, state
 	g.POST("/tts/voice", m.AI.TTSSetVoice)
+	m.AI.Premium.Register(pub, g) // R36: «Голос ElevenLabs» (platform_voice_premium.go)
 	g.GET("/guide/:id", m.AI.GuideForPlatform)
 	g.GET("/library/rich", LibraryRich)               // library_rich.go
 	g.GET("/library/template/:file", LibraryTemplate) // <id>.pdf

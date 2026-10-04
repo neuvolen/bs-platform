@@ -65,6 +65,8 @@ type PlatformAI struct {
 	SendDoc func(ctx context.Context, chatID int64, name string, data []byte, caption string) error
 	// KeySecret seals the Claude key saved in the settings (JWT_SECRET; platform_ai_key.go).
 	KeySecret []byte
+	// Premium: the tour's ElevenLabs voice (R36, platform_voice_premium.go).
+	Premium *PremiumVoice
 }
 
 func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {

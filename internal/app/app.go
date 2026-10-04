@@ -232,6 +232,10 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) *htt
 		// synthesises only a phrase without a file, so the quota is not spent.
 		go m.AI.TourVoiceLoop(context.Background(), web.TourTextsUnvoiced)
 	}
+	if m.AI.Premium != nil {
+		// R36: the owner's ElevenLabs voice replaces the built-in files once every phrase is read
+		web.VoiceOverlay = m.AI.Premium.Overlay
+	}
 	return m
 }
 

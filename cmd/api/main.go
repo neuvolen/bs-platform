@@ -87,6 +87,7 @@ func main() {
 	app.WireCalls(platformMod, botSvc, cfg.PlatformTeam)
 	modules = append(modules, app.BuildContent(deps, platformMod, botSvc, cfg.JWTSecret, cfg.PlatformTeam))
 	modules = append(modules, app.BuildAppGateway(deps, cfg.TelegramBotToken, cfg.JWTSecret, web.Seed(), botSvc)...)
+	modules = append(modules, app.WireSysCheck(deps, platformMod, botSvc, cfg.PlatformTeam, cfg.JWTSecret)) // R36: «Проверка системы»
 	botCtx, botStop := context.WithCancel(context.Background())
 	defer botStop()
 	if botSvc.Enabled() {

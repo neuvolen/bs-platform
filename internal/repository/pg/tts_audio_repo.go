@@ -72,3 +72,21 @@ func (r *PlatformRepo) TTSIndex(ctx context.Context, style string) ([]TTSEntry, 
 	}
 	return out, rows.Err()
 }
+
+// PutTTSMime keeps a phrase with its type (R36: the premium voice's MP3).
+func (r *PlatformRepo) PutTTSMime(ctx context.Context, key, voice, style, text, mime string, data []byte) error {
+	_, err := r.db.Pool.Exec(ctx, `INSERT INTO tts_audio (key, voice, style, text, mime, size, data) VALUES ($1,$2,$3,$4,$5,$6,$7)
+		ON CONFLICT (key) DO NOTHING`, key, voice, style, text, mime, len(data), data)
+	return err
+}
+
+// GetTTSMime: a kept phrase and its type, nil when there is none.
+func (r *PlatformRepo) GetTTSMime(ctx context.Context, key string) ([]byte, string, error) {
+	var data []byte
+	var mime string
+	err := r.db.Pool.QueryRow(ctx, `SELECT data, mime FROM tts_audio WHERE key = $1`, key).Scan(&data, &mime)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, "", nil
+	}
+	return data, mime, err
+}

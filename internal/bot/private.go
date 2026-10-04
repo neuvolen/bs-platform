@@ -320,6 +320,9 @@ func (s *Service) private(ctx context.Context, body []byte) {
 			"Ежедневные задачи:\n\nОтчёт за день:\n\nПлан на завтра:\n\n❌ Штраф за пропуск: 10 000 тг")
 		return
 	case "/status":
+		if admin && s.systemStatus(ctx, m.ChatID) { // R36: the team gets the system check
+			return
+		}
 		_ = s.SendMessage(ctx, m.ChatID, s.statusText(ctx, m.FromID))
 		return
 	case "/platform", "/платформа":
@@ -344,7 +347,7 @@ func (s *Service) private(ctx context.Context, body []byte) {
 			_ = s.SendMessageKB(ctx, m.ChatID, s.residentsText(ctx), kb(appBtn("👥 Резиденты в BS", "")))
 		case "/help_admin", "/помощь":
 			_ = s.SendMessage(ctx, m.ChatID, "Команды команды:\n/menu: панель\n/check: кто сдал отчёт сегодня\n"+
-				"/fines: неоплаченные штрафы\n/residents: резиденты и долги\n/version: где работает бот\n\n"+
+				"/fines: неоплаченные штрафы\n/residents: резиденты и долги\n/status: проверка системы\n/version: где работает бот\n\n"+
 				"Штрафы, оплаты, расписание и резиденты: в приложении BS и на платформе.")
 		}
 		return
@@ -397,7 +400,7 @@ func (s *Service) paymentNote(ctx context.Context, m privMsg, res club.Resident)
 
 func (s *Service) adminMenu(ctx context.Context, chat int64) {
 	_ = s.SendMessageKB(ctx, chat, "🏥 BS. Панель управления\n\nШтрафы, оплаты, расписание и резиденты ведутся в приложении BS и на платформе.\n"+
-		"Быстро: /check отчёты сегодня · /fines штрафы · /residents долги",
+		"Быстро: /check отчёты сегодня · /fines штрафы · /residents долги · /status проверка системы",
 		kb(appBtn("📱 Открыть в BS", ""), appBtn("📋 Отчёты", "reports"), appBtn("⚠️ Штрафы", "fines"), s.platformBtn(ctx)))
 }
 

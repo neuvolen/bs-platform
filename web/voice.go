@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -100,4 +101,60 @@ func serveVoice(c *gin.Context) {
 		return
 	}
 	c.Data(http.StatusOK, "audio/mpeg", data)
+}
+
+// ── R36: the premium voice (ElevenLabs) over the built-in recordings ──
+//
+// VoiceOverlay (set by the server when the owner picked an ElevenLabs voice
+// and every phrase is read) gives phrase → URL and a version. The page is
+// built once per version with those URLs in bsVoiceStatic instead of the
+// built-in files, so its ETag changes and browsers take the new map; the
+// file URLs are content hashes, so the browser's caches update too. Without
+// an overlay the page is the one built at start.
+
+// VoiceOverlay: "" version when the built-in recordings play.
+var VoiceOverlay func() (version string, urls map[string]string)
+
+var appHTML string // the platform page without the seed, before the voice map
+
+var overlayPage struct {
+	sync.Mutex
+	ver string
+	p   page
+}
+
+func currentAppPage() page {
+	if VoiceOverlay == nil {
+		return appPage
+	}
+	ver, urls := VoiceOverlay()
+	if ver == "" || len(urls) == 0 {
+		return appPage
+	}
+	overlayPage.Lock()
+	defer overlayPage.Unlock()
+	if overlayPage.ver != ver {
+		overlayPage.p = build(injectMarker(injectVoiceWith(appHTML, urls)))
+		overlayPage.ver = ver
+	}
+	return overlayPage.p
+}
+
+// injectVoiceWith: the voice map with the overlay's URLs over the built-in ones.
+func injectVoiceWith(page string, over map[string]string) string {
+	m := map[string]string{}
+	for _, t := range ParseTourTexts([]byte(page)) {
+		if u := over[t]; u != "" {
+			m[t] = u
+		} else if u := StaticVoice(t); u != "" {
+			m[t] = u
+		}
+	}
+	b, _ := json.Marshal(m)
+	s := string(b) // json.Marshal escapes "<": no </script> inside
+	tag := `<script type="application/json" id="bsVoiceStatic">` + s + `</script>`
+	if i := strings.Index(strings.ToLower(page), "<head>"); i >= 0 {
+		return page[:i+len("<head>")] + tag + page[i+len("<head>"):]
+	}
+	return tag + page
 }

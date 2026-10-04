@@ -29409,6 +29409,7 @@ function rekey(r){
     if(u.keys) u.keys = u.keys.map(function(k){ return k === o ? n : k; }); if(u.steps) fix(u.steps); }); }
   fix(FX.undo); fix(FX.redo);
   if(FX.drill && FX.drill.keys[o]){ FX.drill.keys[n] = 1; }
+  if(FX.hl === o) FX.hl = n; // R36a: подсветка только что добавленной строки
   FX.plCache = null;
 }
 function hasContent(r){ return !!(r.income || r.expense || r.incomeCat || r.resident || r.expenseCat || r.comment); }
@@ -29576,9 +29577,10 @@ function headerTools(){
     // «В цифрах» не зависят от периода: выбор периода там не показываем
     if(FX.tab !== 'num') h += '<select class="fx-sel" id="fxPer" onchange="fxSetPeriod(this.value)" aria-label="Период">' + periods().map(function(p){
       return '<option value="' + p.k + '"' + (FX.per && FX.per.k === p.k ? ' selected' : '') + '>' + E(p.n) + '</option>'; }).join('') + '</select>';
-    if(FX.tab === 'dds' && FX.editable) h += '<button class="fx-btn pri" id="fxAdd" onclick="fxAddRow()">+ Строка</button>';
-    if(FX.tab === 'dds' && !FX.editable && typeof bsIsTeam === 'function' && bsIsTeam())
-      h += '<button class="fx-btn" onclick="bsAddPayment(\'income\')">+ Приход</button><button class="fx-btn" onclick="bsAddPayment(\'expense\')">+ Расход</button>';
+    // R36a: «+ Приход», «+ Расход» и «+ Строка» открывают форму операции (как в приложении); без правки ДДС форма пишет через сервер клуба
+    if(FX.tab === 'dds' && (FX.editable || (typeof bsIsTeam === 'function' && bsIsTeam())))
+      h += '<button class="fx-btn fx-op in" id="fxAddIn" onclick="fxOpForm(\'income\')"><b>+</b> Приход</button><button class="fx-btn fx-op ex" id="fxAddEx" onclick="fxOpForm(\'expense\')"><b>+</b> Расход</button>' +
+        (FX.editable ? '<button class="fx-btn pri" id="fxAdd" onclick="fxOpForm()">+ Строка</button>' : '');
   }
   h += '<button class="fx-btn ic" id="fxMore" onclick="fxMenu(this)" aria-label="Ещё" title="Ещё">⋯</button>';
   return '<div class="fx-tools">' + h + '</div>';
@@ -29746,6 +29748,7 @@ function cellHTML(row, ri, ci, g){
   else if(c.k === 'expenseCat') t = catChip(v, 'exp');
   else if(c.k === 'account') t = catChip(v, 'ac');
   else t = E(v);
+  if(c.t === 'cat' && FX.editable){ cls.push('dd'); t += '<i class="fx-dd" title="Выбрать из списка"></i>'; } // R36a: выпадающий список
   if(ri >= g.r1 && ri <= g.r2 && ci >= g.c1 && ci <= g.c2 && !(g.r1 === g.r2 && g.c1 === g.c2)) cls.push('in');
   if(ri === FX.a.r && ci === FX.a.c) cls.push('act');
   return '<td data-r="' + ri + '" data-c="' + ci + '"' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + (c.t === 'text' || c.t === 'cat' ? ' title="' + E(v) + '"' : '') + '>' + t + '</td>';
@@ -29760,7 +29763,7 @@ function renderRows(){
   for(var i = from; i < to; i++){
     var row = FX.view[i], rs = FX.rowsMode && i >= g.r1 && i <= g.r2;
     var cl = (!row.id && !hasContent(row) ? 'draft' : '') + (FX.pend[row.key] || (!row.id && hasContent(row)) ? ' pend' : '') + (rs ? ' rs' : '') +
-      (i % 2 ? ' z' : '') + (!FX.sort && i > 0 && S(FX.view[i - 1].date).slice(0, 7) !== S(row.date).slice(0, 7) ? ' ms' : '');
+      (i % 2 ? ' z' : '') + (!FX.sort && i > 0 && S(FX.view[i - 1].date).slice(0, 7) !== S(row.date).slice(0, 7) ? ' ms' : '') + (FX.hl && FX.hl === row.key ? ' hl' : '');
     h += '<tr data-k="' + row.key + '"' + (cl.trim() ? ' class="' + cl.trim() + '"' : '') + '><td class="fx-rn" data-rn="' + i + '">' + (i + 1) + '</td>';
     for(var c = 0; c < COLS.length; c++) h += cellHTML(row, i, c, g);
     h += '</tr>';
@@ -29845,6 +29848,8 @@ function onDown(e){
     if(again && e.pointerType !== 'mouse' && ('ontouchstart' in window)){ e.preventDefault(); renderRows(); startEdit(null); return; }
   }
   e.preventDefault(); focusGrid(); renderRows();
+  // R36a: стрелка в ячейке статьи открывает список сразу
+  if(e.target.closest && e.target.closest('.fx-dd') && !e.shiftKey){ startEdit(null); return; }
   // Двойной клик: строки перерисованы после первого нажатия, поэтому по счётчику нажатий, а не по dblclick
   if(e.detail >= 2 && !e.shiftKey){ startEdit(null); return; }
   var g = document.getElementById('fxGrid');
@@ -29928,6 +29933,54 @@ window.fxAddRow = function(silent){
   scrollToCell(FX.a.r, FX.a.c); renderRows(); focusGrid(); statusPaint();
   if(!silent) startEdit(null);
 };
+// R36a: операция из формы «+ Приход» / «+ Расход»: новая строка в конце ДДС, уходит на сервер тем же путём (POST /dds),
+// строка подсвечивается. Пустой черновик в конце заменяется ею
+window.fxInsertOp = function(vals){
+  if(!FX.editable) return null;
+  if(FX.ed) commitEdit(false);
+  var last = FX.view[FX.view.length - 1];
+  if(last && !last.id && !hasContent(last)){ var li = FX.rows.indexOf(last); if(li >= 0) FX.rows.splice(li, 1); FX.view.pop(); delete FX.byKey[last.key]; }
+  var r = newRow(vals); insertRows([r]);
+  if(FX.drill && FX.drill.keys) FX.drill.keys[r.key] = 1; // строки из P&L на экране: новая тоже видна
+  FX.hl = r.key; clearTimeout(FX._hlT);
+  FX._hlT = setTimeout(function(){ FX.hl = null; if(isOpen() && FX.tab === 'dds') renderRows(); }, 4500);
+  FX.a = {r: FX.view.indexOf(r), c: colIdx(r.income ? 'income' : 'expense')}; FX.b = Object.assign({}, FX.a); FX.rowsMode = false;
+  if(isOpen() && FX.tab === 'dds'){ scrollToCell(FX.a.r, FX.a.c); renderRows(); }
+  statusPaint();
+  return r.key;
+};
+// R36a: статьи для выбора: из P&L (одна запись на статью, без вариантов написания), потом встречавшиеся в ДДС не из P&L.
+// rn: сколько раз статья была за последние 120 дней (частые наверху)
+function catList(k){
+  var i = FX.info || {}, base = k === 'incomeCat' ? (i.incomeRows || []).slice() : (i.expenseRows || []).concat(['Дивиденды']);
+  var by = {}, out = [], extra = [], d = new Date(Date.now() - 120 * 864e5);
+  var since = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  base.forEach(function(n){ var c = normCat(n); if(!c || by[c]) return; by[c] = {v: S(n).trim(), h: c.indexOf('дивиденд') >= 0 ? 'ниже прибыли' : '', n: 0, rn: 0}; out.push(by[c]); });
+  FX.rows.forEach(function(r){
+    var v = S(r[k]).trim(); if(!v) return;
+    var c = normCat(v), x = by[c];
+    if(!x){ x = by[c] = {v: v, h: c.indexOf('дивиденд') >= 0 ? 'дивиденды' : 'в P&L: Прочие', n: 0, rn: 0, ex: 1}; extra.push(x); }
+    x.n++; if(S(r.date) >= since) x.rn++;
+  });
+  extra.sort(function(a, b){ return b.n - a.n; });
+  return out.concat(extra);
+}
+function catTop(list, n){ return list.filter(function(x){ return x.rn; }).sort(function(a, b){ return b.rn - a.rn; }).slice(0, n || 5); }
+window.fxCatList = catList; window.fxCatTop = catTop; window.fxListFor = function(k){ return listFor(k); };
+window.fxParseMoney = function(s){ return parseMoney(s); }; window.fxParseDate = function(s){ return parseDate(s); };
+// R36a: в суммах только цифры: буквы не вводятся, тысячи отделяются пробелом прямо при вводе
+function moneyInput(inp){
+  var v = inp.value, ok = v.replace(/[^\d\s ,.]/g, '');
+  var bad = ok !== v;
+  if(!/[,.]/.test(ok)){
+    var pos = inp.selectionStart == null ? ok.length : inp.selectionStart, dig = v.slice(0, pos).replace(/\D/g, '').length;
+    var raw = ok.replace(/\D/g, '').replace(/^0+(?=\d)/, ''), f = raw.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    if(f !== v){ inp.value = f; var p = 0, seen = 0; while(p < f.length && seen < dig){ if(/\d/.test(f[p])) seen++; p++; } try{ inp.setSelectionRange(p, p); }catch(e){} }
+  } else if(bad) inp.value = ok;
+  if(bad){ inp.classList.add('bad'); clearTimeout(inp._bt); inp._bt = setTimeout(function(){ inp.classList.remove('bad'); }, 700); }
+  return bad;
+}
+window.fxMoneyInput = moneyInput;
 
 // ── Редактор ячейки ──
 function listFor(k){
@@ -29951,13 +30004,17 @@ function startEdit(ch){
   if(c.t === 'money') inp.inputMode = 'decimal';
   var val = c.t === 'money' ? (row[c.k] ? nf(row[c.k]) : '') : (c.t === 'date' ? dmy(row.date) : S(row[c.k]));
   inp.value = ch != null ? ch : val;
-  FX.ed = {r: FX.a.r, c: FX.a.c, key: row.key, inp: inp, typed: ch != null, sug: null, si: -1};
+  // R36a: статья, резидент, счёт открываются списком с поиском: поле пустое, текущее значение подсказкой
+  var pick = c.t === 'cat' && ch == null;
+  if(pick){ inp.value = ''; inp.placeholder = val || (c.k === 'resident' ? 'Найти резидента' : (c.k === 'account' ? 'Счёт' : 'Найти статью')); inp.classList.add('pk'); }
+  FX.ed = {r: FX.a.r, c: FX.a.c, key: row.key, inp: inp, typed: ch != null, sug: null, si: -1, pick: pick, cur: val};
   document.getElementById('fxIn').appendChild(inp);
   placeEditor();
   inp.focus();
+  if(c.t === 'money' && ch != null) moneyInput(inp); // буква вместо цифры не попадает в сумму
   if(ch == null) try{ inp.setSelectionRange(inp.value.length, inp.value.length); }catch(e){}
   inp.addEventListener('keydown', edKey);
-  inp.addEventListener('input', function(){ inp.classList.remove('bad'); if(c.t === 'cat') sugPaint(); });
+  inp.addEventListener('input', function(){ inp.classList.remove('bad'); if(c.t === 'cat') sugPaint(); if(c.t === 'money') moneyInput(inp); });
   inp.addEventListener('blur', function(){ setTimeout(function(){ if(FX.ed && FX.ed.inp === inp && document.activeElement !== inp) commitEdit(false, true); }, 120); });
   if(c.t === 'cat') sugPaint();
 }
@@ -29970,21 +30027,37 @@ function placeEditor(){
   ed.inp.style.left = td.offsetLeft + 'px'; ed.inp.style.top = (td.offsetTop) + 'px';
   ed.inp.style.width = w + 'px'; ed.inp.style.height = td.offsetHeight + 'px';
   if(COLS[ed.c].t === 'money') ed.inp.style.textAlign = 'right';
-  if(ed.sug){ ed.sug.style.left = td.offsetLeft + 'px'; ed.sug.style.top = (td.offsetTop + td.offsetHeight + 2) + 'px'; }
+  if(ed.sug){
+    ed.sug.style.left = td.offsetLeft + 'px'; ed.sug.style.top = (td.offsetTop + td.offsetHeight + 2) + 'px';
+    // R36a: у нижних строк список открывается вверх, чтобы не уходить под край таблицы
+    var g = document.getElementById('fxGrid'), sh = ed.sug.offsetHeight;
+    if(g && sh && td.offsetTop + td.offsetHeight + sh + 4 > g.scrollTop + g.clientHeight - 36 && td.offsetTop - sh - 2 > g.scrollTop + 30) ed.sug.style.top = (td.offsetTop - sh - 2) + 'px';
+  }
 }
 function sugPaint(){
   var ed = FX.ed; if(!ed) return;
-  var k = COLS[ed.c].k, q = normCat(ed.inp.value), all = listFor(k);
+  var k = COLS[ed.c].k, q = normCat(ed.inp.value), art = k === 'incomeCat' || k === 'expenseCat', all = art ? catList(k) : listFor(k);
   var list = q ? all.filter(function(x){ return normCat(x.v).indexOf(q) >= 0; }) : all;
   if(q) list.sort(function(a, b){ return (normCat(a.v).indexOf(q) === 0 ? 0 : 1) - (normCat(b.v).indexOf(q) === 0 ? 0 : 1); });
-  list = list.slice(0, 40);
+  // R36a: без поиска сначала частые статьи, потом все (как выпадающий список)
+  var top = !q && art ? catTop(all, 5) : [], groups = null;
+  if(top.length){ var tk = {}; top.forEach(function(x){ tk[x.v] = 1; }); list = top.concat(all.filter(function(x){ return !tk[x.v]; })); groups = [[0, 'Частые'], [top.length, 'Все статьи']]; }
+  list = list.slice(0, art ? 80 : 40);
   if(!ed.sug){ ed.sug = document.createElement('div'); ed.sug.className = 'fx-sug'; document.getElementById('fxIn').appendChild(ed.sug);
-    ed.sug.addEventListener('mousedown', function(e){ var d = e.target.closest('[data-i]'); if(!d) return; e.preventDefault(); ed.inp.value = ed.list[+d.dataset.i].v; commitEdit(false); }); }
+    ed.sug.addEventListener('mousedown', function(e){ var d = e.target.closest('[data-i]'); if(!d){ e.preventDefault(); return; } e.preventDefault(); ed.inp.value = ed.list[+d.dataset.i].v; commitEdit(false); }); }
   ed.list = list; ed.si = q && list.length ? 0 : -1;
   if(list.length === 1 && normCat(list[0].v) === q) ed.si = 0;
-  ed.sug.style.display = list.length ? '' : 'none';
-  ed.sug.innerHTML = list.map(function(x, i){ return '<div data-i="' + i + '" class="' + (i === ed.si ? 'on' : '') + '">' + E(x.v) + (x.h ? '<small>' + E(x.h) + '</small>' : '') + '</div>'; }).join('');
+  var curN = normCat(ed.cur);
+  if(!q && ed.pick && curN) list.forEach(function(x, i){ if(ed.si < 0 && normCat(x.v) === curN) ed.si = i; });
+  ed.sug.classList.toggle('art', art);
+  ed.sug.style.display = list.length || (q && art) ? '' : 'none';
+  var hue = function(x){ return art ? '<i class="fx-sd' + (normCat(x.v).indexOf('дивиденд') >= 0 ? ' dv' : '') + '" style="--h:' + catHue(x.v, k === 'incomeCat' ? 'inc' : 'exp') + '"></i>' : ''; };
+  ed.sug.innerHTML = list.map(function(x, i){
+    var g = groups && groups.filter(function(gg){ return gg[0] === i; })[0];
+    return (g ? '<p>' + g[1] + '</p>' : '') + '<div data-i="' + i + '" class="' + (i === ed.si ? 'on' : '') + (curN && normCat(x.v) === curN ? ' cur' : '') + '">' + hue(x) + '<span>' + E(x.v) + '</span>' + (x.h ? '<small>' + E(x.h) + '</small>' : '') + '</div>';
+  }).join('') + (!list.length && q && art ? '<p class="no">Такой статьи нет. Статьи берутся из P&L</p>' : '');
   placeEditor();
+  if(ed.si >= 0){ var on = ed.sug.querySelector('[data-i="' + ed.si + '"]'); if(on) ed.sug.scrollTop = Math.max(0, on.offsetTop - ed.sug.clientHeight / 2); }
 }
 function sugMove(d){
   var ed = FX.ed; if(!ed || !ed.list || !ed.list.length || ed.sug.style.display === 'none') return false;
@@ -30025,7 +30098,22 @@ function commitEdit(dir, fromBlur){
   var ed = FX.ed; if(!ed) return true;
   var c = COLS[ed.c], row = FX.byKey[ed.key];
   var raw = ed.inp.value;
-  if(c.t === 'cat' && ed.si >= 0 && ed.list && ed.list[ed.si] && !fromBlur && normCat(raw) && normCat(ed.list[ed.si].v).indexOf(normCat(raw)) >= 0) raw = ed.list[ed.si].v;
+  // R36a: статья только из списка (P&L и уже встречавшиеся); пустой поиск в списке оставляет прежнее значение
+  if(c.t === 'cat'){
+    var nq = normCat(raw), art = c.k === 'incomeCat' || c.k === 'expenseCat', hit = ed.si >= 0 && ed.list && ed.list[ed.si];
+    if(!nq && ed.pick){
+      if(hit && !fromBlur) raw = ed.list[ed.si].v;
+      else { closeEditor(); renderRows(); if(!fromBlur) focusGrid(); return true; }
+    } else if(nq){
+      var ex = art ? catList(c.k).filter(function(x){ return normCat(x.v) === nq; })[0] : null;
+      if(ex) raw = ex.v;
+      else if(hit && !fromBlur && normCat(ed.list[ed.si].v).indexOf(nq) >= 0) raw = ed.list[ed.si].v;
+      else if(art){
+        if(fromBlur){ closeEditor(); renderRows(); toast('Статья не сохранена: выберите её из списка'); return false; }
+        ed.inp.classList.add('bad'); toast('Выберите статью из списка'); return false;
+      }
+    }
+  }
   var v = parseCell(c, raw);
   if(v === null){
     if(fromBlur){ closeEditor(); toast(c.t === 'date' ? 'Дата не сохранена: нужна в виде 30.09.2026' : 'Сумма не сохранена: нужно число'); return false; }
@@ -30261,12 +30349,12 @@ function plHTML(){
   if(lost.length) chips.push('<span class="fx-chip warn" onclick="fxDrillUnknown(0)">' + lost.length + ' ' + plural(lost.length, 'строка', 'строки', 'строк') + ' ДДС без статьи ' + plural(lost.length, 'не попала', 'не попали', 'не попали') + ' в P&L: ' + nf(lost.reduce(function(a, u){ return a + u.amount; }, 0)) + '</span>');
   if(other.length) chips.push('<span class="fx-chip" onclick="fxDrillUnknown(1)">' + other.length + ' ' + plural(other.length, 'строка', 'строки', 'строк') + ' со статьёй не из P&L ' + plural(other.length, 'ушла', 'ушли', 'ушли') + ' в «Прочие»</span>');
   if(chips.length) h += '<div class="fx-note">' + chips.join('') + '</div>';
-  h += '<div class="fx-fx" id="fxFx"><b>fx</b><span id="fxFxT"><em>Наведите на строку или ячейку: здесь будет формула. Нажмите на сумму, чтобы увидеть строки ДДС за ней</em></span></div>';
+  // R36a: строки формул нет; по клику на сумму открываются строки ДДС за ней
   h += '<div class="fxp" id="fxP"><table><thead><tr><th class="nm">Статья</th>' + d.cols.map(function(m){ return '<th class="' + (m === curM ? 'cur' : '') + '">' + MN[m - 1] + '</th>'; }).join('') +
     '<th class="yr">' + (d.cols.length > 1 ? 'Итого' : MN[d.cols[0] - 1]) + '</th></tr></thead><tbody>';
   L.forEach(function(l, li){
     if(l.t === 'hd'){ h += '<tr class="hd ' + (l.k || '') + '"><td class="nm">' + l.n + '</td>' + d.cols.map(function(m){ return '<td' + (m === curM ? ' class="cur"' : '') + '></td>'; }).join('') + '<td class="yr"></td></tr>'; return; }
-    var fq = l.id ? '<span class="fq">f</span>' : '';
+    var fq = ''; // R36a: значок формулы убран
     // R34b: строки итогов в цвете; у прибыли, рентабельности, остатка и кассы плюс зелёный, минус красный
     var sg = l.id === 'profit' || l.id === 'margin' || l.id === 'rest' || l.id === 'cash';
     var dot = l.t === 'it' && (l.kind === 'inc' || l.kind === 'exp') ? '<i class="fx-dot ' + l.kind + '" style="--h:' + catHue(l.n, l.kind) + '"></i>' : '';
@@ -30324,15 +30412,9 @@ function drillKeys(l, m){
 }
 function mountPL(){
   var t = document.getElementById('fxP'); if(!t) return;
-  // Таблица прокручивается внутри: строка формул и шапка месяцев остаются на виду
+  // Таблица прокручивается внутри: шапка месяцев остаётся на виду (R36a: формулы при наведении не показываются)
   if(window.innerWidth > 640) t.style.maxHeight = Math.max(320, window.innerHeight - t.getBoundingClientRect().top - 60) + 'px';
-  var fx = document.getElementById('fxFxT');
   function at(e){ var td = e.target.closest('td'); var tr = td && td.closest('tr[data-l]'); if(!tr) return null; return {td: td, l: FX._pl.L[+tr.dataset.l], m: td.dataset.m != null ? +td.dataset.m : null}; }
-  t.addEventListener('mouseover', function(e){
-    var x = at(e); if(!x || !fx) return;
-    if(x.m === null){ fx.innerHTML = E(x.l.n) + ' ' + (x.l.id ? '<em>' + (PL_F[x.l.id] || '') + '</em>' : '<em>= сумма строк ДДС со статьёй «' + E(x.l.n) + '»</em>'); return; }
-    fx.innerHTML = cellFormula(x.l, x.m);
-  });
   t.addEventListener('click', function(e){
     var x = at(e); if(!x || x.m === null || x.l.id === 'cash' || x.l.id === 'margin' || x.l.nodrill) return;
     t.querySelectorAll('td.v.on').forEach(function(c){ c.classList.remove('on'); }); x.td.classList.add('on');
@@ -30355,7 +30437,8 @@ function openDrill(l, m, keys, title, sub, notes){
   if(!dr){ dr = document.createElement('div'); dr.id = 'fxDr'; dr.className = 'fx-dr'; document.body.appendChild(dr); }
   dr.innerHTML = '<button class="fx-btn ic fxd-x" onclick="fxDrillClose()" aria-label="Закрыть">✕</button><div class="fxd-h"><div class="fxd-t">' + E(title) + '</div>' +
     '<div class="fxd-s">' + (sub || (rows.length + ' ' + plural(rows.length, 'строка', 'строки', 'строк') + ' ДДС' + (val !== null && val !== undefined ? ' · ' + fmtPL(val, l && l.pct) : ''))) + '</div>' +
-    (l && m ? '<div class="fxd-f">' + cellFormula(l, m).replace(/<[^>]+>/g, '') + '</div>' : '') + '</div>' +
+    '</div>' + // R36a: формула в разборе ячейки не показывается
+
     '<div class="fxd-b">' + (rows.length ? rows.map(function(r){ return rowLineHTML(r, (notes && notes[r.key]) || unk[r.key]); }).join('') : '<div class="fx-empty" style="margin:12px 6px">Строк нет</div>') + '</div>' +
     '<div class="fxd-f2"><span class="fx-st">' + (FX.editable ? 'Править строки можно в ДДС' : '') + '</span>' + (rows.length ? '<button class="fx-btn pri" onclick="fxDrillToDDS()">Открыть в ДДС</button>' : '') + '</div>';
   FX._drill = {keys: rows.map(function(r){ return r.key; }), t: title};
@@ -30485,11 +30568,11 @@ function oddsLines(d){
 function oddsHTML(){
   var d = plData(), L = oddsLines(d), now = new Date(), curM = now.getFullYear() === d.year ? now.getMonth() + 1 : 0;
   FX._pl = {d: d, L: L};
-  var h = '<div class="fx-fx" id="fxFx"><b>fx</b><span id="fxFxT"><em>Наведите на ячейку: здесь будет формула. Нажмите на поступления, выплаты или дивиденды, чтобы увидеть строки ДДС</em></span></div>';
+  var h = ''; // R36a: без строки формул; клик по поступлениям, выплатам, дивидендам открывает строки ДДС
   h += '<div class="fxp odds" id="fxP"><table><thead><tr><th class="nm">Движение денег</th>' + d.cols.map(function(m){ return '<th class="' + (m === curM ? 'cur' : '') + '">' + MN[m - 1] + '</th>'; }).join('') +
     '<th class="yr">' + (d.cols.length > 1 ? 'Итого' : MN[d.cols[0] - 1]) + '</th></tr></thead><tbody>';
   L.forEach(function(l, li){
-    h += '<tr class="' + l.t + ' o-' + l.id + (l.nodrill ? ' nd' : '') + '" data-l="' + li + '"><td class="nm">' + E(l.n) + '<span class="fq">f</span></td>';
+    h += '<tr class="' + l.t + ' o-' + l.id + (l.nodrill ? ' nd' : '') + '" data-l="' + li + '"><td class="nm">' + E(l.n) + '</td>';
     d.cols.forEach(function(m){ var v = l.v(m); h += '<td class="v' + (m === curM ? ' cur' : '') + (v < 0 ? ' neg' : (v > 0 ? ' pos' : '')) + (!v ? ' z' : '') + '" data-m="' + m + '">' + (v === null ? '' : fmtPL(v)) + '</td>'; });
     var y = yearVal(l, d);
     h += '<td class="v yr' + (y < 0 ? ' neg' : (y > 0 ? ' pos' : '')) + '" data-m="0">' + (y === null || y === undefined ? '' : fmtPL(y)) + '</td></tr>';
@@ -30902,7 +30985,7 @@ var MERGE = {
     {n: 'Скрипты', ids: ['scripts', 'crmPrompts'], sub: {scripts: 'Скрипты', crmPrompts: 'Промпты ИИ'}}
   ]
 };
-var GROUPED = {club: 1, sales: 1};
+var GROUPED = {club: 1, sales: 1, mkt: 1}; // R36a: «Маркетинг» тоже одним пунктом с вкладками сверху
 function blkOf(s){ return Object.keys(GROUPED).find(function(k){ return BLOCKS[k] && BLOCKS[k].tabs.some(function(t){ return t.id === s; }); }) || ''; }
 function grpOf(blk, s){ return (MERGE[blk] || []).find(function(g){ return g.ids.indexOf(s) >= 0; }) || null; }
 function isOn(){ return typeof MODE !== 'undefined' && MODE === 'admin' && typeof section !== 'undefined' && !!blkOf(section); }
@@ -30981,7 +31064,28 @@ function salesKpi(){
     {k: 'paid', c: 'c-cash', l: 'Оплачено за ' + MS[d.getMonth()], v: nf(paidM.length), s: price ? 'разборов на ' + money(paidM.length * price) : 'разборов', go: "goSection('bookSlots')"}
   ];
 }
-var KPI = {club: clubKpi, sales: salesKpi};
+// R36a: Маркетинг. Посты недели (вышло из плана), лиды из контента, лучший источник, идеи в очереди
+function mktKpi(){
+  var D = (typeof mhData === 'function') ? mhData() : null; if(!D) return [];
+  var live = D.items.filter(function(x){ return x.status !== 'skipped'; }), pub = live.filter(function(x){ return x.status === 'published'; }).length;
+  var CS = {threads: 1, tgch: 1, ig: 1, guide: 1};
+  var cw = 0, cp = 0; Object.keys(CS).forEach(function(k){ cw += D.src[k].cur; cp += D.src[k].prev; });
+  // Лиды из контента по неделям (8 недель) для графика
+  var ser = [], m0 = czMonday(D.t);
+  for(var i = 7; i >= 0; i--){
+    var a = czAddDays(m0, -7 * i), b = czAddDays(a, 6);
+    ser.push(D.leads.filter(function(l){ if(!l || !CS[mhSrc(l.source)]) return false; var d = mhLeadDay(l); return d && d >= a && d <= b; }).length);
+  }
+  var best = null; MH_SRC.forEach(function(s){ var v = D.src[s.id].cur; if(v && (!best || v > D.src[best.id].cur)) best = s; });
+  var bv = best ? D.src[best.id].cur : 0, all = D.wk.length;
+  return [
+    {k: 'posts', c: 'c-pro', l: 'Посты за неделю', v: live.length ? nf(pub) + '<small>из ' + nf(live.length) + '</small>' : '0', s: live.length ? (live.length - pub ? 'ещё ' + nf(live.length - pub) + ' по плану' : 'всё вышло') : 'плана на неделю нет', go: "CT.view='cal';CT._v0=1;goSection('content')"},
+    {k: 'cleads', c: 'c-in', l: 'Лиды из контента', v: nf(cw), d: dchip(cw, cp, true, 'к прошлой'), s: 'посты и чек-листы', sp: spk(ser, 'var(--fc-in)', 'm'), go: "CT.view='an';CT._v0=1;goSection('content')"},
+    {k: 'best', c: 'c-mg', l: 'Лучший источник', v: best ? E(best.n) : 'нет лидов', cls: best ? 'txt' : 'txt z', s: best ? nf(bv) + ' ' + pl(bv, 'лид', 'лида', 'лидов') + ' за неделю' + (all ? ' · ' + Math.round(bv / all * 100) + '% всех' : '') : 'за эту неделю', go: "goSection('leads')"},
+    {k: 'ideas', c: 'c-cash', l: 'Идеи в очереди', v: nf(D.ideas), s: D.ideas ? 'ждут даты в календаре' : 'очередь пуста', go: "CT.view='ideas';CT._v0=1;goSection('content')"}
+  ];
+}
+var KPI = {club: clubKpi, sales: salesKpi, mkt: mktKpi};
 window.bkDebtors = function(){ try{ srF = 'debt'; }catch(e){} goSection('sRes'); };
 // Счётчики у вкладок
 function badge(id){
@@ -30990,6 +31094,7 @@ function badge(id){
     if(id === 'fines'){ var u = (FINES || []).filter(function(f){ return !/^оплатил/i.test(String(f.status || '').trim()); }).length; return u ? {n: u, red: 1} : null; }
     if(id === 'leads'){ if(!CRM) loadCRM(); var a = CRM.leads.filter(function(l){ return ['won', 'lost'].indexOf(l.col) < 0; }).length; return a ? {n: a} : null; }
     if(id === 'aReports'){ var y0 = new Date(); y0 = new Date(y0.getFullYear(), y0.getMonth(), y0.getDate() - 1).getTime(); var no = (boards || []).filter(function(b){ return !(b.report && b.report.sentAt && Date.parse(b.report.sentAt) >= y0); }).length; return no ? {n: no, red: 1} : null; }
+    if(id === 'sCreo'){ var cr = r8Groups('creo').length; return cr ? {n: cr} : null; } // R36a
   }catch(e){}
   return null;
 }
@@ -31014,7 +31119,7 @@ function paint(){
   var el = bar(); if(!el) return;
   var on = isOn();
   document.body.classList.toggle('bk-on', on);
-  if(!on){ if(el.innerHTML) el.innerHTML = ''; return; }
+  if(!on){ if(el.innerHTML) el.innerHTML = ''; el._h = ''; return; } // R36a: при возврате в тот же раздел полоса рисуется заново
   var blk = blkOf(section);
   if(curBlock !== blk){ curBlock = blk; try{ renderSide(); }catch(e){} }
   painting = true;
@@ -31051,6 +31156,10 @@ function actions(){
   // CRM: «История», «Выбрать», «Импорт базы», «+ Новый лид» из строки фильтров в шапку
   var cb = body.querySelector('.cx-bar');
   if(cb) Array.prototype.slice.call(cb.querySelectorAll(':scope > button.btn')).forEach(function(b){ b.classList.add('bk-a'); pa.appendChild(b); });
+  // R36a: у «Обзора» маркетинга своих кнопок нет: календарь и новая идея в шапке
+  if(section === 'mHome' && !pa.querySelector('[data-mk]'))
+    pa.innerHTML = '<button type="button" class="bk-a" data-mk="cal" onclick="CT.view=\'cal\';CT._v0=1;goSection(\'content\')">Контент-план</button>' +
+      '<button type="button" class="bk-a pri" data-mk="idea" onclick="editPost(null)">+ Идея</button>';
 }
 // Перетаскивание вкладок: порядок пишется туда же, куда раньше писал список в меню (bs_order.tab_<блок>)
 function tabDrag(el){
@@ -31113,6 +31222,715 @@ try{ if(typeof section !== 'undefined') paint(); }catch(e){}
 })();
 </script>
 <!-- /R34b -->
+<!-- R36a: «Маркетинг» одним пунктом с вкладками сверху; форма операции в ДДС (как в приложении), статья выбирается из списка; формулы в P&L и ОДДС не показываются -->
+<style id="r36aStyle">
+/* ═══ Маркетинг: крупные цифры в полосе сверху, внутри «Обзора» не повторяются ═══ */
+body.bk-on .mh-kpis{display:none}
+.fx-kv.txt{font-size:20px;letter-spacing:-.4px;overflow:hidden;text-overflow:ellipsis}
+.fx-kv.txt.z{color:var(--pm)}
+/* ═══ ДДС: кнопки «+ Приход» и «+ Расход» ═══ */
+.fx-btn.fx-op{gap:7px;display:inline-flex;align-items:center}
+.fx-btn.fx-op b{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:6px;font-size:14px;font-weight:900;line-height:1}
+.fx-btn.fx-op.in b{color:var(--fc-in);background:color-mix(in srgb,var(--fc-in) 16%,transparent)}
+.fx-btn.fx-op.ex b{color:var(--fc-out);background:color-mix(in srgb,var(--fc-out) 16%,transparent)}
+.fx-btn.fx-op.in:hover{border-color:color-mix(in srgb,var(--fc-in) 60%,var(--pi))}
+.fx-btn.fx-op.ex:hover{border-color:color-mix(in srgb,var(--fc-out) 60%,var(--pi))}
+/* ═══ ДДС: только что добавленная строка ═══ */
+#fxRoot .fxt tr.hl td:not(.fx-rn){background:color-mix(in srgb,var(--fc-pro) 17%,transparent)!important;animation:fxoHl 1.6s ease-out 1}
+#fxRoot .fxt tr.hl td.fx-rn{box-shadow:inset 3px 0 0 var(--fc-pro);color:var(--fc-pro)}
+@keyframes fxoHl{0%{background:color-mix(in srgb,var(--fc-pro) 42%,transparent)}100%{background:color-mix(in srgb,var(--fc-pro) 17%,transparent)}}
+/* ═══ ДДС: статья, резидент, счёт выбираются из списка ═══ */
+#fxRoot .fxt td.dd{position:relative;padding-right:26px}
+#fxRoot .fxt td .fx-dd{position:absolute;right:5px;top:50%;width:18px;height:18px;margin-top:-9px;border-radius:5px;cursor:pointer;opacity:0;transition:opacity .12s}
+#fxRoot .fxt td .fx-dd:before{content:'';position:absolute;left:6px;top:4px;width:5px;height:5px;border-right:1.7px solid var(--pm);border-bottom:1.7px solid var(--pm);transform:rotate(45deg)}
+#fxRoot .fxt td.dd:hover .fx-dd,#fxRoot .fxt td.dd.act .fx-dd{opacity:1}
+#fxRoot .fxt td .fx-dd:hover{background:color-mix(in srgb,var(--ptx) 10%,transparent)}
+#fxRoot .fxt td .fx-dd:hover:before{border-color:var(--ptx)}
+.fx-ed.pk{padding-left:30px;background-image:radial-gradient(circle at 13px 50%,transparent 4px,var(--pm) 4.6px,transparent 5.6px);background-repeat:no-repeat}
+.fx-ed.pk::placeholder{color:var(--pm);opacity:1;font-weight:700}
+.fx-sug.art{min-width:270px;max-height:330px;padding:6px}
+.fx-sug p{margin:6px 8px 4px;font-size:10.5px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;color:var(--pm)}
+.fx-sug p.no{text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:700;margin:10px 8px;white-space:normal}
+.fx-sug div{display:flex;align-items:center;gap:9px}
+.fx-sug div span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.fx-sug div small{margin-left:auto;font-size:11px;font-weight:700}
+.fx-sug div.cur:after{content:'';flex-shrink:0;width:9px;height:5px;border-left:2px solid var(--ptx);border-bottom:2px solid var(--ptx);transform:rotate(-45deg) translate(1px,-2px)}
+.fx-sd{flex-shrink:0;width:8px;height:8px;border-radius:3px;background:hsl(var(--h) 62% 55%)}
+.fx-sd.dv{background:var(--fc-cash)}
+/* ═══ Форма операции ═══ */
+.fxo-bg{position:fixed;inset:0;z-index:8400;background:rgba(0,0,0,.42);opacity:0;pointer-events:none;transition:opacity .18s}
+.fxo-bg.on{opacity:1;pointer-events:auto}
+.fxo{--tc:var(--fc-in);position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);z-index:8500;background:var(--pc);border-left:1px solid var(--pb);
+  box-shadow:-24px 0 60px rgba(0,0,0,.4);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .22s cubic-bezier(.2,.8,.2,1);font-family:'Manrope',sans-serif;color:var(--ptx)}
+.fxo.on{transform:none}
+.fxo.ex{--tc:var(--fc-out)}
+.fxo:before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:var(--tc);opacity:.9}
+.fxo-h{padding:20px 22px 14px;position:relative;border-bottom:1px solid var(--ph)}
+.fxo-t{font-size:19px;font-weight:900;letter-spacing:-.4px;display:flex;align-items:baseline;gap:10px;padding-right:44px}
+.fxo-t small{font-size:12.5px;font-weight:700;color:var(--pm);letter-spacing:0}
+.fxo-x{position:absolute;top:14px;right:16px}
+.fxo-ok{margin-top:10px;display:none;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--ptx);background:color-mix(in srgb,var(--fc-pro) 13%,transparent);border:1px solid color-mix(in srgb,var(--fc-pro) 32%,transparent);border-radius:10px;padding:7px 11px}
+.fxo-ok.on{display:flex}
+.fxo-ok i{width:8px;height:8px;border-radius:50%;background:var(--fc-pro);flex-shrink:0}
+.fxo-sw{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;border:1px solid var(--pi);background:var(--pd);margin-top:16px}
+.fxo-sw button{appearance:none;border:none;background:none;height:38px;border-radius:9px;font:800 14px 'Manrope',sans-serif;color:var(--pm);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.fxo-sw button i{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.55}
+.fxo-sw button:hover{color:var(--ptx)}
+.fxo-sw button.on.in{background:color-mix(in srgb,var(--fc-in) 17%,var(--pc));color:var(--fc-in);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fc-in) 40%,transparent)}
+.fxo-sw button.on.ex{background:color-mix(in srgb,var(--fc-out) 15%,var(--pc));color:var(--fc-out);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fc-out) 40%,transparent)}
+.fxo-sw button.on i{opacity:1}
+.fxo-b{flex:1;overflow:auto;padding:6px 22px 18px;overscroll-behavior:contain}
+.fxo-l{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:11px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;color:var(--pm);margin:15px 0 7px}
+.fxo-l small{font-size:11.5px;font-weight:700;letter-spacing:0;text-transform:none}
+.fxo-amt{display:flex;align-items:center;border:1px solid var(--pi);border-radius:14px;background:var(--pd);padding:0 16px;height:62px;transition:border-color .15s,box-shadow .15s}
+.fxo-amt:focus-within{border-color:var(--tc);box-shadow:0 0 0 3px color-mix(in srgb,var(--tc) 18%,transparent)}
+.fxo-amt input{flex:1;min-width:0;border:none;outline:none;background:none;color:var(--ptx);font:900 30px 'Manrope',sans-serif;letter-spacing:-.8px;font-variant-numeric:tabular-nums;padding:0}
+.fxo-amt input::placeholder{color:color-mix(in srgb,var(--pm) 55%,transparent)}
+.fxo-amt span{font-size:22px;font-weight:800;color:var(--pm);margin-left:8px}
+.fxo-amt.bad{border-color:var(--pred)}
+.fxo-amt b{font-size:22px;font-weight:900;color:var(--tc);margin-right:6px}
+.fxo-err{display:none;font-size:12px;font-weight:700;color:var(--pred);margin-top:6px}
+.fxo-err.on{display:block}
+.fxo-fee{display:none;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;font-weight:700;color:var(--pm);cursor:pointer;user-select:none}
+.fxo-fee.on{display:flex}
+.fxo-fee .ck{width:18px;height:18px;border-radius:6px;border:1.5px solid var(--pi);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--pd)}
+.fxo-fee.y .ck{background:var(--pon);border-color:var(--pon)}
+.fxo-fee.y .ck:after{content:'';width:8px;height:4px;border-left:2px solid var(--pontx);border-bottom:2px solid var(--pontx);transform:rotate(-45deg) translate(1px,-1px)}
+.fxo-fee b{color:var(--ptx)}
+.fxo-q{width:100%;box-sizing:border-box;height:38px;border-radius:10px;border:1px solid var(--pi);background:var(--pd);color:var(--ptx);font:600 13.5px 'Manrope',sans-serif;padding:0 12px 0 34px;outline:none;
+  background-image:radial-gradient(circle at 17px 50%,transparent 4.5px,var(--pm) 5px,transparent 6.2px);background-repeat:no-repeat}
+.fxo-q:focus{border-color:var(--pm)}
+.fxo-gh{font-size:10.5px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;color:var(--pm);margin:12px 0 7px}
+.fxo-cg{display:flex;flex-wrap:wrap;gap:7px}
+.fxo-c{appearance:none;display:inline-flex;align-items:center;gap:8px;max-width:100%;box-sizing:border-box;height:34px;padding:0 12px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--pi);background:var(--pc);color:var(--ptx);font:700 13px 'Manrope',sans-serif;white-space:nowrap;transition:border-color .12s,background .12s}
+.fxo-c span{overflow:hidden;text-overflow:ellipsis}
+.fxo-c i{width:9px;height:9px;border-radius:3px;flex-shrink:0;background:hsl(var(--h) 62% 55%)}
+.fxo-c i.dv{background:var(--fc-cash)}
+.fxo-c small{font-size:11px;font-weight:700;color:var(--pm)}
+.fxo-c:hover,.fxo-c.hi{border-color:hsl(var(--h) 55% 50% / .7)}
+.fxo-c.on{background:hsl(var(--h) 65% 52% / .16);border-color:hsl(var(--h) 60% 55%);color:hsl(var(--h) var(--fc-s) var(--fc-l))}
+.fxo-c.on small{color:inherit;opacity:.75}
+.fxo-c:focus-visible{outline:2px solid var(--ptx);outline-offset:1px}
+.fxo-cats{max-height:258px;overflow:auto;overscroll-behavior:contain;margin:0 -4px;padding:0 4px 4px;scrollbar-width:thin}
+.fxo-none{font-size:12.5px;font-weight:700;color:var(--pm);padding:10px 2px}
+.fxo-cats.bad .fxo-c{border-color:color-mix(in srgb,var(--pred) 45%,var(--pi))}
+.fxo-in{width:100%;box-sizing:border-box;height:42px;border-radius:11px;border:1px solid var(--pi);background:var(--pd);color:var(--ptx);font:600 14px 'Manrope',sans-serif;padding:0 12px;outline:none;color-scheme:dark}
+body.light .fxo-in{color-scheme:light}
+.fxo-in:focus{border-color:var(--pm)}
+.fxo-in.bad{border-color:var(--pred)}
+.fxo-combo{position:relative}
+.fxo-dd{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:3;background:var(--pc);border:1px solid var(--pb);border-radius:11px;box-shadow:0 12px 34px rgba(0,0,0,.35);max-height:220px;overflow:auto;padding:4px;display:none}
+.fxo-dd.on{display:block}
+.fxo-dd div{padding:8px 10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fxo-dd div.on,.fxo-dd div:hover{background:var(--ph)}
+.fxo-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fxo-row .fxo-l{margin-top:18px}
+.fxo-qd{display:flex;gap:6px;margin-top:7px}
+.fxo-qd b,.fxo-seg b{font-size:12px;font-weight:800;color:var(--pm);padding:4px 9px;border-radius:7px;border:1px solid var(--pi);cursor:pointer;white-space:nowrap}
+.fxo-qd b:hover,.fxo-seg b:hover{color:var(--ptx)}
+.fxo-qd b.on{color:var(--ptx);border-color:var(--pm)}
+.fxo-seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border-radius:11px;border:1px solid var(--pi);background:var(--pd);height:42px;box-sizing:border-box}
+.fxo-seg b{display:flex;align-items:center;justify-content:center;border:none;border-radius:8px;padding:0 6px;font-size:13px}
+.fxo-seg b.on{background:var(--pon);color:var(--pontx)}
+.fxo.ro .fxo-row>div:first-child,.fxo.ro #fxoCmW{display:none}
+.fxo.ro .fxo-row{grid-template-columns:1fr}
+.fxo-f{border-top:1px solid var(--ph);padding:14px 22px 16px;background:color-mix(in srgb,var(--ptx) 2%,var(--pc))}
+.fxo-sum{font-size:13px;font-weight:700;color:var(--pm);margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:18px}
+.fxo-sum b{color:var(--tc);font-weight:900}
+.fxo-sum em{font-style:normal;color:var(--ptx)}
+.fxo-btns{display:flex;gap:10px}
+.fxo-btns .fx-btn{flex:1;justify-content:center;height:44px;font-size:14px;display:inline-flex;align-items:center}
+.fxo-btns .fx-btn.pri{flex:1.25}
+.fxo-k{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;font-size:11.5px;font-weight:700;color:var(--pm);flex-wrap:wrap}
+.fxo-k .kb{display:inline;white-space:nowrap}
+.fxo-k kbd{all:unset;display:inline-block;font:800 10.5px 'Manrope',sans-serif;border:1px solid var(--pi);border-bottom-width:2px;border-radius:5px;padding:1px 5px;color:var(--ptx);line-height:1.3}
+.fxo-k u{cursor:pointer;text-underline-offset:3px}
+.fxo-k u:hover{color:var(--ptx)}
+@media (max-width:640px){
+  .fxo-cats{max-height:210px}
+  .fxo{top:auto;left:0;width:100vw;max-height:94vh;border-left:none;border-top:1px solid var(--pb);border-radius:18px 18px 0 0;transform:translateY(105%);box-shadow:0 -20px 50px rgba(0,0,0,.45)}
+  .fxo:before{border-radius:18px 18px 0 0;left:18px;right:18px}
+  .fxo-h{padding:16px 16px 0}
+  .fxo-b{padding:4px 16px 14px}
+  .fxo-f{padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+  .fxo-amt{height:56px}
+  .fxo-amt input{font-size:26px}
+  .fxo-row{grid-template-columns:1fr}
+  .fxo-row .fxo-l{margin-top:16px}
+  .fxo-k .kb{display:none}
+}
+</style>
+<script id="r36aScript">
+(function(){
+'use strict';
+function E(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function nf(v){ v = Math.round(Number(v) || 0); return (v < 0 ? '−' : '') + String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+function nc(s){ return typeof fxNormCat === 'function' ? fxNormCat(s) : String(s || '').toLowerCase().trim(); }
+function iso(d){ return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function today(k){ var d = new Date(); d.setDate(d.getDate() + (k || 0)); return iso(d); }
+var MON = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+function human(s){ if(!s) return ''; if(s === today(0)) return 'сегодня'; if(s === today(-1)) return 'вчера'; return +s.slice(8, 10) + ' ' + MON[+s.slice(5, 7) - 1]; }
+var ACC = ['Kaspi', 'Наличные'], FEE = 0.04;
+// Резидент нужен для оплат трекинга и штрафов (как в приложении)
+function needRes(cat){ return /трекинг|штраф/i.test(cat || ''); }
+function mem(k, v){ try{ var o = JSON.parse(localStorage.getItem('fx_op') || '{}'); if(v === undefined) return o[k]; o[k] = v; localStorage.setItem('fx_op', JSON.stringify(o)); }catch(e){} return v; }
 
+// ═══ Состояние формы ═══
+var F = {type: 'income', cat: '', q: '', hi: -1, res: '', date: '', acc: 'Kaspi', fee: true, open: false, saving: false};
+
+function feeCat(){
+  var ex = (window.FX && FX.info && FX.info.expenseRows) || [];
+  return ex.filter(function(n){ var c = nc(n); return c.indexOf('комиссия') === 0 && c.indexOf('налог') > 0; })[0] || '';
+}
+function cats(){ var k = F.type === 'income' ? 'incomeCat' : 'expenseCat'; return typeof fxCatList === 'function' ? fxCatList(k) : []; }
+function hueOf(v){ return typeof fxCatHue === 'function' ? fxCatHue(v, F.type === 'income' ? 'inc' : 'exp') : 200; }
+function amt(){ var i = document.getElementById('fxoAmt'); return i && typeof fxParseMoney === 'function' ? fxParseMoney(i.value) : null; }
+function feeOn(){ return F.type === 'income' && F.acc === 'Kaspi' && !!feeCat(); }
+
+// ═══ Разметка ═══
+function el(){
+  var w = document.getElementById('fxOp');
+  if(w) return w;
+  var bg = document.createElement('div'); bg.className = 'fxo-bg'; bg.id = 'fxOpBg'; bg.addEventListener('mousedown', close);
+  w = document.createElement('div'); w.className = 'fxo'; w.id = 'fxOp'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-label', 'Новая операция');
+  w.innerHTML =
+    '<div class="fxo-h"><div class="fxo-t" id="fxoT">Новая операция</div><button class="fx-btn ic fxo-x" type="button" data-a="x" aria-label="Закрыть" title="Закрыть (Esc)">✕</button>' +
+      '<div class="fxo-sw" role="tablist"><button type="button" class="in" data-t="income"><i></i>Приход</button><button type="button" class="ex" data-t="expense"><i></i>Расход</button></div>' +
+      '<div class="fxo-ok" id="fxoOk"><i></i><span></span></div></div>' +
+    '<div class="fxo-b" id="fxoB">' +
+      '<div class="fxo-l"><span>Сумма</span><small id="fxoAmtH"></small></div>' +
+      '<label class="fxo-amt" id="fxoAmtW"><b id="fxoSign">+</b><input id="fxoAmt" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="Сумма"><span>₸</span></label>' +
+      '<div class="fxo-err" id="fxoAmtE"></div>' +
+      '<div class="fxo-fee" id="fxoFee" role="checkbox" tabindex="0"><span class="ck"></span><span id="fxoFeeT"></span></div>' +
+      '<div class="fxo-l"><span id="fxoCatL">Статья</span><small>частые сверху</small></div>' +
+      '<input class="fxo-q" id="fxoQ" autocomplete="off" placeholder="Найти статью" aria-label="Найти статью">' +
+      '<div class="fxo-cats" id="fxoCats"></div><div class="fxo-err" id="fxoCatE"></div>' +
+      '<div id="fxoResW"><div class="fxo-l"><span>Резидент</span><small id="fxoResH"></small></div>' +
+        '<div class="fxo-combo"><input class="fxo-in" id="fxoRes" autocomplete="off" placeholder="Кто оплатил" aria-label="Резидент"><div class="fxo-dd" id="fxoResD"></div></div><div class="fxo-err" id="fxoResE"></div></div>' +
+      '<div class="fxo-row"><div><div class="fxo-l"><span>Дата</span></div><input class="fxo-in" type="date" id="fxoDate" aria-label="Дата">' +
+          '<div class="fxo-qd" id="fxoQd"><b data-d="0">Сегодня</b><b data-d="-1">Вчера</b></div><div class="fxo-err" id="fxoDateE"></div></div>' +
+        '<div><div class="fxo-l"><span>Счёт</span></div><div class="fxo-seg" id="fxoAcc">' + ACC.map(function(a){ return '<b data-a="' + E(a) + '" tabindex="0">' + E(a) + '</b>'; }).join('') + '</div></div></div>' +
+      '<div id="fxoCmW"><div class="fxo-l"><span>Комментарий</span><small>необязательно</small></div><input class="fxo-in" id="fxoCm" autocomplete="off" placeholder="Например: за октябрь" maxlength="1000"></div>' +
+    '</div>' +
+    '<div class="fxo-f"><div class="fxo-sum" id="fxoSum"></div>' +
+      '<div class="fxo-btns"><button type="button" class="fx-btn" id="fxoMore" data-a="more">Сохранить и ещё</button><button type="button" class="fx-btn pri" id="fxoSave" data-a="save">Сохранить</button></div>' +
+      '<div class="fxo-k"><span class="kb"><kbd>Enter</kbd> сохранить · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> и ещё · <kbd>Esc</kbd> закрыть</span><u id="fxoRow" data-a="row">Пустая строка в таблице</u></div></div>';
+  document.body.appendChild(bg); document.body.appendChild(w);
+  w.addEventListener('click', onClick);
+  w.addEventListener('keydown', onKey);
+  var a = w.querySelector('#fxoAmt');
+  a.addEventListener('input', function(){ if(typeof fxMoneyInput === 'function') fxMoneyInput(a); err('Amt', ''); sum(); });
+  var q = w.querySelector('#fxoQ');
+  q.addEventListener('input', function(){ F.q = q.value; F.hi = q.value.trim() ? 0 : -1; paintCats(); });
+  var r = w.querySelector('#fxoRes');
+  r.addEventListener('input', function(){ F.res = r.value; F.rhi = r.value.trim() ? 0 : -1; err('Res', ''); paintRes(true); sum(); });
+  r.addEventListener('focus', function(){ F.rhi = -1; paintRes(true); }); // список виден, но Enter без выбора сохраняет форму
+  r.addEventListener('blur', function(){ setTimeout(function(){ paintRes(false); }, 150); });
+  w.querySelector('#fxoResD').addEventListener('mousedown', function(e){ var d = e.target.closest('[data-v]'); if(!d) return; e.preventDefault(); setRes(d.dataset.v); });
+  var dt = w.querySelector('#fxoDate');
+  dt.addEventListener('change', function(){ F.date = dt.value; err('Date', ''); paintDate(); sum(); });
+  dt.addEventListener('input', function(){ F.date = dt.value; paintDate(); sum(); });
+  return w;
+}
+function err(k, t){ var e = document.getElementById('fxo' + k + 'E'); if(e){ e.textContent = t; e.classList.toggle('on', !!t); }
+  if(k === 'Amt') document.getElementById('fxoAmtW').classList.toggle('bad', !!t);
+  if(k === 'Cat') document.getElementById('fxoCats').classList.toggle('bad', !!t);
+  if(k === 'Res') document.getElementById('fxoRes').classList.toggle('bad', !!t);
+  if(k === 'Date') document.getElementById('fxoDate').classList.toggle('bad', !!t); }
+
+// Статьи чипами: частые сверху, поиск сужает список; стрелки двигают выбор, Enter в поиске выбирает
+function visCats(){
+  var all = cats(), q = nc(F.q);
+  if(q) return {flat: all.filter(function(x){ return nc(x.v).indexOf(q) >= 0; }).sort(function(a, b){ return (nc(a.v).indexOf(q) === 0 ? 0 : 1) - (nc(b.v).indexOf(q) === 0 ? 0 : 1) || b.n - a.n; })};
+  var top = typeof fxCatTop === 'function' ? fxCatTop(all, 6) : [], tk = {};
+  top.forEach(function(x){ tk[x.v] = 1; });
+  var rest = all.filter(function(x){ return !tk[x.v]; }), base = rest.filter(function(x){ return !x.ex; }), ext = rest.filter(function(x){ return x.ex; });
+  return {top: top, base: base, ext: ext, flat: top.concat(base, ext)};
+}
+function chip(x, i){
+  var dv = nc(x.v).indexOf('дивиденд') >= 0;
+  return '<button type="button" class="fxo-c' + (x.v === F.cat ? ' on' : '') + (i === F.hi ? ' hi' : '') + '" data-c="' + E(x.v) + '" data-i="' + i + '" style="--h:' + hueOf(x.v) + '"' +
+    (x.h ? ' title="' + E(x.h) + '"' : '') + '><i' + (dv ? ' class="dv"' : '') + '></i><span>' + E(x.v) + '</span>' + (x.rn ? '<small>' + nf(x.rn) + '</small>' : '') + '</button>';
+}
+function paintCats(){
+  var box = document.getElementById('fxoCats'); if(!box) return;
+  var v = visCats(), h = '', i = 0;
+  F._flat = v.flat;
+  var grp = function(t, list){ if(!list.length) return ''; var s = '<div class="fxo-gh">' + t + '</div><div class="fxo-cg">' + list.map(function(x){ return chip(x, i++); }).join('') + '</div>'; return s; };
+  if(F.q.trim()) h = v.flat.length ? '<div class="fxo-cg" style="margin-top:10px">' + v.flat.map(function(x){ return chip(x, i++); }).join('') + '</div>' : '<div class="fxo-none">Такой статьи нет. Статьи берутся из P&L</div>';
+  else h = grp('Частые', v.top) + grp(v.top.length ? 'Все статьи' : 'Статьи P&L', v.base) + grp('Ещё встречались в ДДС', v.ext);
+  box.innerHTML = h;
+}
+function setCat(v){
+  F.cat = v; err('Cat', '');
+  paintCats(); paintRes(false); sum();
+}
+function resList(){
+  var src = typeof fxListFor === 'function' ? fxListFor('resident').map(function(x){ return x.v; }) : [];
+  if(typeof RESIDENTS !== 'undefined' && RESIDENTS) RESIDENTS.forEach(function(r){ if(r && r.name && !r.former && src.indexOf(r.name) < 0) src.push(r.name); });
+  return src;
+}
+function paintRes(open){
+  var w = document.getElementById('fxoResW'); if(!w) return;
+  w.style.display = F.type === 'income' ? '' : 'none';
+  document.getElementById('fxoResH').textContent = needRes(F.cat) ? 'обязательно для «' + F.cat + '»' : 'необязательно';
+  var d = document.getElementById('fxoResD'), q = nc(F.res), all = resList();
+  var list = (q ? all.filter(function(n){ return nc(n).indexOf(q) >= 0; }) : all).slice(0, 30);
+  if(list.length === 1 && nc(list[0]) === q) list = [];
+  F._rl = list; if(F.rhi == null || F.rhi >= list.length) F.rhi = -1;
+  d.innerHTML = list.map(function(n, i){ return '<div data-v="' + E(n) + '" class="' + (i === F.rhi ? 'on' : '') + '">' + E(n) + '</div>'; }).join('');
+  d.classList.toggle('on', !!open && list.length > 0 && document.activeElement === document.getElementById('fxoRes'));
+}
+function setRes(n){ F.res = n; var r = document.getElementById('fxoRes'); r.value = n; err('Res', ''); paintRes(false); sum(); }
+function paintDate(){
+  document.querySelectorAll('#fxoQd b').forEach(function(b){ b.classList.toggle('on', F.date === today(+b.dataset.d)); });
+}
+function paintAcc(){
+  document.querySelectorAll('#fxoAcc b').forEach(function(b){ b.classList.toggle('on', b.dataset.a === F.acc); });
+  var fe = document.getElementById('fxoFee'); fe.classList.toggle('on', feeOn()); fe.classList.toggle('y', F.fee); fe.setAttribute('aria-checked', F.fee ? 'true' : 'false');
+  sum();
+}
+function sum(){
+  var s = document.getElementById('fxoSum'); if(!s) return;
+  var a = amt(), fee = feeOn() && F.fee && a ? Math.round(a * FEE) : 0;
+  var ft = document.getElementById('fxoFeeT');
+  if(ft) ft.innerHTML = 'Удержать 4% комиссии и налога' + (a ? ': <b>' + nf(Math.round(a * FEE)) + ' ₸</b>' : '') + ' (расход «' + E(feeCat()) + '» в той же строке)';
+  document.getElementById('fxoAmtH').textContent = fee ? 'на счёт придёт ' + nf(a - fee) + ' ₸' : '';
+  var parts = [];
+  parts.push('<b>' + (F.type === 'income' ? '+' : '−') + (a ? nf(a) : '0') + ' ₸</b>');
+  parts.push(F.cat ? '<em>' + E(F.cat) + '</em>' : 'статья не выбрана');
+  if(F.type === 'income' && F.res) parts.push(E(F.res));
+  parts.push(human(F.date)); parts.push(F.acc);
+  s.innerHTML = parts.join(' · ');
+}
+function paintType(){
+  var w = el();
+  w.classList.toggle('ex', F.type === 'expense');
+  w.classList.toggle('ro', !(window.FX && FX.editable)); // резервный режим: сервер клуба пишет датой сегодня, без комментария
+  w.querySelectorAll('.fxo-sw button').forEach(function(b){ b.classList.toggle('on', b.dataset.t === F.type); b.setAttribute('aria-selected', b.dataset.t === F.type ? 'true' : 'false'); });
+  document.getElementById('fxoT').innerHTML = (F.type === 'income' ? 'Новый приход' : 'Новый расход') + (window.FX && FX.editable ? '' : '<small>запишется через сервер клуба</small>');
+  document.getElementById('fxoSign').textContent = F.type === 'income' ? '+' : '−';
+  document.getElementById('fxoCatL').textContent = F.type === 'income' ? 'Статья прихода' : 'Статья расхода';
+  var r = document.getElementById('fxoRow'); if(r) r.style.display = window.FX && FX.editable ? '' : 'none';
+  paintCats(); paintRes(false); paintAcc();
+}
+function setType(t){
+  if(t !== 'income' && t !== 'expense') return;
+  if(F.type !== t){ F.type = t; F.cat = ''; F.q = ''; F.hi = -1; var q = document.getElementById('fxoQ'); if(q) q.value = ''; err('Cat', ''); err('Res', ''); }
+  mem('type', t); paintType();
+}
+
+// ═══ Открыть, закрыть ═══
+function open(type){
+  if(!window.FX || FX.st !== 'ready'){ toast('ДДС ещё загружается'); return; }
+  var w = el();
+  var t = type || mem('type') || 'income';
+  F.type = t === 'expense' ? 'expense' : 'income'; F.cat = ''; F.q = ''; F.hi = -1; F.res = ''; F.rhi = 0;
+  F.date = today(0); F.acc = ACC.indexOf(mem('acc')) >= 0 ? mem('acc') : 'Kaspi'; F.fee = mem('fee') !== false;
+  w.querySelector('#fxoAmt').value = ''; w.querySelector('#fxoQ').value = ''; w.querySelector('#fxoRes').value = ''; w.querySelector('#fxoCm').value = '';
+  w.querySelector('#fxoDate').value = F.date;
+  ['Amt', 'Cat', 'Res', 'Date'].forEach(function(k){ err(k, ''); });
+  document.getElementById('fxoOk').classList.remove('on');
+  paintType(); paintDate();
+  F.open = true; F.prev = document.activeElement;
+  document.getElementById('fxOpBg').classList.add('on');
+  requestAnimationFrame(function(){ w.classList.add('on'); });
+  setTimeout(function(){ try{ w.querySelector('#fxoAmt').focus(); }catch(e){} }, 60);
+}
+function close(){
+  var w = document.getElementById('fxOp'); if(!w || !F.open) return;
+  F.open = false; w.classList.remove('on'); document.getElementById('fxOpBg').classList.remove('on');
+  var g = document.getElementById('fxGrid');
+  try{ if(g && !('ontouchstart' in window)) g.focus({preventScroll: true}); else if(F.prev && F.prev.focus) F.prev.focus(); }catch(e){}
+}
+window.fxOpForm = open;
+window.fxOpClose = close;
+
+// ═══ Сохранение ═══
+function check(){
+  var ok = true, first = null, a = amt();
+  var bad = function(k, t, fe){ err(k, t); ok = false; if(!first) first = fe; };
+  if(a === null) bad('Amt', 'Сумма: только цифры, например 150 000', 'fxoAmt');
+  else if(!a) bad('Amt', 'Введите сумму', 'fxoAmt');
+  if(!F.cat) bad('Cat', F.type === 'income' ? 'Выберите статью прихода' : 'Выберите статью расхода', 'fxoQ');
+  var d = typeof fxParseDate === 'function' ? fxParseDate(F.date) : F.date;
+  if(!d) bad('Date', 'Укажите дату', 'fxoDate');
+  if(F.type === 'income' && needRes(F.cat) && !String(F.res).trim()) bad('Res', 'Укажите резидента: за трекинг и штрафы платит резидент', 'fxoRes');
+  if(first){ try{ document.getElementById(first).focus(); }catch(e){} }
+  return ok ? {a: a, d: d} : null;
+}
+function save(more){
+  if(F.saving) return;
+  var c = check(); if(!c) return;
+  var cm = document.getElementById('fxoCm').value.replace(/\s+/g, ' ').trim();
+  var res = F.type === 'income' ? String(F.res).replace(/\s+/g, ' ').trim() : '';
+  var fee = feeOn() && F.fee ? Math.round(c.a * FEE) : 0;
+  var vals = {date: c.d, account: F.acc, comment: cm, resident: res};
+  if(F.type === 'income'){ vals.income = c.a; vals.incomeCat = F.cat; if(fee){ vals.expense = fee; vals.expenseCat = feeCat(); } }
+  else { vals.expense = c.a; vals.expenseCat = F.cat; }
+  var label = (F.type === 'income' ? 'приход ' : 'расход ') + nf(c.a) + ' ₸, «' + F.cat + '»';
+  mem('acc', F.acc); mem('type', F.type); if(F.type === 'income' && F.acc === 'Kaspi') mem('fee', F.fee);
+  var done = function(){
+    if(more){
+      var ok = document.getElementById('fxoOk'); ok.querySelector('span').textContent = 'Записано: ' + label; ok.classList.add('on');
+      document.getElementById('fxoAmt').value = ''; document.getElementById('fxoCm').value = ''; setRes('');
+      sum(); try{ document.getElementById('fxoAmt').focus(); }catch(e){}
+    } else { close(); toast('Записано: ' + label); }
+  };
+  if(FX.editable){
+    if(FX.tab !== 'dds'){ FX.tab = 'dds'; }
+    var key = fxInsertOp(vals);
+    if(!key){ toast('Не записано: ДДС только для просмотра'); return; }
+    done();
+    return;
+  }
+  // ДДС только для просмотра (резервный режим): та же запись, что в приложении, через сервер клуба
+  if(!(window.BSSync && BSSync.club)){ toast('Нет связи с сервером'); return; }
+  F.saving = true; document.getElementById('fxoSave').disabled = true; document.getElementById('fxoMore').disabled = true;
+  BSSync.club('addPayment', {type: F.type, src: F.cat, amount: c.a, resident: res, isCash: F.acc === 'Наличные' ? 'true' : 'false'}).then(function(r){
+    F.saving = false; document.getElementById('fxoSave').disabled = false; document.getElementById('fxoMore').disabled = false;
+    if(r && r.ok){ done(); if(typeof fxReload === 'function') setTimeout(fxReload, 600); }
+    else toast('Не записано: ' + ((r && (r.detail || r.error)) || 'нет ответа сервера'));
+  }, function(){ F.saving = false; document.getElementById('fxoSave').disabled = false; document.getElementById('fxoMore').disabled = false; toast('Нет связи с сервером'); });
+}
+
+// ═══ Мышь и клавиатура ═══
+function onClick(e){
+  var t = e.target;
+  var sw = t.closest('.fxo-sw button'); if(sw){ setType(sw.dataset.t); return; }
+  var c = t.closest('.fxo-c'); if(c){ setCat(c.dataset.c); if('ontouchstart' in window) return; // на телефоне клавиатура сама не выскакивает
+    var nx = F.type === 'income' ? 'fxoRes' : 'fxoCm'; try{ document.getElementById(nx).focus(); }catch(x){} return; }
+  var qd = t.closest('#fxoQd b'); if(qd){ F.date = today(+qd.dataset.d); document.getElementById('fxoDate').value = F.date; err('Date', ''); paintDate(); sum(); return; }
+  var ac = t.closest('#fxoAcc b'); if(ac){ F.acc = ac.dataset.a; paintAcc(); return; }
+  if(t.closest('#fxoFee')){ F.fee = !F.fee; paintAcc(); return; }
+  var a = t.closest('[data-a]'); if(!a) return;
+  if(a.dataset.a === 'x') close();
+  else if(a.dataset.a === 'save') save(false);
+  else if(a.dataset.a === 'more') save(true);
+  else if(a.dataset.a === 'row'){ close(); if(typeof fxAddRow === 'function') fxAddRow(); }
+}
+function moveHi(d){
+  var n = (F._flat || []).length; if(!n) return;
+  F.hi = F.hi < 0 ? (d > 0 ? 0 : n - 1) : Math.max(0, Math.min(n - 1, F.hi + d));
+  paintCats();
+  var h = document.querySelector('#fxoCats .fxo-c.hi'); if(h) try{ h.scrollIntoView({block: 'nearest'}); }catch(e){}
+}
+function onKey(e){
+  var k = e.key, id = e.target && e.target.id;
+  e.stopPropagation();
+  if(k === 'Escape'){
+    e.preventDefault();
+    if(id === 'fxoRes' && document.getElementById('fxoResD').classList.contains('on')){ paintRes(false); return; }
+    if(id === 'fxoQ' && F.q){ F.q = ''; e.target.value = ''; F.hi = -1; paintCats(); return; }
+    close(); return;
+  }
+  // Поиск статьи: стрелки по найденным, Enter выбирает
+  if(id === 'fxoQ'){
+    if(k === 'ArrowDown' || k === 'ArrowRight' && e.target.selectionStart === e.target.value.length){ e.preventDefault(); moveHi(1); return; }
+    if(k === 'ArrowUp'){ e.preventDefault(); moveHi(-1); return; }
+    if(k === 'Enter' && !(e.ctrlKey || e.metaKey) && F.hi >= 0 && F._flat && F._flat[F.hi] && F._flat[F.hi].v !== F.cat){
+      e.preventDefault(); setCat(F._flat[F.hi].v); F.q = ''; e.target.value = ''; F.hi = -1; paintCats();
+      try{ document.getElementById(F.type === 'income' ? 'fxoRes' : 'fxoCm').focus(); }catch(x){} return;
+    }
+  }
+  if(e.target.classList && e.target.classList.contains('fxo-c') && (k === 'ArrowRight' || k === 'ArrowLeft' || k === 'ArrowDown' || k === 'ArrowUp')){
+    e.preventDefault(); var bs = [].slice.call(document.querySelectorAll('#fxoCats .fxo-c')), i = bs.indexOf(e.target);
+    var nx = bs[Math.max(0, Math.min(bs.length - 1, i + (k === 'ArrowRight' || k === 'ArrowDown' ? 1 : -1)))]; if(nx) nx.focus(); return;
+  }
+  if(e.target.classList && e.target.classList.contains('fxo-c') && (k === ' ' || (k === 'Enter' && !(e.ctrlKey || e.metaKey) && e.target.dataset.c !== F.cat))){ e.preventDefault(); e.target.click(); return; }
+  // Резидент: список стрелками, Enter выбирает
+  if(id === 'fxoRes'){
+    var dd = document.getElementById('fxoResD'), op = dd.classList.contains('on');
+    if(k === 'ArrowDown' || k === 'ArrowUp'){ e.preventDefault(); if(!op){ paintRes(true); return; } F.rhi = Math.max(0, Math.min((F._rl || []).length - 1, (F.rhi == null || F.rhi < 0 ? -1 : F.rhi) + (k === 'ArrowDown' ? 1 : -1))); paintRes(true); var o = dd.querySelector('.on'); if(o) try{ o.scrollIntoView({block: 'nearest'}); }catch(x){} return; }
+    if(k === 'Enter' && op && F._rl && F._rl[F.rhi] && !(e.ctrlKey || e.metaKey)){ e.preventDefault(); setRes(F._rl[F.rhi]); try{ document.getElementById('fxoCm').focus(); }catch(x){} return; }
+  }
+  if((k === ' ' || k === 'Enter') && e.target.closest && e.target.closest('#fxoAcc b')){ e.preventDefault(); e.target.click(); return; }
+  if(k === ' ' && id === 'fxoFee'){ e.preventDefault(); F.fee = !F.fee; paintAcc(); return; }
+  if(k === 'Enter'){
+    if(e.target.tagName === 'BUTTON' && !(e.ctrlKey || e.metaKey)) return; // кнопка нажимается сама
+    e.preventDefault(); save(e.ctrlKey || e.metaKey || e.shiftKey);
+  }
+}
+// Вкладка или раздел сменились: форма закрывается
+window.addEventListener('hashchange', close);
+})();
+</script>
+<!-- /R36a -->
+
+<!-- R36b: Настройки (только админ): «Проверка системы» (POST /system/check, то же присылает бот по /status)
+     и «Голос ElevenLabs» (/tts/premium*): ключ, «Подобрать голос», озвучка всех фраз тура в фоне -->
+<style id="r36bStyle">
+.r36-box{margin-top:2px}
+.r36-box > .r32-row:first-child{border-top:1px solid var(--pb);padding-top:13px}
+.r36-chk{grid-column:1/-1;display:flex;flex-direction:column;gap:7px;min-width:0}
+.r36-chk .r32-st{font-weight:600}
+.r36-chk .r32-st span{min-width:0;overflow-wrap:anywhere}
+.r36-chk .r32-st b{font-weight:800}
+.r36-when{font-size:12px;color:var(--pm)}
+.r36-btn{padding:8px 13px;border-radius:9px;border:1px solid var(--pi);background:none;color:var(--ptx);font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+.r36-btn:hover{border-color:var(--ptx)}
+.r36-btn.pri{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r36-btn:disabled{opacity:.5;cursor:default}
+.r36-tools{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;min-width:0}
+.r36-tools input{flex:1 1 180px;min-width:0;background:var(--pd);border:1px solid var(--pi);border-radius:9px;color:var(--ptx);padding:8px 10px;font:inherit;font-size:13px}
+.r36-tools input:focus{outline:none;border-color:var(--ptx)}
+.r36-res{grid-column:1/-1;font-size:12.5px;line-height:1.45;color:var(--pm);overflow-wrap:anywhere}
+.r36-res:empty{display:none}
+.r36-res.ok{color:var(--ptx);font-weight:700}
+.r36-res.err{color:var(--pred);font-weight:700}
+.r36-sub{grid-column:1/-1;font-size:12.5px;font-weight:800;color:var(--ptx);margin-top:6px}
+.r36-vl{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;min-width:0}
+.r36-vl:empty{display:none}
+.r36-vg{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--pm);margin-top:6px}
+.r36-v{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:9px 10px;border:1px solid var(--pi);border-radius:10px}
+.r36-v.on{border-color:var(--ptx)}
+.r36-v .nm{font-size:13px;font-weight:800;color:var(--ptx);overflow-wrap:anywhere}
+.r36-v .tg{font-size:11.5px;color:var(--pm);line-height:1.4;overflow-wrap:anywhere;margin-top:2px}
+.r36-pl{width:34px;height:34px;border-radius:50%;border:1px solid var(--pi);background:none;color:var(--ptx);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.r36-pl:hover,.r36-pl.on{border-color:var(--ptx)}
+.r36-pl.on{background:var(--pon);color:var(--pontx)}
+.r36-pl svg{width:14px;height:14px;fill:currentColor}
+.r36-pl:disabled{opacity:.35;cursor:default}
+@media (max-width:480px){
+  .r36-v{grid-template-columns:auto minmax(0,1fr)}
+  .r36-v .r36-btn{grid-column:1/-1;width:100%}
+}
+</style>
+<script id="r36bScript">
+(function(){
+'use strict';
+function ea(v){ return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function md(){ try{ return typeof MODE === 'string' ? MODE : 'admin'; }catch(e){ return 'admin'; } }
+function call(method, path, body){
+  if(!window.BSSync || !BSSync.api) return Promise.resolve(null);
+  return Promise.resolve().then(function(){ return BSSync.api(method, path, body); })
+    .then(function(r){ return r ? r.json().catch(function(){ return null; }) : null; }).catch(function(){ return null; });
+}
+function when(iso){
+  var d = iso ? new Date(iso) : null; if(!d || isNaN(d)) return '';
+  try{ return d.toLocaleString('ru-RU', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Almaty'}).replace(',', ''); }catch(e){ return ''; }
+}
+var PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>';
+var STOP = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5h9v9h-9z"/></svg>';
+var BOX = null, PV = null, LIST = null, poll = 0, audio = null, playing = '';
+
+// ═══ Проверка системы ═══
+var ST_CLS = {ok: '', warn: 'wait', fail: 'err', off: 'wait'};
+function paintCheck(j){
+  var el = document.getElementById('r36ChkOut'); if(!el) return;
+  if(!j || !j.items){ el.innerHTML = '<div class="r32-st err"><i></i><span>Нет связи с сервером, попробуйте ещё раз</span></div>'; return; }
+  el.innerHTML = j.items.map(function(it){
+    return '<div class="r32-st ' + (ST_CLS[it.state] == null ? 'wait' : ST_CLS[it.state]) + '" data-key="' + ea(it.key) + '" data-state="' + ea(it.state) + '"><i></i><span><b>' + ea(it.title) + ':</b> ' + ea(it.text) + '</span></div>';
+  }).join('') + '<div class="r36-when">Проверено ' + ea(when(j.at)) + '. То же присылает бот по команде /status</div>';
+}
+function runCheck(btn){
+  btn.disabled = true; btn.textContent = 'Проверяю…';
+  var el = document.getElementById('r36ChkOut'); if(el) el.innerHTML = '<div class="r32-st wait"><i></i><span>Проверяю Claude, заявки, голос, бота и базу…</span></div>';
+  call('POST', '/system/check').then(function(j){ btn.disabled = false; btn.textContent = 'Проверить ещё раз'; paintCheck(j); });
+}
+
+// ═══ Голос ElevenLabs ═══
+function pageHas(url){ try{ var el = document.getElementById('bsVoiceStatic'); return !!(el && url && el.textContent.indexOf(url) >= 0); }catch(e){ return false; } }
+function vStatus(p){
+  if(!p) return {t: 'Проверяю…', cls: 'wait'};
+  var job = p.job || {}, v = p.voice, a = p.active, tot = p.total || 0, rd = p.ready || 0;
+  var now = a && p.playing === 'premium' ? 'ElevenLabs «' + a.name + '»' : 'встроенный голос';
+  if(v && job.running) return {t: 'Озвучено ' + rd + ' из ' + tot + ': «' + v.name + '». Пока звучит ' + now, cls: 'wait', pct: tot ? rd / tot : 0};
+  if(v && job.error) return {t: 'Озвучка «' + v.name + '» остановлена на ' + rd + ' из ' + tot + ': ' + job.error + '. Пока звучит ' + now, cls: 'err', pct: tot ? rd / tot : 0};
+  if(p.playing === 'premium' && a) return {t: 'Звучит ElevenLabs «' + a.name + '»: озвучено ' + tot + ' из ' + tot, cls: ''};
+  if(v && rd < tot) return {t: 'Озвучено ' + rd + ' из ' + tot + ': «' + v.name + '». Озвучка продолжится сама', cls: 'wait', pct: tot ? rd / tot : 0};
+  return {t: 'Звучат встроенные записи. ' + (p.source ? 'Нажмите «Подобрать голос» и выберите свой' : 'Добавьте ключ ElevenLabs и выберите голос'), cls: 'wait'};
+}
+function keyNow(p){
+  if(!p) return {t: 'Проверяю…', cls: 'wait'};
+  if(p.source === 'env') return {t: 'Ключ задан в Railway (ELEVENLABS_API_KEY ' + (p.last4 || '') + '): он главнее ключа из настроек', cls: ''};
+  if(p.source === 'settings') return {t: 'Сохранён ключ ' + (p.last4 || '') + '. Он зашифрован на сервере', cls: ''};
+  return {t: 'Ключа нет: elevenlabs.io → Developers → API Keys (права Text to Speech и Voices)', cls: 'err'};
+}
+var AGE = {young: 'молодой', middle_aged: 'средних лет', old: 'зрелый'};
+var USE = {narrative_story: 'рассказчик', informative_educational: 'обучение', conversational: 'разговорный', characters_animation: 'персонажи', social_media: 'соцсети', entertainment_tv: 'ТВ', advertisement: 'реклама'};
+var CAT = {professional: 'профессиональный', high_quality: 'высокое качество', generated: 'создан вами', cloned: 'ваш клон', premade: 'стандартный'};
+function tags(v){
+  var t = [];
+  if(v.descriptive) t.push(v.descriptive);
+  if(AGE[v.age]) t.push(AGE[v.age]);
+  if(v.accent) t.push(v.accent);
+  if(USE[v.useCase]) t.push(USE[v.useCase]);
+  if(CAT[v.category]) t.push(CAT[v.category]);
+  if(v.ruPreview) t.push('пример на русском');
+  return t.join(' · ');
+}
+function picked(v){
+  var c = PV && PV.voice; if(!c) return false;
+  return v.mine ? c.id === v.id : (c.libraryId === v.id || c.id === v.id);
+}
+function voiceItem(v){
+  var on = picked(v), pl = playing && playing === v.previewUrl;
+  return '<div class="r36-v' + (on ? ' on' : '') + '" data-vid="' + ea(v.id) + '">' +
+    '<button type="button" class="r36-pl' + (pl ? ' on' : '') + '" data-r36="play" data-url="' + ea(v.previewUrl || '') + '"' + (v.previewUrl ? '' : ' disabled') + ' aria-label="' + (pl ? 'Остановить пример' : 'Прослушать пример') + ' ' + ea(v.name) + '">' + (pl ? STOP : PLAY) + '</button>' +
+    '<div style="min-width:0"><div class="nm">' + ea(v.name) + '</div><div class="tg">' + ea(tags(v) || 'без описания') + '</div></div>' +
+    '<button type="button" class="r36-btn' + (on ? '' : ' pri') + '" data-r36="pick" data-id="' + ea(v.id) + '" data-owner="' + ea(v.ownerId || '') + '" data-name="' + ea(v.name) + '" data-prev="' + ea(v.previewUrl || '') + '"' + (on ? ' disabled' : '') + '>' + (on ? 'Выбран' : 'Выбрать') + '</button></div>';
+}
+function paintList(){
+  var el = document.getElementById('r36List'); if(!el) return;
+  if(!LIST){ el.innerHTML = ''; return; }
+  var h = '';
+  if(LIST.mine && LIST.mine.length) h += '<div class="r36-vg">Ваши голоса в ElevenLabs</div>' + LIST.mine.map(voiceItem).join('');
+  h += '<div class="r36-vg">Библиотека ElevenLabs: мужские, говорят по-русски, низкие и спокойные</div>' +
+    (LIST.library && LIST.library.length ? LIST.library.map(voiceItem).join('') : '<div class="r36-res">Ничего не нашлось: попробуйте другое слово в поиске</div>');
+  el.innerHTML = h;
+}
+function paintVoice(){
+  var p = PV, s = vStatus(p), k = keyNow(p);
+  var st = document.getElementById('r36VSt');
+  if(st){ st.className = 'r32-st ' + s.cls; st.innerHTML = '<i></i><span style="min-width:0;overflow-wrap:anywhere">' + ea(s.t) + '</span>'; }
+  var mt = document.getElementById('r36Meter');
+  if(mt){ mt.style.display = s.pct == null ? 'none' : ''; mt.firstChild.style.width = Math.round((s.pct || 0) * 100) + '%'; }
+  var ks = document.getElementById('r36KSt');
+  if(ks){ ks.className = 'r32-st ' + k.cls; ks.innerHTML = '<i></i><span style="min-width:0;overflow-wrap:anywhere">' + ea(k.t) + '</span>'; }
+  var del = document.querySelector('#r36Voice [data-r36="kdel"]'); if(del) del.style.display = p && p.saved ? '' : 'none';
+  var job = (p && p.job) || {};
+  var tools = '<button type="button" class="r36-btn pri" data-r36="find"' + (p && p.source ? '' : ' disabled') + '>Подобрать голос</button>' +
+    (p && p.voice && job.error ? '<button type="button" class="r36-btn" data-r36="run">Продолжить озвучку</button>' : '') +
+    (p && (p.voice || p.active) ? '<button type="button" class="r36-btn" data-r36="off">Вернуть встроенный голос</button>' : '');
+  var tb = document.getElementById('r36Tools'); if(tb) tb.innerHTML = tools;
+  var rl = document.getElementById('r36Reload');
+  if(rl){
+    var need = p && p.playing === 'premium' && p.sample && !pageHas(p.sample);
+    rl.innerHTML = need ? '<span>Новый голос готов: он зазвучит после обновления страницы.</span> <button type="button" class="r36-btn" data-r36="reload">Обновить страницу</button>' : '';
+    rl.className = 'r36-res' + (need ? ' ok' : '');
+  }
+  paintList();
+}
+function loadVoice(){
+  return call('GET', '/tts/premium').then(function(j){
+    if(j && !j.error){ PV = j; paintVoice(); }
+    clearTimeout(poll);
+    // идёт озвучка: строка прогресса обновляется, пока открыты настройки
+    if(PV && PV.job && PV.job.running && BOX && BOX.isConnected) poll = setTimeout(loadVoice, 2000);
+    return PV;
+  });
+}
+function say(id, t, cls){ var el = document.getElementById(id); if(el){ el.className = 'r36-res' + (cls ? ' ' + cls : ''); el.textContent = t || ''; } }
+function stopAudio(){ if(audio){ try{ audio.pause(); }catch(e){} } audio = null; playing = ''; }
+function onClick(e){
+  var b = e.target.closest && e.target.closest('[data-r36]'); if(!b || !BOX.contains(b) || b.disabled) return;
+  var a = b.getAttribute('data-r36');
+  if(a === 'check'){ runCheck(b); return; }
+  if(a === 'reload'){ location.reload(); return; }
+  if(a === 'play'){
+    var url = b.getAttribute('data-url');
+    if(playing === url){ stopAudio(); paintList(); return; }
+    stopAudio();
+    try{ if(window.BSTour && BSTour.voice) BSTour.voice.stop(); }catch(er){}
+    audio = new Audio(url); playing = url;
+    audio.onended = audio.onerror = function(){ if(playing === url){ playing = ''; audio = null; paintList(); } };
+    var pr = audio.play(); if(pr && pr.catch) pr.catch(function(){ if(playing === url){ playing = ''; audio = null; paintList(); } });
+    paintList(); return;
+  }
+  var inp = document.getElementById('r36KeyIn'), v = (inp && inp.value || '').trim();
+  if(a === 'ksave' || a === 'ktest' || a === 'kdel'){
+    if(a === 'ksave' && !v){ say('r36KRes', 'Вставьте ключ в поле', 'err'); inp.focus(); return; }
+    b.disabled = true;
+    var pr2 = a === 'ksave' ? call('PUT', '/tts/premium/key', {key: v}).then(function(j){
+        if(!j || j.error) throw new Error((j && j.message) || 'Ключ не сохранился, попробуйте ещё раз');
+        PV = j; inp.value = '';
+        return call('POST', '/tts/premium/key/test', {}).then(function(t){ return {saved: true, t: t}; });
+      }) :
+      a === 'ktest' ? call('POST', '/tts/premium/key/test', v ? {key: v} : {}).then(function(t){ return {t: t}; }) :
+      call('DELETE', '/tts/premium/key').then(function(j){ if(!j || j.error) throw new Error('Не удалось удалить ключ'); PV = j; return {deleted: true}; });
+    pr2.then(function(r){
+      b.disabled = false; paintVoice();
+      if(r.deleted){ say('r36KRes', 'Ключ удалён', 'ok'); return; }
+      var t = r.t || {};
+      say('r36KRes', t.ok ? (r.saved ? 'Сохранено. ' : '') + (t.message || 'Ключ работает') : (r.saved ? 'Сохранено, но проверка не прошла: ' : '') + (t.message || 'Нет связи с сервером'), t.ok ? 'ok' : 'err');
+    }).catch(function(er){ b.disabled = false; say('r36KRes', er.message || 'Ошибка', 'err'); });
+    return;
+  }
+  if(a === 'find'){
+    var q = (document.getElementById('r36Q') || {}).value || '';
+    b.disabled = true; b.textContent = 'Ищу голоса…'; say('r36VRes', '');
+    call('GET', '/tts/premium/voices' + (q.trim() ? '?q=' + encodeURIComponent(q.trim()) : '')).then(function(j){
+      b.disabled = false; b.textContent = 'Подобрать голос';
+      if(!j || !j.ok){ LIST = null; paintList(); say('r36VRes', (j && j.message) || 'Нет связи с сервером', 'err'); return; }
+      LIST = j; paintList();
+      say('r36VRes', 'Нажмите ▶, чтобы послушать пример, и «Выбрать»: сервер озвучит этим голосом все фразы обучения', '');
+    });
+    return;
+  }
+  if(a === 'pick'){
+    stopAudio();
+    b.disabled = true; b.textContent = 'Выбираю…';
+    call('POST', '/tts/premium/voice', {id: b.getAttribute('data-id'), name: b.getAttribute('data-name'), ownerId: b.getAttribute('data-owner'), previewUrl: b.getAttribute('data-prev')}).then(function(j){
+      if(!j || j.ok === false || j.error){ b.disabled = false; b.textContent = 'Выбрать'; say('r36VRes', (j && j.message) || 'Голос не выбран, попробуйте ещё раз', 'err'); return; }
+      PV = j; paintVoice();
+      say('r36VRes', 'Голос «' + (j.voice && j.voice.name || '') + '» выбран. Фразы озвучиваются в фоне, до конца звучит прежний голос', 'ok');
+      loadVoice();
+    });
+    return;
+  }
+  if(a === 'run'){ b.disabled = true; call('POST', '/tts/premium/run').then(function(j){ if(j && !j.error) PV = j; paintVoice(); loadVoice(); }); return; }
+  if(a === 'off'){
+    askConfirm('Вернуть встроенный голос гида?', 'Записи ElevenLabs останутся на сервере', function(){
+      b.disabled = true;
+      call('DELETE', '/tts/premium/voice').then(function(j){ if(j && !j.error) PV = j; paintVoice(); say('r36VRes', 'Гид снова говорит встроенным голосом (после обновления страницы)', 'ok'); });
+    });
+  }
+}
+function box(){
+  if(BOX) return BOX;
+  BOX = document.createElement('div');
+  BOX.className = 'r32-set r36-box'; BOX.id = 'r36Box';
+  BOX.innerHTML =
+    '<div class="r32-row" id="r36Chk"><div><div class="r32-k">Проверка системы</div><div class="r32-h">ИИ Claude, заявки Tilda, голос, бот Telegram, экспорт в таблицу, версия сервера и база. После обновления сервера бот сам напишет, если что-то изменилось</div></div>' +
+      '<button type="button" class="r36-btn pri" data-r36="check">Проверить</button><div class="r36-chk" id="r36ChkOut" role="status"></div></div>' +
+    '<div class="r32-row" id="r36Voice"><div><div class="r32-k">Голос ElevenLabs</div><div class="r32-h">Голос гида на выбор: низкий спокойный «ИИ-дворецкий» из лицензированных голосов ElevenLabs. Без ключа звучат встроенные записи</div></div><div></div>' +
+      '<div class="r32-st wait" id="r36VSt" style="grid-column:1/-1;min-width:0"><i></i><span>Проверяю…</span></div>' +
+      '<div class="r32-meter" id="r36Meter" style="display:none"><b style="width:0"></b></div>' +
+      '<div class="r36-res" id="r36Reload"></div>' +
+      '<div class="r36-sub">Ключ ElevenLabs</div>' +
+      '<div class="r32-st wait" id="r36KSt" style="grid-column:1/-1;min-width:0"><i></i><span>Проверяю…</span></div>' +
+      '<div class="r34-kf"><input type="password" id="r36KeyIn" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="Ключ ElevenLabs sk_…" aria-label="Ключ ElevenLabs">' +
+        '<button type="button" class="pri" data-r36="ksave">Сохранить</button><button type="button" data-r36="ktest">Проверить</button><button type="button" data-r36="kdel" style="display:none">Удалить</button></div>' +
+      '<div class="r36-res" id="r36KRes" role="status"></div>' +
+      '<div class="r36-sub">Голос</div>' +
+      '<div class="r36-tools"><input type="search" id="r36Q" placeholder="Поиск в библиотеке: deep, calm, narrator…" aria-label="Поиск голоса" maxlength="60"><span id="r36Tools" style="display:contents"></span></div>' +
+      '<div class="r36-res" id="r36VRes" role="status"></div>' +
+      '<div class="r36-vl" id="r36List"></div></div>';
+  BOX.addEventListener('click', onClick);
+  BOX.addEventListener('keydown', function(e){
+    if(e.key !== 'Enter') return;
+    if(e.target.id === 'r36KeyIn'){ e.preventDefault(); var s = BOX.querySelector('[data-r36="ksave"]'); if(s) s.click(); }
+    if(e.target.id === 'r36Q'){ e.preventDefault(); var f = BOX.querySelector('[data-r36="find"]'); if(f) f.click(); }
+  });
+  return BOX;
+}
+// Настройки перерисовываются целиком (r32dScript): блок возвращается на место тем же узлом,
+// поэтому набранный ключ, список голосов и результат проверки не теряются
+var obs = null;
+function attach(){
+  if(md() !== 'admin') return;
+  var body = document.getElementById('r32SetBody'); if(!body) return;
+  var b = box();
+  if(b.parentNode !== body) body.appendChild(b);
+  if(!obs && window.MutationObserver){
+    obs = new MutationObserver(function(){ var bd = document.getElementById('r32SetBody'); if(bd && md() === 'admin' && BOX && BOX.parentNode !== bd) bd.appendChild(BOX); });
+    obs.observe(body, {childList: true});
+  }
+}
+if(typeof window.r32VoiceSettings === 'function'){
+  var orig = window.r32VoiceSettings;
+  window.r32VoiceSettings = function(){
+    var r = orig.apply(this, arguments);
+    attach();
+    if(md() === 'admin'){ paintVoice(); loadVoice(); }
+    return r;
+  };
+}
+window.r36Settings = {load: loadVoice, state: function(){ return PV; }};
+})();
+</script>
+<!-- /R36b -->
 </body>
 </html>

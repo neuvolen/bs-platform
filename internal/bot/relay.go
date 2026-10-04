@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/club"
@@ -67,7 +68,8 @@ type Service struct {
 	cbHook    CallbackHook
 	claimHook CallbackHook // «Я резидент BS» (start_hook.go)
 	teamCb    map[string]TeamCallbackHook
-	files     sync.Map // Telegram file_id of what the server uploaded
+	files     sync.Map                    // Telegram file_id of what the server uploaded
+	sysCheck  atomic.Pointer[SystemCheck] // R36: the admins' /status (syscheck_hook.go)
 }
 
 type Options struct {

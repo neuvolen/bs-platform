@@ -128,6 +128,7 @@ var (
 func init() {
 	html, seed := stripSeed(string(platformHTML))
 	seedJSON = seed
+	appHTML = html
 	appPage = build(injectMarker(injectVoice(html)))
 	loginPage = build(loginWithIcons(string(loginHTML), html))
 }
@@ -258,7 +259,7 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	secret := []byte(jwtSecret)
 	h := func(c *gin.Context) {
 		if validSession(c, secret, sessionCookie) {
-			serve(c, appPage)
+			serve(c, currentAppPage()) // R36: with the premium voice's files when it is on (voice.go)
 			return
 		}
 		serve(c, loginPage)

@@ -16,10 +16,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/club"
 	"github.com/bnursik/business_surgery_backend/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
@@ -437,6 +439,53 @@ func (t *TildaLeads) mark(ctx context.Context, x tildaLast) {
 	if err := t.Meta.SetMeta(ctx, tildaMetaLast, string(b)); err != nil {
 		log.Printf("tilda: last: %v", err)
 	}
+	if !x.Test && !x.Dup {
+		t.markLead(ctx, x)
+	}
+}
+
+// R36: the system check shows the last real lead (a test ping of Tilda
+// does not count) and how many came today (Almaty).
+const (
+	tildaMetaLead = "tilda:lead" // {at, via} of the last real lead
+	tildaMetaDay  = "tilda:day:" // + 2006-01-02 (Almaty): leads that day
+)
+
+func (t *TildaLeads) markLead(ctx context.Context, x tildaLast) {
+	b, _ := json.Marshal(map[string]string{"at": x.At, "via": x.Via})
+	_ = t.Meta.SetMeta(ctx, tildaMetaLead, string(b))
+	key := tildaMetaDay + t.now().In(club.Almaty).Format("2006-01-02")
+	n := 0
+	if v, err := t.Meta.GetMeta(ctx, key); err == nil {
+		n, _ = strconv.Atoi(strings.TrimSpace(v))
+	}
+	_ = t.Meta.SetMeta(ctx, key, strconv.Itoa(n+1))
+}
+
+// TildaLeadInfo: the last real lead and today's count (the system check).
+type TildaLeadInfo struct {
+	At    time.Time
+	Via   string // tilda | script
+	Today int
+}
+
+func ReadTildaLeads(ctx context.Context, meta interface {
+	GetMeta(ctx context.Context, key string) (string, error)
+}, now time.Time) (TildaLeadInfo, error) {
+	var out TildaLeadInfo
+	v, err := meta.GetMeta(ctx, tildaMetaLead)
+	if err != nil {
+		return out, err
+	}
+	var x struct{ At, Via string }
+	if v != "" && json.Unmarshal([]byte(v), &x) == nil {
+		out.At, _ = time.Parse(time.RFC3339, x.At)
+		out.Via = x.Via
+	}
+	if d, err := meta.GetMeta(ctx, tildaMetaDay+now.In(club.Almaty).Format("2006-01-02")); err == nil {
+		out.Today, _ = strconv.Atoi(strings.TrimSpace(d))
+	}
+	return out, nil
 }
 
 // Hook: POST /api/v1/public/tilda[/<ключ>]
