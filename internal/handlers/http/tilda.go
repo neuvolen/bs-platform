@@ -3,7 +3,9 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
@@ -96,9 +98,12 @@ func (t *TildaLeads) Token(ctx context.Context) (tok string, fromEnv bool) {
 	if v, err := t.Meta.GetMeta(ctx, tildaMetaToken); err == nil && strings.TrimSpace(v) != "" {
 		tok = strings.TrimSpace(v)
 	} else if err == nil {
-		b := make([]byte, 18)
-		_, _ = rand.Read(b)
-		tok = hex.EncodeToString(b)
+		tok = t.DerivedToken()
+		if tok == "" {
+			b := make([]byte, 18)
+			_, _ = rand.Read(b)
+			tok = hex.EncodeToString(b)
+		}
 		if err := t.Meta.SetMeta(ctx, tildaMetaToken, tok); err != nil {
 			return "", false
 		}
@@ -355,6 +360,17 @@ func tildaEq(a, b string) bool {
 	return a != "" && b != "" && subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
+// DerivedToken: постоянный ключ из токена бота (HMAC), чтобы адрес для Tilda
+// можно было выдать заранее, не заходя на сервер.
+func (t *TildaLeads) DerivedToken() string {
+	if t.BotToken == "" {
+		return ""
+	}
+	m := hmac.New(sha256.New, []byte(t.BotToken))
+	m.Write([]byte("bs-tilda-webhook-v1"))
+	return hex.EncodeToString(m.Sum(nil))[:32]
+}
+
 // authorized: подпись скрипта или ключ (путь, поле, заголовок «API key»).
 func (t *TildaLeads) authorized(ctx context.Context, c *gin.Context, body []byte, f map[string]string) (ok, viaScript bool) {
 	if sig := c.GetHeader("X-BS-Signature"); sig != "" && t.BotToken != "" && VerifyBotSignature(body, sig, t.BotToken) {
@@ -372,7 +388,7 @@ func (t *TildaLeads) authorized(ctx context.Context, c *gin.Context, body []byte
 	if tok == "" {
 		return false, false
 	}
-	if tildaEq(strings.TrimSpace(c.Param("token")), tok) {
+	if tildaEq(strings.TrimSpace(c.Param("token")), tok) || tildaEq(strings.TrimSpace(c.Param("token")), t.DerivedToken()) {
 		return true, false
 	}
 	for _, k := range []string{"token", "api_key", "apikey", "key", "secret", "tilda_token"} {

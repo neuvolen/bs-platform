@@ -195,3 +195,14 @@ func TestTildaRateLimit(t *testing.T) {
 		t.Fatal("per-address limit")
 	}
 }
+
+func TestTildaDerivedToken(t *testing.T) {
+	a := &TildaLeads{BotToken: "123:abc"}
+	b := &TildaLeads{BotToken: "123:abc"}
+	if a.DerivedToken() == "" || a.DerivedToken() != b.DerivedToken() || len(a.DerivedToken()) != 32 {
+		t.Fatalf("derived token not stable: %q", a.DerivedToken())
+	}
+	if (&TildaLeads{}).DerivedToken() != "" {
+		t.Fatal("empty bot token must give empty key")
+	}
+}
