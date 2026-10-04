@@ -97,7 +97,11 @@ func StreakReady(days []time.Time, ok []bool, now time.Time, n int) bool {
 // when that changes.
 func (s *Service) refreshFeatures(ctx context.Context) ([]string, error) {
 	var list []string
-	if v, err := s.repo.GetMeta(ctx, metaOverride); err != nil {
+	if !club.SheetLegacy() {
+		// After the cutover the server does everything; the sheet's override
+		// (an emergency "give it all back to the sheet") no longer applies.
+		list = append(list, KnownFeatures...)
+	} else if v, err := s.repo.GetMeta(ctx, metaOverride); err != nil {
 		return nil, err
 	} else if v != "" {
 		if err := json.Unmarshal([]byte(v), &list); err != nil {

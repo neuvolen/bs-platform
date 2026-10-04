@@ -28,6 +28,11 @@ type ClubHandler struct {
 	// the server does not hold (NPS, leads, resident tasks).
 	StaticSeed string
 
+	// Cutover: after the sheet's final import the server is the master (sheet_off.go).
+	Cutover *SheetCutover
+	// Owner logs how the sheet's final import differs from the server (sheet_owner.go).
+	Owner *SheetOwner
+
 	repo      *pg.ClubRepo
 	platform  *pg.PlatformRepo
 	botToken  string
@@ -57,6 +62,8 @@ func (m *ClubModule) Register(r *gin.Engine) {
 	g.GET("/fines", m.h.Fines)
 	g.GET("/meetings", m.h.Meetings)
 	g.GET("/pl", m.h.PL)
+	registerDDS(g, m.h)                   // R32a: ДДС как таблица (club_dds.go)
+	g.GET("/data/export", m.h.DataExport) // R32c: the team's own copy instead of the sheet (club_export.go)
 }
 
 // VerifyBotSignature checks X-BS-Signature = hex(HMAC-SHA256(body, bot token)).
@@ -95,6 +102,9 @@ func (h *ClubHandler) adminFromBearer(c *gin.Context) (string, bool) {
 type clubImportReq struct {
 	TS     int64       `json:"ts"`
 	Sheets club.Sheets `json:"sheets"`
+	// Final: the dormant script's last import (with its archive sheets); it
+	// ends the cutover (sheet_off.go).
+	Final bool `json:"final"`
 }
 
 type clubImportReport struct {
@@ -148,6 +158,12 @@ func (h *ClubHandler) Import(c *gin.Context) {
 	}
 	dry := c.Query("dry") == "1"
 	ctx := c.Request.Context()
+	// After the cutover the sheet's data comes over once more, the final
+	// import; then never again.
+	if !club.SheetLegacy() && !dry && !h.Cutover.Pending(ctx) {
+		c.JSON(http.StatusConflict, gin.H{"error": "server_is_master", "detail": "Данные уже ведутся на сервере, таблица их не перезаписывает"})
+		return
+	}
 	// Once the server keeps the club's data, the sheet is a copy: its data
 	// must not come back and overwrite the server's, whatever it holds.
 	if m, err := h.repo.Master(ctx); err == nil && m == "server" {
@@ -182,6 +198,9 @@ func (h *ClubHandler) Import(c *gin.Context) {
 		rep.Unplaced = append(rep.Unplaced, club.BuildPL(snap.Payments, snap.PL, snap.PL.Year, upTo).Unknown...)
 	}
 
+	if !dry && req.Final && h.Cutover.Pending(ctx) {
+		h.Owner.NoteFinal(ctx, snap) // R32d: every difference with the server is logged once
+	}
 	if !dry {
 		// Club writes the sheet did not have when it sent this copy are put back on top.
 		sheetAt := time.Now()
@@ -202,6 +221,9 @@ func (h *ClubHandler) Import(c *gin.Context) {
 			return
 		}
 		rep.Saved = true
+		if req.Final {
+			defer h.Cutover.ImportDone(context.WithoutCancel(ctx)) // the final import: the server is the master now
+		}
 		// The platform's club sections show the new numbers.
 		if err := RefreshPlatformSeed(ctx, h.repo, h.platform, h.StaticSeed); err != nil {
 			log.Printf("platform seed: %v", err)
@@ -439,6 +461,8 @@ func (h *ClubHandler) Export(c *gin.Context) {
 	}
 	var req struct {
 		TS int64 `json:"ts"`
+		// Tables (script v41+): the copy tabs of residents, fines, meetings, reports.
+		Tables bool `json:"tables"`
 	}
 	if json.Unmarshal(body, &req) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad json"})
@@ -451,6 +475,14 @@ func (h *ClubHandler) Export(c *gin.Context) {
 	ctx := c.Request.Context()
 	if m, err := h.repo.Master(ctx); err != nil || m != "server" {
 		c.JSON(http.StatusConflict, gin.H{"error": "sheet_is_master"})
+		return
+	}
+	if !club.ExportOn(ctx) { // R32d: the copy is optional (sheet_owner.go)
+		c.JSON(http.StatusConflict, gin.H{"error": "export_off", "detail": "копия в таблицу выключена на платформе"})
+		return
+	}
+	if req.Tables {
+		h.exportWithTables(c)
 		return
 	}
 	s, ok := h.load(c)

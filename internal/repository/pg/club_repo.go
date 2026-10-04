@@ -88,7 +88,7 @@ func (r *ClubRepo) ReplaceAllThen(ctx context.Context, s *club.Snapshot, by stri
 	if err := tx.QueryRow(ctx, `SELECT value FROM club_meta WHERE key = 'master' FOR UPDATE`).Scan(&master); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	if master == "server" {
+	if master == "server" && !forcedReplace(ctx) {
 		return ErrServerIsMaster
 	}
 	if _, err := tx.Exec(ctx, `TRUNCATE club_residents, club_payments, club_fines, club_meetings,

@@ -3,8 +3,10 @@
 // summary (a recording becomes a transcript, a summary and a checklist).
 //
 // One key is enough. GEMINI_API_KEY covers both speech and text;
-// ANTHROPIC_API_KEY (Claude) is used for text when present; OPENAI_API_KEY
-// works for speech (Whisper) and text as a fallback.
+// ANTHROPIC_API_KEY (or CLAUDE_API_KEY) adds Claude: the text and web-search
+// tasks go to it when Gemini fails or its quota is used up (R32c);
+// OPENAI_API_KEY works for speech (Whisper) and text as a last fallback.
+// AI_TEXT_ORDER (e.g. "claude,gemini") changes which model is asked first.
 package ai
 
 import (
@@ -34,6 +36,14 @@ type Client struct {
 	HTTP                                  *http.Client
 
 	modelMu sync.Mutex // GeminiModel may be switched when Google retires a model
+	quota   quotaState // services whose quota is used up (quota.go)
+
+	// TextOrder: the order Text, JSON and Search ask the models in
+	// (AI_TEXT_ORDER; default gemini, claude, openai).
+	TextOrder []string
+	// OnQuota is told when a service closes for a long time (a daily or
+	// billing quota); the platform tells the owner once a day (R32c).
+	OnQuota func(*QuotaError)
 }
 
 // HTTPError is a non-2xx answer of a model API (Body is complete).
@@ -42,12 +52,17 @@ type HTTPError struct {
 	Body   string
 }
 
+// Error never carries the API's raw JSON (R32c: it used to reach the page):
+// a quota refusal is QuotaMessage, anything else the status and the API's
+// own one-line message. The full answer stays in Body for the logs.
 func (e *HTTPError) Error() string {
-	msg := e.Body
-	if len(msg) > 300 {
-		msg = msg[:300]
+	if _, ok := ParseQuota(e); ok {
+		return QuotaMessage
 	}
-	return fmt.Sprintf("ИИ ответил %d: %s", e.Status, msg)
+	if m := apiMessage(e.Body); m != "" {
+		return fmt.Sprintf("ИИ ответил ошибкой %d: %s", e.Status, m)
+	}
+	return fmt.Sprintf("ИИ ответил ошибкой %d", e.Status)
 }
 
 func (c *Client) geminiModel() string {
@@ -151,10 +166,17 @@ func (c *Client) newestFlash(ctx context.Context, cur string) string {
 
 // geminiCall posts to models/<model>:<method>, switching to a live model
 // once if the configured one was retired.
+// While Gemini's quota is used up it is not called at all (quota.go).
 func (c *Client) geminiCall(ctx context.Context, method string, body any) ([]byte, error) {
+	if q := c.quotaClosed("gemini"); q != nil {
+		return nil, q
+	}
 	for try := 0; ; try++ {
 		url := fmt.Sprintf("%s/v1beta/models/%s:%s?key=%s", c.GeminiBase, c.geminiModel(), method, c.Gemini)
 		b, err := c.do(ctx, jsonReq("POST", url, body))
+		if q := c.noteQuota("gemini", err); q != nil {
+			return nil, q
+		}
 		if err == nil || try > 0 {
 			return b, err
 		}
@@ -173,7 +195,7 @@ func FromEnv() *Client {
 		return def
 	}
 	return &Client{
-		Anthropic:      env("ANTHROPIC_API_KEY", ""),
+		Anthropic:      env("ANTHROPIC_API_KEY", env("CLAUDE_API_KEY", "")),
 		Gemini:         env("GEMINI_API_KEY", ""),
 		OpenAI:         env("OPENAI_API_KEY", ""),
 		ClaudeModel:    env("AI_CLAUDE_MODEL", "claude-sonnet-5"),
@@ -184,19 +206,15 @@ func FromEnv() *Client {
 		GeminiBase:     env("GEMINI_API_BASE", "https://generativelanguage.googleapis.com"),
 		OpenAIBase:     env("OPENAI_API_BASE", "https://api.openai.com"),
 		HTTP:           &http.Client{Timeout: 15 * time.Minute},
+		TextOrder:      strings.FieldsFunc(strings.ToLower(env("AI_TEXT_ORDER", "")), func(r rune) bool { return r == ',' || r == ' ' }),
 	}
 }
 
 // Status says what is available, for the page to explain what is missing.
 func (c *Client) Status() map[string]any {
 	text, speech := "", ""
-	switch {
-	case c.Anthropic != "":
-		text = "claude"
-	case c.Gemini != "":
-		text = "gemini"
-	case c.OpenAI != "":
-		text = "openai"
+	if ms := c.TextModels(); len(ms) > 0 {
+		text = ms[0]
 	}
 	switch {
 	case c.Gemini != "":
@@ -204,30 +222,146 @@ func (c *Client) Status() map[string]any {
 	case c.OpenAI != "":
 		speech = "openai"
 	}
-	return map[string]any{"text": text, "speech": speech}
+	st := map[string]any{"text": text, "speech": speech, "textModels": c.TextModels()}
+	q := map[string]string{}
+	for _, svc := range []string{"gemini", "tts"} {
+		if u := c.QuotaUntil(svc); !u.IsZero() {
+			q[svc] = u.UTC().Format(time.RFC3339)
+		}
+	}
+	if len(q) > 0 {
+		st["quota"] = q
+	}
+	st["providers"] = c.Providers()
+	if c.Paused() {
+		st["paused"], st["message"] = true, QuotaMessage
+	}
+	return st
+}
+
+// Providers: one line per model for the admin's «Состояние ИИ» (R32c).
+//
+//	state: ok | quota (until) | none (no key)
+func (c *Client) Providers() []map[string]any {
+	var out []map[string]any
+	add := func(name, key string, svc string) {
+		p := map[string]any{"name": name, "state": "ok"}
+		if key == "" {
+			p["state"] = "none"
+		} else if svc != "" {
+			if q := c.quotaClosed(svc); q != nil {
+				p["state"], p["until"] = "quota", q.Until.UTC().Format(time.RFC3339)
+				p["billing"], p["daily"] = q.Billing, q.Daily
+			}
+		}
+		out = append(out, p)
+	}
+	add("gemini", c.Gemini, "gemini")
+	add("claude", c.Anthropic, "")
+	if c.OpenAI != "" {
+		add("openai", c.OpenAI, "")
+	}
+	return out
+}
+
+// Paused: no model can answer a text task now (Gemini's quota is used up
+// and there is no other key). The page shows QuotaMessage.
+func (c *Client) Paused() bool {
+	for _, m := range c.TextModels() {
+		if m != "gemini" || c.quotaClosed("gemini") == nil {
+			return false
+		}
+	}
+	return c.Gemini != ""
+}
+
+// UserMessage: an AI error in words for the page or the bot, never raw JSON.
+func UserMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	if IsQuota(err) {
+		return QuotaMessage
+	}
+	var he *HTTPError
+	if errors.As(err, &he) {
+		return he.Error()
+	}
+	msg := err.Error()
+	if i := strings.Index(msg, "{\""); i >= 0 {
+		msg = strings.TrimRight(strings.TrimSpace(msg[:i]), ":")
+		if msg == "" {
+			msg = "ИИ не ответил"
+		}
+	}
+	return msg
 }
 
 var ErrNoKey = errors.New("нет ключа ИИ: добавьте GEMINI_API_KEY в переменные Railway")
 
 // Text answers a prompt. system sets the role; the answer is plain text.
+//
+// R32d: the models with a key are asked in turn, Claude first, then Gemini,
+// then OpenAI: when one fails (quota, overload, a broken key, a hang) the next
+// answers. Gemini with a used-up quota is skipped without a call.
 func (c *Client) Text(ctx context.Context, system, prompt string) (string, error) {
-	switch {
-	case c.Anthropic != "":
-		return c.claude(ctx, system, prompt)
-	case c.Gemini != "":
-		return c.gemini(ctx, system, []map[string]any{{"text": prompt}})
-	case c.OpenAI != "":
-		return c.openaiChat(ctx, system, prompt)
-	}
-	return "", ErrNoKey
+	return c.chain(ctx, system, prompt, false)
 }
 
 // JSON answers a prompt expecting a JSON object (Gemini is put into JSON mode).
 func (c *Client) JSON(ctx context.Context, system, prompt string) (string, error) {
-	if c.Anthropic == "" && c.Gemini != "" {
-		return c.geminiCfg(ctx, system, []map[string]any{{"text": prompt}}, map[string]any{"responseMimeType": "application/json", "temperature": 0.2})
+	return c.chain(ctx, system, prompt, true)
+}
+
+// TextModels: the models Text and JSON try, in order: TextOrder, by default
+// Gemini, then Claude (R32c: the fallback when Gemini's quota is used up),
+// then OpenAI. Only models with a key; one missing from TextOrder goes last.
+func (c *Client) TextModels() []string {
+	has := map[string]bool{"gemini": c.Gemini != "", "claude": c.Anthropic != "", "openai": c.OpenAI != ""}
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range append(append([]string{}, c.TextOrder...), "gemini", "claude", "openai") {
+		if has[m] && !seen[m] {
+			seen[m] = true
+			out = append(out, m)
+		}
 	}
-	return c.Text(ctx, system, prompt)
+	return out
+}
+
+func (c *Client) chain(ctx context.Context, system, prompt string, asJSON bool) (string, error) {
+	models := c.TextModels()
+	if len(models) == 0 {
+		return "", ErrNoKey
+	}
+	var first error
+	for _, m := range models {
+		var ans string
+		var err error
+		switch m {
+		case "claude":
+			ans, err = c.claude(ctx, system, prompt)
+		case "gemini":
+			if asJSON {
+				ans, err = c.geminiCfg(ctx, system, []map[string]any{{"text": prompt}}, map[string]any{"responseMimeType": "application/json", "temperature": 0.2})
+			} else {
+				ans, err = c.gemini(ctx, system, []map[string]any{{"text": prompt}})
+			}
+		case "openai":
+			ans, err = c.openaiChat(ctx, system, prompt)
+		}
+		if err == nil {
+			return ans, nil
+		}
+		// a paused Gemini says less than the fallback's own failure
+		if first == nil || (IsQuota(first) && !IsQuota(err)) {
+			first = err
+		}
+		if !fallbackWorthy(ctx, err) {
+			break
+		}
+	}
+	return "", first
 }
 
 // Transcribe turns a recording into text with speakers where the model can tell them.
@@ -237,17 +371,31 @@ func (c *Client) Transcribe(ctx context.Context, audio []byte, mime string) (str
 	}
 	switch {
 	case c.Gemini != "":
-		part, err := c.geminiMedia(ctx, audio, mime)
-		if err != nil {
-			return "", err
+		t, err := c.geminiTranscribe(ctx, audio, mime)
+		// R32d: Gemini out of quota or down: Whisper, when there is its key
+		if err != nil && c.OpenAI != "" && fallbackWorthy(ctx, err) {
+			if t2, err2 := c.whisper(ctx, audio, mime); err2 == nil {
+				return t2, nil
+			}
 		}
-		return c.gemini(ctx, "Ты точно расшифровываешь деловые созвоны на русском языке.",
-			[]map[string]any{part, {"text": "Дословно расшифруй запись созвона. Это разбор бизнеса: трекер (Рустам или Береке) и резидент. " +
-				"Раздели реплики по говорящим: «Трекер:» и «Резидент:», каждая с новой строки. Без комментариев от себя."}})
+		return t, err
 	case c.OpenAI != "":
 		return c.whisper(ctx, audio, mime)
 	}
 	return "", errors.New("нет ключа для расшифровки речи: добавьте GEMINI_API_KEY в переменные Railway")
+}
+
+func (c *Client) geminiTranscribe(ctx context.Context, audio []byte, mime string) (string, error) {
+	if q := c.quotaClosed("gemini"); q != nil {
+		return "", q
+	}
+	part, err := c.geminiMedia(ctx, audio, mime)
+	if err != nil {
+		return "", err
+	}
+	return c.gemini(ctx, "Ты точно расшифровываешь деловые созвоны на русском языке.",
+		[]map[string]any{part, {"text": "Дословно расшифруй запись созвона. Это разбор бизнеса: трекер (Рустам или Береке) и резидент. " +
+			"Раздели реплики по говорящим: «Трекер:» и «Резидент:», каждая с новой строки. Без комментариев от себя."}})
 }
 
 func (c *Client) do(ctx context.Context, req *http.Request) ([]byte, error) {
@@ -487,17 +635,32 @@ func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
 			}
 		}
 	}
-	if c.Gemini != "" {
-		ans, err := try(c.geminiSearch)
-		if err == nil || c.Anthropic == "" || ctx.Err() != nil {
-			return ans, err
+	// R32c: the same order as Text (Gemini, then Claude by default). A
+	// Gemini with a used-up quota answers at once without a call, so the
+	// search goes straight to Claude.
+	var first error
+	for _, m := range c.TextModels() {
+		var ans string
+		var err error
+		switch m {
+		case "gemini":
+			ans, err = try(c.geminiSearch)
+		case "claude":
+			ans, err = try(c.claudeSearch)
+		default:
+			continue
 		}
-		if ans2, err2 := try(c.claudeSearch); err2 == nil {
-			return ans2, nil
+		if err == nil {
+			return ans, nil
 		}
-		return ans, err
+		if first == nil || (IsQuota(first) && !IsQuota(err)) {
+			first = err
+		}
+		if ctx.Err() != nil {
+			break
+		}
 	}
-	return try(c.claudeSearch)
+	return "", first
 }
 
 func (c *Client) geminiSearch(ctx context.Context, prompt string) (string, error) {

@@ -270,7 +270,7 @@ func (f *LeadFunnel) sendWelcome(ctx context.Context, chatID int64, first, param
 // HandleStart answers a new person's /start (the hook of the bot service).
 func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
 	src := startSource(st.Param)
-	_, repeat, err := f.ensureLead(ctx, st.ChatID, st.FirstName, st.LastName, st.Username, src,
+	isNew, repeat, err := f.ensureLead(ctx, st.ChatID, st.FirstName, st.LastName, st.Username, src,
 		"Нажал Старт в боте ("+src+"), позван в приложение к 99 гайдам", "Снова нажал Старт в боте ("+src+")", true)
 	if err != nil {
 		log.Printf("funnel: crm: %v", err)
@@ -283,6 +283,11 @@ func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
 		log.Printf("funnel: welcome %d: %v", st.ChatID, err)
 		return false
 	}
+	if isNew { // R32e: чек-лист по боли (lead_pain.go)
+		if err := f.sendPainAsk(ctx, st.ChatID); err != nil {
+			log.Printf("funnel: pain ask %d: %v", st.ChatID, err)
+		}
+	}
 	return true
 }
 
@@ -292,6 +297,9 @@ var lmGuide = map[string]string{"sales": "g015", "unit": "g078", "delegate": "g0
 
 // HandleCallback answers the buttons of the script's old lead-magnet menu.
 func (f *LeadFunnel) HandleCallback(ctx context.Context, cb bot.CallbackUpdate) bool {
+	if strings.HasPrefix(cb.Data, leadPainPrefix) { // R32e: lead_pain.go
+		return f.painPick(ctx, cb)
+	}
 	if cb.Data == "sub_leadmagnets" || cb.Data == "sub_menu" {
 		_, _, _ = f.ensureLead(ctx, cb.ChatID, cb.FirstName, "", cb.Username, "Telegram: старое меню бота", "Открыл меню материалов в боте", "", false)
 		return f.sendWelcome(ctx, cb.ChatID, cb.FirstName, "") == nil
@@ -512,25 +520,37 @@ func warmSteps() []warmStep {
 		}
 		return first + ", "
 	}
+	// R32b: в каждом касании короткий кейс резидента с цифрами (план маркетинга, действие a2)
+	cs := func(t string) string { return "\n\nКейс: " + t }
 	return []warmStep{
 		{1, func(first, last string, opened, done int) string {
 			if opened == 0 {
-				return hi(first) + "вы ещё не открыли гайды.\n\nНачните с одного, это 15 минут чтения. Большинство уже с первого гайда находят место, где бизнес теряет деньги каждый месяц."
+				return hi(first) + "вы ещё не открыли гайды.\n\nНачните с одного, это 15 минут чтения. Большинство уже с первого гайда находят место, где бизнес теряет деньги каждый месяц." +
+					cs("Исфандияр начинал с 200 000 ₸ чистой прибыли, сейчас 2 млн ₸. Первым шагом сменили аудиторию и подняли средний чек.")
 			}
-			return hi(first) + "вижу, вы открыли «" + last + "». Дошли до конца?\n\nОбычно после первого гайда видно 2-3 места, где теряются деньги. Отметьте пункты чек-листа в приложении, прогресс сохраняется."
+			return hi(first) + "вижу, вы открыли «" + last + "». Дошли до конца?\n\nОбычно после первого гайда видно 2-3 места, где теряются деньги. Отметьте пункты чек-листа в приложении, прогресс сохраняется." +
+				cs("Исфандияр начинал с 200 000 ₸ чистой прибыли, сейчас 2 млн ₸. Первым шагом сменили аудиторию и подняли средний чек.")
 		}, open},
 		{3, func(first, last string, opened, done int) string {
-			return hi(first) + "одна идея.\n\nЧек-лист показывает, что делать. Диагностика показывает, с чего начать именно вам: за 5 минут видно, какой орган бизнеса болит сильнее остальных.\n\nРезультат сразу в приложении."
+			return hi(first) + "одна идея.\n\nЧек-лист показывает, что делать. Диагностика показывает, с чего начать именно вам: за 5 минут видно, какой орган бизнеса болит сильнее остальных.\n\nРезультат сразу в приложении." +
+				cs("у Артёма чистая прибыль выросла в 3 раза, а на новую нишу (магазин на Kaspi) он получил грант от государства.")
 		}, open},
 		{7, func(first, last string, opened, done int) string {
 			s := hi(first) + "вопрос по делу.\n\nЧто из гайдов вы уже внедрили?\n\n"
 			if done > 0 {
 				s = hi(first) + "вы прошли гайдов до конца: " + strconv.Itoa(done) + ". Это больше, чем делает большинство.\n\n"
 			}
-			return s + "Между «понял» и «сделал» обычно стоит операционка, которая съедает неделю за неделей. Разбор нужен ровно для этого: час, ваши цифры, план на 10 дней. Проводим вдвоём с Береке, 50 000 ₸."
+			return s + "Между «понял» и «сделал» обычно стоит операционка, которая съедает неделю за неделей. Разбор нужен ровно для этого: час, ваши цифры, план на 10 дней. Проводим вдвоём с Береке, 50 000 ₸." +
+				cs("у Елены три филиала языкового центра. Операционку забрал операционный директор, собственник вернулся к развитию.")
+		}, razbor},
+		{10, func(first, last string, opened, done int) string {
+			return hi(first) + "ещё один пример из клуба." +
+				cs("Даулет делает сайты: плотный рынок, фрилансеры давят цены. За время в клубе доход вырос в 3 раза, появилась своя команда.") +
+				"\n\nПотолок чаще задаёт не рынок, а то, как бизнес устроен внутри. На разборе за час видно, что держит именно вас. 50 000 ₸."
 		}, razbor},
 		{14, func(first, last string, opened, done int) string {
-			return hi(first) + "последнее сообщение от меня.\n\nЕсли тема сейчас не актуальна, просто игнорируйте. Если актуальна, но что-то останавливает, напишите одним словом что именно. Отвечу лично.\n\nГайды остаются вашими, они всегда в приложении."
+			return hi(first) + "последнее сообщение от меня.\n\nЕсли тема сейчас не актуальна, просто игнорируйте. Если актуальна, но что-то останавливает, напишите одним словом что именно. Отвечу лично.\n\nГайды остаются вашими, они всегда в приложении." +
+				cs("у Казбека К9 15-20 млн ₸ чистой прибыли в месяц. Рост на таком масштабе упёрся в оргструктуру и финансы, их и наладили.")
 		}, razbor},
 	}
 }
@@ -622,11 +642,16 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 			if v, ok := m["warm"].(float64); ok {
 				stage = int(v)
 			}
+			// R32b: касаний стало 5 (добавлен 10-й день). Кто получил прежние 4, уже прошёл всё
+			if m["warmV"] == nil && stage >= 4 {
+				stage = len(steps)
+			}
 			if stage >= len(steps) || now.Sub(start).Hours()/24 < steps[stage].day {
 				continue
 			}
 			jobs = append(jobs, job{tg: tg, stage: stage, first: leadFirst(m), last: lastTitle[tg]})
 			m["warm"] = stage + 1
+			m["warmV"] = 2
 			m["warmAt"] = now.UTC().Format(time.RFC3339)
 			addLog(m, now, fmt.Sprintf("Прогрев: касание %d из %d", stage+1, len(steps)))
 			changed = true

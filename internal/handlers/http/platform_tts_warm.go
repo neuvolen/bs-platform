@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/bnursik/business_surgery_backend/internal/ai"
 	"github.com/gin-gonic/gin"
 )
 
@@ -137,6 +138,17 @@ func (w *ttsWarmer) run(h *PlatformAI) {
 		ctx, cancel := context.WithTimeout(context.Background(), ttsWarmTimeout)
 		_, hit, err := h.speakCached(ctx, j.key, j.text, j.voice, false)
 		cancel()
+		// R32d: the quota is used up: the whole queue waits for tomorrow
+		// (TourVoiceLoop queues the missing phrases again when it is back).
+		// Not a failure of the phrase: each is still made once.
+		if ai.IsQuota(err) {
+			w.mu.Lock()
+			n := len(w.queue) + 1
+			w.queue, w.queued, w.running = nil, map[string]bool{}, false
+			w.mu.Unlock()
+			log.Printf("tts warm: quota used up until %s, %d phrases wait", h.AI.QuotaUntil("tts").Format(time.RFC3339), n)
+			return
+		}
 		w.mu.Lock()
 		switch {
 		case err != nil && j.tries+1 < ttsWarmTries:
@@ -180,11 +192,11 @@ func (h *PlatformAI) TTSWarm(c *gin.Context) {
 	if len(req.Texts) > ttsWarmMaxTexts {
 		req.Texts = req.Texts[:ttsWarmMaxTexts]
 	}
-	voice := ttsDefaultVoice()
+	ctx := c.Request.Context()
+	voice := h.ttsVoice(ctx)
 	if ttsVoices[req.Voice] {
 		voice = req.Voice
 	}
-	ctx := c.Request.Context()
 	ready := make([]bool, len(req.Texts))
 	var jobs []ttsJob
 	nReady := 0
@@ -215,7 +227,7 @@ func (h *PlatformAI) TTSWarm(c *gin.Context) {
 	}
 	noTTS := h.AI == nil || h.AI.Gemini == ""
 	queued := 0
-	if !noTTS {
+	if !noTTS && h.AI.QuotaUntil("tts").IsZero() {
 		queued = ttsW.add(h, jobs)
 	}
 	ttsW.mu.Lock()
@@ -247,20 +259,23 @@ func (h *PlatformAI) TourVoiceLoop(ctx context.Context, texts func() []string) {
 			return
 		case <-t.C:
 		}
-		if n, missing := h.PrewarmTour(ctx, texts()); missing > 0 {
+		if n, missing := h.PrewarmTour(ctx, texts()); missing > 0 && n > 0 {
 			log.Printf("tts tour: %d phrases queued, %d missing", n, missing)
 		}
+		h.ttsExport(ctx)
 		t.Reset(tourVoiceEvery)
 	}
 }
 
-// PrewarmTour queues the phrases not kept yet; it returns how many were
-// queued and how many are missing.
+// PrewarmTour queues the phrases not kept yet in the current voice; it
+// returns how many were queued and how many are missing. While the speech
+// quota is used up nothing is queued (no call is burnt): the loop checks
+// again later and goes on the next day.
 func (h *PlatformAI) PrewarmTour(ctx context.Context, list []string) (queued, missing int) {
 	if h.AI == nil || h.AI.Gemini == "" || len(list) == 0 {
 		return 0, 0
 	}
-	voice := ttsDefaultVoice()
+	voice := h.ttsVoice(ctx)
 	keys := make([]string, 0, len(list))
 	byKey := map[string]string{}
 	for _, t := range list {
@@ -284,6 +299,9 @@ func (h *PlatformAI) PrewarmTour(ctx context.Context, list []string) (queued, mi
 		if !have[k] {
 			jobs = append(jobs, ttsJob{key: k, text: byKey[k], voice: voice})
 		}
+	}
+	if !h.AI.QuotaUntil("tts").IsZero() {
+		return 0, len(jobs)
 	}
 	return ttsW.add(h, jobs), len(jobs)
 }

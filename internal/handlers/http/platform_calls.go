@@ -30,12 +30,15 @@ import (
 const callSummarySystem = `Ты помощник трекеров Business Surgery (Рустам и Береке). По расшифровке онлайн-разбора бизнеса резидента
 упакуй итог встречи. Отвечай ТОЛЬКО JSON:
 {"title":"короткое название встречи","summary":"связный текст 5-10 предложений: с чем пришёл, что выяснили, к чему пришли",
+"participants":["кто был на встрече: имя и роль (трекер, резидент, партнёр)"],"topics":["ключевые темы встречи, 3-6"],
 "pointA":"где резидент сейчас (цифры, если звучали)","pointB":"куда идёт",
 "problems":["ключевые проблемы, которые прозвучали"],"diagnoses":["корневые причины, диагнозы бизнеса"],
-"decisions":["о чём договорились"],"checklist":[{"text":"конкретная задача резидента","due":"ДД.ММ или пусто"}],
+"decisions":["о чём договорились"],"checklist":[{"text":"конкретная задача","owner":"кто делает: имя резидента, трекер или сотрудник","due":"ДД.ММ или пусто"}],
+"numbers":[{"label":"что это за цифра","value":"цифра с единицей: 5 000 000 ₸, 30 дней, 15%"}],
 "next":["следующие шаги: что и когда дальше (следующая встреча, отчёт, контрольная точка)"],
-"questions":["что осталось открытым"],"quote":"одна сильная фраза резидента или трекера"}
-Пиши по-русски, коротко и конкретно, без воды и без длинного тире. Чек-лист: 3-10 задач, каждая начинается с глагола.`
+"questions":["что осталось открытым"],"quote":"одна сильная фраза резидента или трекера","quotes":["2-4 точные цитаты из разговора"]}
+Пиши по-русски, коротко и конкретно, без воды и без длинного тире. Цифры только те, что прозвучали, тысячи через пробел: 10 000.
+Чек-лист: 3-10 задач, каждая начинается с глагола.`
 
 // longBody: a recording of an hour uploads longer than the server's 60 s read limit.
 func longBody(c *gin.Context) {
@@ -279,7 +282,7 @@ func (h *PlatformAI) runCallJob(id string) {
 		resident = j.Resident
 	}
 	date, _ := meta["date"].(string)
-	ans, err := h.AI.Text(ctx, callSummarySystem, "Резидент: "+resident+"\nДата: "+date+"\n\nРасшифровка:\n"+transcript)
+	ans, err := h.AI.Text(ctx, callSumPrompt(), "Резидент: "+resident+"\nДата: "+date+"\n\nРасшифровка:\n"+transcript) // R32e: callsum_flow.go
 	if err != nil {
 		fail(err)
 		return
@@ -289,6 +292,9 @@ func (h *PlatformAI) runCallJob(id string) {
 		sum = map[string]any{"summary": strings.TrimSpace(ans)}
 	}
 	meta["summary"] = sum
+	// R32e: the structured summary as a draft and its PDF; the resident gets
+	// it when the team publishes (callsum_flow.go)
+	h.callSumDraft(ctx, j, meta)
 	meta["stage"] = "deliver"
 	b, _ := json.Marshal(meta)
 	_ = h.repo.UpdateAIJob(ctx, id, "running", "", b)
@@ -335,8 +341,13 @@ func checklistOf(v any) []map[string]any {
 			case map[string]any:
 				t, _ := y["text"].(string)
 				d, _ := y["due"].(string)
+				o, _ := y["owner"].(string)
 				if strings.TrimSpace(t) != "" {
-					out = append(out, map[string]any{"text": strings.TrimSpace(t), "due": strings.TrimSpace(d)})
+					k := map[string]any{"text": strings.TrimSpace(t), "due": strings.TrimSpace(d)}
+					if o = strings.TrimSpace(o); o != "" {
+						k["owner"] = o
+					}
+					out = append(out, k)
 				}
 			}
 		}
@@ -362,7 +373,14 @@ func callCard(id string, meta map[string]any) map[string]any {
 		"problems": strs(sum["problems"]), "diagnoses": strs(sum["diagnoses"]), "decisions": strs(sum["decisions"]),
 		"checklist": checklistOf(sum["checklist"]), "next": strs(sum["next"]), "questions": strs(sum["questions"]),
 		"transcript": meta["transcript"], "audio": meta["audio"], "file": meta["file"], "by": "server",
+		// R32d: the summary PDF's parts (platform_calls_summary.go)
+		"participants": strs(sum["participants"]), "topics": strs(sum["topics"]), "quotes": strs(sum["quotes"]),
+		"numbers": numbersOf(sum["numbers"]),
 	}
+	if pdf, _ := meta["summaryPdf"].(string); pdf != "" {
+		card["summaryPdf"] = pdf
+	}
+	callSumFields(card, meta) // R32e: sections and draft/published (callsum_flow.go)
 	if sent, ok := meta["sent"]; ok {
 		card["sent"] = sent
 	}
@@ -465,27 +483,32 @@ func (h *PlatformAI) deliverCall(ctx context.Context, j *pg.AIJob, meta map[stri
 		}
 	}
 	if _, done := meta["sent"]; !done { // a resumed job does not send twice
+		// R32e: the owner gets the summary and the draft PDF; the resident gets
+		// the PDF when the team publishes it (callsum_flow.go)
 		text := CallText(resident, meta)
+		draft := callSumStatus(meta) == "draft"
+		if draft {
+			text += h.callSumOwnerNote(ctx, resident)
+		}
 		sent := map[string]any{"at": time.Now().UTC().Format(time.RFC3339)}
 		if h.Owner > 0 {
 			if err := h.send(ctx, h.Owner, text); err != nil {
 				sent["owner"], sent["ownerWhy"] = false, err.Error()
 			} else {
 				sent["owner"] = true
+				if fid, _ := meta["summaryPdf"].(string); fid != "" && h.SendDoc != nil {
+					if f, err := h.repo.GetFile(ctx, fid); err == nil && f != nil {
+						_ = h.SendDoc(ctx, h.Owner, "Черновик · "+f.Name, f.Data, "Черновик саммари для проверки")
+					}
+				}
 			}
 		}
-		tg, name, _ := h.repo.ResidentTgByName(ctx, resident)
+		tg, _, _ := h.repo.ResidentTgByName(ctx, resident)
 		switch {
 		case tg == 0:
 			sent["resident"], sent["residentWhy"] = false, "резидент не найден в клубе или без Telegram"
-		case tg == h.Owner:
-			sent["resident"] = true
-		default:
-			if err := h.send(ctx, tg, "Привет! Итоги нашего разбора. Задачи уже в приложении, отчёт по ним в конце цикла.\n\n"+text); err != nil {
-				sent["resident"], sent["residentWhy"] = false, err.Error()
-			} else {
-				sent["resident"], sent["residentName"] = true, name
-			}
+		case draft:
+			sent["resident"], sent["residentWhy"] = false, "саммари в черновике: уйдёт резиденту после публикации"
 		}
 		meta["sent"] = sent
 		b, _ := json.Marshal(meta)

@@ -65,6 +65,8 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	// R25: the branded template of a library tool by an open link (library_rich.go)
 	r.GET("/t/:file", PublicTemplate)
 	r.HEAD("/t/:file", PublicTemplate)
+	// R32d: the tour's voice as immutable files (platform_tts_static.go)
+	pub.GET("/tts/a/:file", m.AI.TTSFile)
 
 	// R27: the lead's home. The only routes a lead's token opens; the team
 	// sees the same in the «Лид» preview (lead_home.go).
@@ -102,16 +104,27 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/ai/jobs", m.AI.Jobs)
 	g.POST("/ai/jobs/:id/retry", m.AI.RetryCall) // platform_calls.go: записи разборов
 	g.GET("/ai/calls", m.AI.Calls)
+	g.GET("/ai/calls/:id/summary.pdf", m.AI.CallSummaryPDF) // platform_calls_summary.go (R32d)
+	// R32e: саммари разбора: черновик → правка → публикация резиденту (callsum_flow.go)
+	g.GET("/ai/calls/:id/summary", m.AI.CallSummary)
+	g.PUT("/ai/calls/:id/summary", m.AI.PutCallSummary)
+	g.POST("/ai/calls/:id/summary/regenerate", m.AI.RegenCallSummary)
+	g.POST("/ai/calls/:id/publish", m.AI.PublishCall)
+	g.GET("/ai/callsum/settings", m.AI.CallSumSettings)
+	g.PUT("/ai/callsum/settings", m.AI.PutCallSumSettings)
 	g.POST("/ai/events", m.AI.RefreshEvents)
 	g.GET("/ai/events", m.AI.EventsStatus)
 	g.POST("/ai/recs", m.AI.RecsNow)
 	g.POST("/ai/recs/:id", m.AI.RecAction)
 	g.POST("/ai/marketing", m.AI.Marketing)
-	g.POST("/ai/gallup", m.AI.Gallup) // platform_gallup.go: 34 talents from a Gallup report
-	g.POST("/gallup/pdf", GallupPDF)  // platform_gallup_pdf.go: the analysis as a PDF (R29)
-	g.POST("/ai/health", m.AI.Health) // platform_health.go: organ scores for «Здоровье бизнеса»
-	g.POST("/tts", m.AI.TTS)          // platform_tts.go: voice guide (onboarding)
-	g.POST("/tts/warm", m.AI.TTSWarm) // platform_tts_warm.go: the tour phrases made ahead of time
+	g.GET("/insights", m.AI.Insights)        // r32_insights.go: «Идеи и заметки» → «Аналитика»
+	g.POST("/ai/gallup", m.AI.Gallup)        // platform_gallup.go: 34 talents from a Gallup report
+	g.POST("/gallup/pdf", GallupPDF)         // platform_gallup_pdf.go: the analysis as a PDF (R29)
+	g.POST("/ai/health", m.AI.Health)        // platform_health.go: organ scores for «Здоровье бизнеса»
+	g.POST("/tts", m.AI.TTS)                 // platform_tts.go: voice guide (onboarding)
+	g.POST("/tts/warm", m.AI.TTSWarm)        // platform_tts_warm.go: the tour phrases made ahead of time
+	g.GET("/tts/manifest", m.AI.TTSManifest) // platform_tts_static.go: phrase → file, state
+	g.POST("/tts/voice", m.AI.TTSSetVoice)
 	g.GET("/guide/:id", m.AI.GuideForPlatform)
 	g.GET("/library/rich", LibraryRich)               // library_rich.go
 	g.GET("/library/template/:file", LibraryTemplate) // <id>.pdf

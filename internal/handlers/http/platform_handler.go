@@ -38,12 +38,30 @@ var platformPersonalKeys = map[string]bool{
 	"bs_order":   true,
 	"bs_onboard": true,
 	"bs_me":      true, // who I am on the board (name, colour, presence id)
+	// R32b: «Аналитика и инсайты»: что человек скрыл, отправил в идеи или задачи
+	"bs_an_state": true,
 }
 
 // Keys that are pure local bookkeeping and never leave the browser.
 var platformLocalOnlyKeys = map[string]bool{
 	"bs_lastsync": true,
 	"bs_peer":     true, // presence ping, rewritten every few seconds
+}
+
+// R32b: личный ключ (порядок меню, тема, обучение) живёт только в области
+// человека. Старая копия того же ключа в области клуба (запись до того, как
+// ключ стал личным, или импорт из файла) приходила вторым документом с тем
+// же именем: браузер сверял версии не того документа и после перезагрузки
+// возвращал чужой или старый порядок меню. Такие копии не отдаём.
+func dropClubPersonal(docs []pg.PlatformDoc) []pg.PlatformDoc {
+	out := docs[:0]
+	for _, d := range docs {
+		if d.Scope == "club" && platformPersonalKeys[d.Key] {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
 }
 
 var platformKeyRe = regexp.MustCompile(`^bs_[a-z0-9_]{1,60}$`)
@@ -93,7 +111,9 @@ func (h *PlatformHandler) Sync(c *gin.Context) {
 	}
 	if isResident(c) {
 		boards, docs = filterForResident(boards, docs, name, "user:"+platformUser(c))
+		boards = h.gateResidentCalls(c.Request.Context(), boards, name) // R32e: callsum_flow.go
 	}
+	docs = dropClubPersonal(docs)
 	c.JSON(http.StatusOK, gin.H{"rev": rev, "boards": boards, "docs": docs, "serverTime": time.Now().UTC()})
 }
 
@@ -141,6 +161,10 @@ func (h *PlatformHandler) PutBoard(c *gin.Context) {
 		if !boardBelongsTo(&next, name) {
 			forbidden(c, "cannot_reassign_board")
 			return
+		}
+		// R32d: the resident's copy has no recordings; the board's calls stay as kept
+		if kept, err := keepCalls(cur.Data, req.Data); err == nil {
+			req.Data = kept
 		}
 	}
 	out, err := h.repo.PutBoard(c.Request.Context(), id, req.Version, req.Data, platformUser(c))

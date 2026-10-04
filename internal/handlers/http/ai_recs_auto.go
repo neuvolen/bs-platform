@@ -529,7 +529,7 @@ func (h *PlatformAI) autoRec(ctx context.Context, rec map[string]any, now time.T
 	askWhy, similar := "", ""
 	v, err := h.recJudge(ctx, rec, lib)
 	if err != nil {
-		askWhy = "ИИ не смог оценить кандидата (" + err.Error() + ")"
+		askWhy = "ИИ не смог оценить кандидата (" + ai.UserMessage(err) + ")"
 	} else {
 		var ask bool
 		if ask, askWhy = v.ask(rec); !ask {

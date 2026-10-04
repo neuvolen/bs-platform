@@ -489,8 +489,12 @@ func (a *applier) apply(action string, p map[string]string) error {
 		if amount == 0 {
 			amount = 10000
 		}
+		fineDay := day
+		if d, ok := a.appDate(p["date"]); ok { // the daily check fines the day checked
+			fineDay = d.Format("2006-01-02")
+		}
 		_, err := a.insert("club_fines", `INSERT INTO club_fines (resident, type, amount, date, paid, status, created_by)
-			VALUES ($1,$2,$3,$4,false,'Не оплатил','server')`, name, typ, amount, day)
+			VALUES ($1,$2,$3,$4,false,'Не оплатил','server')`, name, typ, amount, fineDay)
 		return err
 
 	case "updateFine":
@@ -783,6 +787,9 @@ func seenInSheet(ctx context.Context, q pgx.Tx, action string, p map[string]stri
 		amount := pint(p["amount"])
 		if amount == 0 {
 			amount = 10000
+		}
+		if d, ok := a.appDate(p["date"]); ok {
+			day = d.Format("2006-01-02")
 		}
 		err = q.QueryRow(ctx, `SELECT count(*) FROM club_fines WHERE btrim(resident) = btrim($1) AND amount = $2 AND date = $3`,
 			p["name"], amount, day).Scan(&n)

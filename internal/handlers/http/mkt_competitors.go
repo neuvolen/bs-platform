@@ -60,6 +60,8 @@ func mergeDirectCompetitors(doc map[string]any, list []map[string]any) int {
 func (h *PlatformAI) SeedMarketingAll(ctx context.Context) {
 	h.SeedMarketing(ctx)
 	h.MigrateDirectCompetitors(ctx)
+	h.MigrateMktActions(ctx) // r32_mkt_actions.go
+	h.MigrateMktR32e(ctx)    // r32e_mkt.go
 }
 
 // MigrateDirectCompetitors runs once (marker in the server doc).

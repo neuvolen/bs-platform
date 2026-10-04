@@ -28,14 +28,20 @@ const ttsMaxRunes = 1200
 // "v2" also retires every phrase cached with the old instruction.
 const ttsStyle = "v2"
 
-// Deep male prebuilt voices of Gemini TTS.
-var ttsVoices = map[string]bool{"Charon": true, "Orus": true, "Fenrir": true, "Iapetus": true, "Algenib": true, "Alnilam": true, "Rasalgethi": true, "Schedar": true}
+// Male prebuilt voices of Gemini TTS.
+var ttsVoices = map[string]bool{"Charon": true, "Orus": true, "Fenrir": true, "Iapetus": true, "Algenib": true, "Alnilam": true, "Rasalgethi": true, "Schedar": true, "Sadaltager": true}
+
+// R32d: Iapetus («Clear»): crisp consonants and an even, unhurried pitch, the
+// closest of Gemini's voices to a calm, precise butler-AI; its clarity also
+// survives the page's digital effect chain best. The team can change it in
+// settings (platform_tts_static.go); Charon recordings play until then.
+const ttsVoiceDefault = "Iapetus"
 
 func ttsDefaultVoice() string {
-	if v := strings.TrimSpace(os.Getenv("AI_TTS_VOICE")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("AI_TTS_VOICE")); ttsVoices[v] {
 		return v
 	}
-	return "Charon"
+	return ttsVoiceDefault
 }
 
 // ttsKey: the file id of a phrase (fits platformIDRe).
@@ -96,7 +102,7 @@ func (h *PlatformAI) TTS(c *gin.Context) {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "too_long", "max": ttsMaxRunes})
 		return
 	}
-	voice := ttsDefaultVoice()
+	voice := h.ttsVoice(c.Request.Context())
 	if ttsVoices[req.Voice] {
 		voice = req.Voice
 	}
@@ -113,6 +119,11 @@ func (h *PlatformAI) TTS(c *gin.Context) {
 	}
 	if h.AI == nil || h.AI.Gemini == "" {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no_tts"})
+		return
+	}
+	// R32d: the speech quota is used up: no call, the phrase comes later
+	if u := h.AI.QuotaUntil("tts"); !u.IsZero() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "quota", "until": u.UTC().Format(time.RFC3339)})
 		return
 	}
 	wait := ttsListenWait

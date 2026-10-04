@@ -256,7 +256,7 @@ func TestTTSTourMadeOnStartAndKept(t *testing.T) {
 		time.Sleep(30 * time.Millisecond)
 	}
 	var withText int
-	_ = db.Pool.QueryRow(ctx, `SELECT count(*) FROM tts_audio WHERE text <> '' AND style = $1 AND voice = 'Charon'`, ttsStyle).Scan(&withText)
+	_ = db.Pool.QueryRow(ctx, `SELECT count(*) FROM tts_audio WHERE text <> '' AND style = $1 AND voice = $2`, ttsStyle, ttsVoiceDefault).Scan(&withText)
 	if withText != len(texts) || !hung {
 		t.Fatalf("kept with text %d, hung %v", withText, hung)
 	}

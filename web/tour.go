@@ -61,7 +61,7 @@ func ParseTourTexts(page []byte) []string {
 		add(d.Cta[k])
 	}
 	add(d.Actions0())
-	for _, k := range []string{"track", "club", "fin", "sales", "mkt", "lib", "rtrack", "rtask", "rrep", "rcont", "rfive", "rmeas", "rme", "rbs", "lbs", "ltrack", "lmeas", "lup"} {
+	for _, k := range []string{"track", "club", "fin", "sales", "mkt", "lib", "rtrack", "rbiz", "rclub", "rtask", "rrep", "rcont", "rfive", "rmeas", "rme", "rbs", "lbs", "ltrack", "lmeas", "lup"} {
 		add(d.Nav[k])
 	}
 	for _, v := range d.Nav {

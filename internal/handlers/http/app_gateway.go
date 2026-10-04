@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/club"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
@@ -98,6 +99,12 @@ type AppGateway struct {
 	// Fallback: the script's relay deployment (the bot's), see fallbackURL.
 	Fallback func() string
 
+	// After the cutover (sheet_off.go): the bot sends what the script sent.
+	Contact func(ctx context.Context, chatID int64, text string) error
+	Photo   func(ctx context.Context, chatID int64, key string, photo []byte, caption string, kb map[string]any) error
+	// Ported: the app's last script-only actions, on the server (R32d, app_ported.go).
+	Ported *AppPorted
+
 	token     string
 	scriptURL string
 	client    *http.Client
@@ -176,6 +183,7 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.POST("/api/v1/app/book", m.g.Book)
 	r.POST("/api/v1/app/book/cancel", m.g.BookCancel)
 	r.POST("/api/v1/bot/claim", m.g.ClaimFromScript) // resident_claim.go, signed by the script
+	r.POST("/api/v1/bot/lead", m.g.LeadFromScript)   // sheet_off.go: Tilda leads the dormant script passes on
 }
 
 // AppSign is the signature the script checks on calls from the server:
@@ -329,6 +337,9 @@ func (g *AppGateway) fallbackURL() string {
 }
 
 func (g *AppGateway) getAt(ctx context.Context, base string, q url.Values) ([]byte, error) {
+	if !club.SheetLegacy() {
+		return nil, errSheetOff // after the cutover nothing calls the script
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
@@ -372,6 +383,10 @@ func (g *AppGateway) Call(c *gin.Context) {
 		return
 	}
 	q := g.params(in, action, u)
+	if !club.SheetLegacy() {
+		g.callOff(c, u, action, in, q)
+		return
+	}
 	if action == "getBotCache" {
 		g.bundle(c, q, u, in.Get("fresh") == "1")
 		return
@@ -543,6 +558,10 @@ func (g *AppGateway) Post(c *gin.Context) {
 	action, _ := body["bsAction"].(string)
 	if action != "uploadImage" && action != "sendImage" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown bsAction"})
+		return
+	}
+	if !club.SheetLegacy() {
+		g.ownPost(c, u, action, body)
 		return
 	}
 	cid := strconv.FormatInt(u.ID, 10)

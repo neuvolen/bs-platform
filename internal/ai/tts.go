@@ -111,6 +111,10 @@ func (c *Client) Speak(ctx context.Context, text, voice, style string) ([]byte, 
 	if c.Gemini == "" {
 		return nil, errors.New("нет ключа для озвучки: добавьте GEMINI_API_KEY")
 	}
+	// R32d: the speech quota is used up: no call until it is back (quota.go)
+	if q := c.quotaClosed("tts"); q != nil {
+		return nil, q
+	}
 	prompt := text
 	if style = strings.TrimSpace(style); style != "" {
 		prompt = style + "\n\n" + text
@@ -134,8 +138,23 @@ func (c *Client) Speak(ctx context.Context, text, voice, style string) ([]byte, 
 		if err == nil {
 			return speechWAV(b)
 		}
-		// Rate limit: the free TTS quota is a few requests a minute. Wait and
-		// retry rather than fail, so the tour keeps one voice.
+		// R32d: the quota is used up (a daily one, or Google asks to wait
+		// longer than a short pause): stop here, the service stays closed
+		// until it is back, and nothing more is burnt. A short wait Google
+		// names is waited out twice at most.
+		if qi, ok := ParseQuota(err); ok && (qi.Daily || qi.Retry > 90*time.Second || (qi.Retry > 0 && rl >= 2)) {
+			return nil, c.noteQuota("tts", err)
+		} else if ok && qi.Retry > 0 {
+			rl++
+			select {
+			case <-ctx.Done():
+				return nil, err
+			case <-time.After(TTSBackoff(qi.Retry + time.Second)):
+			}
+			try--
+			continue
+		}
+		// A rate limit without Google's retry info: wait and try again.
 		var he *HTTPError
 		if errors.As(err, &he) && (he.Status == 429 || he.Status == 503) && rl < 6 {
 			rl++

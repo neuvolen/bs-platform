@@ -383,7 +383,7 @@ func errText(err error) string {
 	if err == nil {
 		return ""
 	}
-	return err.Error()
+	return ai.UserMessage(err)
 }
 
 func isAIHTTP(err error) bool {

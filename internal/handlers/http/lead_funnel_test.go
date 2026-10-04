@@ -58,7 +58,8 @@ func TestLeadFunnel(t *testing.T) {
 	e.script.mu.Unlock()
 
 	w := sentTo(777)
-	if len(w) != 1 || !strings.Contains(w[0]["text"].(string), "99 гайдов") {
+	// R32e: after the welcome, «что болит» with four buttons (lead_pain.go)
+	if len(w) != 2 || !strings.Contains(w[0]["text"].(string), "99 гайдов") || !strings.Contains(w[1]["text"].(string), "болит сильнее") {
 		t.Fatalf("welcome: %v", w)
 	}
 	kbs, _ := json.Marshal(w[0]["reply_markup"])
@@ -75,7 +76,7 @@ func TestLeadFunnel(t *testing.T) {
 	// /start again within a minute: no second welcome
 	start(5005, 777, "/start")
 	time.Sleep(800 * time.Millisecond)
-	if len(sentTo(777)) != 1 {
+	if len(sentTo(777)) != 2 {
 		t.Fatalf("repeat start answered: %d", len(sentTo(777)))
 	}
 
@@ -102,14 +103,14 @@ func TestLeadFunnel(t *testing.T) {
 	if err := f.Progress(ctx, 777, "Айдар", "aidar", "lead", "", r); err != nil {
 		t.Fatal(err)
 	}
-	if len(sentTo(777)) != 1 {
+	if len(sentTo(777)) != 2 {
 		t.Fatal("nudged before finishing")
 	}
 	r.Done = 10
 	_ = f.Progress(ctx, 777, "Айдар", "aidar", "lead", "", r)
 	_ = f.Progress(ctx, 777, "Айдар", "aidar", "lead", "", r)
 	got := sentTo(777)
-	if len(got) != 2 || !strings.Contains(got[1]["text"].(string), "Платёжный календарь") {
+	if len(got) != 3 || !strings.Contains(got[2]["text"].(string), "Платёжный календарь") {
 		t.Fatalf("nudge: %v", got)
 	}
 	_ = f.Progress(ctx, 888, "Резидент", "", "resident", "Резидент Тест", ckReport{ID: "c010", Title: "Найм", Organ: "Команда", Done: 3, Total: 8})

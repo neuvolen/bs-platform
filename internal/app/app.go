@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"github.com/bnursik/business_surgery_backend/internal/bot"
+	"github.com/bnursik/business_surgery_backend/internal/club"
 	"log"
 	"os"
 	"strconv"
@@ -57,6 +58,9 @@ type Deps struct {
 
 	// Platform storage (boards and sections moved from the browser)
 	PlatformRepo *pg.PlatformRepo
+
+	// Club: the club data handler (the sheet's final import ends the cutover)
+	Club *httpapi.ClubHandler
 }
 
 func BuildDeps(db *pg.DB, jwtSecret, accessTTL, refreshTTL string) *Deps {
@@ -208,6 +212,7 @@ func BuildHTTPModules(
 func BuildClubModule(d *Deps, jwtSecret, telegramBotToken, staticSeed string) httpapi.RoutesRegistrar {
 	h := httpapi.NewClubHandler(pg.NewClubRepo(d.DB), d.PlatformRepo, telegramBotToken, jwtSecret)
 	h.StaticSeed = staticSeed
+	d.Club = h
 	return httpapi.NewClubModule(h)
 }
 
@@ -221,7 +226,11 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) *htt
 	m.AI.Ops = pg.NewClubRepo(d.DB)
 	if d.PlatformRepo != nil {
 		// The voice guide: every tour phrase made and kept before anyone opens the tour.
-		go m.AI.TourVoiceLoop(context.Background(), web.TourTexts)
+		m.AI.TourTexts = web.TourTexts
+		m.AI.StaticVoice = web.StaticVoice
+		// R32c: recorded phrases ship with the binary (web/voice); the server
+		// synthesises only a phrase without a file, so the quota is not spent.
+		go m.AI.TourVoiceLoop(context.Background(), web.TourTextsUnvoiced)
 	}
 	return m
 }
@@ -236,6 +245,11 @@ func WireCalls(pm *httpapi.PlatformModule, botSvc *bot.Service, team string) {
 	pm.AI.Owner = httpapi.FirstTeamID(team)
 	if botSvc != nil && botSvc.Enabled() {
 		pm.AI.Notify = botSvc.SendMessage
+		// R32e: the published «Саммари разбора» PDF goes to the resident as a file
+		pm.AI.SendDoc = func(ctx context.Context, chatID int64, name string, data []byte, caption string) error {
+			key := "callsum:" + strconv.FormatInt(chatID, 10) + ":" + strconv.FormatInt(time.Now().UnixNano(), 36) // never a cached file_id of another PDF
+			return botSvc.SendDocumentKB(ctx, chatID, key, name, data, "", caption, nil)
+		}
 		// Рекомендации ИИ: кардинальное решает владелец кнопками в боте (ai_recs_auto.go)
 		pm.AI.RecsBot = httpapi.RecsBot{Send: botSvc.SendMessageID, Edit: botSvc.EditMessageKB, Platform: httpapi.ContentPlatformURL()}
 		botSvc.SetTeamCallbackHook("airec_", pm.AI.HandleRecCallback)
@@ -247,6 +261,7 @@ func WireCalls(pm *httpapi.PlatformModule, botSvc *bot.Service, team string) {
 		pm.WireLeadBot(botSvc.SendMessageKB, admins)
 	}
 	go pm.AI.ResumeCalls(context.Background(), 45*time.Second, 2*time.Minute, 3*time.Minute)
+	go pm.AI.CallSumLoop(context.Background(), 5*time.Minute) // R32e: quiet-hours sends, auto-publish
 }
 
 // BuildContent wires the content engine (bs_content): planning, the owner's
@@ -291,7 +306,15 @@ func BuildBot(d *Deps, token, team, apiBase, publicURL, notify string) (*bot.Ser
 	for id := range httpapi.ParsePlatformTeam(notify) {
 		who = append(who, id)
 	}
-	svc := bot.New(pg.NewBotRepo(d.DB), bot.Options{Token: token, APIBase: apiBase, Admins: admins, Notify: who, TestClock: os.Getenv("BOT_TEST_CLOCK") == "1"})
+	if strings.TrimSpace(publicURL) == "" {
+		if dom := strings.TrimSpace(os.Getenv("RAILWAY_PUBLIC_DOMAIN")); dom != "" {
+			publicURL = "https://" + dom // the webhook the server keeps after the cutover
+		}
+	}
+	svc := bot.New(pg.NewBotRepo(d.DB), bot.Options{Token: token, APIBase: apiBase, Admins: admins, Notify: who,
+		TestClock: os.Getenv("BOT_TEST_CLOCK") == "1", PublicURL: publicURL})
+	svc.SetPlatformURL(httpapi.ContentPlatformURL())
+	log.Printf("sheet mode: %s", club.SheetMode())
 	return svc, httpapi.NewBotModule(httpapi.NewBotHandler(svc, publicURL))
 }
 
@@ -353,6 +376,45 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 	g.Club = clubRepo
 	writes := httpapi.NewClubWrites(clubRepo, g)
 	g.Writes = writes
+	// R32: the server is the only source of truth (SHEET_MODE off|mirror):
+	// the one-time switch, and the bot doing what the script did for a write.
+	cut := httpapi.NewSheetCutover(clubRepo, repo)
+	writes.Cutover = cut
+	if d.Club != nil {
+		d.Club.Cutover = cut
+	}
+	if botSvc != nil && botSvc.Enabled() {
+		var admins []int64
+		for id := range g.Admins {
+			admins = append(admins, id)
+		}
+		writes.Notify = &httpapi.WriteNotify{Send: botSvc.SendMessageKB, Topic: botSvc.SendTopic, Admins: admins}
+		g.Contact, g.Photo = botSvc.RequestContact, botSvc.SendPhotoKB
+		botSvc.SetFineSink(func(ctx context.Context, fines []bot.FineRow) ([]string, error) {
+			var added []string
+			for _, f := range fines {
+				day, ok := club.Date(f.Date)
+				if !ok {
+					continue
+				}
+				if have, err := clubRepo.FineExists(ctx, f.Name, f.Type, day); err != nil {
+					return added, err
+				} else if have {
+					continue
+				}
+				p := map[string]string{"name": f.Name, "type": f.Type, "amount": strconv.FormatInt(f.Amount, 10), "date": f.Date}
+				if _, err := writes.Local(ctx, "bot", 0, "Бот: проверка отчётов", "addFine", p); err != nil {
+					return added, err
+				}
+				added = append(added, f.Name)
+			}
+			return added, nil
+		})
+		botSvc.SetNoteSink(func(ctx context.Context, tg int64, who, action string, params map[string]string) error {
+			_, err := writes.Local(ctx, "bot", tg, who, action, params)
+			return err
+		})
+	}
 	// R27: «Я резидент BS»: the server checks the residents list itself, links
 	// a found resident, warms a lead, and asks the team only in doubtful
 	// cases and only in the daytime (resident_claim.go).
@@ -401,16 +463,24 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 			}
 		}
 	}
+	cut.OnDone = func() {
+		g.Reset()
+		if writes.Tables != nil {
+			writes.Tables()
+		}
+	}
+	go cut.Loop(context.Background())
 	go writes.Loop(context.Background())
 	go mig.Loop(context.Background())
 	// The data audit after the script v31 slips (bs_data_audit), after every import.
 	audit := httpapi.NewClubAudit(clubRepo, docs, g)
 	go audit.Loop(context.Background())
 
+	sheetMod := wireSheetOwner(d, g, writes, clubRepo, repo, cut, token, jwtSecret, botSvc) // R32d (sheet_wiring.go)
 	action := httpapi.NewClubActionHandler(g, clubRepo, d.PlatformRepo, staticSeed)
 	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewClubActionModule(action, []byte(jwtSecret)),
 		httpapi.NewMigrationModule(mig, []byte(jwtSecret)), httpapi.NewClubAuditModule(audit, []byte(jwtSecret)),
-		httpapi.NewClubResidentModule(action, []byte(jwtSecret))}
+		httpapi.NewClubResidentModule(action, []byte(jwtSecret)), sheetMod}
 }
 
 // parseBundleSample reads "admin:453800951,resident:490685605,lead:999".

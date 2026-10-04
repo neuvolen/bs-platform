@@ -9,7 +9,7 @@ import (
 // LatestScript is the version of the sheet's script the server ships
 // (internal/content/script/Code.js, BS_VERSION). The sheet installs it itself:
 // GET /api/v1/script/latest every hour, then POST /api/v1/script/updated.
-const LatestScript = "2026-10-03-39"
+const LatestScript = "2026-10-04-41"
 
 // bot_meta keys of the script's self-update.
 const (

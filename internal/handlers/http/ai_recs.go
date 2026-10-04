@@ -460,7 +460,8 @@ func (h *PlatformAI) RecsNow(c *gin.Context) {
 	defer cancel()
 	rec, err := h.dailyRec(ctx, time.Now(), true)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		// R32c: one clean sentence (a used-up quota: ai.QuotaMessage), never the API's JSON
+		c.JSON(http.StatusOK, gin.H{"error": ai.UserMessage(err), "quota": ai.IsQuota(err)})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"rec": rec})

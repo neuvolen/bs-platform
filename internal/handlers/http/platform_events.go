@@ -76,7 +76,8 @@ func (h *PlatformAI) eventsState() gin.H {
 	out["finished"] = r.finished.UTC().Format(time.RFC3339)
 	if r.err != nil {
 		out["error"] = ai.FriendlyError(r.err)
-		out["detail"] = r.err.Error()
+		out["detail"] = ai.UserMessage(r.err)
+		out["quota"] = ai.IsQuota(r.err)
 	} else {
 		out["found"] = r.found
 	}

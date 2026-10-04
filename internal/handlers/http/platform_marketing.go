@@ -80,7 +80,7 @@ func (h *PlatformAI) Marketing(c *gin.Context) {
 	defer cancel()
 	ans, err := h.AI.Search(ctx, prompt)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		c.JSON(http.StatusOK, gin.H{"error": ai.UserMessage(err), "quota": ai.IsQuota(err)})
 		return
 	}
 	var out map[string]json.RawMessage

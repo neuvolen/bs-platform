@@ -94,7 +94,7 @@ func (h *ClubActionHandler) Action(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	if m, err := h.club.Master(ctx); err == nil && m == "server" {
+	if m, err := h.club.Master(ctx); err == nil && m == "server" && club.SheetLegacy() {
 		c.JSON(http.StatusConflict, gin.H{"error": "server_is_master", "detail": "ввод на сервере включается вместе с переводом данных клуба"})
 		return
 	}

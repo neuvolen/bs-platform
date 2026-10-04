@@ -69,7 +69,7 @@ func TestThreadsFormatsAndCTA(t *testing.T) {
 			t.Fatalf("format %s twice in a row: %v", x, f)
 		}
 	}
-	want := map[string]int{"tip": 3, "checklist": 2, "numbers": 2, "myth": 2, "question": 2, "case": 2, "symptom": 2, "series": 1}
+	want := map[string]int{"tip": 2, "checklist": 2, "numbers": 2, "myth": 2, "question": 1, "case": 2, "symptom": 2, "series": 1, "opinion": 1, "backstage": 1}
 	for k, v := range want {
 		if cnt[k] != v {
 			t.Fatalf("16 posts: %v", cnt)

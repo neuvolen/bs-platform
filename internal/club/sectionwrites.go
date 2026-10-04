@@ -29,7 +29,20 @@ var SectionWriteActions = map[string][]string{
 	"addContentPost": {SheetContent}, "updateContentPost": {SheetContent}, "deleteContentPost": {SheetContent},
 	"updateLeadmagnet": {SheetLeadmagnets}, "requestLeadmagnet": {SheetLeadmagnets, SheetLMHistory},
 	"saveProfile": {SheetProfiles},
+	// After the cutover (R32): the sheets only the script wrote.
+	"saveProfit": {SheetProfit}, "addCustdevResponse": {SheetNPS}, "acceptTerms": {SheetAcceptsLog},
+	"submitDiagnosticRequest": {SheetDiagRequests}, "saveDiagnosticResult": {SheetDiagnostics},
 }
+
+// Sheets the script alone kept until the cutover; its last import brings
+// them, the server writes them since.
+const (
+	SheetProfit       = "Прибыль резидентов"
+	SheetNPS          = "NPS ответы"
+	SheetAcceptsLog   = "Акцепты"
+	SheetDiagRequests = "Заявки на диагностику"
+	SheetDiagnostics  = "Диагностика"
+)
 
 // SectionReapplyAfterSend: section writes that set a value (by row or key),
 // safe to put on top of an import again even if the sheet has them.
@@ -37,14 +50,19 @@ var SectionReapplyAfterSend = map[string]bool{"saveWheelAxes": true, "setResTask
 	"setProblemStatus": true, "setLeadStatus": true, "updateContentPost": true, "updateLeadmagnet": true, "saveProfile": true}
 
 var sectionHeaders = map[string][]string{
-	SheetWheel:       {"Дата", "Резидент", "Тип", "В1", "В2", "В3", "В4", "В5", "В6", "В7", "В8", "Бизнес"},
-	SheetResTasks:    {"Дата", "Резидент", "Задача", "Статус", "Комментарий", "Обновлено", "Кто создал"},
-	SheetProblems:    {"Дата", "Резидент", "Проблема", "Стоимость в месяц", "Статус"},
-	SheetSmm:         {"Дата", "Площадка", "Рубрика", "Заголовок", "Текст", "Статус", "Ссылка"},
-	SheetLeads:       {"Дата", "Имя", "Телефон", "Telegram", "Источник", "Кампания", "Ниша", "Оборот", "Запрос", "Статус", "Ответственный", "Комментарий", "След. касание", "Сумма сделки"},
-	SheetLMHistory:   {"Chat ID", "Ключ", "Дата", "Название"},
-	SheetProfiles:    {"Chat ID", "Ниша", "О себе", "Чем поможет", "Instagram", "Телефон", "Аватар URL"},
-	SheetLeadmagnets: {"Ключ", "Название", "File ID", "Дата загрузки", "Кто загрузил"},
+	SheetWheel:        {"Дата", "Резидент", "Тип", "В1", "В2", "В3", "В4", "В5", "В6", "В7", "В8", "Бизнес"},
+	SheetResTasks:     {"Дата", "Резидент", "Задача", "Статус", "Комментарий", "Обновлено", "Кто создал"},
+	SheetProblems:     {"Дата", "Резидент", "Проблема", "Стоимость в месяц", "Статус"},
+	SheetSmm:          {"Дата", "Площадка", "Рубрика", "Заголовок", "Текст", "Статус", "Ссылка"},
+	SheetLeads:        {"Дата", "Имя", "Телефон", "Telegram", "Источник", "Кампания", "Ниша", "Оборот", "Запрос", "Статус", "Ответственный", "Комментарий", "След. касание", "Сумма сделки"},
+	SheetLMHistory:    {"Chat ID", "Ключ", "Дата", "Название"},
+	SheetProfiles:     {"Chat ID", "Ниша", "О себе", "Чем поможет", "Instagram", "Телефон", "Аватар URL"},
+	SheetLeadmagnets:  {"Ключ", "Название", "File ID", "Дата загрузки", "Кто загрузил"},
+	SheetProfit:       {"Дата", "Резидент", "Выручка", "Прибыль"},
+	SheetNPS:          {"Дата", "Резидент", "Chat ID", "Ответ"},
+	SheetAcceptsLog:   {"Дата/время", "Chat ID", "Username", "First Name", "Версия оферты", "Версия политики", "Источник"},
+	SheetDiagRequests: {"Дата", "Имя", "Телефон", "Ниша", "Запрос", "Chat ID", "Статус"},
+	SheetDiagnostics:  {"Дата", "Chat ID", "Имя", "Telegram", "Общий %", "Слабый орган", "Сильный орган", "Ответы JSON", "Источник", "Рекомендации AI"},
 }
 
 // grid is one sheet being changed.
@@ -204,6 +222,59 @@ func ApplySection(action string, p map[string]string, at time.Time, grids map[st
 	row := func() (int, bool) { n, ok := jsParseInt(p["row"]); return n, ok }
 
 	switch action {
+	case "saveProfit":
+		name := str("name")
+		digits := func(k string) int64 {
+			n, _ := strconv.ParseInt(regexp.MustCompile(`[^0-9]`).ReplaceAllString(p[k], ""), 10, 64)
+			return n
+		}
+		rev, prof := digits("revenue"), digits("profit")
+		if name == "" {
+			return nil, errors.New("Нет имени")
+		}
+		if rev == 0 && prof == 0 {
+			return nil, errors.New("Введи цифры")
+		}
+		sheet(SheetProfit).append(at.In(Almaty).Format("02.01.2006"), name, grouped(rev), grouped(prof))
+
+	case "addCustdevResponse":
+		name, text := str("name"), str("text")
+		if name == "" {
+			return nil, errors.New("Нет имени")
+		}
+		if text == "" {
+			return nil, errors.New("Нет текста")
+		}
+		sheet(SheetNPS).append(dt(at), name, firstNonEmpty(str("tg"), str("chatId")), text)
+
+	case "submitDiagnosticRequest":
+		name, phone := str("name"), str("phone")
+		if name == "" {
+			return nil, errors.New("Введи имя")
+		}
+		if phone == "" {
+			return nil, errors.New("Введи телефон")
+		}
+		sheet(SheetDiagRequests).append(dt(at), name, phone, str("niche"), str("request"), str("chatId"), "Новая")
+
+	case "saveDiagnosticResult":
+		sheet(SheetDiagnostics).append(dt(at), str("chatId"), firstNonEmpty(str("userName"), str("name")), str("userTg"),
+			"", "", "", firstNonEmpty(str("answers"), "{}"), "Mini App", "")
+
+	case "acceptTerms":
+		tg := str("tg")
+		if tg == "" {
+			return nil, errors.New("Нет Chat ID")
+		}
+		g := read(SheetAcceptsLog)
+		for i := 2; i <= g.last(); i++ {
+			if strings.TrimSpace(g.get(i, 2)) == tg {
+				return map[string][][]string{}, nil // accepted already
+			}
+		}
+		sheet(SheetAcceptsLog).append(at.In(Almaty).Format("02.01.2006 15:04:05"), tg, str("username"), str("name"),
+			firstNonEmpty(str("offer"), "1.0"), firstNonEmpty(str("privacy"), "1.0"), "Telegram /start")
+
 	case "saveWheel":
 		name, typ := str("name"), str("type")
 		if name == "" {
@@ -588,6 +659,13 @@ func ApplySection(action string, p map[string]string, at time.Time, grids map[st
 		for i, v := range []string{cid, p["niche"], p["bio"], p["help"], p["instagram"], p["phone"], p["avatar"]} {
 			g.set(r, i+1, v)
 		}
+	default:
+		// R32d: the script's last section writes, ported (sectionported.go)
+		if f := portedSections[action]; f != nil {
+			if err := f(p, at, sheet, read); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return result(gs, changed), nil
 }
@@ -687,4 +765,13 @@ func clamp(n int) int {
 		return 10
 	}
 	return n
+}
+
+func firstNonEmpty(v ...string) string {
+	for _, x := range v {
+		if x != "" {
+			return x
+		}
+	}
+	return ""
 }

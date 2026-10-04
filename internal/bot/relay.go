@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/club"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 )
 
@@ -55,6 +56,10 @@ type Service struct {
 	testClock bool
 	topic     string  // the group's ОТЧЁТЫ topic
 	notify    []int64 // who gets the daily comparison
+	publicURL string  // https://host of the server: the webhook it sets after the cutover
+	fineSink  FineSink
+	custdev   CustdevSink
+	platform  string // the platform's address for the bot's buttons
 
 	mu        sync.RWMutex
 	relayURL  string
@@ -74,6 +79,7 @@ type Options struct {
 	Topic     string  // reports topic, default 9
 	TestClock bool    // tests only: /tick may set the time
 	Notify    []int64 // daily comparison recipients
+	PublicURL string  // https://host the Telegram webhook points to (after the cutover the server sets it)
 }
 
 func New(repo *pg.BotRepo, o Options) *Service {
@@ -104,6 +110,7 @@ func New(repo *pg.BotRepo, o Options) *Service {
 		topic:     o.Topic,
 		testClock: o.TestClock,
 		notify:    o.Notify,
+		publicURL: strings.TrimRight(strings.TrimSpace(o.PublicURL), "/"),
 	}
 }
 
@@ -124,6 +131,9 @@ func (s *Service) WebhookSecret() string {
 }
 
 func (s *Service) RelayURL() string {
+	if !club.SheetLegacy() {
+		return "" // after the cutover nothing goes to the script (club.SheetMode)
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.relayURL
@@ -179,6 +189,9 @@ func (s *Service) Start(ctx context.Context) {
 		s.mu.Unlock()
 	}
 	s.loadFeatures(ctx)
+	if !club.SheetLegacy() {
+		go s.watchWebhook(ctx) // Telegram must call the server itself, not the script (webhook_watch.go)
+	}
 	for i := 0; i < s.workers; i++ {
 		go s.worker(ctx)
 	}
@@ -322,7 +335,7 @@ func (s *Service) worker(ctx context.Context) {
 			return
 		}
 		worked := false
-		if s.RelayURL() != "" {
+		if s.RelayURL() != "" || !club.SheetLegacy() {
 			u, err := s.repo.ClaimNext(ctx, s.client.Timeout+30*time.Second)
 			if err != nil {
 				if ctx.Err() == nil {
@@ -347,6 +360,10 @@ func (s *Service) worker(ctx context.Context) {
 }
 
 func (s *Service) relayOne(ctx context.Context, u *pg.BotUpdate) {
+	if !club.SheetLegacy() {
+		s.handleOwn(ctx, u) // the server is the bot (private.go)
+		return
+	}
 	if u.Tries <= 1 && ((u.Kind == "message" && s.takeStart(ctx, u.Body)) || (u.Kind == "callback_query" && s.takeCallback(ctx, u.Body))) {
 		if e := s.repo.MarkRelayed(ctx, u.UpdateID, 204, 0); e != nil {
 			log.Printf("bot relay: mark %d: %v", u.UpdateID, e)
@@ -422,7 +439,9 @@ type TickResult struct {
 	Team     []TeamReminder    `json:"team,omitempty"`
 	Shadow   *DayResult        `json:"shadow,omitempty"`
 	Evening  []string          `json:"evening,omitempty"`
-	Errors   []string          `json:"errors,omitempty"`
+	// Onboarding: residents who got their onboarding message of the day
+	Onboarding []string `json:"onboarding,omitempty"`
+	Errors     []string `json:"errors,omitempty"`
 }
 
 // Tick runs the timed jobs once: every minute from housekeeping, or on demand.
@@ -448,6 +467,10 @@ func (s *Service) Tick(ctx context.Context, now time.Time) TickResult {
 	fail("shadow", err)
 	r.Evening, err = s.maybeEvening(ctx, now)
 	fail("evening", err)
+	if !club.SheetLegacy() {
+		r.Onboarding, err = s.maybeOnboarding(ctx, now)
+		fail("onboarding", err)
+	}
 	return r
 }
 
@@ -561,6 +584,9 @@ func (s *Service) SetWebhook(ctx context.Context, url string) error {
 
 // ScriptVersion asks the Apps Script which code version answers at url.
 func (s *Service) ScriptVersion(ctx context.Context, url string) (string, error) {
+	if !club.SheetLegacy() {
+		return "", errors.New("таблица отключена")
+	}
 	c := &http.Client{Timeout: 30 * time.Second} // follows the redirect to googleusercontent
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url+"?action=bsVersion", nil)
 	if err != nil {

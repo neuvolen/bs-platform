@@ -1319,6 +1319,7 @@ function setupMeetCheckTrigger(){
 // Не спрашивает, если встреча уже отмечена («✅ Проведена», зелёная строка
 // или запись в «Лог встреч»). Встречи в одно время (офлайн-день) = один вопрос
 function checkMeetingsCompleted(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   var ss=SpreadsheetApp.openById(SS_ID);
   var ws=ss.getSheetByName("Расписание");if(!ws)return;
@@ -1464,6 +1465,7 @@ function _addCheckForResident(resName){
 }
 
 function sendNPS(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Защита от двойной отправки: не чаще раза в 30 дней
   var props=PropertiesService.getScriptProperties();
   var lastSent=props.getProperty("NPS_LAST_SENT");
@@ -1525,6 +1527,7 @@ function setupStartReminderTrigger(){
 }
 
 function remindPendingUsers(){
+  if(bsDormant()) return;   // R32: это делает сервер
   var cache=CacheService.getScriptCache();
   var ss=SpreadsheetApp.openById(SS_ID);
   var wsR=ss.getSheetByName("BS - резиденты дебет");
@@ -1808,6 +1811,7 @@ function _handleAdminText(cid,text){
 }
 
 function weeklyBackup(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Отключено по решению: копии таблицы больше не создаются.
   // Копия тянула за собой скрипт с зашитым адресом и писала в рабочие данные
   return;
@@ -1838,6 +1842,7 @@ function setupReminderTrigger(){
 
 // ── onEdit ────────────────────────────────────────────────────────────────
 function onTableEdit(e){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   // Данные клуба ведёт сервер: правки в листах клуба ничего не пересчитывают
   if(bsServerIsMaster()){
@@ -2779,7 +2784,7 @@ function _alert(m){
 // ═══════════════════════════════════════════════════════════════
 // Месяц, с которого считается касса. 3 = апрель, счёт был обнулён
 var CASH_START_MONTH = 3;
-var BS_VERSION = "2026-10-03-39";
+var BS_VERSION = "2026-10-04-41";
 
 // ═══════════════════════════════════════════════════════════════
 // КАРТА КОЛОНОК ЛИСТА РЕЗИДЕНТОВ
@@ -4322,6 +4327,7 @@ function _bsSyncVisits(name, done){
 }
 
 function autoRecalcCycles(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // УЧЁТ ВСТРЕЧ. Главный счётчик: дебет «проведено» (E). Лист посещений его повторяет.
   // Галочка, поставленная руками в посещениях, только ДОБАВЛЯЕТ встречу и никогда
   // не уменьшает счётчик: раньше отметки из приложения откатывались назад
@@ -4455,6 +4461,7 @@ function onTariffChanged(rowNum){
 }
 
 function checkMeetingBalance(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Кто заканчивает пакет встреч и кто ушёл в минус
   try{
     var ss=SpreadsheetApp.openById(SS_ID);
@@ -5306,6 +5313,7 @@ function _sendInstagramReminder(){
 
 
 function manualReinstallWebhook(){
+  if(bsWebhookLocked()) return;   // R32d: вебхук ведёт сервер
   // Ручная переустановка webhook через меню таблицы
   try{
     _reinstallWebhookKeepPending();
@@ -5571,15 +5579,15 @@ function bsAppProps(){
   return rows;
 }
 
-function bsClubImport(dry){
+function bsClubImport(dry, final){
   var ss = SpreadsheetApp.openById(SS_ID);
   var sheets = {};
-  BS_CLUB_SHEETS.forEach(function(n){
+  BS_CLUB_SHEETS.concat(final ? BS_ARCHIVE_SHEETS : []).forEach(function(n){
     var ws = ss.getSheetByName(n);
     if(ws) sheets[n] = ws.getDataRange().getDisplayValues();
   });
   try{ sheets["_props"] = bsAppProps(); }catch(e){ Logger.log("app props: " + e); }
-  var body = JSON.stringify({ts: Math.floor(Date.now() / 1000), sheets: sheets});
+  var body = JSON.stringify({ts: Math.floor(Date.now() / 1000), sheets: sheets, final: final === true});
   var sig = Utilities.computeHmacSha256Signature(body, BOT_TOKEN, Utilities.Charset.UTF_8).map(function(b){
     var h = (b < 0 ? b + 256 : b).toString(16); return h.length < 2 ? "0" + h : h;
   }).join("");
@@ -5630,6 +5638,7 @@ function bsClubImportReport(r, dry){
 // Раз в час данные клуба уходят на сервер, чтобы он работал с сегодняшними цифрами.
 // Пока таблица главная, сервер каждый раз заменяет свои данные на её
 function bsClubImportHourly(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   var r = bsClubImport(false);
   if(r.code === 200 || r.code === 409) return r.code;   // 409: сервер уже главный, таблица не нужна
@@ -6028,7 +6037,8 @@ function bsServerControl(){
   var ctl = null;
   try{
     var r = bsSignedPost("/api/v1/bot/control", {version: BS_VERSION});
-    if(r.code === 200 && r.j && r.j.features) ctl = {features: r.j.features, master: r.j.master || "sheet", at: Date.now()};
+    if(r.code === 200 && r.j && r.j.features) ctl = {features: r.j.features, master: r.j.master || "sheet", sheetMode: r.j.sheetMode || "",
+      reconcile: r.j.reconcile === true, at: Date.now()};
   }catch(e){}
   if(ctl){
     props.setProperty("BS_CTL_LAST", JSON.stringify(ctl));
@@ -6051,6 +6061,130 @@ function bsServerOwns(f){
 
 function bsServerIsMaster(){
   try{ return bsServerControl().master === "server"; }catch(e){ return false; }
+}
+
+// ═══ R32: ТАБЛИЦА ОТКЛЮЧЕНА ═══
+// Сервер платформы стал единственным источником данных. Он сам отвечает
+// боту и приложению, пишет штрафы, напоминания и онбординг. Скрипт засыпает:
+// убирает свои триггеры (кроме часового самообновления), не шлёт сообщений и
+// не принимает вызовов. Один раз он отправляет последний перенос данных
+// (с архивными листами), чтобы на сервере было всё. Режим задаёт сервер
+// (SHEET_MODE): off, mirror (раз в час копия ДДС и PL в таблицу) или legacy
+// (аварийно: всё как раньше). Ответ сервера запоминается: без связи скрипт
+// остаётся спящим и не начинает слать дубли.
+var BS_ARCHIVE_SHEETS = ["Прибыль резидентов","NPS ответы","Акцепты","Подписчики канала",
+                         "Заявки на диагностику","Диагностика","BS - посещения","Задачи BS"];
+
+function bsSheetMode(){
+  var props = PropertiesService.getScriptProperties();
+  var ctl = null;
+  try{ ctl = bsServerControl(); }catch(e){}
+  if(ctl && ctl.sheetMode){
+    if(ctl.sheetMode === "legacy"){
+      // R32d: откат (SHEET_MODE=legacy). Спавший скрипт снова ставит свои триггеры, один раз
+      if(props.getProperty("BS_DORMANT")){ props.deleteProperty("BS_DORMANT"); try{ bsWakeTriggers(); }catch(e){ Logger.log("wake: " + e); } }
+    }
+    else if(props.getProperty("BS_DORMANT") !== ctl.sheetMode) props.setProperty("BS_DORMANT", ctl.sheetMode);
+    return ctl.sheetMode;
+  }
+  return props.getProperty("BS_DORMANT") || "legacy";
+}
+
+function bsDormant(){
+  try{ return bsSheetMode() !== "legacy"; }catch(e){ return false; }
+}
+
+// Убирает все триггеры, кроме одного часового (через него приходят новые версии)
+function bsGoDormant(){
+  var hourly = 0, removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === "bsHourly" && t.getEventType() === ScriptApp.EventType.CLOCK && hourly === 0){ hourly++; return; }
+    try{ ScriptApp.deleteTrigger(t); removed++; }catch(e){}
+  });
+  if(!hourly){ try{ ScriptApp.newTrigger("bsHourly").timeBased().everyHours(1).create(); }catch(e){ Logger.log("dormant hourly: " + e); } }
+  var props = PropertiesService.getScriptProperties();
+  if(!props.getProperty("BS_DORMANT_AT")) props.setProperty("BS_DORMANT_AT", new Date().toISOString());
+  if(removed) Logger.log("Скрипт спит: убрано триггеров " + removed);
+}
+
+// Последний перенос данных на сервер, один раз: листы клуба и архивные листы
+function bsFinalImport(){
+  var props = PropertiesService.getScriptProperties();
+  if(props.getProperty("BS_FINAL_IMPORT")) return;
+  var ctl = bsServerControl();
+  if(ctl && ctl.master === "server"){ props.setProperty("BS_FINAL_IMPORT", "server"); return; }
+  var r = bsClubImport(false, true);
+  Logger.log("final import: " + r.code + " " + String(r.raw).slice(0, 200));
+  if(r.code === 200 || r.code === 409){
+    props.setProperty("BS_FINAL_IMPORT", new Date().toISOString());
+    try{ CacheService.getScriptCache().remove("srvCtl"); }catch(e){}
+  }
+}
+
+function bsDormantTick(){
+  try{ bsGoDormant(); }catch(e){ Logger.log("dormant: " + e); }
+  try{ bsFinalImport(); }catch(e){ Logger.log("final import: " + e); }
+  try{ bsReconcileSend(); }catch(e){ Logger.log("reconcile: " + e); }
+}
+
+// R32d: сервер один раз (при переезде или по кнопке админа) просит копию таблицы,
+// сравнивает со своими данными и берёт только то, чего у него нет. Данные сервера
+// таблица не перезаписывает. Флаг приходит в ответе /bot/control (reconcile:true)
+function bsReconcileSend(){
+  try{ CacheService.getScriptCache().remove("srvCtl"); }catch(e){}
+  var ctl = bsServerControl();
+  if(!ctl || ctl.forced || ctl.master !== "server" || ctl.reconcile !== true) return;
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheets = {};
+  BS_CLUB_SHEETS.concat(BS_ARCHIVE_SHEETS).forEach(function(n){
+    var ws = ss.getSheetByName(n);
+    if(ws) sheets[n] = ws.getDataRange().getDisplayValues();
+  });
+  try{ sheets["_props"] = bsAppProps(); }catch(e){}
+  var mirrored = !!PropertiesService.getScriptProperties().getProperty("BS_LAST_PULL");
+  var r = bsSignedPost("/api/v1/club/reconcile", {sheets: sheets, mirroredDDS: mirrored});
+  Logger.log("reconcile: " + r.code + " " + String(r.raw).slice(0, 300));
+}
+
+// Откат: снова 5 триггеров таблицы (как setupAllTriggers, без чистки и сообщений)
+function bsWakeTriggers(){
+  ScriptApp.getProjectTriggers().forEach(function(t){ try{ ScriptApp.deleteTrigger(t); }catch(e){} });
+  ScriptApp.newTrigger("onTableEdit").forSpreadsheet(SS_ID).onEdit().create();
+  ScriptApp.newTrigger("bsEvery5Min").timeBased().everyMinutes(5).create();
+  ScriptApp.newTrigger("bsHourly").timeBased().everyHours(1).create();
+  ScriptApp.newTrigger("bsDaily").timeBased().atHour(14).nearMinute(30).everyDays(1).inTimezone("Asia/Almaty").create();
+  ScriptApp.newTrigger("eveningReminder").timeBased().atHour(22).nearMinute(0).everyDays(1).inTimezone("Asia/Almaty").create();
+  PropertiesService.getScriptProperties().deleteProperty("BS_DORMANT_AT");
+  Logger.log("Скрипт проснулся (откат): триггеры восстановлены");
+}
+
+// R32d: пока скрипт спит, вебхук Telegram принадлежит серверу. Старые пункты меню
+// («Переподключить бота напрямую», «Установить webhook») его не трогают
+function bsWebhookLocked(){
+  if(!bsDormant()) return false;
+  try{ SpreadsheetApp.getUi().alert("Бот работает на сервере платформы. Вебхук Telegram ведёт сервер, таблица его не меняет."); }catch(e){}
+  return true;
+}
+
+// Лид из Tilda или формы: форма по-прежнему шлёт его сюда, скрипт передаёт на сервер
+function bsForwardLead(u){
+  var out = ContentService.createTextOutput();
+  out.setMimeType(ContentService.MimeType.JSON);
+  var lead = {
+    name: u.name || u.Name || u.imya || u["Имя"] || "",
+    phone: u.phone || u.Phone || u.tel || u["Телефон"] || "",
+    telegram: u.telegram || u.tg || "",
+    source: u.source || u.utm_source || (u.formname ? ("Tilda: " + u.formname) : "Сайт"),
+    campaign: u.utm_campaign || u.campaign || "",
+    niche: u.niche || u.nisha || u["Ниша"] || "",
+    revenue: u.revenue || u.oborot || u["Оборот"] || "",
+    request: u.request || u.comment || u.message || u["Комментарий"] || "",
+    comment: [u.utm_medium, u.utm_content, u.utm_term].filter(Boolean).join(" · ")
+  };
+  var r = null;
+  try{ r = bsSignedPost("/api/v1/bot/lead", {lead: lead}); }catch(e){ Logger.log("lead forward: " + e); }
+  out.setContent(JSON.stringify(r && r.code === 200 ? r.j : {ok: false, error: "сервер не ответил"}));
+  return out;
 }
 
 function bsServerShow(){
@@ -6097,6 +6231,7 @@ function bsMasterRefuse(cid){
 // Бот сам подключается к серверу: раз в час проверяем, что Telegram шлёт сообщения
 // на сервер, и если нет, подключаем. Не трогаем, если бота аварийно вернули таблице
 function bsAutoServer(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   if(PropertiesService.getScriptProperties().getProperty("BS_FORCE_SHEET") === "1") return;
   var st = bsServerBotStatus();
@@ -6203,7 +6338,7 @@ function bsAddFines(list){
 // «Учет ДДС» и цифры «PL» тем, что на сервере
 function bsPullFromServer(){
   if(bsIsCopy() || !bsServerIsMaster()) return;
-  var r = bsSignedPost("/api/v1/club/export", {});
+  var r = bsSignedPost("/api/v1/club/export", {tables: true});
   if(r.code !== 200 || !r.j) { Logger.log("pull: " + r.code + " " + String(r.raw).slice(0, 200)); return; }
   var ss = SpreadsheetApp.openById(SS_ID);
   // ДДС
@@ -6244,12 +6379,37 @@ function bsPullFromServer(){
       wp.getRange(at + 1, 2, 1, 12).setValues([line.values.map(function(v){ return v === null ? "" : v; })]);
     });
   }
+  // R32d: копии таблиц сервера во вкладках «Копия: …» (только для просмотра,
+  // листы с формулами не трогаются)
+  (r.j.tables || []).forEach(function(t){
+    try{ bsWriteCopyTab(ss, t, r.j.at || ""); }catch(e){ Logger.log("copy " + t.name + ": " + e); }
+  });
   PropertiesService.getScriptProperties().setProperty("BS_LAST_PULL", new Date().toISOString());
+}
+
+function bsWriteCopyTab(ss, t, at){
+  var name = "Копия: " + t.name;
+  var ws = ss.getSheetByName(name);
+  if(!ws){
+    ws = ss.insertSheet(name, ss.getNumSheets());
+    try{ ws.protect().setDescription("Копия данных сервера BS").setWarningOnly(true); }catch(e){}
+  }
+  var head = t.head || [];
+  var rows = (t.rows || []).map(function(r){
+    var line = []; for(var k = 0; k < head.length; k++) line.push(r[k] === undefined ? "" : String(r[k])); return line;
+  });
+  ws.clearContents();
+  ws.getRange(1, 1).setValue("Копия с сервера платформы BS" + (at ? " на " + at : "") + ". Правки здесь никуда не идут, данные ведутся на платформе");
+  if(!head.length) return;
+  ws.getRange(2, 1, 1, head.length).setValues([head]).setFontWeight("bold");
+  if(rows.length) ws.getRange(3, 1, rows.length, head.length).setNumberFormat("@").setValues(rows);
+  try{ ws.setFrozenRows(2); }catch(e){}
 }
 
 // Отправляет на сервер всех резидентов с Chat ID. Бывшие теряют доступ.
 // Подпись: HMAC-SHA256 тела запроса с токеном бота. Сервер знает тот же токен
 function bsPushResidentsToPlatform(silent){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   var ws = SpreadsheetApp.openById(SS_ID).getSheetByName("BS - резиденты дебет");
   if(!ws || ws.getLastRow() < 3) return;
@@ -6290,6 +6450,7 @@ function bsPushResidentsToPlatform(silent){
 // СТОРОЖ БОТА. ловит немого бота в тот же день, а не через неделю штрафов
 // ═══════════════════════════════════════════════════════════════════════════
 function bsWatchBot(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   try{
     var hour=parseInt(Utilities.formatDate(new Date(),"Asia/Almaty","H"),10);
@@ -6790,6 +6951,7 @@ function bsRebuildPL(silent){
 }
 
 function bsWatchDDS(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Раз в час: если ДДС менялся, пересчитываем PL
   if(bsIsCopy()) return;
   try{
@@ -6812,6 +6974,7 @@ function bsWatchDDS(){
 }
 
 function bsApplyPaymentsFromDDS(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Разносит оплаты из ДДС по резидентам: гасит остаток входа, затем долг продления.
   // Каждая строка ДДС учитывается один раз, отметка ставится в колонке G
   if(bsIsCopy()) return {applied:0};
@@ -6909,6 +7072,7 @@ function bsApplyPaymentsFromDDS(){
 }
 
 function bsGuardDebet(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   // Сторож дебета: каждые 5 минут проверяет колонки и чинит, если чужой код их испортил
   try{
@@ -7034,6 +7198,7 @@ function bsRemoveFinesForDay(){
 }
 
 function bsPurgeFines(silent){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   // Снимает штрафы за отчёт, которые не должны были появиться:
   // админам, исключениям, бывшим, тем кто сдал отчёт или был на встрече.
@@ -7158,6 +7323,7 @@ function bsAuditTriggers(){
 }
 
 function bsReconnectBot(){
+  if(bsWebhookLocked()) return;   // R32d: вебхук ведёт сервер
   if(bsIsCopy()) return;
   // Направляет Telegram на то развёртывание, которое вы обновляете
   var ui = SpreadsheetApp.getUi();
@@ -7217,6 +7383,7 @@ function bsReinstallTriggers(){
 }
 
 function dailyCheck(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   if(bsServerOwns("daily_check")) return;   // проверку и штрафы делает сервер
   try{
@@ -7453,6 +7620,7 @@ function dailyCheck(){
   }
 }
 function eveningReminder(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   if(bsServerOwns("evening_reminder")) return;   // напоминание шлёт сервер
   var ss=SpreadsheetApp.openById(SS_ID);
@@ -7503,6 +7671,7 @@ function setupOnboardingTrigger(){
 }
 
 function sendOnboardingMessages(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // ЗАЩИТА: не шлём ничего ночью (22:00 - 09:00 по Алматы)
   var hour=parseInt(Utilities.formatDate(new Date(),"Asia/Almaty","H"));
   if(hour<9 || hour>=22) return;
@@ -7682,6 +7851,7 @@ function setupDataCacheTrigger(){
 }
 
 function refreshBotCache(){
+  if(bsDormant()) return;   // R32: это делает сервер
   var cache=CacheService.getScriptCache();
   var ss=SpreadsheetApp.openById(SS_ID);
   
@@ -8100,6 +8270,11 @@ function doGet(e){
 
   // Mini App API
   var action=e&&e.parameter?e.parameter.action:"";
+  // R32: приложение работает только через сервер платформы
+  if(action && bsDormant()){
+    return ContentService.createTextOutput(JSON.stringify({error: "Приложение работает через сервер платформы. Закройте его и откройте снова из бота."}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
   // Приложение ходит только через сервер: чужие и старые вызовы не принимаем
   if(action && bsServerOwns("app_gateway") && !bsAppSigOk(e.parameter, action)) return bsAppRefused();
   // Данные клуба ведёт сервер: запись в таблицу из приложения была бы потеряна
@@ -8264,6 +8439,7 @@ function _invalidateBSCaches(){
 }
 
 function warmupBundleCache(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Прогрев: раз в 5 минут пакет пересобирается заранее, чтобы пользователь
   // всегда попадал в готовый кеш и не ждал сборки
   try{
@@ -8294,6 +8470,7 @@ function _calcNextRenewal(startDate, cyclesPaid, tariffSum){
 }
 
 function checkRenewals(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Напоминание о продлении за 14 и за 3 дня
   try{
     var ss = SpreadsheetApp.openById(SS_ID);
@@ -9008,6 +9185,7 @@ function bsCalRepairMenu(){
 
 // Раз в сутки само, без кнопок. Админам пишем, только если что-то исправили
 function bsCalRepairDaily(){
+  if(bsDormant()) return;   // R32: это делает сервер
   var props=PropertiesService.getScriptProperties();
   var day=Utilities.formatDate(new Date(),"Asia/Almaty","yyyy-MM-dd");
   if(props.getProperty("BS_CALFIX_DAY")===day) return;
@@ -10723,6 +10901,7 @@ function _writeSaldoFormulas(ws, rowSaldo){
 
 
 function sendMeetingReminders(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   if(bsServerOwns("meeting_reminders")) return;   // напоминания шлёт сервер
   // Запускается триггером каждый час. шлёт напоминания за 3 дня / 1 день / 1 час
@@ -11905,6 +12084,14 @@ function doPost(e){
   try{
     var u=JSON.parse(e.postData.contents);
 
+    // R32: таблица отключена. Лиды из форм уходят на сервер, остальное делает сервер
+    if(bsDormant()){
+      if(u && (u.bsAction === "lead" || u.tilda || u.formname || u.Phone || u.phone)) return bsForwardLead(u);
+      if(u && u.update_id) return HtmlService.createHtmlOutput("ok");
+      return ContentService.createTextOutput(JSON.stringify({ok: false, error: "Таблица отключена: всё работает на платформе"}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ── Запись с сервера платформы ──
     if(u && u.bsAction === "srv") return bsServerWrite(u);
 
@@ -12025,6 +12212,7 @@ function doPost(e){
 }
 
 function processUpdateQueue(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Триггер каждую минуту. обрабатывает накопленные обновления
   var props=PropertiesService.getScriptProperties();
   var all=props.getProperties();
@@ -13648,6 +13836,7 @@ function setupQueueProcessor(){
 
 
 function processSubscriberFollowups(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // ЗАЩИТА: не шлём ночью (22:00 - 09:00)
   var nightHr=parseInt(Utilities.formatDate(new Date(),"Asia/Almaty","H"));
   if(nightHr<9 || nightHr>=22) return;
@@ -13739,6 +13928,7 @@ function processSubscriberFollowups(){
 }
 
 function sendScheduledQualQuestions(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // ЗАЩИТА: не шлём ночью (22:00 - 09:00)
   var nightHour=parseInt(Utilities.formatDate(new Date(),"Asia/Almaty","H"));
   if(nightHour<9 || nightHour>=22) return;
@@ -13778,6 +13968,7 @@ function sendScheduledQualQuestions(){
 
 
 function publishToChannel(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Запускается по расписанию. Берёт следующий пост из листа "Контент-план" и публикует.
   try{
     var ss=SpreadsheetApp.openById(SS_ID);
@@ -15387,6 +15578,7 @@ function importTodosFromDoc(){
 
 
 function sendWarmupMessages(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Прогрев после чек-листа. Человек скачал материал и пропал.
   // Через день напоминаем о себе, через четыре зовём на диагностику,
   // через десять последнее касание. Всё без участия менеджера
@@ -16956,6 +17148,7 @@ function _generateDiagnosticRecommendations(chatId, userName, results, weakItems
 
 function bsEvery5Min(){
   if(bsIsCopy()) return;
+  if(bsDormant()){ bsDormantTick(); return; }   // R32: всё делает сервер
   // Защита от наложения запусков: если предыдущий ещё идёт. пропускаем
   var lock = LockService.getScriptLock();
   if(!lock.tryLock(1000)) return;
@@ -17009,6 +17202,14 @@ function _bsEvery5MinBody(){
 
 function bsHourly(){
   if(bsIsCopy()) return;
+  if(bsDormant()){
+    // R32: всё делает сервер. Скрипт только принимает новые версии,
+    // а в режиме mirror раз в час берёт копию ДДС и PL
+    try{ bsSelfUpdate(); }catch(e){ Logger.log("h.selfUpdate: "+e); }
+    bsDormantTick();
+    if(bsSheetMode() === "mirror"){ try{ bsPullFromServer(); }catch(e){ Logger.log("h.pull: "+e); } }
+    return;
+  }
   // Новая версия скрипта с сервера (быстро, если обновлять нечего)
   try{ bsSelfUpdate(); }catch(e){ Logger.log("h.selfUpdate: "+e); }
   // Диспетчер часовых задач
@@ -17039,6 +17240,7 @@ function bsHourly(){
 }
 
 function bsDaily(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsIsCopy()) return;
   // Диспетчер ежедневных задач. Запускается в 14:30 по Алматы.
   // Проверка отчётов идёт утром в 10:00 из bsHourly (дедлайн отчёта 23:59 того же дня).
@@ -17129,6 +17331,7 @@ function setupAllTriggers(){
 }
 
 function deferredRecalcPL(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Триггер каждую минуту. пересчитывает PL только если был флаг
   var props=PropertiesService.getScriptProperties();
   if(props.getProperty("pl_needs_recalc")==="1"){
@@ -17156,6 +17359,7 @@ function watchdogWebhook(){
 
 
 function _reinstallWebhookKeepPending(){
+  if(bsWebhookLocked()) return;   // R32d: вебхук ведёт сервер
   // Переустановка webhook на ЗАХАРДКОЖЕННЫЙ URL (WEBHOOK_URL константа в начале файла)
   // НЕ используем ScriptApp.getService().getUrl(). он возвращает старый URL
   try{
@@ -17177,6 +17381,7 @@ function _reinstallWebhookKeepPending(){
 }
 
 function _reinstallWebhook(){
+  if(bsWebhookLocked()) return;   // R32d: вебхук ведёт сервер
   try{
     // Сначала удаляем
     UrlFetchApp.fetch(
@@ -17339,6 +17544,7 @@ function checkAppVersionOnServer(){
 }
 
 function updateMenuButton(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Синяя кнопка в списке чатов ведёт на фиксированный URL и показывала старую версию.
   // Обновляем её при каждой установке триггеров, чтобы открывалась свежая сборка
   try{
@@ -17372,6 +17578,7 @@ function updateMenuButton(){
 }
 
 function setupWebhook(){
+  if(bsWebhookLocked()) return;   // R32d: вебхук ведёт сервер
   var token="https://api.telegram.org/bot"+BOT_TOKEN+"/";
   // Удаляем ВСЕ накопленные обновления
   UrlFetchApp.fetch(token+"deleteWebhook?drop_pending_updates=true",{muteHttpExceptions:true});
@@ -17606,6 +17813,7 @@ function restoreUsefulSystem(){
 }
 
 function sendScheduledContent(){
+  if(bsDormant()) return;   // R32: это делает сервер
   var ss=SpreadsheetApp.openById(SS_ID);
   var ws=ss.getSheetByName("Контент");if(!ws)return;
   if(!USEFUL_TOPIC_ID||!GROUP_CHAT_ID){Logger.log("USEFUL_TOPIC_ID не настроен");return;}
@@ -17653,6 +17861,7 @@ function setupAutoRecsTrigger(){
 }
 
 function generateNewRecommendations(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(!GEMINI_API_KEY||GEMINI_API_KEY==="вставьте_gemini_ключ"){
     Logger.log("GEMINI_API_KEY не установлен");return;
   }
@@ -17948,6 +18157,7 @@ function publishSmmToTelegram(p){
 }
 
 function publishScheduledSmm(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Автопубликация: посты со статусом Готово и сегодняшней датой уходят в канал
   try{
     var ws=_getSmmSheet();
@@ -18555,6 +18765,7 @@ function crmStats(){
 }
 
 function crmFollowups(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Кому пора позвонить: новые без работы больше суток и просроченные касания
   try{
     var ws=_getCrmSheet();
@@ -18859,6 +19070,7 @@ function testThreadsPost(){
 }
 
 function sendChecklistToUseful(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // Раз в 2 недели отправляет в топик ПОЛЕЗНОЕ один из загруженных чек-листов
   try{
     var ss=SpreadsheetApp.openById(SS_ID);
@@ -18920,6 +19132,7 @@ function sendChecklistToUseful(){
 }
 
 function checkContentQueue(){
+  if(bsDormant()) return;   // R32: это делает сервер
   var ss=SpreadsheetApp.openById(SS_ID);
   var ws=ss.getSheetByName("Контент");if(!ws)return;
   var lr=ws.getLastRow();
@@ -19069,6 +19282,7 @@ function buildSchedule(ss){
 
 
 function updateAnalytics(){
+  if(bsDormant()) return;   // R32: это делает сервер
   // ПОЛНАЯ Аналитика. 5 секций. Запускается по триггеру (раз в час) и вручную из меню.
   try{
     var ss=SpreadsheetApp.openById(SS_ID);
@@ -19365,6 +19579,7 @@ function updateAnalytics(){
   }catch(e){Logger.log("updateAnalytics: "+e);}
 }
 function checkScheduleReminders(){
+  if(bsDormant()) return;   // R32: это делает сервер
   if(bsServerOwns("meeting_reminders")) return;
   try{checkScheduleFollowUps();}catch(sfe){}
   var ss=SpreadsheetApp.openById(SS_ID);

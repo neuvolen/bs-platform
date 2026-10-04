@@ -119,6 +119,24 @@ func (r *BotRepo) SetMeta(ctx context.Context, key, value string) error {
 	return err
 }
 
+// MetaPrefix: every bot_meta key starting with prefix, with its value.
+func (r *BotRepo) MetaPrefix(ctx context.Context, prefix string) (map[string]string, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT key, value FROM bot_meta WHERE starts_with(key, $1)`, prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		out[k] = v
+	}
+	return out, rows.Err()
+}
+
 // BotStats is what the status page and the alert need.
 type BotStats struct {
 	Received24h     int        `json:"received24h"`

@@ -113,6 +113,9 @@ func NewBundleMigration(gw *AppGateway, repo MigrationRepo, meta MetaStore, docs
 
 // Stage: who answers the app's bundle now (read at most every 15 seconds).
 func (m *BundleMigration) Stage(ctx context.Context) string {
+	if !club.SheetLegacy() {
+		return StageServer // after the cutover only the server answers
+	}
 	m.mu.Lock()
 	if m.stage != "" && m.now().Sub(m.stageAt) < 15*time.Second {
 		s := m.stage
@@ -419,11 +422,19 @@ type MigrationStatus struct {
 	// ScriptUpdate: the sheet's self-update (latest shipped, running, last update, last error)
 	ScriptUpdate bot.ScriptUpdateStatus `json:"script"`
 	UpdatedAt    time.Time              `json:"updatedAt"`
+	// SheetMode: off, mirror or legacy (club.SheetMode); Cutover: "", pending
+	// (waiting for the sheet's final import) or done, CutoverAt since when.
+	SheetMode string `json:"sheetMode"`
+	Cutover   string `json:"cutover,omitempty"`
+	CutoverAt string `json:"cutoverAt,omitempty"`
 }
 
 func (m *BundleMigration) Status(ctx context.Context) (MigrationStatus, error) {
 	st := MigrationStatus{Stage: m.Stage(ctx), Need: BundleStreak, NeedDays: BundleStreak, Mismatches: []club.BundleMismatch{},
-		History: []map[string]any{}, UpdatedAt: m.now(), SectionsBy: map[string]string{}}
+		History: []map[string]any{}, UpdatedAt: m.now(), SectionsBy: map[string]string{}, SheetMode: club.SheetMode()}
+	if m.writes != nil {
+		st.Cutover, st.CutoverAt = m.writes.Cutover.State(ctx)
+	}
 	built := map[string]bool{}
 	if m.gw.Club != nil {
 		if _, list, err := m.gw.ServerBundle(ctx, 0); err == nil {
@@ -500,7 +511,7 @@ func (m *BundleMigration) publishSoon() {
 
 // Tick runs the day's comparison when it is due.
 func (m *BundleMigration) Tick(ctx context.Context) (*BundleCheckResult, error) {
-	if m.Stage(ctx) == StageSheet {
+	if m.Stage(ctx) == StageSheet || !club.SheetLegacy() {
 		return nil, nil
 	}
 	a := m.now().In(club.Almaty)

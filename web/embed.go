@@ -128,7 +128,7 @@ var (
 func init() {
 	html, seed := stripSeed(string(platformHTML))
 	seedJSON = seed
-	appPage = build(injectMarker(html))
+	appPage = build(injectMarker(injectVoice(html)))
 	loginPage = build(loginWithIcons(string(loginHTML), html))
 }
 
@@ -267,4 +267,6 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	r.HEAD("/", h)
 	r.GET("/platform", h)
 	r.GET("/dl/:name", func(c *gin.Context) { serveDL(c, secret, sessionCookie) })
+	r.GET("/voice/:file", serveVoice) // voice.go: the tour's recorded phrases
+	r.HEAD("/voice/:file", serveVoice)
 }

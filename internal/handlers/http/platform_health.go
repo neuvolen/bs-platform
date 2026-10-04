@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/bnursik/business_surgery_backend/internal/ai"
 	"github.com/gin-gonic/gin"
 )
 
@@ -206,7 +207,11 @@ func (h *PlatformAI) Health(c *gin.Context) {
 	defer cancel()
 	raw, err := h.AI.JSON(ctx, healthSystem, healthPrompt(req))
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "ИИ не ответил, попробуйте ещё раз", "code": "ai_failed", "detail": err.Error()})
+		msg := "ИИ не ответил, попробуйте ещё раз"
+		if ai.IsQuota(err) {
+			msg = ai.QuotaMessage
+		}
+		c.JSON(http.StatusBadGateway, gin.H{"error": msg, "code": "ai_failed", "detail": ai.UserMessage(err)})
 		return
 	}
 	res, err := parseHealthAI(raw)

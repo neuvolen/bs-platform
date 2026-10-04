@@ -47,3 +47,28 @@ func (r *PlatformRepo) TTSHave(ctx context.Context, keys []string) (map[string]b
 	}
 	return out, rows.Err()
 }
+
+// TTSEntry: one kept phrase without its sound.
+type TTSEntry struct {
+	Key, Voice, Text string
+	Size             int
+}
+
+// TTSIndex lists the kept phrases of a style (R32d: the tour's manifest picks
+// the current voice and falls back to an earlier one while the new is made).
+func (r *PlatformRepo) TTSIndex(ctx context.Context, style string) ([]TTSEntry, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT key, voice, text, size FROM tts_audio WHERE style = $1 AND text <> '' ORDER BY created_at`, style)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []TTSEntry
+	for rows.Next() {
+		var e TTSEntry
+		if err := rows.Scan(&e.Key, &e.Voice, &e.Text, &e.Size); err != nil {
+			return out, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}

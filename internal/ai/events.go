@@ -50,6 +50,10 @@ func transient(err error) bool {
 	if err == nil {
 		return false
 	}
+	// A used-up quota does not come back in seconds: asking again burns calls
+	if IsQuota(err) {
+		return false
+	}
 	var he *HTTPError
 	if errors.As(err, &he) {
 		switch he.Status {
@@ -94,12 +98,14 @@ func FriendlyError(err error) string {
 	if errors.Is(err, ErrNoKey) {
 		return err.Error()
 	}
+	// R32c: one sentence for a used-up quota, the same on every page
+	if IsQuota(err) {
+		return QuotaMessage
+	}
 	var he *HTTPError
 	if errors.As(err, &he) {
 		low := strings.ToLower(he.Body)
 		switch {
-		case he.Status == 429 && (strings.Contains(low, "quota") || strings.Contains(low, "exhausted") || strings.Contains(low, "billing")):
-			return "Исчерпан лимит запросов к ИИ (квота ключа). Лента обновится сама завтра в 08:00 или после пополнения лимита"
 		case he.Status == 429:
 			return "ИИ ограничил частоту запросов. Попробуйте ещё раз через минуту"
 		case he.Status == 401 || he.Status == 403:

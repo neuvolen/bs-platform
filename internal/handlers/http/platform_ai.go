@@ -54,13 +54,25 @@ type PlatformAI struct {
 	ev eventsRun
 	// RecsBot: the owner's questions about AI recommendations (ai_recs_auto.go).
 	RecsBot RecsBot
+	// TourTexts: the tour's spoken phrases (web.TourTexts; platform_tts_static.go).
+	TourTexts func() []string
+	// StaticVoice: the URL of a phrase recorded into the binary (web.StaticVoice, R32c), "" when none.
+	StaticVoice func(text string) string
+	// SendDoc sends a file to a Telegram chat (the bot): the published
+	// «Саммари разбора» PDF to the resident (callsum_flow.go, R32e).
+	SendDoc func(ctx context.Context, chatID int64, name string, data []byte, caption string) error
 }
 
 func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {
 	if c == nil {
 		c = ai.FromEnv()
 	}
-	return &PlatformAI{repo: repo, AI: c, Run: func(f func()) { go f() }}
+	h := &PlatformAI{repo: repo, AI: c, Run: func(f func()) { go f() }}
+	// R32c: a long quota pause reaches the owner via the bot, once a day
+	if c.OnQuota == nil {
+		c.OnQuota = h.quotaAlert
+	}
+	return h
 }
 
 // SetQueueOwnsThreads: f tells the daily «Полезное» post that the content queue has that day.
@@ -120,6 +132,11 @@ func (h *PlatformAI) GetFile(c *gin.Context) {
 	}
 	f, err := h.repo.GetFile(c.Request.Context(), id)
 	if err != nil || f == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	// R32d: call recordings and transcripts are the team's (platform_calls_summary.go)
+	if (isResident(c) || isLead(c)) && callRecordingName(f.Name) {
 		c.Status(http.StatusNotFound)
 		return
 	}
@@ -192,7 +209,7 @@ func (h *PlatformAI) Command(c *gin.Context) {
 	today := time.Now().In(time.FixedZone("Almaty", 5*3600)).Format("02.01.2006, Monday")
 	ans, err := h.AI.JSON(ctx, commandSystem, "today: "+today+"\nСостояние платформы:\n"+string(r.Context)+"\n\nФраза трекера: «"+r.Text+"»")
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"error": err.Error(), "noKey": err == ai.ErrNoKey})
+		c.JSON(http.StatusOK, gin.H{"error": ai.UserMessage(err), "noKey": err == ai.ErrNoKey, "quota": ai.IsQuota(err)})
 		return
 	}
 	js := ai.JSONFrom(ans)

@@ -134,7 +134,7 @@ func TestPlatformTTS(t *testing.T) {
 		t.Fatalf("model: %v", f.gens)
 	}
 	body := f.bodies[0]
-	for _, want := range []string{`"responseModalities":["AUDIO"]`, `"voiceName":"Charon"`, `"text":"` + text + `"`} {
+	for _, want := range []string{`"responseModalities":["AUDIO"]`, `"voiceName":"` + ttsVoiceDefault + `"`, `"text":"` + text + `"`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("request lacks %q: %s", want, body)
 		}

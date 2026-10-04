@@ -112,7 +112,9 @@ func filterForResident(boards []pg.PlatformBoard, docs []pg.PlatformDoc, name, u
 	ob := make([]pg.PlatformBoard, 0, len(boards))
 	for i := range boards {
 		if boardBelongsTo(&boards[i], name) {
-			ob = append(ob, boards[i])
+			b := boards[i]
+			b.Data = residentCalls(b.Data) // R32d: recordings stay with the team
+			ob = append(ob, b)
 		}
 	}
 	od := make([]pg.PlatformDoc, 0, len(docs))

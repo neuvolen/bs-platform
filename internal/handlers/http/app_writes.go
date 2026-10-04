@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/club"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 )
 
@@ -55,6 +56,10 @@ type ClubWrites struct {
 	// Tables is called when the server's club tables changed (a write applied
 	// or undone): the platform's club sections follow at once.
 	Tables func()
+	// After the cutover (sheet_off.go): the one-time switch, and who hears
+	// about a write.
+	Cutover *SheetCutover
+	Notify  *WriteNotify
 
 	send chan struct{} // one sender at a time: writes reach the sheet in order
 	wake chan struct{}
@@ -111,6 +116,9 @@ func retryIn(tries int) time.Duration {
 // Do runs one write: kept and applied on the server, then sent to the
 // script. It returns what the app gets.
 func (w *ClubWrites) Do(ctx context.Context, source string, u *platformTgUser, action string, q url.Values, apply bool) []byte {
+	if !club.SheetLegacy() {
+		return w.doLocal(ctx, source, u, action, q, apply)
+	}
 	// The app's own sections (wheel, tasks…) are anyone's to write, as in the script.
 	apply = apply || pg.SectionWrite(action)
 	who := fullName(u)
@@ -326,6 +334,9 @@ func (w *ClubWrites) Loop(ctx context.Context) {
 		case <-w.wake:
 			now = true // a new write came: send it (and the ones before it) now
 		}
+		if !club.SheetLegacy() {
+			continue // after the cutover nothing goes to the sheet (sheet_off.go)
+		}
 		if n, err := w.flush(ctx, now); err != nil {
 			log.Printf("club writes: %v", err)
 		} else if n > 0 {
@@ -343,6 +354,9 @@ const unknownWait = 3 * time.Hour
 func (w *ClubWrites) Flush(ctx context.Context) (int, error) { return w.flush(ctx, false) }
 
 func (w *ClubWrites) flush(ctx context.Context, now bool) (int, error) {
+	if !club.SheetLegacy() {
+		return 0, nil // nothing goes to the sheet after the cutover
+	}
 	if !w.lock(ctx, time.Minute) {
 		return 0, nil // a write is on its way; the next round sends the rest
 	}

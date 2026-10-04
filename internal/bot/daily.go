@@ -66,6 +66,9 @@ type FineRow struct {
 // ScriptCall runs an operation in the Apps Script (doPost, bsAction "srv"),
 // signed with the bot token.
 func (s *Service) ScriptCall(ctx context.Context, op string, args map[string]any, out any) error {
+	if !club.SheetLegacy() {
+		return errors.New("таблица отключена")
+	}
 	url := s.RelayURL()
 	if url == "" {
 		return errors.New("no script address")
@@ -193,7 +196,20 @@ func (s *Service) maybeDailyCheck(ctx context.Context, now time.Time) (*DailyOut
 	var added struct {
 		Added []string `json:"added"`
 	}
-	if len(fines) > 0 {
+	if len(fines) > 0 && !club.SheetLegacy() {
+		// After the cutover the fines go straight into the server's club tables.
+		if s.fineSink == nil {
+			return nil, errors.New("no place to keep the fines")
+		}
+		list, err := s.fineSink(ctx, fines)
+		if err != nil {
+			if s.once(ctx, "daily_fail:"+day.Format("2006-01-02"), 3*time.Hour) {
+				s.sysNote("Проверка отчётов за " + res.Day + ": штрафы не записались (" + err.Error() + "), повтор через 10 минут")
+			}
+			return nil, err
+		}
+		added.Added = list
+	} else if len(fines) > 0 {
 		if err := s.ScriptCall(ctx, "addFines", map[string]any{"fines": fines}, &added); err != nil {
 			if s.once(ctx, "daily_fail:"+day.Format("2006-01-02"), 3*time.Hour) {
 				s.sysNote("Проверка отчётов за " + res.Day + ": штрафы не записались в таблицу (" + err.Error() + "), повтор через 10 минут")

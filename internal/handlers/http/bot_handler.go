@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
+	"github.com/bnursik/business_surgery_backend/internal/club"
 	"github.com/bnursik/business_surgery_backend/internal/content"
 	"github.com/gin-gonic/gin"
 )
@@ -157,6 +158,11 @@ func (h *BotHandler) Connect(c *gin.Context) {
 		return
 	}
 	req.Relay = strings.TrimSpace(req.Relay)
+	if !club.SheetLegacy() {
+		// After the cutover the bot is the server: nothing to relay to.
+		c.JSON(http.StatusOK, gin.H{"ok": true, "sheetMode": club.SheetMode(), "detail": "бот работает на сервере, таблица отключена"})
+		return
+	}
 	if !bot.RelayURLPattern.MatchString(req.Relay) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_relay", "detail": "нужен адрес вида https://script.google.com/macros/s/.../exec"})
 		return
@@ -284,7 +290,13 @@ func (h *BotHandler) Control(c *gin.Context) {
 		return
 	}
 	h.svc.NoteScript(c.Request.Context(), req.Version)
-	c.JSON(http.StatusOK, gin.H{"features": nzs(h.svc.Features()), "master": h.svc.Master(c.Request.Context())})
+	// sheetMode: the script (v40+) is dormant unless "legacy"; in "mirror" it
+	// keeps the hourly read-only copy (bsPullFromServer), as long as the
+	// export is on (R32d, sheet_owner.go). reconcile: the server asks for one
+	// copy of the sheet to compare (v41+ sends it to /api/v1/club/reconcile).
+	ctx := c.Request.Context()
+	c.JSON(http.StatusOK, gin.H{"features": nzs(h.svc.Features()), "master": h.svc.Master(ctx), "sheetMode": club.ScriptMode(ctx),
+		"reconcile": club.ReconcileWanted(ctx)})
 }
 
 type botTickReq struct {

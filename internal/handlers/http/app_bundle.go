@@ -146,7 +146,7 @@ func (g *AppGateway) serveServerBundle(c *gin.Context, q url.Values, u *platform
 	}
 	// The script is asked only for sections the server does not build.
 	var aux []byte
-	if len(missingAux(srv)) > 0 {
+	if len(missingAux(srv)) > 0 && club.SheetLegacy() { // after the cutover the defaults stand for a missing part
 		aux = g.auxFor(ctx, q, u, force)
 		if aux == nil {
 			markPartial(srv)

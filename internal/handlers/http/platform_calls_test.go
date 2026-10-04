@@ -110,8 +110,9 @@ func TestCallRecordingsDelivered(t *testing.T) {
 			t.Fatalf("owner message lacks %q:\n%s", want, own)
 		}
 	}
-	if !strings.Contains(res, "Собрать платёжный календарь") || strings.Contains(own+res, "—") {
-		t.Fatalf("resident message / em dash: %q", res)
+	// R32e: the resident gets nothing until the team publishes the summary
+	if res != "" || !strings.Contains(own, "Это черновик саммари") || strings.Contains(own, "—") {
+		t.Fatalf("resident message / draft note / em dash: %q / %q", res, own)
 	}
 	b, _ := repo.GetBoard(ctx, "call-b1")
 	var bd struct {
@@ -124,7 +125,7 @@ func TestCallRecordingsDelivered(t *testing.T) {
 	}
 	_ = json.Unmarshal(b.Data, &bd)
 	if len(bd.Calls) != 1 || bd.Calls[0].ID != resp.ID || bd.Calls[0].Title != "Разбор Даулета" || bd.Calls[0].Audio == "" ||
-		len(bd.Calls[0].Problems) != 1 || len(bd.Calls[0].Next) != 1 || bd.Calls[0].Sent["owner"] != true || bd.Calls[0].Sent["resident"] != true {
+		len(bd.Calls[0].Problems) != 1 || len(bd.Calls[0].Next) != 1 || bd.Calls[0].Sent["owner"] != true || bd.Calls[0].Sent["resident"] != false {
 		t.Fatalf("board calls: %s", b.Data)
 	}
 

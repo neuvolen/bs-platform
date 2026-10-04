@@ -61,6 +61,14 @@ func (s *Service) shadowUpdate(ctx context.Context, body []byte) {
 	if err := s.repo.SaveShadowReport(ctx, rep); err != nil {
 		log.Printf("bot shadow: save report %d: %v", m.UpdateID, err)
 	}
+	// After the cutover the server keeps «Лог отчётов» (club_reports) itself:
+	// the app's and the platform's report lists read it.
+	if !club.SheetLegacy() && d.Verdict == VerdictReport && d.Resident != "" {
+		if err := s.repo.Club().AddReportLog(ctx, pg.ReportLog{At: m.Sent, Username: m.Username, Name: d.Resident,
+			Text: text, TgUserID: m.FromID, Thread: m.Thread, Late: d.Late, MessageID: m.MessageID}); err != nil {
+			log.Printf("bot report log %d: %v", m.UpdateID, err)
+		}
+	}
 }
 
 // maybeDailyShadow compares yesterday once a day and tells the team.
