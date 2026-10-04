@@ -30673,6 +30673,11 @@ if(typeof OPS_NAMES !== 'undefined') OPS_NAMES.ddsEdit = 'ДДС: правка';
 .td-url code{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px;line-height:1.45;background:var(--pd);border:1px solid var(--pi);border-radius:9px;padding:8px 10px;color:var(--ptx)}
 .td-steps{grid-column:1/-1;margin:2px 0 0;padding-left:18px;font-size:12px;color:var(--pm);line-height:1.55}
 .td-steps b{color:var(--ptx)}
+.td-tries{grid-column:1/-1;margin:2px 0 0;padding:0;list-style:none;font-size:12px;line-height:1.5;color:var(--pm)}
+.td-tries li{padding:5px 0;border-top:1px dashed var(--pi);overflow-wrap:anywhere}
+.td-tries li b{color:var(--ptx);font-weight:600}
+.td-tries .bad{color:#c0392b}
+.td-tries-h{grid-column:1/-1;font-size:12px;color:var(--ptx);font-weight:600;margin-top:6px}
 @media (max-width:560px){.td-url{flex-direction:column;align-items:stretch}}
 </style>
 <script id="tildaScript">
@@ -30689,11 +30694,23 @@ function tdWhen(iso){
 function tdLine(){
   if(TD.st === 'loading' || TD.st === 'idle') return {t: 'Проверяю…', cls: 'wait'};
   if(TD.st === 'error') return {t: TD.err || 'Нет связи с сервером', cls: 'err'};
-  var l = TD.j && TD.j.last;
-  if(!l || !l.at) return {t: 'Заявок с сайта на сервер ещё не было. Отправьте тестовую заявку с сайта и нажмите «Проверить»', cls: 'wait'};
+  var l = TD.j && TD.j.last, tr = (TD.j && TD.j.attempts) || [];
+  if(tr.length && tr[0].result === 'rejected') return {t: 'Последнее обращение ' + tdWhen(tr[0].at) + ' отклонено: ' + (tr[0].reason || 'причина неизвестна') + '. Список обращений ниже', cls: 'err'};
+  if(!l || !l.at) return {t: tr.length ? 'Заявок с сайта ещё не было, обращения есть: список ниже' : 'Tilda ещё ни разу не обращалась к серверу. Проверьте шаги ниже, отправьте тестовую заявку с сайта и нажмите «Проверить»', cls: 'wait'};
   var via = l.via === 'script' ? 'через таблицу (Tilda пока шлёт на адрес скрипта, он передаёт серверу)' : 'напрямую из Tilda';
   var what = l.test ? 'Проверка подключения из Tilda' : 'Последняя заявка' + (l.form ? ' «' + l.form + '»' : '') + (l.dup ? ' (повтор, не задвоена)' : '');
   return {t: what + ': ' + tdWhen(l.at) + ', ' + via + (l.count ? '. Всего заявок: ' + l.count : ''), cls: ''};
+}
+var TD_RES = {accepted: 'принята', duplicate: 'повтор, лид уже есть', test: 'проверка связи из Tilda', rejected: 'отклонена'};
+function tdTries(){
+  var tr = (TD.j && TD.j.attempts) || [];
+  if(!tr.length) return '';
+  return '<div class="td-tries-h">Последние обращения (' + tr.length + ', за сутки ' + ((TD.j && TD.j.day) || 0) + ')</div><ul class="td-tries">' + tr.slice(0, 20).map(function(x){
+    var bad = x.result === 'rejected';
+    return '<li><b>' + tdEa(tdWhen(x.at)) + '</b> · <span class="' + (bad ? 'bad' : '') + '">' + tdEa(TD_RES[x.result] || x.result) + (x.reason ? ': ' + tdEa(x.reason) : '') + '</span>' +
+      '<br>' + tdEa((x.method || 'POST') + ' ' + (x.path || '')) + (x.via === 'script' ? ' · через скрипт таблицы' : '') + (x.ct ? ' · ' + tdEa(x.ct) : '') +
+      (x.fields && x.fields.length ? '<br>поля: ' + tdEa(x.fields.join(', ')) : '') + '</li>';
+  }).join('') + '</ul>';
 }
 function tdPaint(){
   var b = tdBox(); if(!b) return;
@@ -30706,7 +30723,9 @@ function tdPaint(){
       '<ol class="td-steps"><li>Tilda: <b>Настройки сайта → Формы → Webhook</b>, вставьте адрес выше</li>' +
       '<li>Метод <b>POST</b>, отметьте «Отправлять cookies»: так придут UTM-метки</li>' +
       '<li>В каждой форме сайта: <b>Контент → Сервисы приёма данных</b> → отметьте этот Webhook</li>' +
+      '<li><b>Опубликуйте заново</b> каждую страницу с формой: без этого форма шлёт по-старому</li>' +
       '<li>Отправьте тестовую заявку и нажмите «Проверить». Старый адрес скрипта можно убрать из Tilda</li></ol>' : '') +
+    tdTries() +
     '</div>';
   b.querySelectorAll('[data-td]').forEach(function(x){
     x.onclick = function(){
@@ -31734,6 +31753,7 @@ function runCheck(btn){
 function pageHas(url){ try{ var el = document.getElementById('bsVoiceStatic'); return !!(el && url && el.textContent.indexOf(url) >= 0); }catch(e){ return false; } }
 function vStatus(p){
   if(!p) return {t: 'Проверяю…', cls: 'wait'};
+  if(p.envError) return {t: 'ElevenLabs из Railway не подключён: ' + p.envError, cls: 'err'};
   var job = p.job || {}, v = p.voice, a = p.active, tot = p.total || 0, rd = p.ready || 0;
   var now = a && p.playing === 'premium' ? 'ElevenLabs «' + a.name + '»' : 'встроенный голос';
   if(v && job.running) return {t: 'Озвучено ' + rd + ' из ' + tot + ': «' + v.name + '». Пока звучит ' + now, cls: 'wait', pct: tot ? rd / tot : 0};
@@ -31744,7 +31764,7 @@ function vStatus(p){
 }
 function keyNow(p){
   if(!p) return {t: 'Проверяю…', cls: 'wait'};
-  if(p.source === 'env') return {t: 'Ключ задан в Railway (ELEVENLABS_API_KEY ' + (p.last4 || '') + '): он главнее ключа из настроек', cls: ''};
+  if(p.source === 'env') return {t: 'Ключ задан в Railway (ELEVENLABS_API_KEY ' + (p.last4 || '') + '): он главнее ключа из настроек' + (p.envVoice ? '. Голос из ELEVENLABS_VOICE_ID: ' + p.envVoice : ''), cls: ''};
   if(p.source === 'settings') return {t: 'Сохранён ключ ' + (p.last4 || '') + '. Он зашифрован на сервере', cls: ''};
   return {t: 'Ключа нет: elevenlabs.io → Developers → API Keys (права Text to Speech и Voices)', cls: 'err'};
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -189,14 +190,59 @@ func keySourceText(src string) string {
 	return "ключа нет"
 }
 
+// keySourceFull: the source with the variable's name (R37), never the value.
+func keySourceFull(c *ai.Client) string {
+	src := c.KeySource()
+	if src == "env" && c.Env != nil && c.Env.Name != "" {
+		t := "ключ из Railway (" + c.Env.Name + ")"
+		if c.Env.Cleaned {
+			t += ", убраны лишние кавычки или пробелы"
+		}
+		return t
+	}
+	return keySourceText(src)
+}
+
+// RailwayDeployHint: a variable is in the process only after a deploy.
+const RailwayDeployHint = "Railway: после добавления переменной нажмите Deploy (изменения применяются только после деплоя)"
+
+// noKeyText: why there is no key: the related names, the saved key's
+// problem, where to put it (R37). Names only, never values.
+func noKeyText(c *ai.Client) string {
+	parts := []string{"ключа нет"}
+	if c != nil && c.Keys != nil && c.Keys.Problem() != "" {
+		parts = append(parts, c.Keys.Problem())
+	}
+	if c != nil && c.Env != nil && len(c.Env.Related) > 0 {
+		var ns []string
+		for _, n := range c.Env.Related {
+			if why := c.Env.Unusable[n]; why != "" {
+				ns = append(ns, "«"+n+"» ("+why+")")
+			} else {
+				ns = append(ns, "«"+n+"»")
+			}
+		}
+		parts = append(parts, "в Railway есть похожие переменные: "+strings.Join(ns, ", "))
+	} else {
+		svc := strings.TrimSpace(os.Getenv("RAILWAY_SERVICE_NAME"))
+		w := "в переменных сервера нет ни ANTHROPIC_API_KEY, ни CLAUDE_API_KEY, ни значения sk-ant-…"
+		if svc != "" {
+			w += " (сервис «" + svc + "»: переменная должна быть именно в нём)"
+		}
+		parts = append(parts, w)
+	}
+	parts = append(parts, RailwayDeployHint, "или вставьте ключ: Настройки платформы → «Ключ Claude»")
+	return strings.Join(parts, "; ")
+}
+
 func (s *SysCheck) claude(ctx context.Context) CheckItem {
 	it := CheckItem{Key: "claude", Title: "ИИ Claude"}
 	if s.AI == nil || !s.AI.HasClaude() {
-		it.State, it.Text, it.Sig = "fail", "ключа нет: Настройки платформы → «Ключ Claude»", "nokey"
-		it.Note = "❌ ИИ Claude не подключён: нет ключа (Настройки платформы → «Ключ Claude»)"
+		it.State, it.Text, it.Sig = "fail", noKeyText(s.AI), "nokey"
+		it.Note = "❌ ИИ Claude не подключён: нет ключа (Настройки платформы → «Ключ Claude» или ANTHROPIC_API_KEY в Railway и Deploy)"
 		return it
 	}
-	src := s.AI.KeySource()
+	src := keySourceFull(s.AI)
 	c, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	model, err := s.AI.Ping(c, "")
@@ -206,11 +252,11 @@ func (s *SysCheck) claude(ctx context.Context) CheckItem {
 		if ai.IsQuota(err) {
 			msg, sig = ai.QuotaMessage, "quota"
 		}
-		it.State, it.Text, it.Sig = "fail", "ошибка: "+msg+" ("+keySourceText(src)+")", sig
+		it.State, it.Text, it.Sig = "fail", "ошибка: "+msg+" ("+src+")", sig
 		it.Note = "❌ ИИ Claude не отвечает: " + msg
 		return it
 	}
-	it.State, it.Text, it.Sig = "ok", "отвечает, модель "+model+", "+keySourceText(src), "ok"
+	it.State, it.Text, it.Sig = "ok", "отвечает, модель "+model+", "+src, "ok"
 	it.Note = "✅ ИИ Claude подключён и отвечает (" + model + ")"
 	return it
 }
@@ -227,20 +273,48 @@ func (s *SysCheck) tilda(ctx context.Context) CheckItem {
 		return it
 	}
 	today := fmt.Sprintf("сегодня %d", in.Today)
+	// R36c: the newest attempt, when it says more than the last lead: Tilda
+	// knocks but is refused (a wrong key), only checks the connection, or
+	// never called at all.
+	try := ""
+	rejected := false
+	if in.Last != nil && (in.At.IsZero() || in.Last.Result != "accepted") {
+		when := in.LastAt.In(club.Almaty)
+		f := "02.01 15:04"
+		if when.Format("2006-01-02") == s.now().In(club.Almaty).Format("2006-01-02") {
+			f = "15:04"
+		}
+		try = " · последняя попытка " + when.Format(f) + ", " + tildaTryWord(*in.Last) + " (" + ruTries(in.Day) + " за сутки)"
+		rejected = in.Last.Result == "rejected"
+	}
+	rejNote := func() {
+		if rejected {
+			it.State = "warn"
+			it.Sig += "|rej"
+			it.Note = "⚠️ Tilda обращается к серверу, но заявка отклонена: " + in.Last.Reason
+		}
+	}
 	if in.At.IsZero() {
 		it.State, it.Text, it.Sig = "off", "заявок ещё не было · "+today, "none"
+		if in.Last == nil {
+			it.Text += " · обращений с сайта не было"
+		}
+		it.Text += try
+		rejNote()
 		return it
 	}
 	when := in.At.In(club.Almaty).Format("02.01 15:04")
 	if in.Via == "script" {
 		it.State, it.Sig = "warn", "script"
-		it.Text = "последняя " + when + ", через скрипт таблицы · " + today
+		it.Text = "последняя " + when + ", через скрипт таблицы · " + today + try
 		it.Note = "⚠️ Заявки с Tilda идут через скрипт таблицы: поставьте в Tilda вебхук сервера (Настройки → «Заявки с сайта»)"
+		rejNote()
 		return it
 	}
 	it.State, it.Sig = "ok", "tilda"
-	it.Text = "последняя " + when + ", напрямую с сайта · " + today
+	it.Text = "последняя " + when + ", напрямую с сайта · " + today + try
 	it.Note = "✅ Заявки с Tilda приходят напрямую на сервер"
+	rejNote()
 	return it
 }
 
@@ -278,19 +352,49 @@ func (s *SysCheck) voice(ctx context.Context) CheckItem {
 		it.Note = "✅ Голос тура: встроенные записи"
 	}
 	if st.Picked != "" {
+		// R36c: the voice being made, in the owner's words: «ElevenLabs «X»: готово N из 33»
 		if st.Running {
-			it.Text += fmt.Sprintf(" · озвучивается «%s»", st.Picked)
+			it.Text = fmt.Sprintf("ElevenLabs «%s»: озвучивается, готово %d из %d фраз (пока играют %s)", st.Picked, st.Ready, st.Total, playing(st))
 		} else if st.Error != "" {
 			it.State = "warn"
-			it.Text += fmt.Sprintf(" · «%s» остановлен: %s", st.Picked, st.Error)
+			it.Text = fmt.Sprintf("ElevenLabs «%s»: остановлено на %d из %d фраз, %s (играют %s)", st.Picked, st.Ready, st.Total, voiceStop(st), playing(st))
 			it.Sig += "|stopped"
 			it.Note = fmt.Sprintf("⚠️ Озвучка голосом «%s» остановлена: %s", st.Picked, st.Error)
+		} else {
+			it.Text = fmt.Sprintf("ElevenLabs «%s»: готово %d из %d фраз, озвучка ждёт запуска (играют %s)", st.Picked, st.Ready, st.Total, playing(st))
 		}
 	} else if st.Error != "" && st.On {
 		it.State = "warn"
-		it.Text += " · " + st.Error
+		it.Text += " · " + voiceStop(st)
+	}
+	if st.EnvError != "" {
+		it.State = "warn"
+		it.Text += " · ElevenLabs не подключён: " + st.EnvError
+		it.Sig += "|env"
+		it.Note = "⚠️ Голос ElevenLabs: " + st.EnvError
 	}
 	return it
+}
+
+// playing: what the tour plays while another voice is made.
+func playing(st PremiumState) string {
+	if st.On {
+		return "«" + st.Voice + "»"
+	}
+	return "встроенные записи"
+}
+
+// voiceStop: the reason a reading stopped, short.
+func voiceStop(st PremiumState) string {
+	switch st.Stopped {
+	case "quota":
+		return "лимит символов ElevenLabs исчерпан"
+	case "key":
+		return "ключ не принят"
+	case "voice":
+		return "голос не найден"
+	}
+	return st.Error
 }
 
 func (s *SysCheck) webhook(ctx context.Context) CheckItem {

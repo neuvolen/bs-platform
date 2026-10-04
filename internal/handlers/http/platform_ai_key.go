@@ -53,6 +53,7 @@ func (h *PlatformAI) LoadAIKey(ctx context.Context) {
 	key, err := ai.Open(h.aiKeySecret(), d.Value)
 	if err != nil {
 		log.Printf("ai key: the saved Claude key cannot be read: %v", err)
+		h.keys().SetProblem("ключ из настроек не расшифровывается (сменился JWT_SECRET или AI_KEYS_SECRET): вставьте его заново")
 		return
 	}
 	h.keys().Set(key)
@@ -68,6 +69,12 @@ func (h *PlatformAI) keys() *ai.KeyBox {
 func (h *PlatformAI) keyView() gin.H {
 	src := h.AI.KeySource()
 	out := gin.H{"source": src, "envSet": h.AI.Anthropic != "", "saved": h.keys().Get() != ""}
+	if e := h.AI.Env; e != nil { // R37: variable names only, never values
+		out["envName"], out["envRelated"] = e.Name, e.Related
+	}
+	if p := h.keys().Problem(); p != "" {
+		out["problem"] = p
+	}
 	switch src {
 	case "env":
 		out["last4"] = ai.Last4(h.AI.Anthropic)
@@ -103,7 +110,7 @@ func (h *PlatformAI) PutAIKey(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_json"})
 		return
 	}
-	key := strings.TrimSpace(in.Key)
+	key, _ := ai.CleanKey(in.Key) // R37: quotes, spaces, «Bearer » pasted with it
 	if !ai.ValidKeyShape(key) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_key", "message": "Это не похоже на ключ Anthropic: скопируйте его целиком из console.anthropic.com (начинается с sk-ant-)"})
 		return
@@ -166,7 +173,7 @@ func (h *PlatformAI) TestAIKey(c *gin.Context) {
 		Key string `json:"key"`
 	}
 	_ = c.ShouldBindJSON(&in)
-	key := strings.TrimSpace(in.Key)
+	key, _ := ai.CleanKey(in.Key)
 	if key != "" && !ai.ValidKeyShape(key) {
 		c.JSON(http.StatusOK, gin.H{"ok": false, "message": "Это не похоже на ключ Anthropic: скопируйте его целиком из console.anthropic.com"})
 		return

@@ -20,8 +20,28 @@ import (
 // KeyBox holds the key saved in the settings. FromEnv clients share
 // SharedKeys, so the platform and the sheet bridge see one key.
 type KeyBox struct {
-	mu  sync.RWMutex
-	key string
+	mu      sync.RWMutex
+	key     string
+	problem string
+}
+
+// SetProblem: why the saved key is not in use (R37: it did not decrypt), "" to clear.
+func (k *KeyBox) SetProblem(p string) {
+	if k == nil {
+		return
+	}
+	k.mu.Lock()
+	k.problem = p
+	k.mu.Unlock()
+}
+
+func (k *KeyBox) Problem() string {
+	if k == nil {
+		return ""
+	}
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	return k.problem
 }
 
 // SharedKeys: the box FromEnv gives every client.
@@ -37,8 +57,12 @@ func (k *KeyBox) Get() string {
 }
 
 func (k *KeyBox) Set(key string) {
+	key, _ = CleanKey(key)
 	k.mu.Lock()
-	k.key = strings.TrimSpace(key)
+	k.key = key
+	if key != "" {
+		k.problem = ""
+	}
 	k.mu.Unlock()
 }
 

@@ -487,6 +487,7 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 	if d.PlatformRepo != nil {
 		tilda.Docs = d.PlatformRepo
 	}
+	g.OnLead = tilda.ScriptLead
 	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewTildaModule(tilda, []byte(jwtSecret)),
 		httpapi.NewClubActionModule(action, []byte(jwtSecret)),
 		httpapi.NewMigrationModule(mig, []byte(jwtSecret)), httpapi.NewClubAuditModule(audit, []byte(jwtSecret)),

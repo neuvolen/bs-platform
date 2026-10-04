@@ -3,9 +3,11 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -84,8 +86,12 @@ func TestTildaHook(t *testing.T) {
 	body := url.Values{"Name": {"Ерлан"}, "Phone": {"8 (701) 123-45-67"}, "Telegram": {"erlan_kz"}, "Comment": {"Хочу на разбор"},
 		"formname": {"Заявка на разбор"}, "tranid": {"7777:111"}, "formid": {"form1"},
 		"COOKIES": {"TILDAUTM=utm_source%3Dinstagram%7C%7C%7Cutm_campaign%3Doctober"}}.Encode()
-	if w := do(hook, form, body, nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"ok":true`) || strings.Contains(w.Body.String(), "duplicate") {
+	// Tilda waits for a bare «ok» (else two more tries and «Webhook URL not available»).
+	if w := do(hook, form, body, nil); w.Code != 200 || w.Body.String() != "ok" {
 		t.Fatalf("lead %d %s", w.Code, w.Body.String())
+	}
+	if tr := ReadTildaTries(ctx, tl.Meta); len(tr) == 0 || tr[0].Result != "accepted" || tr[0].Via != "tilda" {
+		t.Fatalf("attempt %+v", tr)
 	}
 	msg := e.tg.waitText(t, offOwner, "Новый лид")
 	for _, s := range []string{"👤 Ерлан", "📱 +77011234567", "💬 @erlan_kz", "📍 Источник: Сайт: Заявка на разбор", "🎯 october", "📝 Хочу на разбор"} {
@@ -98,16 +104,16 @@ func TestTildaHook(t *testing.T) {
 	}
 
 	// 2. The same submission again (tranid) and the same phone in 10 minutes: one lead, one notice.
-	if w := do(hook, form, body, nil); !strings.Contains(w.Body.String(), `"duplicate":true`) {
+	if w := do(hook, form, body, nil); w.Body.String() != "ok" || ReadTildaTries(ctx, tl.Meta)[0].Result != "duplicate" {
 		t.Fatalf("dup tranid %s", w.Body.String())
 	}
-	if w := do(hook, form, "Name=Ерлан&Phone=%2B77011234567&tranid=7777:112", nil); !strings.Contains(w.Body.String(), `"duplicate":true`) {
+	if w := do(hook, form, "Name=Ерлан&Phone=%2B77011234567&tranid=7777:112", nil); w.Body.String() != "ok" || ReadTildaTries(ctx, tl.Meta)[0].Result != "duplicate" {
 		t.Fatalf("dup phone %s", w.Body.String())
 	}
 
 	// 3. JSON with Tilda's «API key» as a header, on the address without the key.
 	js := `{"name":"Айгерим","phone":"+7 777 555 44 33","email":"a@b.kz","formname":"Консультация","tranid":"8888:1","utm_source":"google","utm_campaign":"brand"}`
-	if w := do("/api/v1/public/tilda", "application/json", js, map[string]string{"X-Tilda-Key": tok}); w.Code != 200 || !strings.Contains(w.Body.String(), `"ok":true`) {
+	if w := do("/api/v1/public/tilda", "application/json", js, map[string]string{"X-Tilda-Key": tok}); w.Code != 200 || w.Body.String() != "ok" {
 		t.Fatalf("json %d %s", w.Code, w.Body.String())
 	}
 	e.tg.waitText(t, offOwner, "Айгерим")
@@ -204,5 +210,101 @@ func TestTildaDerivedToken(t *testing.T) {
 	}
 	if (&TildaLeads{}).DerivedToken() != "" {
 		t.Fatal("empty bot token must give empty key")
+	}
+}
+
+// R36c: every attempt is logged (names of fields only), the address works
+// with a slash at the end, the derived key works next to the stored one,
+// a wrong key is shown with its reason, a field named by the owner is found.
+func TestTildaAttempts(t *testing.T) {
+	t.Setenv("TILDA_TOKEN", "")
+	e := newOffEnv(t, "server", nil)
+	ctx := context.Background()
+	docs := pg.NewPlatformRepo(e.db)
+	meta := pg.NewBotRepo(e.db)
+	_ = meta.SetMeta(ctx, tildaMetaTries, "")
+	_ = meta.SetMeta(ctx, tildaMetaToken, "stored-key-0123456789abcdef") // an earlier random key
+	tl := NewTildaLeads(e.writes, docs, meta, testBotToken)
+	NewTildaModule(tl, []byte("tilda-secret")).Register(e.r)
+	do := func(method, path, ct, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		if ct != "" {
+			req.Header.Set("Content-Type", ct)
+		}
+		req.RemoteAddr = "10.0.0.9:1234"
+		w := httptest.NewRecorder()
+		e.r.ServeHTTP(w, req)
+		return w
+	}
+	const form = "application/x-www-form-urlencoded"
+	der := tl.DerivedToken()
+	last := func() tildaTry {
+		tr := ReadTildaTries(ctx, meta)
+		if len(tr) == 0 {
+			t.Fatal("no attempts")
+		}
+		return tr[0]
+	}
+	// a wrong key: 401, logged with the reason, values never kept
+	if w := do("POST", "/api/v1/public/tilda/029f0a15e4bcef2a86e788d428445429", form, "Name=Секрет&Phone=87017778899"); w.Code != 401 {
+		t.Fatalf("wrong key %d", w.Code)
+	}
+	x := last()
+	if x.Result != "rejected" || x.Reason != "неверный ключ" || x.Path != "/tilda/029f…5429" || strings.Join(x.Fields, ",") != "Name,Phone" || x.CT != form {
+		t.Fatalf("wrong key attempt %+v", x)
+	}
+	if raw, _ := meta.GetMeta(ctx, tildaMetaTries); strings.Contains(raw, "Секрет") || strings.Contains(raw, "8899") {
+		t.Fatalf("values kept: %s", raw)
+	}
+	// no key at all
+	if w := do("POST", "/api/v1/public/tilda", form, "Name=X"); w.Code != 401 || last().Reason != "нет ключа в адресе" {
+		t.Fatalf("no key %d %+v", w.Code, last())
+	}
+	// the derived key, with a slash at the end: test ping, then GET from a browser
+	if w := do("POST", "/api/v1/public/tilda/"+der+"/", form, "test=test"); w.Code != 200 || w.Body.String() != "ok" || last().Result != "test" {
+		t.Fatalf("slash %d %q %+v", w.Code, w.Body.String(), last())
+	}
+	if w := do("GET", "/api/v1/public/tilda/"+der, "", ""); w.Code != 200 || last().Reason != "метод GET (Tilda шлёт POST)" {
+		t.Fatalf("get %d %+v", w.Code, last())
+	}
+	// the stored key still works
+	if w := do("POST", "/api/v1/public/tilda/stored-key-0123456789abcdef", form, "test=test"); w.Code != 200 {
+		t.Fatalf("stored key %d", w.Code)
+	}
+	// a form whose fields the owner named himself
+	body := url.Values{"Ваше_имя": {"Жанар"}, "Input_3": {"+7 (705) 222-33-44"}, "tranid": {"5555:1"}, "formid": {"form77"}}.Encode()
+	if w := do("POST", "/api/v1/public/tilda/"+der, form, body); w.Code != 200 || w.Body.String() != "ok" {
+		t.Fatalf("custom fields %d %s", w.Code, w.Body.String())
+	}
+	if x := last(); x.Result != "accepted" {
+		t.Fatalf("custom fields attempt %+v", x)
+	}
+	e.tg.waitText(t, offOwner, "Жанар")
+	// nothing to call: Tilda gets «ok» (no retries), the log says why
+	if w := do("POST", "/api/v1/public/tilda/"+der, form, "Checkbox=yes&tranid=5555:2"); w.Code != 200 || w.Body.String() != "ok" || last().Reason != "пустой телефон и имя" {
+		t.Fatalf("empty %d %+v", w.Code, last())
+	}
+	// the older script's /api/v1/bot/lead goes into the same log
+	tl.ScriptLead(ctx, map[string]string{"name": "Б", "phone": "+77001112233"}, nil)
+	if x := last(); x.Path != "/bot/lead" || x.Via != "script" || x.Result != "accepted" {
+		t.Fatalf("script lead %+v", x)
+	}
+	tl.ScriptLead(ctx, nil, errors.New("подпись скрипта не совпала"))
+	if x := last(); x.Result != "rejected" || x.Reason != "подпись скрипта не совпала" {
+		t.Fatalf("script bad sig %+v", x)
+	}
+	// the log keeps 20
+	for i := 0; i < 25; i++ {
+		do("POST", "/api/v1/public/tilda/bad"+strconv.Itoa(i), form, "a=b")
+	}
+	if n := len(ReadTildaTries(ctx, meta)); n != tildaTriesKeep {
+		t.Fatalf("kept %d", n)
+	}
+	in, _ := ReadTildaLeads(ctx, meta, time.Now())
+	if in.Last == nil || in.Day != tildaTriesKeep || in.At.IsZero() {
+		t.Fatalf("info %+v", in)
+	}
+	if ruTries(1) != "1 попытка" || ruTries(3) != "3 попытки" || ruTries(11) != "11 попыток" || ruTries(20) != "20+ попыток" {
+		t.Fatal("plural")
 	}
 }

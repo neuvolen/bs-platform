@@ -249,3 +249,131 @@ func TestR36PremiumVoice(t *testing.T) {
 		t.Fatalf("key delete: %+v", j)
 	}
 }
+
+// R36c: ELEVENLABS_VOICE_ID (+ ELEVENLABS_API_KEY) in Railway: the server
+// takes the voice once (an account voice, or a library one added to the
+// account) and voices the tour by itself; the system check says why not.
+func TestR36cEnvVoice(t *testing.T) {
+	repo, ctx := testPlatformDB(t, elevenKeyDoc, premiumCfgDoc)
+	db, err := pg.NewDB(ctx, os.Getenv("BS_TEST_DSN"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Pool.Close()
+	if _, err := db.Pool.Exec(ctx, `DELETE FROM tts_audio WHERE style = $1`, premiumStyle); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AI_KEYS_SECRET", "")
+	const key = "sk_r36c_env_key_0123456789abcdef0123"
+	var mu sync.Mutex
+	hits := map[string]int{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		hits[r.URL.Path]++
+		if r.Header.Get("xi-api-key") != key {
+			w.WriteHeader(401)
+			_, _ = w.Write([]byte(`{"detail":{"status":"invalid_api_key","message":"bad"}}`))
+			return
+		}
+		switch {
+		case r.URL.Path == "/v1/voices/envVoice01":
+			_, _ = w.Write([]byte(`{"voice_id":"envVoice01","name":"Тимур","category":"cloned"}`))
+		case r.URL.Path == "/v1/shared-voices" && r.URL.Query().Get("voice_id") == "libVoice02":
+			_, _ = w.Write([]byte(`{"voices":[{"voice_id":"libVoice02","public_owner_id":"own9","name":"Lib Narrator"}]}`))
+		case r.URL.Path == "/v1/shared-voices":
+			_, _ = w.Write([]byte(`{"voices":[]}`))
+		case r.URL.Path == "/v1/voices/add/own9/libVoice02":
+			_, _ = w.Write([]byte(`{"voice_id":"addedLib02"}`))
+		case strings.HasPrefix(r.URL.Path, "/v1/text-to-speech/"):
+			w.Header().Set("Content-Type", "audio/mpeg")
+			_, _ = w.Write(append([]byte("ID3:"+r.URL.Path), make([]byte, 300)...))
+		default:
+			w.WriteHeader(404)
+			_, _ = w.Write([]byte(`{"detail":{"status":"voice_not_found","message":"not found"}}`))
+		}
+	}))
+	defer srv.Close()
+	old := PremiumPace
+	PremiumPace = time.Millisecond
+	defer func() { PremiumPace = old }()
+	texts := []string{"Раз.", "Два.", "Три."}
+	secret := func() []byte { return []byte("jwt-secret-for-tests-0123456789") }
+	mk := func() *PremiumVoice {
+		p := NewPremiumVoice(repo, secret, func() []string { return texts })
+		p.EL = &ai.Eleven{Base: srv.URL, HTTP: srv.Client(), Key: p.key, Wait: func(int, time.Duration) time.Duration { return time.Millisecond }}
+		p.Load(ctx)
+		return p
+	}
+	check := func(p *PremiumVoice) CheckItem {
+		s := &SysCheck{Premium: p, Builtin: func() (int, int) { return 33, 33 }}
+		return s.voice(ctx)
+	}
+	wait := func(p *PremiumVoice) PremiumState {
+		for i := 0; i < 300; i++ {
+			if st := p.State(ctx); st.On && st.Ready == st.Total {
+				return st
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		t.Fatalf("not voiced: %+v", p.State(ctx))
+		return PremiumState{}
+	}
+
+	// only the voice id: the check says the key is missing
+	t.Setenv("ELEVENLABS_VOICE_ID", "envVoice01")
+	t.Setenv("ELEVENLABS_API_KEY", "")
+	p := mk()
+	p.applyEnvVoice(ctx)
+	if it := check(p); it.State != "warn" || !strings.Contains(it.Text, "встроенные записи") || !strings.Contains(it.Text, "нет ключа: добавьте ELEVENLABS_API_KEY") {
+		t.Fatalf("no key: %+v", it)
+	}
+	// a voice id pasted as the key
+	t.Setenv("ELEVENLABS_API_KEY", "envVoice01xxxxxxxxxx")
+	p.applyEnvVoice(ctx)
+	if it := check(p); !strings.Contains(it.Text, "в ELEVENLABS_API_KEY вставлен id голоса") {
+		t.Fatalf("voice id as key: %+v", it)
+	}
+	// both right: taken, voiced, the check names the voice
+	t.Setenv("ELEVENLABS_API_KEY", key)
+	p.applyEnvVoice(ctx)
+	p.maybeRun(ctx)
+	st := wait(p)
+	if st.Voice != "Тимур" || st.Total != 3 {
+		t.Fatalf("state %+v", st)
+	}
+	if it := check(p); it.Text != "ElevenLabs «Тимур», готово 3 из 3 фраз" || it.State != "ok" {
+		t.Fatalf("voiced: %+v", it)
+	}
+	// a restart: not taken again, no new reading
+	mu.Lock()
+	before, tts := hits["/v1/voices/envVoice01"], hits["/v1/text-to-speech/envVoice01"]
+	mu.Unlock()
+	p2 := mk()
+	p2.applyEnvVoice(ctx)
+	p2.maybeRun(ctx)
+	time.Sleep(50 * time.Millisecond)
+	mu.Lock()
+	if hits["/v1/voices/envVoice01"] != before || hits["/v1/text-to-speech/envVoice01"] != tts {
+		t.Fatalf("asked again: %v", hits)
+	}
+	mu.Unlock()
+	if st := p2.State(ctx); !st.On || st.Voice != "Тимур" {
+		t.Fatalf("after restart %+v", st)
+	}
+	// a library voice id: added to the account, then voiced
+	t.Setenv("ELEVENLABS_VOICE_ID", "libVoice02")
+	p2.applyEnvVoice(ctx)
+	if c := p2.config(); c.Voice.ID != "addedLib02" || c.Voice.LibraryID != "libVoice02" || c.EnvVoice != "libVoice02" {
+		t.Fatalf("library voice %+v", c)
+	}
+	// an id ElevenLabs does not know
+	t.Setenv("ELEVENLABS_VOICE_ID", "nopeVoice03")
+	p2.applyEnvVoice(ctx)
+	if it := check(p2); !strings.Contains(it.Text, "nopeVoice03 из ELEVENLABS_VOICE_ID не найден") || it.State != "warn" {
+		t.Fatalf("unknown voice: %+v", it)
+	}
+	if strings.Contains(check(p2).Text, "—") {
+		t.Fatal("em dash")
+	}
+}

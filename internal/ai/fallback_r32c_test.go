@@ -197,10 +197,10 @@ func TestR32cMinuteLimitIsShort(t *testing.T) {
 
 func TestR32cClaudeKeyAlias(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("CLAUDE_API_KEY", "ck")
+	t.Setenv("CLAUDE_API_KEY", "sk-ant-test-ck-0123456789")
 	t.Setenv("AI_TEXT_ORDER", "")
 	c := FromEnv()
-	if c.Anthropic != "ck" {
+	if c.Anthropic != "sk-ant-test-ck-0123456789" {
 		t.Fatal("CLAUDE_API_KEY")
 	}
 	t.Setenv("AI_TEXT_ORDER", "claude, gemini")

@@ -282,7 +282,7 @@ func TestR34aSettingsKeyAndPing(t *testing.T) {
 func TestR34aFromEnvGeminiOffByDefault(t *testing.T) {
 	t.Setenv("GEMINI_API_KEY", "g")
 	t.Setenv("GEMINI_ENABLED", "")
-	t.Setenv("ANTHROPIC_API_KEY", "a")
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test-a-0123456789")
 	t.Setenv("AI_MODEL", "")
 	t.Setenv("AI_CLAUDE_MODEL", "")
 	t.Setenv("AI_MODEL_HEAVY", "")

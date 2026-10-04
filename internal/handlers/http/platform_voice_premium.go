@@ -85,6 +85,9 @@ type premiumCfg struct {
 	Active premiumVoice `json:"active"` // every phrase there: the page plays it
 	By     string       `json:"by,omitempty"`
 	At     string       `json:"at,omitempty"`
+	// EnvVoice: the ELEVENLABS_VOICE_ID already taken (R36c): a voice the
+	// owner picks in the settings later is not overridden at every start.
+	EnvVoice string `json:"envVoice,omitempty"`
 }
 
 type premiumOverlay struct {
@@ -118,6 +121,7 @@ type PremiumVoice struct {
 	cancel  context.CancelFunc
 	overlay atomic.Pointer[premiumOverlay]
 	kick    chan struct{}
+	envErr  string // why ELEVENLABS_VOICE_ID is not used (R36c)
 }
 
 // NewPremiumVoice: the ElevenLabs client reads ELEVENLABS_API_KEY, else the saved key.
@@ -128,6 +132,107 @@ func NewPremiumVoice(repo *pg.PlatformRepo, secret func() []byte, texts func() [
 }
 
 func elevenEnvKey() string { return strings.TrimSpace(os.Getenv("ELEVENLABS_API_KEY")) }
+
+// elevenEnvVoice: ELEVENLABS_VOICE_ID in Railway: the tour is read with this
+// voice without picking it in the settings (R36c).
+func elevenEnvVoice() string { return strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID")) }
+
+var voiceIDShape = regexp.MustCompile(`^[A-Za-z0-9]{20}$`)
+
+// keyProblem: a voice id pasted where the key goes (keys start with sk_).
+func keyProblem() string {
+	if k := elevenEnvKey(); k != "" && voiceIDShape.MatchString(k) {
+		return "в ELEVENLABS_API_KEY вставлен id голоса, а не ключ: ключ начинается с sk_, id голоса нужно положить в ELEVENLABS_VOICE_ID"
+	}
+	return ""
+}
+
+func (p *PremiumVoice) setEnvErr(s string) {
+	p.mu.Lock()
+	p.envErr = s
+	p.mu.Unlock()
+}
+
+// applyEnvVoice: ELEVENLABS_VOICE_ID becomes the picked voice once (a voice
+// of the account, or a library voice added to it); the reading then starts
+// by itself (maybeRun). The reason it cannot is kept for the system check.
+func (p *PremiumVoice) applyEnvVoice(ctx context.Context) {
+	id := elevenEnvVoice()
+	if id == "" {
+		p.setEnvErr("")
+		return
+	}
+	if !elevenIDRe.MatchString(id) {
+		p.setEnvErr("ELEVENLABS_VOICE_ID не похож на id голоса")
+		return
+	}
+	if kp := keyProblem(); kp != "" {
+		p.setEnvErr(kp)
+		return
+	}
+	if p.key() == "" {
+		p.setEnvErr("в Railway указан ELEVENLABS_VOICE_ID, но нет ключа: добавьте ELEVENLABS_API_KEY (или ключ в Настройках платформы)")
+		return
+	}
+	c := p.config()
+	if c.EnvVoice == id {
+		p.setEnvErr("")
+		return
+	}
+	if p.repo == nil {
+		return
+	}
+	if c.Voice.ID == id || c.Voice.LibraryID == id {
+		c.EnvVoice = id
+		if err := p.saveCfg(ctx, c); err == nil {
+			p.setEnvErr("")
+		}
+		return
+	}
+	cctx, cancel := context.WithTimeout(ctx, 40*time.Second)
+	defer cancel()
+	v, err := p.EL.Voice(cctx, id)
+	libID, ownerID := "", ""
+	if err != nil {
+		var ee *ai.ElevenError
+		if !errors.As(err, &ee) || (ee.Status != 404 && ee.Status != 400 && ee.Code != "voice_not_found") {
+			p.setEnvErr(ai.ElevenMessage(err))
+			return
+		}
+		sv, ok, ferr := p.EL.FindShared(cctx, id)
+		if ferr != nil || !ok || sv.OwnerID == "" {
+			p.setEnvErr("голос " + id + " из ELEVENLABS_VOICE_ID не найден в ElevenLabs: проверьте id (Voices → ⋯ → Copy voice ID)")
+			return
+		}
+		got, aerr := p.EL.AddShared(cctx, sv.OwnerID, sv.ID, "BS гид: "+sv.Name)
+		if aerr != nil {
+			p.setEnvErr("голос из библиотеки не добавился: " + ai.ElevenMessage(aerr))
+			return
+		}
+		v = ai.ElevenVoice{ID: got, Name: sv.Name, PreviewURL: sv.PreviewURL}
+		libID, ownerID = sv.ID, sv.OwnerID
+	}
+	name := strings.TrimSpace(v.Name)
+	if r := []rune(name); len(r) > 60 {
+		name = string(r[:60])
+	}
+	if name == "" {
+		name = id
+	}
+	prev := v.PreviewURL
+	if !strings.HasPrefix(prev, "https://") || len(prev) > 500 {
+		prev = ""
+	}
+	c = p.config()
+	c.Voice = premiumVoice{ID: v.ID, LibraryID: libID, OwnerID: ownerID, Name: name, PreviewURL: prev, Model: ai.ElevenModel(), Settings: ai.DefaultElevenSettings}
+	c.EnvVoice, c.By, c.At = id, "ELEVENLABS_VOICE_ID", time.Now().UTC().Format(time.RFC3339)
+	if err := p.saveCfg(ctx, c); err != nil {
+		p.setEnvErr("выбор голоса не сохранился в базе")
+		return
+	}
+	p.setEnvErr("")
+	log.Printf("tts premium: voice %s (%s) taken from ELEVENLABS_VOICE_ID", name, v.ID)
+}
 
 func (p *PremiumVoice) key() string {
 	if k := elevenEnvKey(); k != "" {
@@ -295,7 +400,10 @@ type PremiumState struct {
 	Total     int
 	Running   bool
 	Error     string
+	Stopped   string // quota | key | voice | net
 	KeySource string
+	// EnvError: why ELEVENLABS_VOICE_ID / ELEVENLABS_API_KEY are not used.
+	EnvError string
 }
 
 func (p *PremiumVoice) State(ctx context.Context) PremiumState {
@@ -303,9 +411,15 @@ func (p *PremiumVoice) State(ctx context.Context) PremiumState {
 	texts := p.texts()
 	st := PremiumState{Total: len(texts), KeySource: p.KeySource()}
 	p.mu.Lock()
-	job := p.job
+	job, envErr := p.job, p.envErr
 	p.mu.Unlock()
-	st.Running, st.Error = job.Running, job.Error
+	st.Running, st.Error, st.Stopped, st.EnvError = job.Running, job.Error, job.Stopped, envErr
+	if kp := keyProblem(); kp != "" {
+		st.EnvError = kp
+	}
+	if job.VoiceID != c.Voice.ID {
+		st.Running, st.Error, st.Stopped = false, "", ""
+	}
 	if c.Active.ID != "" {
 		_, n, _ := p.have(ctx, c.Active, texts)
 		st.On, st.Voice, st.Ready = n > 0, c.Active.Name, n
@@ -329,6 +443,7 @@ func (p *PremiumVoice) Start(ctx context.Context) {
 		t := time.NewTicker(PremiumRetryEvery)
 		defer t.Stop()
 		for {
+			p.applyEnvVoice(ctx)
 			p.maybeRun(ctx)
 			select {
 			case <-ctx.Done():
@@ -496,8 +611,17 @@ func (p *PremiumVoice) view(ctx context.Context) gin.H {
 		out["last4"] = ai.Last4(p.Keys.Get())
 	}
 	p.mu.Lock()
-	job := p.job
+	job, envErr := p.job, p.envErr
 	p.mu.Unlock()
+	if kp := keyProblem(); kp != "" {
+		envErr = kp
+	}
+	if v := elevenEnvVoice(); v != "" {
+		out["envVoice"] = v
+	}
+	if envErr != "" {
+		out["envError"] = envErr
+	}
 	if c.Voice.ID != "" {
 		_, n, _ := p.have(ctx, c.Voice, texts)
 		out["voice"] = gin.H{"id": c.Voice.ID, "libraryId": c.Voice.LibraryID, "name": c.Voice.Name, "previewUrl": c.Voice.PreviewURL}
@@ -712,7 +836,7 @@ func (p *PremiumVoice) Off(c *gin.Context) {
 	}
 	p.job = premiumJob{}
 	p.mu.Unlock()
-	cfg := premiumCfg{By: platformUser(c), At: time.Now().UTC().Format(time.RFC3339)}
+	cfg := premiumCfg{By: platformUser(c), At: time.Now().UTC().Format(time.RFC3339), EnvVoice: p.config().EnvVoice}
 	if err := p.saveCfg(c.Request.Context(), cfg); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "store_failed"})
 		return

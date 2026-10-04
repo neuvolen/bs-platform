@@ -276,3 +276,36 @@ func TestR36AfterDeployWaitsAndSends(t *testing.T) {
 		t.Fatalf("meta %v", meta.m)
 	}
 }
+
+// R36c: «Заявки Tilda» says what the newest attempt was: never called, refused
+// with a reason (and how many attempts in a day), or only the connection test.
+func TestR36cTildaLine(t *testing.T) {
+	ctx := context.Background()
+	meta := newMemMeta()
+	now := time.Date(2026, 10, 5, 0, 30, 0, 0, club.Almaty)
+	s := &SysCheck{Meta: meta, Now: func() time.Time { return now }}
+	if it := s.tilda(ctx); it.Text != "заявок ещё не было · сегодня 0 · обращений с сайта не было" || it.State != "off" {
+		t.Fatalf("never: %+v", it)
+	}
+	tl := NewTildaLeads(nil, nil, meta, "")
+	for i, m := range []int{40, 30, 10} {
+		tl.now = func() time.Time { return now.Add(-time.Duration(m) * time.Minute) }
+		tl.record(ctx, tildaTry{Method: "POST", Path: "/tilda/029f…5429", Result: "rejected", Reason: "неверный ключ", Fields: []string{"Name", "Phone", "tranid"}})
+		_ = i
+	}
+	it := s.tilda(ctx)
+	if it.Text != "заявок ещё не было · сегодня 0 · последняя попытка 00:20, отклонена: неверный ключ (3 попытки за сутки)" || it.State != "warn" ||
+		!strings.Contains(it.Note, "неверный ключ") {
+		t.Fatalf("refused: %+v", it)
+	}
+	// then a lead comes: the line is the lead's again
+	tl.now = func() time.Time { return now.Add(-5 * time.Minute) }
+	tl.record(ctx, tildaTry{Method: "POST", Result: "accepted"})
+	tl.mark(ctx, tildaLast{Via: "tilda", Name: "А"})
+	if it := s.tilda(ctx); it.Text != "последняя 05.10 00:25, напрямую с сайта · сегодня 1" || it.State != "ok" {
+		t.Fatalf("lead: %+v", it)
+	}
+	if strings.Contains(s.tilda(ctx).Text+s.tilda(ctx).Note, "—") {
+		t.Fatal("em dash")
+	}
+}

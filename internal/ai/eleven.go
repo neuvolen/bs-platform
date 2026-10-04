@@ -470,6 +470,41 @@ func (e *Eleven) FindButlerVoices(ctx context.Context, search string, limit int)
 	return mine, library, nil
 }
 
+// Voice: one voice of the account by its id (ELEVENLABS_VOICE_ID). A 404
+// means it is not in the account: FindShared looks for it in the library.
+func (e *Eleven) Voice(ctx context.Context, id string) (ElevenVoice, error) {
+	b, err := e.call(ctx, e.key(""), "GET", "/v1/voices/"+url.PathEscape(id), nil)
+	if err != nil {
+		return ElevenVoice{}, err
+	}
+	var v struct {
+		ID         string `json:"voice_id"`
+		Name       string `json:"name"`
+		Category   string `json:"category"`
+		PreviewURL string `json:"preview_url"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil || v.ID == "" {
+		return ElevenVoice{}, errors.New("elevenlabs: voice unreadable")
+	}
+	return ElevenVoice{ID: v.ID, Name: v.Name, Category: v.Category, PreviewURL: v.PreviewURL, Mine: true}, nil
+}
+
+// FindShared: a library voice by its id (to add it to the account).
+func (e *Eleven) FindShared(ctx context.Context, id string) (ElevenVoice, bool, error) {
+	for _, q := range []url.Values{{"voice_id": {id}, "page_size": {"10"}}, {"search": {id}, "page_size": {"30"}}} {
+		list, err := e.SharedVoices(ctx, q)
+		if err != nil {
+			return ElevenVoice{}, false, err
+		}
+		for _, v := range list {
+			if v.ID == id {
+				return v, true, nil
+			}
+		}
+	}
+	return ElevenVoice{}, false, nil
+}
+
 // AddShared puts a library voice into the account (what the API needs to
 // speak with it) and returns the id to speak with. A voice already there
 // answers with its own id.

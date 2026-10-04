@@ -783,6 +783,9 @@ func (g *AppGateway) LeadFromScript(c *gin.Context) {
 		return
 	}
 	if !VerifyBotSignature(body, c.GetHeader("X-BS-Signature"), g.token) {
+		if g.OnLead != nil {
+			g.OnLead(c.Request.Context(), nil, errors.New("подпись скрипта не совпала: у скрипта другой токен бота, чем TELEGRAM_BOT_TOKEN сервера"))
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "bad_signature"})
 		return
 	}
@@ -795,6 +798,9 @@ func (g *AppGateway) LeadFromScript(c *gin.Context) {
 		return
 	}
 	if d := time.Since(time.Unix(req.TS, 0)); d > time.Hour || d < -5*time.Minute {
+		if g.OnLead != nil {
+			g.OnLead(c.Request.Context(), nil, errors.New("подпись скрипта устарела"))
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "stale_request"})
 		return
 	}
@@ -808,7 +814,11 @@ func (g *AppGateway) LeadFromScript(c *gin.Context) {
 		}
 	}
 	ctx := c.Request.Context()
-	if _, err := g.Writes.Local(ctx, "form", 0, "Форма на сайте", "addLead", p); err != nil {
+	_, err = g.Writes.Local(ctx, "form", 0, "Форма на сайте", "addLead", p)
+	if g.OnLead != nil {
+		g.OnLead(ctx, p, err)
+	}
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
 		return
 	}

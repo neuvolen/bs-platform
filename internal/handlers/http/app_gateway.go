@@ -53,6 +53,9 @@ type AppGateway struct {
 	// OnOK is called after every call the script answered (the rollout
 	// counts how long the app has been going through the server).
 	OnOK func()
+	// OnLead: a lead the script posted to /api/v1/bot/lead (the attempts log
+	// and the system check of «Заявки Tilda», tilda.go).
+	OnLead func(ctx context.Context, p map[string]string, err error)
 
 	// Admins is the team: for a few admin actions the chatId in the query is
 	// the person acted upon, not the caller.

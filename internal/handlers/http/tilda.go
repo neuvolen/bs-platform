@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -122,7 +123,7 @@ func (t *TildaLeads) Token(ctx context.Context) (tok string, fromEnv bool) {
 func tildaFields(r *http.Request, body []byte) map[string]string {
 	f := map[string]string{}
 	put := func(k, v string) {
-		k = strings.ToLower(strings.TrimSpace(k))
+		k = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(k)), "[]")
 		v = strings.TrimSpace(v)
 		if k == "" || v == "" {
 			return
@@ -193,6 +194,90 @@ func tildaFields(r *http.Request, body []byte) map[string]string {
 	return f
 }
 
+// tildaFieldNames: the names of the fields sent (no values), for the
+// attempts log: what Tilda really sends is visible without the lead's data.
+func tildaFieldNames(r *http.Request, body []byte) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(k string) {
+		k = strings.TrimSpace(k)
+		if k == "" || seen[k] || len(out) >= 30 {
+			return
+		}
+		if r := []rune(k); len(r) > 40 {
+			k = string(r[:40]) + "…"
+		}
+		seen[k] = true
+		out = append(out, k)
+	}
+	ct, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	trimmed := bytes.TrimSpace(body)
+	switch {
+	case ct == "application/json" || (len(trimmed) > 0 && trimmed[0] == '{'):
+		var m map[string]json.RawMessage
+		if json.Unmarshal(trimmed, &m) == nil {
+			for k := range m {
+				add(k)
+			}
+		}
+	case ct == "multipart/form-data":
+		if r.MultipartForm != nil {
+			for k := range r.MultipartForm.Value {
+				add(k)
+			}
+		}
+	default:
+		if q, err := url.ParseQuery(string(body)); err == nil {
+			for k := range q {
+				add(k)
+			}
+		}
+	}
+	for k := range r.URL.Query() {
+		add(k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// tildaGuess: a field named by the owner in Tilda («Ваш_номер», «Input_2»):
+// the phone is the value that looks like one, the name a field called so.
+var tildaSkip = map[string]bool{"tranid": true, "formid": true, "formname": true, "cookies": true, "ts": true, "test": true,
+	"token": true, "api_key": true, "apikey": true, "key": true, "secret": true, "tilda_token": true, "referer": true, "page": true, "url": true}
+
+func tildaGuess(f map[string]string) (name, phone string) {
+	keys := make([]string, 0, len(f))
+	for k := range f {
+		if !tildaSkip[k] && !strings.HasPrefix(k, "utm_") {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	looksPhone := func(v string) bool {
+		d := phoneDigits(v)
+		return len(d) >= 10 && len(d) <= 15 && strings.Trim(v, "+0123456789 -().") == ""
+	}
+	for _, k := range keys {
+		if phone == "" && (strings.Contains(k, "phone") || strings.Contains(k, "tel") || strings.Contains(k, "телефон") ||
+			strings.Contains(k, "номер") || strings.Contains(k, "whatsapp")) && looksPhone(f[k]) {
+			phone = f[k]
+		}
+		if name == "" && (strings.Contains(k, "name") || strings.Contains(k, "имя") || strings.Contains(k, "fio") || strings.Contains(k, "фио")) &&
+			!strings.Contains(k, "form") && !strings.Contains(k, "user") && !looksPhone(f[k]) {
+			name = f[k]
+		}
+	}
+	if phone == "" {
+		for _, k := range keys {
+			if looksPhone(f[k]) {
+				phone = f[k]
+				break
+			}
+		}
+	}
+	return name, phone
+}
+
 func tildaPick(f map[string]string, keys ...string) string {
 	for _, k := range keys {
 		if v := f[k]; v != "" {
@@ -254,6 +339,15 @@ func tildaParse(f map[string]string) tildaLead {
 	for _, k := range []string{"utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"} {
 		if v := f[k]; v != "" {
 			l.UTM[k] = v
+		}
+	}
+	if l.Name == "" || l.Phone == "" {
+		gn, gp := tildaGuess(f)
+		if l.Name == "" {
+			l.Name = gn
+		}
+		if l.Phone == "" {
+			l.Phone = tildaPhone(gp)
 		}
 	}
 	l.Campaign = tildaPick(f, "utm_campaign", "campaign")
@@ -374,28 +468,39 @@ func (t *TildaLeads) DerivedToken() string {
 }
 
 // authorized: подпись скрипта или ключ (путь, поле, заголовок «API key»).
-func (t *TildaLeads) authorized(ctx context.Context, c *gin.Context, body []byte, f map[string]string) (ok, viaScript bool) {
-	if sig := c.GetHeader("X-BS-Signature"); sig != "" && t.BotToken != "" && VerifyBotSignature(body, sig, t.BotToken) {
+func (t *TildaLeads) authorized(ctx context.Context, c *gin.Context, body []byte, f map[string]string) (ok, viaScript bool, why string) {
+	sig := c.GetHeader("X-BS-Signature")
+	if sig != "" && t.BotToken != "" && VerifyBotSignature(body, sig, t.BotToken) {
 		var x struct {
 			TS int64 `json:"ts"`
 		}
 		if json.Unmarshal(body, &x) == nil {
 			if d := t.now().Sub(time.Unix(x.TS, 0)); d <= time.Hour && d >= -5*time.Minute {
-				return true, true
+				return true, true, ""
 			}
 		}
-		return false, false
+		return false, false, "подпись скрипта устарела (часы скрипта или повтор старой заявки)"
 	}
 	tok, _ := t.Token(ctx)
-	if tok == "" {
-		return false, false
+	derived := t.DerivedToken()
+	if tok == "" && derived == "" {
+		return false, false, "ключ не выдан: нет связи с базой"
 	}
-	if tildaEq(strings.TrimSpace(c.Param("token")), tok) || tildaEq(strings.TrimSpace(c.Param("token")), t.DerivedToken()) {
-		return true, false
+	keys := []string{tok, derived}
+	match := func(v string) bool {
+		for _, k := range keys {
+			if tildaEq(v, k) {
+				return true
+			}
+		}
+		return false
+	}
+	if match(strings.TrimSpace(c.Param("token"))) {
+		return true, false, ""
 	}
 	for _, k := range []string{"token", "api_key", "apikey", "key", "secret", "tilda_token"} {
-		if tildaEq(f[k], tok) {
-			return true, false
+		if match(f[k]) {
+			return true, false, ""
 		}
 	}
 	for _, vs := range c.Request.Header {
@@ -404,12 +509,18 @@ func (t *TildaLeads) authorized(ctx context.Context, c *gin.Context, body []byte
 			if len(v) > 7 && strings.EqualFold(v[:7], "bearer ") {
 				v = strings.TrimSpace(v[7:])
 			}
-			if tildaEq(v, tok) {
-				return true, false
+			if match(v) {
+				return true, false, ""
 			}
 		}
 	}
-	return false, false
+	switch {
+	case sig != "":
+		return false, false, "подпись скрипта не совпала: у скрипта другой токен бота, чем TELEGRAM_BOT_TOKEN сервера"
+	case strings.TrimSpace(c.Param("token")) != "":
+		return false, false, "неверный ключ"
+	}
+	return false, false, "нет ключа в адресе"
 }
 
 type tildaLast struct {
@@ -467,6 +578,52 @@ type TildaLeadInfo struct {
 	At    time.Time
 	Via   string // tilda | script
 	Today int
+	// R36c: the attempts log: the newest attempt and how many in 24 hours.
+	Last   *tildaTry
+	LastAt time.Time
+	Day    int
+}
+
+// tildaDayTries: attempts in the last 24 hours (the log keeps 20).
+func tildaDayTries(list []tildaTry, now time.Time) int {
+	n := 0
+	for _, x := range list {
+		if at, err := time.Parse(time.RFC3339, x.At); err == nil && now.Sub(at) < 24*time.Hour {
+			n++
+		}
+	}
+	return n
+}
+
+// tildaTryWord: «принята», «отклонена: неверный ключ».
+func tildaTryWord(x tildaTry) string {
+	switch x.Result {
+	case "accepted":
+		return "принята"
+	case "duplicate":
+		return "повтор (лид уже есть, команде не сообщалось)"
+	case "test":
+		return "проверка связи из Tilda"
+	}
+	if x.Reason != "" {
+		return "отклонена: " + x.Reason
+	}
+	return "отклонена"
+}
+
+// ruTries: «1 попытка», «3 попытки», «7 попыток».
+func ruTries(n int) string {
+	w := "попыток"
+	if n%10 == 1 && n%100 != 11 {
+		w = "попытка"
+	} else if n%10 >= 2 && n%10 <= 4 && (n%100 < 12 || n%100 > 14) {
+		w = "попытки"
+	}
+	more := ""
+	if n >= tildaTriesKeep {
+		more = "+"
+	}
+	return strconv.Itoa(n) + more + " " + w
 }
 
 func ReadTildaLeads(ctx context.Context, meta interface {
@@ -485,40 +642,199 @@ func ReadTildaLeads(ctx context.Context, meta interface {
 	if d, err := meta.GetMeta(ctx, tildaMetaDay+now.In(club.Almaty).Format("2006-01-02")); err == nil {
 		out.Today, _ = strconv.Atoi(strings.TrimSpace(d))
 	}
+	if tries := ReadTildaTries(ctx, meta); len(tries) > 0 {
+		x := tries[0]
+		out.Last = &x
+		out.LastAt, _ = time.Parse(time.RFC3339, x.At)
+		out.Day = tildaDayTries(tries, now)
+	}
 	return out, nil
 }
 
-// Hook: POST /api/v1/public/tilda[/<ключ>]
+// ── Журнал обращений (R36c): последние 20 попыток Tilda и скрипта ──
+//
+// Время, вид адреса, метод, тип тела, имена полей (без значений) и итог:
+// принята, повтор, проверка связи или отклонена с причиной. Видно в /status
+// бота и в Настройках → «Заявки с сайта»: если Tilda не стучится вовсе, это
+// тоже видно («обращений с сайта не было»).
+
+const (
+	tildaMetaTries = "tilda:attempts"
+	tildaTriesKeep = 20
+)
+
+type tildaTry struct {
+	At     string   `json:"at"`
+	Method string   `json:"method"`
+	Path   string   `json:"path"` // /tilda/029f…5428, /tilda, /bot/lead
+	CT     string   `json:"ct,omitempty"`
+	Fields []string `json:"fields,omitempty"`
+	Via    string   `json:"via"`    // tilda | script
+	Result string   `json:"result"` // accepted | duplicate | test | rejected
+	Reason string   `json:"reason,omitempty"`
+	Form   string   `json:"form,omitempty"`
+}
+
+// tildaPathShape: the address as called, the key shortened (029f…5428).
+func tildaPathShape(c *gin.Context) string {
+	p := c.Request.URL.Path
+	if tok := c.Param("token"); tok != "" {
+		short := tok
+		if r := []rune(tok); len(r) > 10 {
+			short = string(r[:4]) + "…" + string(r[len(r)-4:])
+		}
+		p = strings.Replace(p, tok, short, 1)
+	}
+	p = strings.TrimPrefix(p, "/api/v1/public")
+	if c.Request.URL.RawQuery != "" {
+		p += "?…"
+	}
+	return p
+}
+
+var triesMu sync.Mutex
+
+func (t *TildaLeads) record(ctx context.Context, x tildaTry) {
+	if x.Result == "rejected" {
+		log.Printf("tilda: attempt %s %s rejected: %s (fields %s)", x.Method, x.Path, x.Reason, strings.Join(x.Fields, ","))
+	}
+	if t.Meta == nil {
+		return
+	}
+	ctx = context.WithoutCancel(ctx)
+	x.At = t.now().UTC().Format(time.RFC3339)
+	triesMu.Lock()
+	defer triesMu.Unlock()
+	var list []tildaTry
+	if v, err := t.Meta.GetMeta(ctx, tildaMetaTries); err == nil && v != "" {
+		_ = json.Unmarshal([]byte(v), &list)
+	}
+	list = append([]tildaTry{x}, list...)
+	if len(list) > tildaTriesKeep {
+		list = list[:tildaTriesKeep]
+	}
+	b, _ := json.Marshal(list)
+	if err := t.Meta.SetMeta(ctx, tildaMetaTries, string(b)); err != nil {
+		log.Printf("tilda: attempts: %v", err)
+	}
+}
+
+// ScriptLead: a lead the older script posts to /api/v1/bot/lead (sheet_off.go)
+// is a lead from the site too: the attempts log and the system check see it.
+func (t *TildaLeads) ScriptLead(ctx context.Context, p map[string]string, err error) {
+	x := tildaTry{Method: "POST", Path: "/bot/lead", CT: "application/json", Via: "script", Result: "accepted"}
+	for k := range p {
+		x.Fields = append(x.Fields, k)
+	}
+	sort.Strings(x.Fields)
+	switch {
+	case err != nil && p == nil:
+		x.Result, x.Reason = "rejected", err.Error()
+	case err != nil && err.Error() == "нечего менять":
+		x.Result = "duplicate"
+	case err != nil:
+		x.Result, x.Reason = "rejected", "не сохранилась: "+err.Error()
+	}
+	t.record(ctx, x)
+	if err == nil {
+		t.mark(context.WithoutCancel(ctx), tildaLast{Via: "script", Name: p["name"]})
+	}
+}
+
+// ReadTildaTries: the attempts log, newest first.
+func ReadTildaTries(ctx context.Context, meta interface {
+	GetMeta(ctx context.Context, key string) (string, error)
+}) []tildaTry {
+	var list []tildaTry
+	if meta == nil {
+		return nil
+	}
+	if v, err := meta.GetMeta(ctx, tildaMetaTries); err == nil && v != "" {
+		_ = json.Unmarshal([]byte(v), &list)
+	}
+	return list
+}
+
+func tildaCT(r *http.Request) string {
+	ct, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if r := []rune(ct); len(r) > 60 {
+		ct = string(r[:60])
+	}
+	return ct
+}
+
+// Hook: POST /api/v1/public/tilda[/<ключ>] (GET и HEAD отвечают и пишутся в журнал)
 func (t *TildaLeads) Hook(c *gin.Context) {
+	ctx := c.Request.Context()
+	try := tildaTry{Method: c.Request.Method, Path: tildaPathShape(c), CT: tildaCT(c.Request), Via: "tilda"}
+	if c.Request.Method != http.MethodPost {
+		ok, _, why := t.authorized(ctx, c, nil, map[string]string{})
+		try.Result, try.Reason = "rejected", "метод "+c.Request.Method+" (Tilda шлёт POST)"
+		if !ok {
+			try.Reason += ", " + why
+		}
+		t.record(ctx, try)
+		if !ok {
+			c.String(http.StatusUnauthorized, "bad key")
+			return
+		}
+		c.String(http.StatusOK, "ok")
+		return
+	}
 	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10))
 	if err != nil {
+		try.Result, try.Reason = "rejected", "слишком большой запрос"
+		t.record(ctx, try)
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "too_big"})
 		return
 	}
-	ctx := c.Request.Context()
 	f := tildaFields(c.Request, body)
-	ok, viaScript := t.authorized(ctx, c, body, f)
+	try.Fields = tildaFieldNames(c.Request, body)
+	ok, viaScript, why := t.authorized(ctx, c, body, f)
+	if viaScript || c.GetHeader("X-BS-Signature") != "" {
+		try.Via = "script"
+	}
 	if !ok {
+		try.Result, try.Reason = "rejected", why
+		t.record(ctx, try)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "bad_token"})
 		return
 	}
-	via := "tilda"
-	if viaScript {
-		via = "script"
+	via := try.Via
+	// Tilda ждёт в ответ «ok» (иначе ещё 2 попытки и «Webhook URL not available»
+	// в заявках); скрипту нужен JSON.
+	reply := func(code int, h gin.H) {
+		if viaScript {
+			c.JSON(code, h)
+			return
+		}
+		if code == http.StatusOK {
+			c.String(http.StatusOK, "ok")
+			return
+		}
+		c.String(code, fmt.Sprint(h["error"]))
 	}
 	// Проверка подключения в Tilda.
 	if strings.EqualFold(f["test"], "test") {
+		try.Result = "test"
+		t.record(ctx, try)
 		t.mark(context.WithoutCancel(ctx), tildaLast{Via: via, Test: true})
 		c.String(http.StatusOK, "ok")
 		return
 	}
 	if !viaScript && t.limited(c.ClientIP()) {
-		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too_many"})
+		try.Result, try.Reason = "rejected", "слишком много заявок за 10 минут"
+		t.record(ctx, try)
+		reply(http.StatusTooManyRequests, gin.H{"error": "too_many"})
 		return
 	}
 	l := tildaParse(f)
+	try.Form = l.Form
 	if l.Name == "" && l.Phone == "" && l.Tg == "" {
-		c.JSON(http.StatusOK, gin.H{"ok": false, "error": "Пустой лид"})
+		// Tilda получает «ok»: повтор той же формы ничего не изменит.
+		try.Result, try.Reason = "rejected", "пустой телефон и имя"
+		t.record(ctx, try)
+		reply(http.StatusOK, gin.H{"ok": false, "error": "Пустой лид"})
 		return
 	}
 	// Дубль за 10 минут: та же заявка (tranid) или тот же телефон.
@@ -533,17 +849,26 @@ func (t *TildaLeads) Hook(c *gin.Context) {
 		dup = true
 	}
 	if dup {
+		try.Result = "duplicate"
+		t.record(ctx, try)
 		t.mark(context.WithoutCancel(ctx), tildaLast{Via: via, Form: l.Form, Name: l.Name, Dup: true})
-		c.JSON(http.StatusOK, gin.H{"ok": true, "duplicate": true})
+		reply(http.StatusOK, gin.H{"ok": true, "duplicate": true})
 		return
 	}
 	res, err := t.Save(ctx, l, via)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "error": err.Error()})
+		try.Result, try.Reason = "rejected", "не сохранилась: "+err.Error()
+		t.record(ctx, try)
+		reply(http.StatusServiceUnavailable, gin.H{"ok": false, "error": err.Error()})
 		return
 	}
+	try.Result = "accepted"
+	if res["duplicate"] == true {
+		try.Result = "duplicate"
+	}
+	t.record(ctx, try)
 	t.mark(context.WithoutCancel(ctx), tildaLast{Via: via, Form: l.Form, Name: l.Name})
-	c.JSON(http.StatusOK, res)
+	reply(http.StatusOK, res)
 }
 
 // Save кладёт заявку в «CRM Лиды» и bs_crm и один раз сообщает команде.
@@ -729,6 +1054,12 @@ func (t *TildaLeads) Status(c *gin.Context) {
 				out["last"] = x
 			}
 		}
+		tries := ReadTildaTries(ctx, t.Meta)
+		if tries == nil {
+			tries = []tildaTry{}
+		}
+		out["attempts"] = tries
+		out["day"] = tildaDayTries(tries, t.now())
 	}
 	c.JSON(http.StatusOK, out)
 }
@@ -743,8 +1074,14 @@ func NewTildaModule(t *TildaLeads, secret []byte) *TildaModule {
 }
 
 func (m *TildaModule) Register(r *gin.Engine) {
-	r.POST("/api/v1/public/tilda", m.t.Hook)
-	r.POST("/api/v1/public/tilda/:token", m.t.Hook)
+	// R36c: the address with a slash at the end too (Gin would answer it with
+	// a redirect, which Tilda does not follow), and GET/HEAD (a browser, a
+	// check) answer and go to the attempts log instead of a bare 404.
+	for _, p := range []string{"/api/v1/public/tilda", "/api/v1/public/tilda/", "/api/v1/public/tilda/:token", "/api/v1/public/tilda/:token/"} {
+		r.POST(p, m.t.Hook)
+		r.GET(p, m.t.Hook)
+		r.HEAD(p, m.t.Hook)
+	}
 	g := r.Group("/api/v1/platform/tilda")
 	g.Use(middleware.AuthJWT(m.secret))
 	g.Use(middleware.RequireRole("admin", "moderator"))

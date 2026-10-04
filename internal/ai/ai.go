@@ -41,6 +41,9 @@ type Client struct {
 	HTTP                                  *http.Client
 	// Keys: the Claude key saved in the settings, used when Anthropic is empty.
 	Keys *KeyBox
+	// Env: where Anthropic came from (FromEnv, R37): the variable's name and
+	// the related names, for the system check. Never holds a printed value.
+	Env *EnvKeyInfo
 	// ASR: speech to text on the server (asr_local.go); nil: off.
 	ASR *LocalASR
 
@@ -208,8 +211,10 @@ func FromEnv() *Client {
 	if GeminiEnabled() {
 		gem = env("GEMINI_API_KEY", "")
 	}
+	ek := EnvKey() // R37: any sensible name, a cleaned value (envkey.go)
 	return &Client{
-		Anthropic:      env("ANTHROPIC_API_KEY", env("CLAUDE_API_KEY", "")),
+		Anthropic:      ek.Key,
+		Env:            &ek,
 		Gemini:         gem,
 		OpenAI:         env("OPENAI_API_KEY", ""),
 		ClaudeModel:    env("AI_MODEL", env("AI_CLAUDE_MODEL", DefaultModel)),
