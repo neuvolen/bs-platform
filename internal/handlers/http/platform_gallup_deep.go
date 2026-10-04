@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/bnursik/business_surgery_backend/internal/ai"
 )
 
 // R29: the deep part of the Gallup analysis. The ranked list of talents is
@@ -396,7 +398,7 @@ func (h *PlatformAI) gallupAsk(ctx context.Context, prompt string, parse func(st
 	var lastErr error
 	p := prompt
 	for try := 0; try < 2; try++ {
-		raw, err := h.AI.JSON(ctx, gallupSystem, p)
+		raw, err := h.AI.JSON(ai.Heavy(ctx), gallupSystem, p) // R34a: AI_MODEL_HEAVY
 		if err != nil {
 			lastErr = err
 			if ctx.Err() != nil {

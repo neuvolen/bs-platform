@@ -10,8 +10,9 @@ import (
 	"github.com/bnursik/business_surgery_backend/internal/ai"
 )
 
-// R32c: when Gemini's quota runs out for long (a daily limit or the key's
-// balance), the owner hears it from the bot, at most once a day. The day of
+// R32c: when the AI's quota runs out for long (R34a: Claude's balance; with
+// GEMINI_ENABLED=1 also Gemini's daily limit), the owner hears it from the
+// bot, at most once a day. The day of
 // the last message is kept in the club doc bs_ai_quota_alert, so a restart
 // does not repeat it.
 
@@ -58,12 +59,14 @@ func quotaAlertText(c *ai.Client, q *ai.QuotaError) string {
 	if q.Service == "tts" {
 		svc = "озвучки"
 	}
-	if c != nil && c.Anthropic != "" && q.Service == "gemini" {
-		return "⚠️ Закончилась квота Gemini (" + q.When() + "). Тексты, поиск и мероприятия пока идут через Claude. " +
-			"Пополните баланс в Google AI Studio, чтобы вернуть Gemini"
+	if q.Service == "gemini" {
+		if c != nil && c.HasClaude() {
+			return "⚠️ Закончилась квота Gemini (" + q.When() + "). Тексты и поиск идут через Claude, как обычно"
+		}
+		return "⚠️ " + ai.GeminiQuotaMessage + ".\nGemini снова попробует " + strings.TrimPrefix(q.When(), "до ")
 	}
 	if q.Service == "tts" {
 		return "⚠️ Закончилась квота Gemini для " + svc + " (" + q.When() + "). Голос обучения не пострадает: его записи лежат в приложении"
 	}
-	return "⚠️ " + ai.QuotaMessage + ".\nGemini снова попробует " + strings.TrimPrefix(q.When(), "до ") + ". Ключ Claude: переменная ANTHROPIC_API_KEY в Railway"
+	return "⚠️ " + ai.QuotaMessage + ".\nClaude снова попробует " + strings.TrimPrefix(q.When(), "до ") + " или сразу после того, как новый ключ сохранён в Настройках платформы"
 }

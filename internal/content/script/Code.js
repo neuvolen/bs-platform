@@ -2784,7 +2784,7 @@ function _alert(m){
 // ═══════════════════════════════════════════════════════════════
 // Месяц, с которого считается касса. 3 = апрель, счёт был обнулён
 var CASH_START_MONTH = 3;
-var BS_VERSION = "2026-10-04-41";
+var BS_VERSION = "2026-10-04-42";
 
 // ═══════════════════════════════════════════════════════════════
 // КАРТА КОЛОНОК ЛИСТА РЕЗИДЕНТОВ
@@ -6166,25 +6166,53 @@ function bsWebhookLocked(){
   return true;
 }
 
-// Лид из Tilda или формы: форма по-прежнему шлёт его сюда, скрипт передаёт на сервер
+// Лид из Tilda или формы: форма по-прежнему шлёт его сюда, скрипт передаёт на сервер.
+// Сервер хозяин заявок с сайта: кладёт лида в CRM и сам сообщает команде
+// (POST /api/v1/public/tilda, подпись токеном бота). Сервер не ответил:
+// возвращаем null, и doPost записывает лида по-старому, чтобы заявка не пропала
 function bsForwardLead(u){
-  var out = ContentService.createTextOutput();
-  out.setMimeType(ContentService.MimeType.JSON);
-  var lead = {
-    name: u.name || u.Name || u.imya || u["Имя"] || "",
-    phone: u.phone || u.Phone || u.tel || u["Телефон"] || "",
-    telegram: u.telegram || u.tg || "",
-    source: u.source || u.utm_source || (u.formname ? ("Tilda: " + u.formname) : "Сайт"),
-    campaign: u.utm_campaign || u.campaign || "",
-    niche: u.niche || u.nisha || u["Ниша"] || "",
-    revenue: u.revenue || u.oborot || u["Оборот"] || "",
-    request: u.request || u.comment || u.message || u["Комментарий"] || "",
-    comment: [u.utm_medium, u.utm_content, u.utm_term].filter(Boolean).join(" · ")
-  };
+  var fw = {};
+  Object.keys(u || {}).forEach(function(k){
+    var v = u[k];
+    if(v === null || v === undefined || k === "ts") return;
+    fw[k] = (typeof v === "object") ? JSON.stringify(v) : String(v);
+  });
   var r = null;
-  try{ r = bsSignedPost("/api/v1/bot/lead", {lead: lead}); }catch(e){ Logger.log("lead forward: " + e); }
-  out.setContent(JSON.stringify(r && r.code === 200 ? r.j : {ok: false, error: "сервер не ответил"}));
-  return out;
+  try{ r = bsSignedPost("/api/v1/public/tilda", fw); }catch(e){ Logger.log("lead forward: " + e); }
+  if(!r || r.code !== 200 || !r.j || r.j.ok !== true){
+    Logger.log("lead forward failed: " + (r ? r.code + " " + String(r.raw || "").substring(0, 200) : "no answer"));
+    return null;
+  }
+  return ContentService.createTextOutput(JSON.stringify(r.j)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Лид по-старому, в таблицу (запасной путь, когда сервер недоступен)
+function bsLeadLocal(u){
+  var outLead = ContentService.createTextOutput();
+  outLead.setMimeType(ContentService.MimeType.JSON);
+  try{
+    // Tilda шлёт поля как есть, названия могут отличаться
+    var lead = {
+      name: u.name || u.Name || u.imya || u["Имя"] || "",
+      phone: u.phone || u.Phone || u.tel || u["Телефон"] || "",
+      telegram: u.telegram || u.Telegram || u.tg || "",
+      source: u.source || u.utm_source || (u.formname ? ("Tilda: "+u.formname) : "Сайт"),
+      campaign: u.utm_campaign || u.campaign || "",
+      niche: u.niche || u.nisha || u["Ниша"] || "",
+      revenue: u.revenue || u.oborot || u["Оборот"] || "",
+      request: u.request || u.comment || u.Comment || u.message || u["Комментарий"] || "",
+      comment: [u.utm_medium, u.utm_content, u.utm_term].filter(Boolean).join(" · ")
+    };
+    outLead.setContent(JSON.stringify(addLead(lead)));
+  }catch(le){
+    outLead.setContent(JSON.stringify({ok:false, error:String(le)}));
+  }
+  return outLead;
+}
+
+function bsIsLead(u){
+  if(!u || u.update_id || (u.bsAction && u.bsAction !== "lead")) return false;
+  return !!(u.bsAction === "lead" || u.tilda || u.formname || u.tranid || u.Phone || u.phone);
 }
 
 function bsServerShow(){
@@ -12082,11 +12110,23 @@ function doPost(e){
   var output=ContentService.createTextOutput("OK");
   if(!e||!e.postData||!e.postData.contents)return output;
   try{
-    var u=JSON.parse(e.postData.contents);
+    // Tilda шлёт форму как application/x-www-form-urlencoded: тогда поля в e.parameter
+    var u=null;
+    try{ u=JSON.parse(e.postData.contents); }catch(pe){ u=null; }
+    if(!u || typeof u!=="object") u=e.parameter || {};
+
+    // Tilda проверяет вебхук: test=test, ждёт «ok»
+    if(u.test==="test" && !u.update_id) return ContentService.createTextOutput("ok");
+
+    // Заявки с сайта: хозяин сервер. Сервер не ответил: пишем сами, лид не теряется
+    if(bsIsLead(u)){
+      var fwd=bsForwardLead(u);
+      if(fwd) return fwd;
+      return bsLeadLocal(u);
+    }
 
     // R32: таблица отключена. Лиды из форм уходят на сервер, остальное делает сервер
     if(bsDormant()){
-      if(u && (u.bsAction === "lead" || u.tilda || u.formname || u.Phone || u.phone)) return bsForwardLead(u);
       if(u && u.update_id) return HtmlService.createHtmlOutput("ok");
       return ContentService.createTextOutput(JSON.stringify({ok: false, error: "Таблица отключена: всё работает на платформе"}))
         .setMimeType(ContentService.MimeType.JSON);
@@ -12112,31 +12152,7 @@ function doPost(e){
       return outImg;
     }
 
-    // ── Лид из Tilda или рекламного кабинета ──
-    // Tilda: в настройках формы добавить вебхук на адрес приложения
-    if(u && (u.bsAction === "lead" || u.tilda || u.formname || u.Phone || u.phone)){
-      var outLead = ContentService.createTextOutput();
-      outLead.setMimeType(ContentService.MimeType.JSON);
-      try{
-        // Tilda шлёт поля как есть, названия могут отличаться
-        var lead = {
-          name: u.name || u.Name || u.imya || u.Имя || "",
-          phone: u.phone || u.Phone || u.tel || u.Телефон || "",
-          telegram: u.telegram || u.tg || "",
-          source: u.source || u.utm_source || (u.formname ? ("Tilda: "+u.formname) : "Сайт"),
-          campaign: u.utm_campaign || u.campaign || "",
-          niche: u.niche || u.nisha || u.Ниша || "",
-          revenue: u.revenue || u.oborot || u.Оборот || "",
-          request: u.request || u.comment || u.message || u.Комментарий || "",
-          comment: [u.utm_medium, u.utm_content, u.utm_term].filter(Boolean).join(" · ")
-        };
-        var resLead = addLead(lead);
-        outLead.setContent(JSON.stringify(resLead));
-      }catch(le){
-        outLead.setContent(JSON.stringify({ok:false, error:String(le)}));
-      }
-      return outLead;
-    }
+    // ── Лид из Tilda или рекламного кабинета: выше, до R32 (bsIsLead → сервер, запасной путь bsLeadLocal) ──
 
     // ── Картинка из приложения: бот отправляет её пользователю в чат ──
     // В Telegram WebView скачивание файлов заблокировано, а shareToStory требует

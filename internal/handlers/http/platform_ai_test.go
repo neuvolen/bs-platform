@@ -206,7 +206,7 @@ func TestPlatformFilesAndAI(t *testing.T) {
 	// No key: a clear message, nothing queued.
 	h.AI = &ai.Client{HTTP: http.DefaultClient}
 	w = do("POST", "/ai/call?board=b1", "audio/webm", []byte("x"), nil)
-	if !strings.Contains(w.Body.String(), "GEMINI_API_KEY") {
+	if !strings.Contains(w.Body.String(), "ANTHROPIC_API_KEY") || !strings.Contains(w.Body.String(), "Ключ Claude") {
 		t.Fatalf("no key: %s", w.Body.String())
 	}
 	_ = time.Now

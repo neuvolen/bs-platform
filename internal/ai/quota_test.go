@@ -105,8 +105,8 @@ func TestTextFallsBackToClaude(t *testing.T) {
 	if ans, err := cc.JSON(context.Background(), "s", "p"); err != nil || !strings.Contains(ans, "claude") || gem.Load() != 0 {
 		t.Fatalf("claude first: %q %v gem=%d", ans, err, gem.Load())
 	}
-	// R32c: by default Gemini first; its quota → Claude at once, no retries.
-	c := &Client{Gemini: "k", GeminiModel: "gemini-x", GeminiBase: srv.URL, Anthropic: "a", AnthropicBase: srv.URL, ClaudeModel: "c", HTTP: srv.Client()}
+	// Gemini first (AI_TEXT_ORDER=gemini, R34a: never by default); its quota → Claude at once, no retries.
+	c := &Client{Gemini: "k", GeminiModel: "gemini-x", GeminiBase: srv.URL, Anthropic: "a", AnthropicBase: srv.URL, ClaudeModel: "c", HTTP: srv.Client(), TextOrder: []string{"gemini"}}
 	SearchBackoff = []time.Duration{time.Millisecond, time.Millisecond}
 	ans, err := c.Search(context.Background(), "events")
 	if err != nil || !strings.Contains(ans, "claude") || gem.Load() != 1 {

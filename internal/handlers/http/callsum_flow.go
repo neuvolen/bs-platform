@@ -635,7 +635,7 @@ func (h *PlatformAI) RegenCallSummary(c *gin.Context) {
 	}
 	resident := h.residentOfJob(ctx, j, meta)
 	actx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-	ans, err := h.AI.Text(actx, callSumPrompt(), "Резидент: "+resident+"\nДата: "+csS(meta["date"])+"\n\nРасшифровка:\n"+tr)
+	ans, err := h.AI.Text(ai.Heavy(actx), callSumPrompt(), "Резидент: "+resident+"\nДата: "+csS(meta["date"])+"\n\nРасшифровка:\n"+tr)
 	cancel()
 	var sum map[string]any
 	if err == nil {

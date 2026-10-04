@@ -39,8 +39,35 @@ import (
 // Whatever the kind, the page and the bot get one clean sentence
 // (QuotaMessage), never Google's JSON.
 
-// QuotaMessage: what people see while Gemini's quota is used up.
-const QuotaMessage = "Закончилась квота Gemini: пополните баланс в Google AI Studio или добавьте ключ Claude. Сервисы ИИ временно на паузе"
+// R34a: Claude's balance. The API answers 400 «Your credit balance is too
+// low to access the Anthropic API» when the prepaid credits run out; that
+// does not come back by itself, so Claude rests for AI_QUOTA_HOLD_HOURS (or
+// until the owner saves a key again) and the page says QuotaMessage.
+
+// QuotaMessage: what people see while Claude's balance is used up.
+const QuotaMessage = "Закончился баланс Claude: пополните его в console.anthropic.com (Plans & Billing). Сервисы ИИ временно на паузе"
+
+// GeminiQuotaMessage: Gemini's quota (only with GEMINI_ENABLED=1).
+const GeminiQuotaMessage = "Закончилась квота Gemini: пополните баланс в Google AI Studio. Сервисы ИИ временно на паузе"
+
+func quotaMessage(service string) string {
+	if service == "gemini" || service == "tts" {
+		return GeminiQuotaMessage
+	}
+	return QuotaMessage
+}
+
+// quotaText: the sentence for a quota error of any service.
+func quotaText(err error) string {
+	var qe *QuotaError
+	if errors.As(err, &qe) {
+		return quotaMessage(qe.Service)
+	}
+	if q, ok := ParseQuota(err); ok {
+		return quotaMessage(q.Service)
+	}
+	return QuotaMessage
+}
 
 // QuotaError: the service's quota is used up until Until.
 type QuotaError struct {
@@ -51,7 +78,7 @@ type QuotaError struct {
 	Err     error // Google's answer, when this call got it
 }
 
-func (e *QuotaError) Error() string { return QuotaMessage }
+func (e *QuotaError) Error() string { return quotaMessage(e.Service) }
 
 // When: «до 05.10 13:01 по Алматы», for the ops line.
 func (e *QuotaError) When() string {
@@ -90,20 +117,28 @@ type quotaState struct {
 
 // QuotaInfo: what Google said in a 429 answer.
 type QuotaInfo struct {
+	Service string // "claude" (balance) or "gemini"
 	Daily   bool
 	Billing bool          // no time window named: the balance or the plan (R32c)
 	Retry   time.Duration // RetryInfo.retryDelay, 0 when absent
 }
 
-// ParseQuota reads a 429 answer of Gemini. ok is false for anything else
-// (a 429 without a word of quota is a short rate limit).
+// ParseQuota reads a quota refusal: Claude's «credit balance is too low»
+// (billing) or a 429 answer of Gemini. ok is false for anything else (a 429
+// without a word of quota is a short rate limit).
 func ParseQuota(err error) (QuotaInfo, bool) {
 	var he *HTTPError
-	if !errors.As(err, &he) || he.Status != 429 {
+	if !errors.As(err, &he) {
 		return QuotaInfo{}, false
 	}
 	low := strings.ToLower(he.Body)
-	q := QuotaInfo{}
+	if he.Status >= 400 && he.Status < 500 && strings.Contains(low, "credit balance") {
+		return QuotaInfo{Service: "claude", Billing: true}, true
+	}
+	if he.Status != 429 || strings.Contains(low, "rate_limit_error") {
+		return QuotaInfo{}, false
+	}
+	q := QuotaInfo{Service: "gemini"}
 	var body struct {
 		Error struct {
 			Status  string `json:"status"`

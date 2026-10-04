@@ -478,7 +478,13 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 
 	sheetMod := wireSheetOwner(d, g, writes, clubRepo, repo, cut, token, jwtSecret, botSvc) // R32d (sheet_wiring.go)
 	action := httpapi.NewClubActionHandler(g, clubRepo, d.PlatformRepo, staticSeed)
-	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewClubActionModule(action, []byte(jwtSecret)),
+	// Заявки с сайта (Tilda) прямо на сервер: /api/v1/public/tilda/<ключ> (tilda.go)
+	tilda := httpapi.NewTildaLeads(writes, nil, repo, token)
+	if d.PlatformRepo != nil {
+		tilda.Docs = d.PlatformRepo
+	}
+	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewTildaModule(tilda, []byte(jwtSecret)),
+		httpapi.NewClubActionModule(action, []byte(jwtSecret)),
 		httpapi.NewMigrationModule(mig, []byte(jwtSecret)), httpapi.NewClubAuditModule(audit, []byte(jwtSecret)),
 		httpapi.NewClubResidentModule(action, []byte(jwtSecret)), sheetMod}
 }

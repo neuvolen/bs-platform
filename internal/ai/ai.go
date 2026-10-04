@@ -2,11 +2,14 @@
 // the voice assistant (a spoken phrase becomes board actions) and the call
 // summary (a recording becomes a transcript, a summary and a checklist).
 //
-// One key is enough. GEMINI_API_KEY covers both speech and text;
-// ANTHROPIC_API_KEY (or CLAUDE_API_KEY) adds Claude: the text and web-search
-// tasks go to it when Gemini fails or its quota is used up (R32c);
-// OPENAI_API_KEY works for speech (Whisper) and text as a last fallback.
-// AI_TEXT_ORDER (e.g. "claude,gemini") changes which model is asked first.
+// R34a: Claude does all the thinking: text, JSON, reasoning and web search
+// (claude.go). The key is ANTHROPIC_API_KEY (or CLAUDE_API_KEY) in Railway,
+// or the key the owner pastes in the platform settings (keys.go).
+// Speech becomes text on the server itself (asr_local.go, Whisper through
+// sherpa-onnx); OPENAI_API_KEY adds Whisper API as a fallback.
+// Gemini stays only as an emergency switch: GEMINI_ENABLED=1 with
+// GEMINI_API_KEY puts it after Claude (text, search, transcription, tour TTS).
+// AI_TEXT_ORDER (e.g. "claude,openai") changes which model is asked first.
 package ai
 
 import (
@@ -17,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -29,11 +33,16 @@ import (
 )
 
 type Client struct {
-	Anthropic, Gemini, OpenAI             string // keys
+	Anthropic, Gemini, OpenAI             string // keys (Gemini only with GEMINI_ENABLED=1, FromEnv)
 	ClaudeModel, GeminiModel              string
+	HeavyModel                            string // AI_MODEL_HEAVY: Heavy(ctx) tasks
 	OpenAIModel, OpenAISTTModel           string
 	AnthropicBase, GeminiBase, OpenAIBase string
 	HTTP                                  *http.Client
+	// Keys: the Claude key saved in the settings, used when Anthropic is empty.
+	Keys *KeyBox
+	// ASR: speech to text on the server (asr_local.go); nil: off.
+	ASR *LocalASR
 
 	modelMu sync.Mutex // GeminiModel may be switched when Google retires a model
 	quota   quotaState // services whose quota is used up (quota.go)
@@ -48,16 +57,17 @@ type Client struct {
 
 // HTTPError is a non-2xx answer of a model API (Body is complete).
 type HTTPError struct {
-	Status int
-	Body   string
+	Status     int
+	Body       string
+	RetryAfter time.Duration // the API's retry-after header, 0 when absent
 }
 
 // Error never carries the API's raw JSON (R32c: it used to reach the page):
 // a quota refusal is QuotaMessage, anything else the status and the API's
 // own one-line message. The full answer stays in Body for the logs.
 func (e *HTTPError) Error() string {
-	if _, ok := ParseQuota(e); ok {
-		return QuotaMessage
+	if q, ok := ParseQuota(e); ok {
+		return quotaMessage(q.Service)
 	}
 	if m := apiMessage(e.Body); m != "" {
 		return fmt.Sprintf("ИИ ответил ошибкой %d: %s", e.Status, m)
@@ -194,20 +204,48 @@ func FromEnv() *Client {
 		}
 		return def
 	}
+	gem := ""
+	if GeminiEnabled() {
+		gem = env("GEMINI_API_KEY", "")
+	}
 	return &Client{
 		Anthropic:      env("ANTHROPIC_API_KEY", env("CLAUDE_API_KEY", "")),
-		Gemini:         env("GEMINI_API_KEY", ""),
+		Gemini:         gem,
 		OpenAI:         env("OPENAI_API_KEY", ""),
-		ClaudeModel:    env("AI_CLAUDE_MODEL", "claude-sonnet-5"),
+		ClaudeModel:    env("AI_MODEL", env("AI_CLAUDE_MODEL", DefaultModel)),
+		HeavyModel:     env("AI_MODEL_HEAVY", DefaultHeavyModel),
+		Keys:           SharedKeys,
+		ASR:            LocalASRFromEnv(),
 		GeminiModel:    env("AI_GEMINI_MODEL", "gemini-3.8-flash"),
 		OpenAIModel:    env("AI_OPENAI_MODEL", "gpt-4o-mini"),
 		OpenAISTTModel: env("AI_OPENAI_STT_MODEL", "whisper-1"),
 		AnthropicBase:  env("ANTHROPIC_API_BASE", "https://api.anthropic.com"),
 		GeminiBase:     env("GEMINI_API_BASE", "https://generativelanguage.googleapis.com"),
 		OpenAIBase:     env("OPENAI_API_BASE", "https://api.openai.com"),
-		HTTP:           &http.Client{Timeout: 15 * time.Minute},
+		HTTP:           &http.Client{Timeout: 10 * time.Minute},
 		TextOrder:      strings.FieldsFunc(strings.ToLower(env("AI_TEXT_ORDER", "")), func(r rune) bool { return r == ',' || r == ' ' }),
 	}
+}
+
+// GeminiEnabled: the emergency switch GEMINI_ENABLED=1 (default off, R34a).
+func GeminiEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("GEMINI_ENABLED")))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+// SpeechModels: who turns a recording into text, in order (Transcribe).
+func (c *Client) SpeechModels() []string {
+	var out []string
+	if c.ASR != nil {
+		out = append(out, "local")
+	}
+	if c.OpenAI != "" {
+		out = append(out, "openai")
+	}
+	if c.Gemini != "" {
+		out = append(out, "gemini")
+	}
+	return out
 }
 
 // Status says what is available, for the page to explain what is missing.
@@ -216,15 +254,21 @@ func (c *Client) Status() map[string]any {
 	if ms := c.TextModels(); len(ms) > 0 {
 		text = ms[0]
 	}
-	switch {
-	case c.Gemini != "":
-		speech = "gemini"
-	case c.OpenAI != "":
-		speech = "openai"
+	if ms := c.SpeechModels(); len(ms) > 0 {
+		speech = ms[0]
 	}
-	st := map[string]any{"text": text, "speech": speech, "textModels": c.TextModels()}
+	st := map[string]any{"text": text, "speech": speech, "textModels": c.TextModels(), "speechModels": c.SpeechModels()}
+	if c.HasClaude() {
+		ms := c.models(context.Background())
+		st["model"] = ms[len(ms)-1]
+		st["heavyModel"] = c.models(Heavy(context.Background()))[0]
+		st["keySource"] = c.KeySource()
+	}
+	if speech == "local" {
+		st["speech_model"] = c.ASR.Describe()
+	}
 	q := map[string]string{}
-	for _, svc := range []string{"gemini", "tts"} {
+	for _, svc := range []string{"claude", "gemini", "tts"} {
 		if u := c.QuotaUntil(svc); !u.IsZero() {
 			q[svc] = u.UTC().Format(time.RFC3339)
 		}
@@ -256,23 +300,31 @@ func (c *Client) Providers() []map[string]any {
 		}
 		out = append(out, p)
 	}
-	add("gemini", c.Gemini, "gemini")
-	add("claude", c.Anthropic, "")
+	add("claude", c.claudeKey(), "claude")
+	if c.Gemini != "" {
+		add("gemini", c.Gemini, "gemini")
+	}
 	if c.OpenAI != "" {
 		add("openai", c.OpenAI, "")
 	}
 	return out
 }
 
-// Paused: no model can answer a text task now (Gemini's quota is used up
-// and there is no other key). The page shows QuotaMessage.
+// Paused: no model can answer a text task now (every model with a key has
+// its quota or balance used up). The page shows QuotaMessage.
 func (c *Client) Paused() bool {
-	for _, m := range c.TextModels() {
-		if m != "gemini" || c.quotaClosed("gemini") == nil {
+	ms := c.TextModels()
+	for _, m := range ms {
+		switch m {
+		case "claude", "gemini":
+			if c.quotaClosed(m) == nil {
+				return false
+			}
+		default:
 			return false
 		}
 	}
-	return c.Gemini != ""
+	return len(ms) > 0
 }
 
 // UserMessage: an AI error in words for the page or the bot, never raw JSON.
@@ -281,10 +333,16 @@ func UserMessage(err error) string {
 		return ""
 	}
 	if IsQuota(err) {
-		return QuotaMessage
+		return quotaText(err)
+	}
+	if errors.Is(err, ErrNoKey) {
+		return ErrNoKey.Error()
 	}
 	var he *HTTPError
 	if errors.As(err, &he) {
+		if he.Status == 401 || he.Status == 403 {
+			return keyRejected(he)
+		}
 		return he.Error()
 	}
 	msg := err.Error()
@@ -297,30 +355,45 @@ func UserMessage(err error) string {
 	return msg
 }
 
-var ErrNoKey = errors.New("нет ключа ИИ: добавьте GEMINI_API_KEY в переменные Railway")
+var ErrNoKey = errors.New("Нет ключа Claude: вставьте его в Настройках платформы («Ключ Claude») или в переменную ANTHROPIC_API_KEY в Railway")
+
+// KeyRejected: the API refused the key (401/403).
+const KeyRejected = "Ключ Claude не принят: проверьте его в Настройках платформы («Ключ Claude») или ANTHROPIC_API_KEY в Railway"
+
+// keyRejected: whose key it was. Google's errors carry "code" and no
+// Anthropic error type (Gemini is there only with GEMINI_ENABLED=1).
+func keyRejected(he *HTTPError) string {
+	low := strings.ToLower(he.Body)
+	if !strings.Contains(low, "authentication_error") && !strings.Contains(low, "permission_error") &&
+		(strings.Contains(low, "api key not valid") || strings.Contains(low, `"code"`) || strings.Contains(low, "googleapis")) {
+		return "Ключ Gemini не принят: проверьте GEMINI_API_KEY в переменных Railway"
+	}
+	return KeyRejected
+}
 
 // Text answers a prompt. system sets the role; the answer is plain text.
 //
-// R32d: the models with a key are asked in turn, Claude first, then Gemini,
-// then OpenAI: when one fails (quota, overload, a broken key, a hang) the next
-// answers. Gemini with a used-up quota is skipped without a call.
+// The models with a key are asked in turn, Claude first (R34a), then Gemini
+// (only with GEMINI_ENABLED=1), then OpenAI: when one fails the next answers.
+// A model with a used-up quota is skipped without a call.
 func (c *Client) Text(ctx context.Context, system, prompt string) (string, error) {
 	return c.chain(ctx, system, prompt, false)
 }
 
-// JSON answers a prompt expecting a JSON object (Gemini is put into JSON mode).
+// JSON answers a prompt expecting a JSON object (Claude is told to answer
+// with JSON only; Gemini is put into JSON mode).
 func (c *Client) JSON(ctx context.Context, system, prompt string) (string, error) {
 	return c.chain(ctx, system, prompt, true)
 }
 
 // TextModels: the models Text and JSON try, in order: TextOrder, by default
-// Gemini, then Claude (R32c: the fallback when Gemini's quota is used up),
-// then OpenAI. Only models with a key; one missing from TextOrder goes last.
+// Claude, then Gemini (emergency only), then OpenAI. Only models with a key;
+// one missing from TextOrder goes last.
 func (c *Client) TextModels() []string {
-	has := map[string]bool{"gemini": c.Gemini != "", "claude": c.Anthropic != "", "openai": c.OpenAI != ""}
+	has := map[string]bool{"gemini": c.Gemini != "", "claude": c.claudeKey() != "", "openai": c.OpenAI != ""}
 	var out []string
 	seen := map[string]bool{}
-	for _, m := range append(append([]string{}, c.TextOrder...), "gemini", "claude", "openai") {
+	for _, m := range append(append([]string{}, c.TextOrder...), "claude", "gemini", "openai") {
 		if has[m] && !seen[m] {
 			seen[m] = true
 			out = append(out, m)
@@ -340,7 +413,7 @@ func (c *Client) chain(ctx context.Context, system, prompt string, asJSON bool) 
 		var err error
 		switch m {
 		case "claude":
-			ans, err = c.claude(ctx, system, prompt)
+			ans, err = c.claude(ctx, system, prompt, asJSON)
 		case "gemini":
 			if asJSON {
 				ans, err = c.geminiCfg(ctx, system, []map[string]any{{"text": prompt}}, map[string]any{"responseMimeType": "application/json", "temperature": 0.2})
@@ -364,25 +437,44 @@ func (c *Client) chain(ctx context.Context, system, prompt string, asJSON bool) 
 	return "", first
 }
 
-// Transcribe turns a recording into text with speakers where the model can tell them.
+// ErrNoSpeech: no way to turn a recording into text.
+var ErrNoSpeech = errors.New("Расшифровка недоступна: включите распознавание на сервере (ASR_LOCAL, по умолчанию включено) или добавьте ключ OPENAI_API_KEY в Railway. Запись сохранена")
+
+// Transcribe turns a recording into text (R34a): Whisper on the server
+// (asr_local.go), then Whisper API (OPENAI_API_KEY), then Gemini (only with
+// GEMINI_ENABLED=1). The first that works answers.
 func (c *Client) Transcribe(ctx context.Context, audio []byte, mime string) (string, error) {
 	if mime == "" {
 		mime = "audio/webm"
 	}
-	switch {
-	case c.Gemini != "":
-		t, err := c.geminiTranscribe(ctx, audio, mime)
-		// R32d: Gemini out of quota or down: Whisper, when there is its key
-		if err != nil && c.OpenAI != "" && fallbackWorthy(ctx, err) {
-			if t2, err2 := c.whisper(ctx, audio, mime); err2 == nil {
-				return t2, nil
-			}
-		}
-		return t, err
-	case c.OpenAI != "":
-		return c.whisper(ctx, audio, mime)
+	ms := c.SpeechModels()
+	if len(ms) == 0 {
+		return "", ErrNoSpeech
 	}
-	return "", errors.New("нет ключа для расшифровки речи: добавьте GEMINI_API_KEY в переменные Railway")
+	var first error
+	for _, m := range ms {
+		var t string
+		var err error
+		switch m {
+		case "local":
+			t, err = c.ASR.Transcribe(ctx, audio, mime)
+		case "openai":
+			t, err = c.whisper(ctx, audio, mime)
+		case "gemini":
+			t, err = c.geminiTranscribe(ctx, audio, mime)
+		}
+		if err == nil {
+			return t, nil
+		}
+		log.Printf("ai: transcription via %s failed: %s", m, UserMessage(err))
+		if first == nil {
+			first = err
+		}
+		if !fallbackWorthy(ctx, err) {
+			break
+		}
+	}
+	return "", first
 }
 
 func (c *Client) geminiTranscribe(ctx context.Context, audio []byte, mime string) (string, error) {
@@ -406,7 +498,11 @@ func (c *Client) do(ctx context.Context, req *http.Request) ([]byte, error) {
 	defer res.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(res.Body, 32<<20))
 	if res.StatusCode >= 300 {
-		return nil, &HTTPError{Status: res.StatusCode, Body: string(b)}
+		he := &HTTPError{Status: res.StatusCode, Body: string(b)}
+		if v, err := strconv.Atoi(strings.TrimSpace(res.Header.Get("retry-after"))); err == nil && v > 0 {
+			he.RetryAfter = time.Duration(v) * time.Second
+		}
+		return nil, he
 	}
 	return b, nil
 }
@@ -416,35 +512,6 @@ func jsonReq(method, url string, body any) *http.Request {
 	r, _ := http.NewRequest(method, url, bytes.NewReader(b))
 	r.Header.Set("Content-Type", "application/json")
 	return r
-}
-
-func (c *Client) claude(ctx context.Context, system, prompt string) (string, error) {
-	r := jsonReq("POST", c.AnthropicBase+"/v1/messages", map[string]any{
-		"model": c.ClaudeModel, "max_tokens": 8000, "system": system,
-		"messages": []map[string]any{{"role": "user", "content": prompt}},
-	})
-	r.Header.Set("x-api-key", c.Anthropic)
-	r.Header.Set("anthropic-version", "2023-06-01")
-	b, err := c.do(ctx, r)
-	if err != nil {
-		return "", err
-	}
-	var out struct {
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
-	}
-	if err := json.Unmarshal(b, &out); err != nil {
-		return "", err
-	}
-	var sb strings.Builder
-	for _, p := range out.Content {
-		if p.Type == "text" {
-			sb.WriteString(p.Text)
-		}
-	}
-	return sb.String(), nil
 }
 
 func (c *Client) gemini(ctx context.Context, system string, parts []map[string]any) (string, error) {
@@ -614,13 +681,13 @@ const eventsPrompt = `Найди в интернете бизнес-меропр
 Верни ТОЛЬКО JSON: {"items":[{"title":"...","date":"YYYY-MM-DD","time":"HH:MM","place":"...","url":"ссылка на страницу события","price":"бесплатно или цена","source":"домен","tags":["нетворкинг|конференция|обучение|выставка|завтрак|IT|маркетинг|финансы|продажи"]}]}
 Только реальные события с датой и ссылкой, которые ты нашёл в поиске. Не выдумывай. До 30 событий.`
 
-// Search asks a model that can search the web (Gemini with google_search, or
-// Claude with web_search) and returns its text answer. An overloaded or
-// rate-limited model is asked again (SearchBackoff); when Gemini refuses for
-// good and a Claude key is there, Claude searches instead.
+// Search asks a model that can search the web (Claude with the web search
+// server tool; Gemini with google_search only with GEMINI_ENABLED=1) and
+// returns its text answer. An overloaded or rate-limited model is asked
+// again (SearchBackoff).
 func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
-	if c.Gemini == "" && c.Anthropic == "" {
-		return "", errors.New("поиск в интернете работает с GEMINI_API_KEY или ANTHROPIC_API_KEY")
+	if c.Gemini == "" && c.claudeKey() == "" {
+		return "", ErrNoKey
 	}
 	try := func(f func(context.Context, string) (string, error)) (string, error) {
 		var ans string
@@ -635,9 +702,8 @@ func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
 			}
 		}
 	}
-	// R32c: the same order as Text (Gemini, then Claude by default). A
-	// Gemini with a used-up quota answers at once without a call, so the
-	// search goes straight to Claude.
+	// The same order as Text (Claude first). A model with a used-up quota
+	// answers at once without a call.
 	var first error
 	for _, m := range c.TextModels() {
 		var ans string
@@ -702,49 +768,6 @@ func (c *Client) geminiSearch(ctx context.Context, prompt string) (string, error
 	}
 	if strings.TrimSpace(ans) == "" {
 		return "", &ErrEmptyAnswer{Reason: reason}
-	}
-	return ans, nil
-}
-
-func (c *Client) claudeSearch(ctx context.Context, prompt string) (string, error) {
-	msgs := []map[string]any{{"role": "user", "content": prompt}}
-	ans := ""
-	for turn := 0; turn < 4; turn++ {
-		r := jsonReq("POST", c.AnthropicBase+"/v1/messages", map[string]any{
-			"model": c.ClaudeModel, "max_tokens": 12000,
-			"tools":    []map[string]any{{"type": "web_search_20250305", "name": "web_search", "max_uses": 8}},
-			"messages": msgs,
-		})
-		r.Header.Set("x-api-key", c.Anthropic)
-		r.Header.Set("anthropic-version", "2023-06-01")
-		b, err := c.do(ctx, r)
-		if err != nil {
-			return "", err
-		}
-		var out struct {
-			StopReason string            `json:"stop_reason"`
-			Content    []json.RawMessage `json:"content"`
-		}
-		if err := json.Unmarshal(b, &out); err != nil {
-			return "", fmt.Errorf("ответ ИИ не читается: %v", err)
-		}
-		for _, raw := range out.Content {
-			var p struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			}
-			if json.Unmarshal(raw, &p) == nil && p.Type == "text" {
-				ans += p.Text
-			}
-		}
-		// A long search pauses the turn: send it back to let Claude go on.
-		if out.StopReason != "pause_turn" {
-			break
-		}
-		msgs = append(msgs, map[string]any{"role": "assistant", "content": out.Content})
-	}
-	if strings.TrimSpace(ans) == "" {
-		return "", &ErrEmptyAnswer{}
 	}
 	return ans, nil
 }

@@ -200,7 +200,7 @@ func (h *PlatformAI) Health(c *gin.Context) {
 		return
 	}
 	if h.AI == nil || h.AI.Status()["text"] == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Нет ключа ИИ. Добавьте GEMINI_API_KEY в переменные Railway", "code": "no_ai"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": ai.ErrNoKey.Error(), "code": "no_ai"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 90*time.Second)
@@ -208,8 +208,8 @@ func (h *PlatformAI) Health(c *gin.Context) {
 	raw, err := h.AI.JSON(ctx, healthSystem, healthPrompt(req))
 	if err != nil {
 		msg := "ИИ не ответил, попробуйте ещё раз"
-		if ai.IsQuota(err) {
-			msg = ai.QuotaMessage
+		if ai.IsQuota(err) || errors.Is(err, ai.ErrNoKey) {
+			msg = ai.UserMessage(err)
 		}
 		c.JSON(http.StatusBadGateway, gin.H{"error": msg, "code": "ai_failed", "detail": ai.UserMessage(err)})
 		return

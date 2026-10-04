@@ -161,7 +161,7 @@ func TestMigrationStatusIsRich(t *testing.T) {
 	}
 	wr := m["writes"].(map[string]any)
 	sc := m["script"].(map[string]any)
-	if _, ok := wr["failed"]; !ok || wr["lastSent"] == nil || sc["latest"] != "2026-10-04-41" {
+	if _, ok := wr["failed"]; !ok || wr["lastSent"] == nil || sc["latest"] != "2026-10-04-42" {
 		t.Fatalf("writes/script %s", b)
 	}
 	if err := e.mig.SetStage(ctx, StageShadow, "test"); err != nil {

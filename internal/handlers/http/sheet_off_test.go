@@ -609,7 +609,7 @@ func TestScriptV40Dormant(t *testing.T) {
 		"function sendOnboardingMessages(){\n  if(bsDormant()) return;",
 		"function sendNPS(){\n  if(bsDormant()) return;",
 		"if(action && bsDormant()){",
-		"if(bsDormant()){\n      if(u && (u.bsAction === \"lead\"",
+		"if(bsIsLead(u)){\n      var fwd=bsForwardLead(u);\n      if(fwd) return fwd;\n      return bsLeadLocal(u);", // site leads: the server first, the sheet if it is down
 		"bsClubImport(false, true)",
 		"sheetMode: r.j.sheetMode",
 	} {

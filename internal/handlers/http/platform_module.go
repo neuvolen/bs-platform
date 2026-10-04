@@ -23,10 +23,14 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		a.leads = &LeadFunnel{docs: h.repo, now: time.Now}
 	}
 	m := &PlatformModule{h: h, auth: a, secret: secret, AI: NewPlatformAI(h.repo, nil)}
+	m.AI.KeySecret = secret // R34a: seals the Claude key saved in the settings
 	if a.leads != nil {
 		m.lead = &LeadHome{f: a.leads, bot: func() string { n, _ := a.username(); return n }}
 	}
 	if h.repo != nil {
+		lctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		m.AI.LoadAIKey(lctx) // platform_ai_key.go
+		cancel()
 		go m.AI.EventsLoop(context.Background())
 		go m.AI.LoadEmbedded(context.Background(), a.botToken)
 		go m.AI.SeedGuides(context.Background())
@@ -98,6 +102,10 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/files", m.AI.UploadFile)
 	g.GET("/files/:id", m.AI.GetFile)
 	g.GET("/ai/status", m.AI.Status)
+	g.GET("/ai/key", m.AI.AIKey) // platform_ai_key.go: «Ключ Claude» (admin)
+	g.PUT("/ai/key", m.AI.PutAIKey)
+	g.DELETE("/ai/key", m.AI.DeleteAIKey)
+	g.POST("/ai/key/test", m.AI.TestAIKey)
 	g.POST("/ai/command", m.AI.Command)
 	g.POST("/ai/call", m.AI.Call)
 	g.GET("/ai/jobs/:id", m.AI.Job)

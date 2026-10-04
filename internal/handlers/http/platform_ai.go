@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -61,6 +63,8 @@ type PlatformAI struct {
 	// SendDoc sends a file to a Telegram chat (the bot): the published
 	// «Саммари разбора» PDF to the resident (callsum_flow.go, R32e).
 	SendDoc func(ctx context.Context, chatID int64, name string, data []byte, caption string) error
+	// KeySecret seals the Claude key saved in the settings (JWT_SECRET; platform_ai_key.go).
+	KeySecret []byte
 }
 
 func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {
@@ -71,6 +75,16 @@ func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {
 	// R32c: a long quota pause reaches the owner via the bot, once a day
 	if c.OnQuota == nil {
 		c.OnQuota = h.quotaAlert
+	}
+	// R34a: Whisper on the server, downloaded ahead of the first recording
+	if c.ASR != nil && os.Getenv("ASR_PRELOAD") == "1" {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+			defer cancel()
+			if _, err := c.ASR.Prepare(ctx); err != nil {
+				log.Printf("asr: preload: %v", err)
+			}
+		}()
 	}
 	return h
 }

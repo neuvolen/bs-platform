@@ -134,7 +134,7 @@ func TestCallRecordingsDelivered(t *testing.T) {
 	h.AI = &ai.Client{HTTP: http.DefaultClient}
 	w = do("POST", "/ai/call?board=call-b1&resident=Даулет%20Сериков", "audio/webm", []byte("OggS second"))
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp.ID == "" || resp.File == "" || !strings.Contains(resp.Error, "GEMINI_API_KEY") {
+	if resp.ID == "" || resp.File == "" || !strings.Contains(resp.Error, "Ключ Claude") {
 		t.Fatalf("no key must keep the recording: %s", w.Body.String())
 	}
 	h.AI = key

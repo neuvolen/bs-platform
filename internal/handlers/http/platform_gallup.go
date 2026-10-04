@@ -270,7 +270,7 @@ func (h *PlatformAI) Gallup(c *gin.Context) {
 		c.Data(http.StatusOK, "application/json; charset=utf-8", f.Data)
 		return
 	}
-	if h.AI == nil || (h.AI.Gemini == "" && h.AI.Anthropic == "" && h.AI.OpenAI == "") {
+	if h.AI == nil || !h.AI.HasText() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no_ai"})
 		return
 	}
@@ -361,7 +361,7 @@ func (h *PlatformAI) gallupDeepOnly(c *gin.Context, in []string) {
 		c.Data(http.StatusOK, "application/json; charset=utf-8", f.Data)
 		return
 	}
-	if h.AI == nil || (h.AI.Gemini == "" && h.AI.Anthropic == "" && h.AI.OpenAI == "") {
+	if h.AI == nil || !h.AI.HasText() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no_ai"})
 		return
 	}

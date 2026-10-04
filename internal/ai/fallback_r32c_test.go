@@ -80,6 +80,7 @@ func TestR32cBillingQuotaIsRecognised(t *testing.T) {
 
 // Gemini's balance is out: one call, Gemini rests for hours, every text,
 // JSON and search task goes to Claude at once, the owner is told once.
+// R34a: Gemini is first only when the owner says so (AI_TEXT_ORDER).
 func TestR32cGeminiBillingFallsBackToClaude(t *testing.T) {
 	f := &fakeAI{gemStatus: 429, gemBody: billingQuota}
 	srv := f.server(t)
@@ -87,7 +88,7 @@ func TestR32cGeminiBillingFallsBackToClaude(t *testing.T) {
 	var toldQ *QuotaError
 	done := make(chan struct{}, 4)
 	c := &Client{Gemini: "g", GeminiModel: "gemini-x", GeminiBase: srv.URL, Anthropic: "claude-key", AnthropicBase: srv.URL, ClaudeModel: "c", HTTP: srv.Client(),
-		OnQuota: func(q *QuotaError) { told.Add(1); toldQ = q; done <- struct{}{} }}
+		TextOrder: []string{"gemini"}, OnQuota: func(q *QuotaError) { told.Add(1); toldQ = q; done <- struct{}{} }}
 	if got := c.TextModels(); strings.Join(got, ",") != "gemini,claude" {
 		t.Fatalf("order: %v", got)
 	}
@@ -128,7 +129,7 @@ func TestR32cGeminiBillingFallsBackToClaude(t *testing.T) {
 	}
 	st := c.Status()
 	ps := st["providers"].([]map[string]any)
-	if ps[0]["name"] != "gemini" || ps[0]["state"] != "quota" || ps[0]["billing"] != true || ps[1]["state"] != "ok" || c.Paused() {
+	if ps[1]["name"] != "gemini" || ps[1]["state"] != "quota" || ps[1]["billing"] != true || ps[0]["name"] != "claude" || ps[0]["state"] != "ok" || c.Paused() {
 		t.Fatalf("status: %+v paused=%v", ps, c.Paused())
 	}
 	// hours later Gemini is asked again
@@ -148,11 +149,11 @@ func TestR32cNoFallbackCleanMessage(t *testing.T) {
 	SearchBackoff = []time.Duration{time.Millisecond, time.Millisecond}
 	for i := 0; i < 4; i++ {
 		_, err := c.Search(context.Background(), "recs")
-		if err == nil || err.Error() != QuotaMessage || UserMessage(err) != QuotaMessage || FriendlyError(err) != QuotaMessage {
+		if err == nil || err.Error() != GeminiQuotaMessage || UserMessage(err) != GeminiQuotaMessage || FriendlyError(err) != GeminiQuotaMessage {
 			t.Fatalf("message: %v", err)
 		}
 		_, err = c.JSON(context.Background(), "s", "p")
-		if err == nil || strings.Contains(err.Error(), "{") || UserMessage(err) != QuotaMessage {
+		if err == nil || strings.Contains(err.Error(), "{") || UserMessage(err) != GeminiQuotaMessage {
 			t.Fatalf("json: %v", err)
 		}
 	}
@@ -181,7 +182,7 @@ func TestR32cMinuteLimitIsShort(t *testing.T) {
 	srv := f.server(t)
 	var told atomic.Int32
 	c := &Client{Gemini: "g", GeminiModel: "gemini-x", GeminiBase: srv.URL, Anthropic: "claude-key", AnthropicBase: srv.URL, ClaudeModel: "c", HTTP: srv.Client(),
-		OnQuota: func(*QuotaError) { told.Add(1) }}
+		TextOrder: []string{"gemini"}, OnQuota: func(*QuotaError) { told.Add(1) }}
 	if _, err := c.Text(context.Background(), "s", "p"); err != nil {
 		t.Fatal(err)
 	}

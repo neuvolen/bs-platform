@@ -309,7 +309,7 @@ func (h *PlatformAI) CallSummaryPDF(c *gin.Context) {
 	// Backfill: a call processed before R32d gets the fuller summary once.
 	if tr, _ := meta["transcript"].(string); strings.TrimSpace(tr) != "" && !richSummary(meta) && h.AI != nil && h.AI.Status()["text"] != "" {
 		actx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-		ans, err := h.AI.Text(actx, callSumPrompt(), "Резидент: "+resident+"\nДата: "+date+"\n\nРасшифровка:\n"+tr)
+		ans, err := h.AI.Text(ai.Heavy(actx), callSumPrompt(), "Резидент: "+resident+"\nДата: "+date+"\n\nРасшифровка:\n"+tr)
 		cancel()
 		var sum map[string]any
 		if err == nil {

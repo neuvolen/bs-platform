@@ -129,7 +129,8 @@ func (h *PlatformAI) tourTexts() []string {
 //
 //	ready  every phrase is there in the current voice
 //	quota  Gemini's speech quota is used up until «until»
-//	noKey  no GEMINI_API_KEY
+//	noKey  no server TTS (R34a: Gemini only with GEMINI_ENABLED=1): a phrase
+//	       without a recording is shown as text
 //	making phrases are being made
 func (h *PlatformAI) ttsState(missing int) (string, time.Time) {
 	if missing == 0 {

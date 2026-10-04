@@ -100,7 +100,7 @@ func FriendlyError(err error) string {
 	}
 	// R32c: one sentence for a used-up quota, the same on every page
 	if IsQuota(err) {
-		return QuotaMessage
+		return quotaText(err)
 	}
 	var he *HTTPError
 	if errors.As(err, &he) {
@@ -109,13 +109,13 @@ func FriendlyError(err error) string {
 		case he.Status == 429:
 			return "ИИ ограничил частоту запросов. Попробуйте ещё раз через минуту"
 		case he.Status == 401 || he.Status == 403:
-			return "Ключ ИИ не принят: проверьте GEMINI_API_KEY в переменных Railway"
+			return keyRejected(he)
 		case he.Status >= 500:
 			return "Сервис ИИ сейчас перегружен (" + fmt.Sprint(he.Status) + "). Попробуйте ещё раз через пару минут"
-		case strings.Contains(low, "google_search") || strings.Contains(low, "search") && strings.Contains(low, "not supported") || strings.Contains(low, "grounding"):
-			return "Модель ИИ не умеет искать в интернете. Укажите другую модель в AI_GEMINI_MODEL"
+		case strings.Contains(low, "web_search") || strings.Contains(low, "google_search") || strings.Contains(low, "search") && strings.Contains(low, "not supported") || strings.Contains(low, "grounding"):
+			return "Модель ИИ не умеет искать в интернете. Укажите другую модель в AI_MODEL"
 		case he.Status == 404 || he.Status == 400 && strings.Contains(low, "model"):
-			return "Модель ИИ недоступна. Укажите рабочую модель в AI_GEMINI_MODEL"
+			return "Модель ИИ недоступна. Укажите рабочую модель в AI_MODEL"
 		}
 		if m := apiMessage(he.Body); m != "" {
 			return "ИИ отклонил запрос: " + m

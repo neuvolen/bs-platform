@@ -126,8 +126,11 @@ func (h *PlatformAI) Call(c *gin.Context) {
 
 func (h *PlatformAI) noKey(isText bool) string {
 	st := h.AI.Status()
-	if st["text"] == "" || (!isText && st["speech"] == "") {
-		return "Нет ключа ИИ. Добавьте GEMINI_API_KEY в переменные Railway. Запись сохранена"
+	if st["text"] == "" {
+		return ai.ErrNoKey.Error() + ". Запись сохранена"
+	}
+	if !isText && st["speech"] == "" {
+		return ai.ErrNoSpeech.Error()
 	}
 	return ""
 }
@@ -210,7 +213,8 @@ func (h *PlatformAI) jobMeta(ctx context.Context, id string) (*pg.AIJob, map[str
 }
 
 func (h *PlatformAI) runCallJob(id string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Minute)
+	// R34a: Whisper on the server takes up to about half an hour per hour of a call
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Hour)
 	defer cancel()
 	j, meta := h.jobMeta(ctx, id)
 	if j == nil {
@@ -262,7 +266,9 @@ func (h *PlatformAI) runCallJob(id string) {
 	}
 	isText := strings.HasPrefix(f.Mime, "text/")
 	transcript := string(f.Data)
-	if !isText {
+	if t, _ := meta["transcript"].(string); !isText && strings.TrimSpace(t) != "" {
+		transcript = t // R34a: transcribed before a restart: not again
+	} else if !isText {
 		stage("transcribe")
 		t, err := h.AI.Transcribe(ctx, f.Data, f.Mime)
 		if err != nil {
@@ -282,7 +288,7 @@ func (h *PlatformAI) runCallJob(id string) {
 		resident = j.Resident
 	}
 	date, _ := meta["date"].(string)
-	ans, err := h.AI.Text(ctx, callSumPrompt(), "Резидент: "+resident+"\nДата: "+date+"\n\nРасшифровка:\n"+transcript) // R32e: callsum_flow.go
+	ans, err := h.AI.Text(ai.Heavy(ctx), callSumPrompt(), "Резидент: "+resident+"\nДата: "+date+"\n\nРасшифровка:\n"+transcript) // R32e: callsum_flow.go
 	if err != nil {
 		fail(err)
 		return
