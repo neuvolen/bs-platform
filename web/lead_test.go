@@ -29,7 +29,7 @@ func TestLeadSession(t *testing.T) {
 		return w
 	}
 	w := get("/", "lead")
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "lhRender") {
+	if w.Code != http.StatusOK || w.Body.String() != string(appPage.plain) || !strings.Contains(servedText(), "lhRender") {
 		t.Fatalf("lead gets the platform page with the lead home: %d", w.Code)
 	}
 	ents, _ := fs.ReadDir(dlFS, "dl")

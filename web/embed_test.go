@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -52,7 +53,7 @@ func TestEmbeddedPageHasNoClubData(t *testing.T) {
 	if len(residents) == 0 {
 		t.Skip("page carries no resident data")
 	}
-	page := string(appPage.plain)
+	page := servedText() // R45: the shell and every file it loads
 	for _, r := range residents {
 		for _, f := range []string{"paid", "total", "debtRenew"} {
 			if v, ok := r[f].(float64); ok && v >= 50000 {
@@ -63,8 +64,8 @@ func TestEmbeddedPageHasNoClubData(t *testing.T) {
 			}
 		}
 	}
-	for _, v := range []string{"var PL_ROWS = [];", "var RESIDENTS = [];", "var FINES = [];", "var SDATA = {};"} {
-		if !strings.Contains(page, v) {
+	for _, v := range []string{`PL_ROWS\s*=\s*\[\]`, `RESIDENTS\s*=\s*\[\]`, `FINES\s*=\s*\[\]`, `SDATA\s*=\s*\{\}`} {
+		if !regexp.MustCompile(v).MatchString(page) {
 			t.Errorf("page lacks %q", v)
 		}
 	}

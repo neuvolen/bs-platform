@@ -11,7 +11,9 @@ import (
 	"sync"
 	"unicode"
 
+	"github.com/andybalholm/brotli"
 	"github.com/bnursik/business_surgery_backend/internal/content"
+	"github.com/bnursik/business_surgery_backend/internal/middleware"
 	"github.com/bnursik/business_surgery_backend/internal/tplpdf"
 	"github.com/gin-gonic/gin"
 )
@@ -41,12 +43,49 @@ func LibraryRich(c *gin.Context) {
 		c.Status(http.StatusNotModified)
 		return
 	}
-	if strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
+	ae := c.GetHeader("Accept-Encoding")
+	if br := libRichBrotli(plain, etag); br != nil && middleware.AcceptsEncoding(ae, "br") {
+		h.Set("Content-Encoding", "br")
+		c.Data(http.StatusOK, "application/json; charset=utf-8", br)
+		return
+	}
+	if strings.Contains(ae, "gzip") {
 		h.Set("Content-Encoding", "gzip")
 		c.Data(http.StatusOK, "application/json; charset=utf-8", gz)
 		return
 	}
 	c.Data(http.StatusOK, "application/json; charset=utf-8", plain)
+}
+
+// R45: the library's brotli copy (a quarter smaller than its gzip) is made
+// once per version in the background; gzip goes until it is ready.
+var libRichBr struct {
+	sync.Mutex
+	etag, busy string
+	b          []byte
+}
+
+func libRichBrotli(plain []byte, etag string) []byte {
+	libRichBr.Lock()
+	defer libRichBr.Unlock()
+	if libRichBr.etag == etag {
+		return libRichBr.b
+	}
+	if libRichBr.busy != etag {
+		libRichBr.busy = etag
+		go func() {
+			var buf bytes.Buffer
+			bw := brotli.NewWriterOptions(&buf, brotli.WriterOptions{Quality: 11, LGWin: 22})
+			_, _ = bw.Write(plain)
+			_ = bw.Close()
+			libRichBr.Lock()
+			if libRichBr.busy == etag {
+				libRichBr.etag, libRichBr.b = etag, buf.Bytes()
+			}
+			libRichBr.Unlock()
+		}()
+	}
+	return nil
 }
 
 type tplPDF struct {

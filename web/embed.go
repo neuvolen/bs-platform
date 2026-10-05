@@ -12,8 +12,6 @@
 package web
 
 import (
-	"bytes"
-	"compress/gzip"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
@@ -22,6 +20,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -116,7 +115,9 @@ var seedVars = []string{"PL_ROWS", "RESIDENTS", "FINES", "SDATA"}
 type page struct {
 	plain []byte
 	gz    []byte
-	etag  string
+	br    []byte
+	hash  string
+	etag  string // the plain copy's ETag (each encoding adds its suffix)
 }
 
 var (
@@ -128,9 +129,20 @@ var (
 func init() {
 	html, seed := stripSeed(string(platformHTML))
 	seedJSON = seed
-	appHTML = html
-	appPage = build(injectMarker(injectVoice(html)))
-	loginHTMLBase = loginWithIcons(string(loginHTML), html)
+	// R45: the page as a small shell plus cached files (build.go); taken
+	// apart after the seed is cut out, so no business data is in any file
+	fontsCSS = buildFonts()
+	shell, err := buildSite(html)
+	if err != nil {
+		log.Printf("web: the platform page is served whole: %v", err)
+		shell = useOwnFonts(html)
+	}
+	appHTML = shell
+	if f := os.Getenv("BS_WEB_MANIFEST"); f != "" { // measurements: which chunk holds which function
+		_ = os.WriteFile(f, SiteManifest(), 0o644)
+	}
+	appPage = build(injectMarker(injectVoice(shell)))
+	loginHTMLBase = loginWithIcons(useOwnFonts(string(loginHTML)), shell)
 	loginPage = build(injectLoginVoice(loginHTMLBase)) // R40c: demo voice map (login_voice.go)
 }
 
@@ -192,12 +204,9 @@ func loginWithIcons(login, app string) string {
 
 func build(html string) page {
 	plain := []byte(html)
-	var buf bytes.Buffer
-	zw, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
-	_, _ = zw.Write(plain)
-	_ = zw.Close()
 	sum := sha256.Sum256(plain)
-	return page{plain: plain, gz: buf.Bytes(), etag: `"` + hex.EncodeToString(sum[:8]) + `"`}
+	h := hex.EncodeToString(sum[:8])
+	return page{plain: plain, gz: gzipBytes(plain), br: brotliBytes(plain, 11), hash: h, etag: `"` + h + `"`}
 }
 
 // Seed returns the business data cut out of the page, as JSON.
@@ -205,24 +214,13 @@ func Seed() string { return seedJSON }
 
 func serve(c *gin.Context, p page) {
 	h := c.Writer.Header()
-	h.Set("ETag", p.etag)
-	h.Set("Cache-Control", "no-cache, private")
-	h.Set("Vary", "Accept-Encoding, Cookie")
-	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Vary", "Cookie")
 	h.Set("X-Robots-Tag", "noindex, nofollow")
 	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 	// R38a: a stray http:// picture or script on the page is fetched over https (no "not secure" warning)
 	h.Set("Content-Security-Policy", "upgrade-insecure-requests")
-	if match := c.GetHeader("If-None-Match"); match != "" && strings.Contains(match, p.etag) {
-		c.Status(http.StatusNotModified)
-		return
-	}
-	if strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
-		h.Set("Content-Encoding", "gzip")
-		c.Data(http.StatusOK, "text/html; charset=utf-8", p.gz)
-		return
-	}
-	c.Data(http.StatusOK, "text/html; charset=utf-8", p.plain)
+	// R45: brotli or gzip made once; always revalidated (ETag, 304), the files it loads are immutable
+	sendBytes(c, "text/html; charset=utf-8", "no-cache, private", p.hash, p.plain, p.gz, p.br)
 }
 
 // validSession checks the session cookie the same way the API checks tokens.
@@ -271,6 +269,9 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	r.HEAD("/", h)
 	r.GET("/platform", h)
 	r.GET("/dl/:name", func(c *gin.Context) { serveDL(c, secret, sessionCookie) })
+	// R45: the page's own files (build.go): /a/<name>.<hash>.<ext>, cached for a year
+	r.GET("/a/:file", func(c *gin.Context) { serveAsset(c, secret, sessionCookie) })
+	r.HEAD("/a/:file", func(c *gin.Context) { serveAsset(c, secret, sessionCookie) })
 	r.GET("/voice/:file", serveVoice) // voice.go: the tour's recorded phrases
 	r.GET("/promo/:file", servePromo) // promo.go: screens for the login page (R38a)
 	r.HEAD("/promo/:file", servePromo)

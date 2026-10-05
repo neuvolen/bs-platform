@@ -3,6 +3,8 @@ module github.com/bnursik/business_surgery_backend
 go 1.24.6
 
 require (
+	github.com/andybalholm/brotli v1.2.0
+	github.com/evanw/esbuild v0.25.10
 	github.com/gin-contrib/cors v1.7.6
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/gin-gonic/gin v1.11.0

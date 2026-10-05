@@ -5174,8 +5174,26 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   }
 
   // ── Приём чужих правок ──────────────────────────────────────────────────
+  // R45: при открытии (st.rev = 0) сервер присылает всё. Крупные разделы, которые уже лежат
+  // на этом устройстве ровно в серверной версии и без своих правок (bs_tools, bs_guides…),
+  // называем серверу (have=ключ.версия): их он не шлёт повторно, ответ в разы меньше
+  function heldDocs(){
+    if(st.rev) return '';
+    var out = [];
+    Object.keys(st.docs).forEach(function(k){
+      var s = st.docs[k];
+      if(!s || s.deleted || !s.v || !isSyncKey(k) || k === 'bs_seed' || unsent[k] || dirty[k]) return;
+      var raw = lsGet(k);
+      if(raw === null || raw.length < 2048 || hash(raw) !== s.h) return;
+      out.push(k + '.' + s.v);
+    });
+    return out.length ? '&have=' + encodeURIComponent(out.join(',')) : '';
+  }
+  var early = null;
   function pull(){
-    return api('GET', '/sync?since=' + st.rev).then(function(r){
+    var p = early; early = null;
+    if(!p || st.rev) p = api('GET', '/sync?since=' + st.rev + heldDocs());
+    return p.then(function(r){
       if(r.status === 403){ var e0 = new Error('denied'); e0.denied = true; throw e0; }
       if(r.status !== 200){ var e = new Error('http ' + r.status); e.net = true; throw e; }
       apply(r.j);
@@ -5265,6 +5283,8 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
       if(pending && next !== theirs){ dirty[d.key] = 1; wantSend(d.key); }
       keys.push(d.key);
     });
+    // Разделы, которые сервер не прислал (есть у нас в его версии): они же база для слияния правок
+    (j.kept || []).forEach(function(k){ if(base.docs[k] === undefined){ var v = lsGet(k); if(v !== null) base.docs[k] = v; } });
     if(j.rev > st.rev) st.rev = j.rev;
     pulled = true;
     saveState();
@@ -5546,7 +5566,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     pull().then(function(j){
       // Раздел bs_seed сервер кладёт сам, он не считается данными команды
       var ownDocs = (j.docs || []).filter(function(d){ return d.key !== 'bs_seed'; });
-      var empty = !(j.boards && j.boards.length) && !ownDocs.length;
+      var empty = !(j.boards && j.boards.length) && !ownDocs.length && !(j.kept && j.kept.length);
       var hasLocal = !!lsGet('bs_boards');
       if(empty && !hasLocal && !isResidentUser()) return offerFirstImport();
       boot();
@@ -5728,8 +5748,17 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     logout: function(){ logout(); },
     refresh: function(){ setStatus('saving'); return tick(); },
     tick: tick,
+    // R45: ответ запроса, ушедшего при загрузке страницы (один раз), или null
+    takeEarly: function(path){ var p = earlyGet[path] || null; delete earlyGet[path]; return p; },
     _merge3: merge3, _mergeStr: mergeStr, _canon: canon
   };
+  // R45: первый запрос данных уходит сразу, пока догружаются остальные скрипты платформы;
+  // firstSync() берёт его ответ, второго запроса нет. Лиду данные клуба не нужны: ему сразу главная лида
+  var earlyGet = {};
+  try{
+    if(token && !isLeadUser()){ early = api('GET', '/sync?since=0' + heldDocs()); early.catch(function(){}); }
+    else if(token){ earlyGet['/lead/home'] = window.BSSync.api('GET', '/lead/home'); earlyGet['/lead/home'].catch(function(){}); }
+  }catch(e){ early = null; }
 })();
 </script>
 
@@ -5763,7 +5792,7 @@ var stage = document.getElementById('stage'),
     canvas = document.getElementById('canvas'),
     svg = document.getElementById('links'),
     dcv = document.getElementById('draw'),
-    dctx = dcv.getContext('2d');
+    dctx = null; // R45: контекст холста 6000×4000 (≈96 МБ памяти) создаётся, только когда есть что рисовать (redraw)
 
 function money(v){
   // Суммы всегда с пробелами: 10 000, а не 10000
@@ -5909,6 +5938,7 @@ window.addEventListener('mouseup', function(){
 (function(){
   var last=null;
   setInterval(function(){
+    if(document.hidden) return; // R45: в фоновой вкладке не работает
     var i=document.getElementById('bName'); if(!i || i.value===last) return;
     last=i.value; i.size=Math.max(10, Math.min(40, (i.value||'').length+2));
   }, 400);
@@ -6968,8 +6998,19 @@ function toggleDraw(){
 function setTool(t){ tool=t; document.querySelectorAll('.dt[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool===t)); }
 function setColor(c,el){ color=c; document.querySelectorAll('.dcol').forEach(b=>b.classList.remove('on')); el.classList.add('on'); }
 function clearDraw(){ strokes=[]; redraw(); }
+// R45: холст рисования 6000×4000; чистить его целиком на каждый показ доски и каждое движение пера
+// стоило 60-80 мс. Чистится только прямоугольник, где была краска (все штрихи рисует только redraw)
+var dcvInk = null;
 function redraw(){
-  dctx.clearRect(0,0,dcv.width,dcv.height);
+  if(!dcvInk && !strokes.length) return;
+  if(!dctx) dctx = dcv.getContext('2d');
+  if(dcvInk) dctx.clearRect(dcvInk[0], dcvInk[1], dcvInk[2] - dcvInk[0], dcvInk[3] - dcvInk[1]);
+  var bx = null;
+  strokes.forEach(function(s){ (s.p || []).forEach(function(pt){
+    var w = (s.w || 3) + 6, x0 = pt[0] - w, y0 = pt[1] - w, x1 = pt[0] + w, y1 = pt[1] + w;
+    if(!bx) bx = [x0, y0, x1, y1]; else { if(x0 < bx[0]) bx[0] = x0; if(y0 < bx[1]) bx[1] = y0; if(x1 > bx[2]) bx[2] = x1; if(y1 > bx[3]) bx[3] = y1; }
+  }); });
+  dcvInk = bx ? [Math.max(0, Math.floor(bx[0])), Math.max(0, Math.floor(bx[1])), Math.min(dcv.width, Math.ceil(bx[2])), Math.min(dcv.height, Math.ceil(bx[3]))] : null;
   strokes.forEach(function(s){
     dctx.strokeStyle=s.c; dctx.lineWidth=s.w||3; dctx.lineCap='round'; dctx.lineJoin='round';
     dctx.beginPath();
@@ -12521,6 +12562,7 @@ var CRM_PROMPTS = [
 ];
 
 function renderCrmPrompts(){
+  r8AddPrompt();
   var el = pgSet('Промпты для CRM', 'Готовые запросы для ИИ на каждом этапе воронки');
   el.innerHTML =
     '<div class="dbox g" style="margin-bottom:16px;font-size:13px">' +
@@ -19141,6 +19183,9 @@ var R8DOC = {"ver":"r8doc","tools":[{"organ":"Стратегия","icon":"◇","
 // Продажи (ЦА и воронки, Рубрики, Креативы), SMM планер, Промпты ИИ, CustDev, Мероприятия, Учёт, Заметки.
 // Миграция 'r8doc' срабатывает один раз (флаг bs_doc_seed) и только добавляет то, чего нет:
 // сравнение по названию или тексту, правки пользователя не перезаписываются.
+// R45: версия данных R8DOC отдельной строкой (= R8DOC.ver): проверка при каждом открытии не трогает
+// сами данные, а сервер отдаёт их отдельным файлом по первому обращению (тест r45 следит за равенством)
+var R8DOC_VER = 'r8doc';
 var R8_SEC = {razbor:'Разбор', goals:'Цели', energy:'Энергия', mind:'Мышление', team:'Команда', fin:'Финансы',
   mkt:'Маркетинг и продажи', lean:'Продукт и Lean', bm:'Бизнес-модель', strat:'Стратегия', notes:'Заметки'};
 var R8_PAGE = {ca:'sCA', rub:'sRub', creo:'sCreo', smm:'sRub', events:'events'}; // R24: sCA и sRub открывают главы «Стратегии»
@@ -19234,7 +19279,7 @@ function r15KbPrice(){
 function r8DocMigrate(force){
   r15KbPrice();
   try{
-    if(!force && localStorage.getItem('bs_doc_seed') === R8DOC.ver) return -1;
+    if(!force && localStorage.getItem('bs_doc_seed') === R8DOC_VER) return -1;
     if(!bsDataReady()) return -1;   // с сервера: только поверх данных, пришедших с сервера
     if(window.BSSync && BSSync.isResident && BSSync.isResident()) return -1;
     var n = 0, v, a;
@@ -19242,7 +19287,7 @@ function r8DocMigrate(force){
     v = r8Get('bs_questions'); if(v && typeof v === 'object' && !Array.isArray(v)){ a = r8MergeQ(v); if(a){ r8Put('bs_questions', v); n += a; } }
     v = r8Get('bs_kanban');    if(v && Array.isArray(v.cards)){ a = r8MergeKanban(v); if(a){ r8Put('bs_kanban', v); n += a; } }
     v = r8Get('bs_kb');        if(v && Array.isArray(v.groups)){ a = r8MergeKB(v); if(a){ r8Put('bs_kb', v); n += a; } }
-    localStorage.setItem('bs_doc_seed', R8DOC.ver);
+    localStorage.setItem('bs_doc_seed', R8DOC_VER);
     return n;
   }catch(e){ return 0; }
 }
@@ -19251,7 +19296,11 @@ function r8DocMigrate(force){
 function loadKB(){
   r15KbPrice();
   var v = r8Get('bs_kb');
-  KBD = (v && Array.isArray(v.groups)) ? v : {groups:r8Cl(R8DOC.kb)};
+  if(v && Array.isArray(v.groups)){ KBD = v; return; }
+  // R45: своей базы знаний ещё нет: она из документа (R8DOC.kb, 108 КБ), копия делается при первом обращении
+  KBD = {};
+  var own = function(g){ Object.defineProperty(KBD, 'groups', {value:g, writable:true, configurable:true, enumerable:true}); return g; };
+  Object.defineProperty(KBD, 'groups', {configurable:true, enumerable:true, get:function(){ return own(r8Cl(R8DOC.kb)); }, set:own});
 }
 function saveKB(){ if(KBD) r8Put('bs_kb', KBD); }
 function r8Groups(sec){ if(!KBD) loadKB(); return KBD.groups.filter(function(g){ return g && g.sec === sec; }); }
@@ -19518,8 +19567,9 @@ function r8OpenGroup(id){
 }
 
 // ── Встраивание в существующие разделы ──
+// R45: промпт из документа добавляется к промптам CRM при первом показе (данные R8DOC грузятся по требованию)
+function r8AddPrompt(){ if(!CRM_PROMPTS.some(function(p){ return p.n === R8DOC.prompt.n; })) CRM_PROMPTS.push(r8Cl(R8DOC.prompt)); }
 (function(){
-  if(!CRM_PROMPTS.some(function(p){ return p.n === R8DOC.prompt.n; })) CRM_PROMPTS.push(r8Cl(R8DOC.prompt));
   // R24: «ЦА и воронки» и «Рубрики» стали главами «Стратегии», «Креативы» уже в BLOCKS.mkt
 
   var _notes = renderNotes;
@@ -24900,6 +24950,7 @@ function setLibOrgan(o){ libOrgan = o; var si = document.getElementById('libSear
   var p = document.createElement('div'); p.className = 'dxp'; p.id = 'dxPanel'; document.body.appendChild(p);
   var last = -1;
   setInterval(function(){
+    if(document.hidden) return; // R45: в фоновой вкладке не считает
     var n = (typeof nodes !== 'undefined' && nodes) ? nodes.filter(function(x){ return x.type === 'diag'; }).length : 0;
     if(n !== last){ last = n; var c = document.getElementById('dxCnt'); if(c) c.textContent = n; b.classList.toggle('zero', !n);
       if(p.classList.contains('on')) renderDx(); }
@@ -26582,8 +26633,16 @@ document.addEventListener('keydown', function(e){
   if(pk && pk.classList.contains('on')){ pk.classList.remove('on'); return; }
   if(sh && sh.classList.contains('on')) lib2Close();
 });
-// Библиотека подгружается после входа, чтобы списки сразу были с подзаголовками
-setTimeout(function(){ if(window.BSSync && BSSync.api) lib2Load(); }, 2500);
+// Библиотека подгружается после входа, чтобы списки сразу были с подзаголовками.
+// R45: не в первые секунды (её 300+ КБ не спорят с данными главной), в свободную минуту браузера;
+// при медленной связи или экономии трафика только когда открыли раздел с библиотекой
+(function(){
+  var cn = navigator.connection || {};
+  if(cn.saveData || /2g|3g/.test(cn.effectiveType || '')) return;
+  setTimeout(function(){
+    (window.requestIdleCallback || setTimeout)(function(){ if(window.BSSync && BSSync.api) lib2Load(); }, {timeout: 5000});
+  }, 8000);
+})();
 </script>
 
 <!-- R27: главная лида. Лид входит через Telegram и видит только её; команда видит её же в режиме «Лид» -->
@@ -26818,7 +26877,8 @@ html.lead-user #aiBadge,html.lead-user #bsxPill,html.lead-user #tr16Help,html.le
   };
   function api(method, path, body){
     if(!window.BSSync || !BSSync.api) return Promise.resolve({status:0, j:{error:'offline'}});
-    return Promise.resolve(BSSync.api(method, path, body)).then(function(r){
+    var pre = method === 'GET' && !body && BSSync.takeEarly ? BSSync.takeEarly(path) : null; // R45: запрос, ушедший при загрузке
+    return Promise.resolve(pre || BSSync.api(method, path, body)).then(function(r){
       return r.json().catch(function(){ return {}; }).then(function(j){ return {status:r.status, j:j}; });
     }, function(){ return {status:0, j:{error:'net'}}; });
   }
@@ -28854,7 +28914,13 @@ body.r32t .side-subs{display:none}
     }
   }
   var pend = [], tm = 0;
-  function flush(){ tm = 0; var l = pend; pend = []; l.forEach(function(x){ if(x.isConnected) scan(x); }); }
+  // R45: один и тот же узел и узлы внутри уже отмеченного не сканируются повторно (их покрывает скан предка)
+  function flush(){
+    tm = 0; var l = pend; pend = [];
+    var seen = new Set();
+    l = l.filter(function(x){ if(!x.isConnected || seen.has(x)) return false; seen.add(x); return true; });
+    l.filter(function(x){ for(var p = x.parentNode; p; p = p.parentNode) if(seen.has(p)) return false; return true; }).forEach(scan);
+  }
   new MutationObserver(function(ms){
     ms.forEach(function(m){
       var t = m.target;
@@ -29081,7 +29147,9 @@ body.r32t .side-subs{display:none}
     }catch(e){ return 0; }
   }
   window.r32MktNotesToIdeas = mktNotesToIdeas;
-  (function wait(n){ if(n > 40) return; setTimeout(function(){ if(typeof bsDataReady === 'function' && bsDataReady() && typeof MODE !== 'undefined'){ if(MODE === 'admin') mktNotesToIdeas(); } else wait(n + 1); }, 1500); })(0);
+  // R45: проверка каждые 0,3 с (было 1,5 с): данные теперь приходят раньше, перенос делается сразу после них,
+  // а не посреди работы человека (его запись на сервер иначе совпадала с первыми правками)
+  (function wait(n){ if(n > 200) return; setTimeout(function(){ if(typeof bsDataReady === 'function' && bsDataReady() && typeof MODE !== 'undefined'){ if(MODE === 'admin') mktNotesToIdeas(); } else wait(n + 1); }, 300); })(0);
   window.renderNotes = renderNotes = function(){
     if(R8V.notes === 'an' && MODE === 'admin') return renderAn();
     if(R8V.notes !== 'kb') mktNotesToIdeas();

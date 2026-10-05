@@ -114,7 +114,45 @@ func (h *PlatformHandler) Sync(c *gin.Context) {
 		boards = h.gateResidentCalls(c.Request.Context(), boards, name) // R32e: callsum_flow.go
 	}
 	docs = dropClubPersonal(docs)
-	c.JSON(http.StatusOK, gin.H{"rev": rev, "boards": boards, "docs": docs, "serverTime": time.Now().UTC()})
+	out := gin.H{"rev": rev, "boards": boards, "docs": docs, "serverTime": time.Now().UTC()}
+	// R45: the page names the sections it already holds at the server's version
+	// (have=bs_tools.12,bs_guides.4,…); those are not sent again
+	if have := c.Query("have"); have != "" {
+		var kept []string
+		out["docs"], kept = omitHeldDocs(docs, have)
+		if len(kept) > 0 {
+			out["kept"] = kept
+		}
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// omitHeldDocs drops the sections the client holds at exactly this version.
+// The seed is never dropped: a resident gets a cut of it that depends on more
+// than its version.
+func omitHeldDocs(docs []pg.PlatformDoc, have string) ([]pg.PlatformDoc, []string) {
+	held := map[string]int{}
+	for _, p := range strings.Split(have, ",") {
+		i := strings.LastIndexByte(p, '.')
+		if i <= 0 {
+			continue
+		}
+		v, err := strconv.Atoi(p[i+1:])
+		if err != nil || v <= 0 || !platformKeyRe.MatchString(p[:i]) {
+			continue
+		}
+		held[p[:i]] = v
+	}
+	out := make([]pg.PlatformDoc, 0, len(docs))
+	var kept []string
+	for _, d := range docs {
+		if v, ok := held[d.Key]; ok && v == d.Version && !d.Deleted && d.Key != platformSeedKey {
+			kept = append(kept, d.Key)
+			continue
+		}
+		out = append(out, d)
+	}
+	return out, kept
 }
 
 type putBoardReq struct {
