@@ -26,6 +26,7 @@ type StartUpdate struct {
 	FirstName string
 	LastName  string
 	Username  string
+	Date      int64 // R40b: Telegram's message date (unix seconds): a retried /start is not answered twice
 }
 
 // StartHook handles the /start; false leaves it to the script.
@@ -41,6 +42,7 @@ func (s *Service) SetStartHook(h StartHook) {
 func ReadStart(body []byte) (StartUpdate, bool) {
 	var u struct {
 		Message *struct {
+			Date int64  `json:"date"`
 			Text string `json:"text"`
 			Chat struct {
 				ID   int64  `json:"id"`
@@ -70,7 +72,7 @@ func ReadStart(body []byte) (StartUpdate, bool) {
 	if r := []rune(p); len(r) > 64 {
 		p = string(r[:64])
 	}
-	return StartUpdate{ChatID: m.Chat.ID, Param: p, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}, true
+	return StartUpdate{ChatID: m.Chat.ID, Param: p, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username, Date: m.Date}, true
 }
 
 // takeStart: true when the server answered the /start itself.
@@ -87,6 +89,9 @@ func (s *Service) takeStart(ctx context.Context, body []byte) bool {
 	}
 	// Referral links (ref_<chatId>) of new people are the server's too (referral.go).
 	if _, known, err := s.repo.ResidentByTgID(ctx, st.ChatID); err != nil || known {
+		if err != nil {
+			log.Printf("bot: /start of %d: residents: %v", st.ChatID, err)
+		}
 		return false
 	}
 	c, cancel := context.WithTimeout(ctx, 30*time.Second)

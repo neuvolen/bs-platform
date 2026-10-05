@@ -7268,8 +7268,9 @@ var BLOCKS = {
     {id:'aReports', n:'Отчёты'},
     {id:'fines',    n:'Штрафы'},
     {id:'sFive',    n:'Пятёрки'},
-    {id:'nps',      n:'NPS'},           // R34b: оценка резидентов живёт в «Клубе», ссылка #nps та же
-    {id:'dataExport', n:'Экспорт'}]},   // R32c: копия данных вместо таблицы
+    {id:'nps',      n:'NPS'}]},         // R34b: оценка резидентов живёт в «Клубе», ссылка #nps та же
+  // R39: вкладки «Экспорт» в Клубе нет (просьба владельца); адрес dataExport открывается как раньше,
+  // а переключатель «Экспорт в Google Таблицу» живёт одной строкой в Настройках (r32dSetRow)
   // R32a: внутри «Учёта» вкладки ДДС, P&L, Анализ, В цифрах. Журнал операций и перенос с таблицы убраны,
   // проверка данных работает на сервере в фоне; адреса aNumbers, summary, ops, dataAudit, migr открываются как раньше
   fin:     {name:'Учёт', tabs:[
@@ -7288,6 +7289,7 @@ var BLOCKS = {
     {id:'mHome',    n:'Обзор'},
     {id:'mktA',     n:'Стратегия'},
     {id:'content',  n:'Контент-завод'},
+    {id:'mSmm',     n:'SMM'},              // R40b: все публикации контент-движка по дням
     {id:'sCreo',    n:'Креативы'}]},   // R32b: «Заметки» скрыты (данные в bs_mkt), #mNotes ведёт в «Обзор»
   // R32b: «Интерактивные чек-листы» переехали в Трекинг → Инструменты (вкладка внутри), #guides работает
   lib:     {name:'BS', tabs:[
@@ -8376,32 +8378,62 @@ function removeMember(ti, mi){
 }
 
 // ═══ NPS ═══
+// R39: NPS = % промоутеров (9-10) − % критиков (0-6), от −100 до 100; последний опрос (21 день от последнего ответа),
+// один ответ на резидента (последний), оценка из строки («9», «9/10», «8 из 10»), число вне 0..10 (Chat ID) не оценка. Как nps.go на сервере
+function npsScore(v){
+  if(typeof v === 'number') return (v >= 0 && v <= 10 && Math.floor(v) === v) ? v : null;
+  var s = String(v == null ? '' : v).trim(); if(!s) return null;
+  if(/^-?\d+([.,]\d+)?$/.test(s)) return npsScore(Number(s.replace(',', '.')));
+  var m = s.match(/(?:^|[^0-9])(10|[0-9])\s*(?:\/|из|of)\s*10(?![0-9])/i) || s.match(/(?:оценк[аиу]|балл|nps|score)[^0-9]{0,12}?(10|[0-9])(?![0-9])/i) || s.match(/^\s*(10|[0-9])(?:$|[.,!)\-:\s])/);
+  return m ? Number(m[1]) : null;
+}
+function npsDay(s){
+  s = String(s || '').trim(); var m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if(m) return Date.UTC(+m[3], +m[2] - 1, +m[1]);
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : 0;
+}
+function npsCalc(rows){
+  var all = (rows || []).map(function(x, i){
+    x = x || {}; var sc = npsScore(x.score); if(sc === null) sc = npsScore(x.comment || x.text || x.answer || '');
+    return {who: String(x.chatId || x.tg || x.res || x.name || ('#' + i)).toLowerCase(), at: npsDay(x.date), i: i, s: sc, d: x.date};
+  });
+  var newest = all.reduce(function(a, x){ return Math.max(a, x.at); }, 0), W = 21 * 86400000;
+  all.sort(function(a, b){ return (b.at - a.at) || (b.i - a.i); });
+  var seen = {}, r = {nps: 0, avg: 0, count: 0, answers: 0, prom: 0, pas: 0, det: 0, to: ''}, sum = 0;
+  all.forEach(function(x){
+    if(newest && x.at && newest - x.at > W) return;
+    if(seen[x.who]) return; seen[x.who] = 1; r.answers++;
+    if(x.s === null) return;
+    r.count++; sum += x.s;
+    if(x.s >= 9) r.prom++; else if(x.s >= 7) r.pas++; else r.det++;
+  });
+  if(newest){ var t = new Date(newest); r.to = ('0' + t.getUTCDate()).slice(-2) + '.' + ('0' + (t.getUTCMonth() + 1)).slice(-2) + '.' + t.getUTCFullYear(); }
+  if(r.count){ r.nps = Math.round((r.prom - r.det) * 100 / r.count); r.avg = Math.round(sum / r.count * 10) / 10; }
+  return r;
+}
 function renderNPS(){
   var pg = document.getElementById('pg-stub');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   var d = SDATA.nps || [];
-  var scores = d.map(x=>{ var v=Number(String(x.score).replace(/[^0-9]/g,'')); return (v>=0&&v<=10)?v:0; }).filter(v=>v>0);
-  var prom = scores.filter(v=>v>=9).length, det = scores.filter(v=>v<=6).length;
-  var nps = scores.length ? Math.round((prom-det)/scores.length*100) : 0;
-  var avg = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : '-';
+  var R = npsCalc(d), nps = R.count ? R.nps : '-', prom = R.prom, det = R.det;
+  var avg = R.count ? String(R.avg).replace('.', ',') : '-';
   pg.querySelector('.pt').textContent = 'NPS';
-  pg.querySelector('.psub').textContent = scores.length + ' ответов';
+  pg.querySelector('.psub').textContent = R.count ? ('Последний опрос' + (R.to ? ' (' + R.to + ')' : '') + ': ' + R.count + ' ' + gdPl(R.count, 'оценка', 'оценки', 'оценок') + (R.answers > R.count ? ', ещё ' + (R.answers - R.count) + ' без оценки' : '')) : (R.answers ? R.answers + ' ' + gdPl(R.answers, 'ответ', 'ответа', 'ответов') + ' без оценки 0-10: NPS не считается' : 'Ответов пока нет');
   pg.querySelector('#stubBody').innerHTML = bsTeamBar([['Запустить NPS','bsRunNPS()']]) +
     '<div class="card-sum"><div class="sum-row">' +
-      '<div><div class="bs-l">NPS</div><div class="sum-v" style="color:'+(nps>=50?'var(--gold)':(nps>=0?'#DADADA':'#FF4D4D'))+'">'+nps+'</div></div>' +
+      '<div><div class="bs-l">NPS</div><div class="sum-v" style="color:'+(!R.count?'#DADADA':(nps>=50?'var(--gold)':(nps>=0?'#DADADA':'#FF4D4D')))+'">'+nps+'</div></div>' +
       '<div><div class="bs-l">Средний балл</div><div class="sum-v">'+avg+'</div></div>' +
       '<div><div class="bs-l">Промоутеров</div><div class="sum-v" style="color:var(--gold)">'+prom+'</div></div>' +
       '<div><div class="bs-l">Критиков</div><div class="sum-v" style="color:#FF4D4D">'+det+'</div></div>' +
     '</div></div>' +
     (d.length ? d.slice().reverse().map(function(x){
-      var s = Number(String(x.score).replace(/[^0-9]/g,''));
-      if(!(s>=0 && s<=10)) s = 0; // в таблице встречается Chat ID вместо оценки
-      var c = s>=9 ? 'var(--gold)' : (s>=7 ? '#DADADA' : '#FF4D4D');
+      var s = npsScore(x.score); if(s === null) s = npsScore(x.comment || x.text || ''); // Chat ID в колонке оценки не оценка
+      var c = s === null ? 'var(--t3)' : (s>=9 ? 'var(--gold)' : (s>=7 ? '#DADADA' : '#FF4D4D'));
       return '<div class="row" style="cursor:default"><div class="row-bar" style="background:'+c+'"></div>' +
         '<div style="flex:1"><div class="row-t">'+esc(x.res||'Резидент')+'</div>' +
         (x.comment?'<div class="row-d">'+esc(x.comment)+'</div>':'') +
         '<div class="row-o" style="color:var(--t3)">'+esc(x.date)+'</div></div>' +
-        '<div style="font-size:24px;font-weight:900;color:'+c+'">'+(s||'-')+'</div></div>';
+        '<div style="font-size:24px;font-weight:900;color:'+c+'">'+(s === null ? '-' : s)+'</div></div>';
     }).join('') : '<div class="empt">Ответов пока нет. Опрос отправляется резидентам из бота</div>');
   pg.classList.add('on');
 }
@@ -9923,9 +9955,16 @@ function aiwHTML(){
     '<div class="aiw-h"><div><div class="aiw-ht">Лучшие практики мира, 1 в день</div>' +
       '<div class="aiw-hs">ИИ находит проверенный инструмент или диагноз из мировой практики и адаптирует под бизнес в Казахстане' + (items.length ? ' · новых ' + nw + ' из ' + items.length : '') + '</div></div>' +
       '<button type="button" class="btn bg aiw-find" id="aiwFind" ' + (AIW.finding ? 'disabled' : '') + ' onclick="aiwFind()">' + (AIW.finding ? '<span class="spin"></span> Ищу практику…' : 'Найти ещё') + '</button></div>' +
-    (AIW.err ? '<div class="aiw-err">' + aiwErrHTML(AIW.err) + '</div>' : '') +
+    (AIW.err ? '<div class="aiw-err">' + aiwErrHTML(AIW.err) + '</div>' : '') + aiwRunHTML(d) +
     (items.length ? '<div class="aiw-list">' + items.map(aiwCard).join('') + '</div>' : '<div class="empt">Пока ни одной практики. Сервер присылает одну в день, или нажмите «Найти ещё»</div>') +
   '</div>';
+}
+// R39: след ежедневного автозапуска сервера (bs_ai_recs.run): когда был, ошибка, следующая попытка
+function aiwRunHTML(d){
+  var r = d && d.run; if(!r || !r.at) return '';
+  function dt(x){ var t = new Date(x); if(isNaN(t)) return ''; var a = new Date(t.getTime() + 5 * 3600000); function p(n){ return (n < 10 ? '0' : '') + n; } return p(a.getUTCDate()) + '.' + p(a.getUTCMonth() + 1) + ' ' + p(a.getUTCHours()) + ':' + p(a.getUTCMinutes()); }
+  if(r.ok) return '<div class="aiw-hs" style="margin:6px 0 10px">Автоматический поиск: последний запуск ' + esc(dt(r.at)) + (r.next ? ', следующий ' + esc(dt(r.next)) : '') + '</div>';
+  return '<div class="aiw-err">Автоматический поиск ' + esc(dt(r.at)) + ' не удался: ' + esc(r.error || 'ошибка') + (r.next ? '. Следующая попытка ' + esc(dt(r.next)) : '') + '</div>';
 }
 function aiwPaint(){ var el = document.getElementById('aiwBox'); if(el) el.innerHTML = aiwHTML(); }
 function aiwTog(id){ AIW.open[id] = !AIW.open[id]; aiwPaint(); }
@@ -17026,7 +17065,7 @@ function r6Time(v){
 // ── CRM лидов ──
 var CRM = null;
 var CRM_COLS = [
-  {id:'new',  n:'Новый',             d:'Заявка пришла, ещё не ответили'},
+  {id:'new',  n:'Новый',             d:'Заявка пришла, команда ещё не связалась (автоответ бота виден на карточке)'},
   {id:'work', n:'В работе',          d:'Идёт переписка или звонок'},
   {id:'qual', n:'Квалифицирован',    d:'Есть бизнес, боль и деньги'},
   {id:'meet', n:'Записан на разбор', d:'Дата разбора назначена'},
@@ -19309,14 +19348,21 @@ function r8RenderKBNotes(){
   var pa = document.getElementById('phAct'); if(pa) pa.innerHTML = r8AddBtn(R8V.sec);
   var MD = ['az','orig'], md = bslMode('notes_kb', MD);
   var list = bslApply(r8Groups(R8V.sec), md, {t:function(g){ return g.title; }, n:function(g){ return KBD.groups.indexOf(g); }})[0].items;
+  var km = (typeof LIB2 !== 'undefined' && LIB2.data && typeof lib2KsIndex === 'function') ? lib2KsIndex() : null;
   el.innerHTML = r8NotesSwitch() +
+    (km ? '<div class="cx-note">Каждый конспект разобран: метка на карточке показывает, каким инструментом или диагнозом библиотеки он стал или что дополнил. Исходный текст остаётся здесь.</div>' : '') +
     '<div class="ct-chips">' + Object.keys(R8_SEC).map(function(s){
       return '<div class="tb' + (s === R8V.sec ? ' on' : '') + '" onclick="R8V.sec=\'' + s + '\';renderNotes()">' + R8_SEC[s] + ' <span style="opacity:.55">' + (cnt[s] || 0) + '</span></div>';
     }).join('') + '</div>' +
     '<div class="cx-note">Продажи и маркетинг из документа: <b class="d8-a" onclick="goSection(\'sCA\')">ЦА и воронки</b> · <b class="d8-a" onclick="goSection(\'sRub\')">Рубрики</b> · ' +
       '<b class="d8-a" onclick="goSection(\'sCreo\')">Креативы</b> · <b class="d8-a" onclick="goSection(\'custdev\')">шаблон CustDev</b> · <b class="d8-a" onclick="goSection(\'events\')">план мероприятий</b></div>' +
     bslBar('notes_kb', MD, md, 'renderNotes') +
-    (list.length ? r8Grid(list) : '<div class="empt">В этом разделе конспектов пока нет</div>');
+    (list.length ? r8Grid(list, function(g){ return {foot:km ? lib2KsBadges(g, km) : ''}; }) : '<div class="empt">В этом разделе конспектов пока нет</div>');
+  // R40d: метки «Стал инструментом / диагнозом» из богатой библиотеки (поле konsp); после загрузки перерисовываем
+  if(!km && typeof lib2Load === 'function' && !LIB2.data){
+    var p = lib2Load();
+    if(p && p.then) p.then(function(j){ if(j && R8V.notes === 'kb' && typeof section !== 'undefined' && section === 'notes') renderNotes(); });
+  }
 }
 
 // ── Стратегия: глава «Воронки и ICP» (R24: раньше отдельная страница «ЦА и воронки», ?section=sCA ведёт сюда) ──
@@ -20243,8 +20289,29 @@ function r32dSheetLoad(force){
   r11Club('GET', '/sheet').then(function(j){
     X32D.busy = false; X32D.at = Date.now();
     if(j && !j.error && j.export){ X32D.st = j; X32D.err = ''; } else X32D.err = (j && j.error) || '';
-    if(section === 'dataExport' || section === 'migr') renderDataExport();
+    x32dRepaint();
   });
+}
+// R39: перерисовка там, где переключатель виден: страница экспорта и строка в Настройках
+function x32dRepaint(){
+  if(section === 'dataExport' || section === 'migr') renderDataExport();
+  var r = document.getElementById('x32dSet'); if(r) r.outerHTML = r32dSetRow();
+}
+function r32dSub(){
+  var st = X32D.st, ex = st && st.export, on = !!(ex && ex.on);
+  if(!st) return X32D.err ? 'Статус недоступен: ' + X32D.err : 'Загружаем…';
+  if(ex.why === 'legacy') return 'Аварийный режим: таблица снова главная';
+  if(!on) return 'Выключен';
+  if(ex.why === 'week' && ex.until) return 'Включён до ' + r11At(ex.until) + ', потом выключится сам';
+  return 'Включён';
+}
+// Одна строка админа в Настройках: «Экспорт в Google Таблицу» и переключатель
+function r32dSetRow(){
+  var st = X32D.st, ex = st && st.export, on = !!(ex && ex.on), dis = !st || X32D.busy || (ex && ex.why === 'legacy');
+  return '<div class="r32-row" id="x32dSet"><div style="min-width:0"><div class="r32-k">Экспорт в Google Таблицу</div>' +
+    '<div class="r32-h">Раз в час копия для просмотра. ' + esc(r32dSub()) + '</div></div>' +
+    '<button type="button" class="r23-sw" role="switch" aria-label="Экспорт в Google Таблицу" aria-checked="' + on + '"' +
+    (dis ? ' disabled' : '') + ' onclick="r32dSetExport(' + !on + ')"><i></i></button></div>';
 }
 function r32dSheetCard(){
   var st = X32D.st, ex = st && st.export, on = !!(ex && ex.on);
@@ -20264,12 +20331,12 @@ function r32dSheetCard(){
 }
 function r32dSetExport(on){
   if(X32D.busy) return;
-  X32D.busy = true; renderDataExport();
+  X32D.busy = true; x32dRepaint();
   r11Club('POST', '/sheet/export', {on: !!on}).then(function(j){
     X32D.busy = false;
     if(j && !j.error && j.export){ X32D.st = j; X32D.at = Date.now(); toast(on ? 'Экспорт в таблицу включён' : 'Экспорт в таблицу выключен'); }
     else toast('Не получилось: ' + ((j && j.error) || 'нет связи'));
-    renderDataExport();
+    x32dRepaint();
   });
 }
 // «Перенос с таблицы» после переезда: итог вместо сверок
@@ -25848,6 +25915,13 @@ body.light .lb2-paper{box-shadow:0 18px 40px rgba(0,0,0,.12),0 0 0 1px rgba(0,0,
 .lb2-ds{display:block;font-size:12.5px;color:var(--pm);margin-top:3px;line-height:1.5}
 .lb2-doc .btn.pf-b{text-decoration:none;display:inline-flex;align-items:center;height:36px;white-space:nowrap}
 .lb2-dn{display:flex;gap:8px;flex-wrap:wrap}
+/* R40d: конспекты BS → карточки библиотеки */
+.lb2-ks{margin-top:14px;border:1px solid var(--pb);border-radius:16px;padding:16px 20px}
+.lb2-ksp{margin:8px 0 12px;font-size:14.5px;line-height:1.65}
+.d8-ks{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.d8-kb{font:inherit;font-size:12px;line-height:1.35;text-align:left;padding:6px 10px;border-radius:8px;border:1px solid var(--pb);background:transparent;color:var(--ptx);cursor:pointer}
+.d8-kb span{opacity:.6}
+.d8-kb.on{background:var(--pon);color:var(--pontx);border-color:transparent}
 @media(max-width:1100px){.lb2-sh .gu-cover{grid-template-columns:1fr}}
 @media(max-width:700px){.lb2-ba,.lb2-met,.lb2-cure,.lb2-signs{grid-template-columns:1fr}.lb2-q{grid-template-columns:22px minmax(0,1fr)}.lb2-yn{grid-column:2}.lb2-res{grid-template-columns:1fr}
   .lb2-pp-band{padding:16px 16px 14px}.lb2-pp-in{padding:14px 16px 18px}.lb2-pp-t{font-size:19px}.lb2-pp-f{grid-template-columns:1fr}.lb2-doc{flex-wrap:wrap}.lb2-dn{width:100%}
@@ -26017,6 +26091,54 @@ function lib2Open(kind, i, r){
   var sc = document.getElementById('lb2Scroll'); if(sc) sc.scrollTop = 0;
   return true;
 }
+// ── R40d: конспекты BS. Карточка с полем konsp: [{src, title, rel:'made'|'added', text}] сделана из конспекта или дополнена им ──
+function lib2OpenId(id){
+  var go = function(){
+    var r = LIB2.byId[id]; if(!r){ toast('Карточка не найдена в библиотеке'); return false; }
+    var kind = r.kind === 'diag' ? 'diag' : 'tool', list = (kind === 'diag' ? DIAG : TOOLS) || [], k = lib2N(r.title);
+    var i = list.findIndex(function(x){ return x && (x.id === id || lib2N(x.title) === k); });
+    return lib2Open(kind, i, r);
+  };
+  if(LIB2.data) return go();
+  var p = lib2Load();
+  if(p && p.then) p.then(function(j){ if(j) go(); else toast(LIB2.err || 'Библиотека доступна при входе через сервер'); });
+  return false;
+}
+function lib2KsIndex(){
+  var m = {}; if(!LIB2.data) return m;
+  (LIB2.data.tools || []).concat(LIB2.data.diag || []).forEach(function(r){
+    (Array.isArray(r && r.konsp) ? r.konsp : []).forEach(function(k){
+      var e = {id:r.id, kind:r.kind === 'diag' ? 'diag' : 'tool', title:r.title, rel:k.rel};
+      [k.src, 't:' + lib2N(k.title)].forEach(function(key){ (m[key] = m[key] || []).push(e); });
+    });
+  });
+  return m;
+}
+function lib2KsBadges(g, m){
+  var l = (m[g.id] || m['t:' + lib2N(g.title)] || []).slice().sort(function(a, b){ return (a.rel === 'made' ? 0 : 1) - (b.rel === 'made' ? 0 : 1); });
+  if(!l.length) return '';
+  return '<div class="d8-ks">' + l.map(function(e){
+    var lbl = e.rel === 'made' ? (e.kind === 'diag' ? 'Стал диагнозом' : 'Стал инструментом') : (e.kind === 'diag' ? 'Дополнил диагноз' : 'Дополнил инструмент');
+    return '<button class="d8-kb' + (e.rel === 'made' ? ' on' : '') + '" data-id="' + escA(e.id) + '" onclick="lib2OpenId(this.dataset.id)"><span>' + lbl + ':</span> <b>' + esc(e.title) + '</b> →</button>';
+  }).join('') + '</div>';
+}
+function lib2KsSec(r, toc){
+  var ks = Array.isArray(r && r.konsp) ? r.konsp : []; if(!ks.length) return '';
+  var made = ks.some(function(k){ return k.rel === 'made'; });
+  toc.push({k:'konsp', n:'§', t:'Из конспекта BS'});
+  return lib2Sec('konsp', 'Из конспекта BS', made ? 'Откуда эта карточка' : 'Дополнение из конспектов', ks.map(function(k){
+    return '<div class="lb2-ks"><div class="gu-lbl">Из конспекта: ' + gdE(k.title) + '</div>' +
+      '<p class="lb2-ksp">' + gdE(k.text || 'Карточка собрана из этого конспекта BS: тезисы переведены в шаги, примеры из практики и шаблон. Исходный текст сохранён в разделе «Конспекты BS».') + '</p>' +
+      '<button class="btn pf-b" data-ks="' + escA(k.src) + '" data-kt="' + escA(k.title) + '" onclick="lib2KsOpen(this.dataset.ks,this.dataset.kt)">Открыть исходный конспект</button></div>';
+  }).join(''));
+}
+function lib2KsOpen(src, title){
+  if(typeof r8Find !== 'function'){ toast('Раздел конспектов недоступен'); return; }
+  var g = r8Find(src);
+  if(!g && KBD) g = KBD.groups.find(function(x){ return x && lib2N(x.title) === lib2N(title); });
+  if(!g){ toast('Конспект «' + (title || src) + '» удалён из заметок'); return; }
+  lib2Close(); r8OpenGroup(g.id);
+}
 function lib2OpenTitle(title){
   var k = lib2N(title), i = TOOLS.findIndex(function(t){ return t && lib2N(t.title) === k; });
   var r = LIB2.byT.tool[k];
@@ -26140,6 +26262,7 @@ function lib2ToolHTML(v, r, d, i, adm){
     toc.push({k:'mat', n:'М', t:'Материалы'});
     secs += '<section class="gu-sec" id="lb2S-mat" data-k="mat">' + matsHTML(d) + '</section>';
   }
+  secs += lib2KsSec(r, toc);
   secs += '<div class="gu-end"><b>Шаблон Business Surgery</b><span>Каждый шаблон оформлен в стиле клуба: логотип, bxclub.kz и подпись на каждой странице. Его можно распечатать, заполнить и отправить команде</span>' +
     '<div class="lb2-acts">' + (r.template ? '<button class="btn pf-b pf-p" data-act="tpl3" onclick="lib2Download(\'' + escA(r.id) + '\')">' + LIB2_IC.dl + 'Скачать шаблон PDF</button>' : '') + file + '</div></div>';
   return cover + lib2Cols(toc, secs);
@@ -26292,6 +26415,7 @@ function lib2DiagHTML(v, r, d, i, adm){
   if(v.risk){ toc.push({k:'risk', n:'Р', t:'Если не лечить'});
     secs += lib2Sec('risk', 'Прогноз', 'Если не лечить', '<div class="lb2-risk"><div class="gu-lbl">Через год</div>' + gdE(v.risk) + '</div>'); }
   if(d && (d.link || d.video || d.sample)){ toc.push({k:'mat', n:'М', t:'Материалы'}); secs += '<section class="gu-sec" id="lb2S-mat" data-k="mat">' + matsHTML(d) + '</section>'; }
+  secs += lib2KsSec(r, toc);
   return cover + lib2Cols(toc, secs);
 }
 // ── Добавить в задачи резиденту: инструмент на доску, задача «Внедрить» ставится сама (ensureToolTask) ──
@@ -27883,6 +28007,8 @@ function paint(m){
     h += '<div class="r32-row"><div><div class="r32-k">Состояние ИИ</div><div class="r32-h">Тексты, поиск, мероприятия, рекомендации и саммари разборов делает Claude. Записи разборов расшифровываются на сервере</div></div><div></div>' +
       '<div class="r32-st ' + ai.cls + '" id="r32AiSt" style="grid-column:1/-1;min-width:0"><i></i><span style="min-width:0;overflow-wrap:anywhere">' + ea(ai.t) + '</span></div></div>';
     h += keyRow(AIKEY);
+    // R39: экспорт в таблицу: одна строка админа (вкладка «Экспорт» в Клубе убрана)
+    if(typeof r32dSetRow === 'function'){ h += r32dSetRow(); try{ r32dSheetLoad(); }catch(e){} }
     // все фразы тура записаны в приложение: выбор голоса Gemini не нужен
     if(m && m.static >= m.total) vs = [];
     if(vs.length) h += '<div class="r32-row"><div><div class="r32-k">Голос Gemini</div><div class="r32-h">Новый голос озвучивается в фоне по мере квоты. До тех пор звучат прежние записи</div></div>' +
@@ -27922,6 +28048,9 @@ function aiLine(st){
     c.state === 'quota' ? 'Claude: закончился баланс' + (c.until ? ', пауза до ' + fmtUntil(c.until) : '') : 'Claude: нет ключа, вставьте его ниже';
   var parts = [ct];
   if(g) parts.push(g.state === 'ok' ? 'Gemini включён как запасной' : g.state === 'quota' ? 'Gemini: квота закончилась' : 'Gemini: нет ключа');
+  // R39: последний поиск в интернете (мероприятия, рекомендации): работает или ответ Anthropic словами
+  var srch = st.search;
+  if(srch) parts.push(srch.ok ? 'поиск в интернете работает' + (srch.model ? ' (' + srch.model + ')' : '') : 'поиск в интернете: ошибка (' + (srch.error || 'нет ответа') + ')');
   var sp = st.speech === 'local' ? 'расшифровка: ' + (st.speech_model || 'Whisper на сервере') : st.speech === 'openai' ? 'расшифровка: Whisper API' : st.speech === 'gemini' ? 'расшифровка: Gemini' : 'расшифровка недоступна';
   parts.push(sp);
   var cls = st.paused || (!st.text) ? 'err' : (c.state === 'ok' ? '' : 'wait');
@@ -31832,6 +31961,15 @@ function paintVoice(){
     rl.innerHTML = need ? '<span>Новый голос готов: он зазвучит после обновления страницы.</span> <button type="button" class="r36-btn" data-r36="reload">Обновить страницу</button>' : '';
     rl.className = 'r36-res' + (need ? ' ok' : '');
   }
+  // R39: запасной голос (выбранный требует платного тарифа), стоимость тура в символах и условия тарифа ElevenLabs
+  var pn = document.getElementById('r36Plan');
+  if(!pn && BOX){ pn = document.createElement('div'); pn.id = 'r36Plan'; pn.className = 'r32-h'; pn.style.marginTop = '10px'; BOX.appendChild(pn); }
+  if(pn){
+    var fb = p && p.fallback;
+    pn.innerHTML = (fb ? '<div style="margin-bottom:6px">Сейчас тур читает запасной голос «' + ea(fb.name) + '»: выбранный голос' + (p.voice && p.voice.name ? ' «' + ea(p.voice.name) + '»' : '') + ' через API доступен только на платном тарифе ElevenLabs. После перехода на платный тариф тур переозвучится выбранным голосом сам.</div>' : '') +
+      (p && p.chars ? '<div>Весь тур: ' + ea(String(p.chars).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')) + ' символов.</div>' : '') +
+      (p && p.planNote ? '<div style="margin-top:6px">' + ea(p.planNote) + '</div>' : '');
+  }
   paintList();
 }
 function loadVoice(){
@@ -33241,6 +33379,263 @@ function ptUgcHTML(){
     if(++tries < 120) setTimeout(boot, 500);
   })();
   window.r38c = {openWA: openWA, openBC: openBC, loadEvents: loadEvents, refreshBadge: refreshBadge, inject: inject, _s: S};
+})();
+</script>
+<!-- R40b: Маркетинг → SMM (все публикации контент-движка по дням), воронка Threads → бот → проверка → разбор, автоответ на карточке лида -->
+<style id="r40bStyle">
+.smm-fn{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0 0 14px}
+.smm-fn>div{background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:10px 12px;min-width:0}
+.smm-fn b{display:block;font-size:22px;font-weight:800;letter-spacing:-.4px;color:var(--ptx)}
+.smm-fn span{display:block;font-size:11.5px;font-weight:700;color:var(--pm);line-height:1.35}
+.smm-fn i{display:block;font-style:normal;font-size:11px;color:var(--pm);margin-top:2px}
+.smm-fn .lo{border-color:var(--ptx);box-shadow:inset 0 -3px 0 var(--ptx)}
+.smm-fnh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 8px;flex-wrap:wrap}
+.smm-fnh .pf-lbl{margin:0}
+.smm-sw{display:inline-flex;gap:4px;flex-wrap:wrap}
+.smm-sw button{height:30px;padding:0 11px;border-radius:8px;border:1px solid var(--pb);background:var(--pc);color:var(--pm);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.smm-sw button.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.smm-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 14px}
+.smm-bar select,.smm-bar input{height:32px;border-radius:8px;border:1px solid var(--pb);background:var(--pc);color:var(--ptx);font:inherit;font-size:12.5px;padding:0 9px;max-width:100%}
+.smm-bar input[type=search]{flex:1;min-width:160px}
+.smm-today{font-size:13px;font-weight:700;color:var(--ptx);margin:0 0 4px}
+.smm-today b{font-size:18px}
+.smm-day{margin:18px 0 6px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.smm-day h4{margin:0;font-size:14px;font-weight:800;letter-spacing:-.2px}
+.smm-day span{font-size:12px;color:var(--pm);font-weight:600}
+.smm-it{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:start;background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:10px 12px;margin-bottom:6px}
+.smm-it.skipped{opacity:.6}
+.smm-t{font-size:13px;font-weight:800;color:var(--ptx);padding-top:1px}
+.smm-t small{display:block;font-size:10.5px;font-weight:700;color:var(--pm);margin-top:2px}
+.smm-x{font-size:13px;line-height:1.45;color:var(--ptx);white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.smm-x.open{-webkit-line-clamp:unset;display:block}
+.smm-m{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:11.5px;color:var(--pm);font-weight:600}
+.smm-m a{color:var(--ptx);font-weight:800;text-decoration:none}
+.smm-m a:hover{text-decoration:underline}
+.smm-ld{font-weight:800;color:var(--ptx)}
+.smm-err{color:var(--pred)}
+.smm-a{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.smm-a button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--pb);background:none;color:var(--ptx);font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.smm-a button:hover{border-color:var(--ptx)}
+.smm-ed textarea{width:100%;min-height:120px;border-radius:10px;border:1px solid var(--pb);background:var(--ph);color:var(--ptx);font:inherit;font-size:13px;line-height:1.45;padding:9px 10px;resize:vertical;box-sizing:border-box}
+.smm-ed .row{display:flex;gap:8px;align-items:center;margin-top:6px}
+.smm-ed .cnt{margin-left:auto;font-size:11.5px;color:var(--pm);font-weight:700}
+.smm-ed .cnt.over{color:var(--pred)}
+.smm-ed button{height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--pb);background:var(--pc);color:var(--ptx);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.smm-ed button.p{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.smm-none{padding:26px 16px;text-align:center;color:var(--pm);font-size:13px;border:1px dashed var(--pi);border-radius:12px}
+.cx-ar{font-size:11.5px;font-weight:700;color:var(--pm);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cx-ar.warn{color:var(--pred)}
+.cx-ar.in{color:var(--ptx)}
+@media (max-width:720px){
+  .smm-fn{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .smm-it{grid-template-columns:44px minmax(0,1fr)}
+  .smm-a{grid-column:1 / -1;flex-direction:row;justify-content:flex-end}
+}
+</style>
+<script id="r40bScript">
+(function(){
+  'use strict';
+  var V = {day:'today', ch:'', st:'', q:'', from:'', open:{}, ed:null, fnP:7};
+  try{ var sv = JSON.parse(localStorage.getItem('r40b_smm') || 'null'); if(sv && typeof sv === 'object'){ ['day', 'ch', 'st', 'fnP'].forEach(function(k){ if(sv[k] != null) V[k] = sv[k]; }); } }catch(e){}
+  function keep(){ try{ localStorage.setItem('r40b_smm', JSON.stringify({day:V.day, ch:V.ch, st:V.st, fnP:V.fnP})); }catch(e){} }
+  function n(v){ return typeof fmtN === 'function' ? fmtN(v) : String(v); }
+  function pl(x, a, b, c){ return typeof czPl === 'function' ? czPl(x, a, b, c) : c; }
+
+  // ── Воронка: Threads → бот → начал проверку → закончил → записался ──
+  function leadT(l){
+    var t = Date.parse(l.startAt || l.lastStart || '');
+    if(!isNaN(t)) return t;
+    var m = /^(\d\d)\.(\d\d)\.(\d{4})$/.exec(String(l.date || ''));
+    return m ? Date.parse(m[3] + '-' + m[2] + '-' + m[1] + 'T12:00:00+05:00') : NaN;
+  }
+  function qzAny(l, k){ var q = l && l.qz; if(!q || typeof q !== 'object') return false; return Object.keys(q).some(function(x){ return q[x] && q[x][k]; }); }
+  function booked(l){ return !!(l.razborSlot || ['meet', 'diag', 'won'].indexOf(l.col) >= 0); }
+  function funnelData(days){
+    if(typeof loadCRM === 'function' && !CRM) loadCRM();
+    var from = days ? Date.now() - days * 864e5 : 0;
+    var leads = ((typeof CRM !== 'undefined' && CRM && CRM.leads) || []).filter(function(l){ return l; });
+    var th = leads.filter(function(l){ var t = leadT(l); return /^Threads/.test(String(l.source || '')) && (!from || (!isNaN(t) && t >= from)); });
+    var bot = leads.filter(function(l){ var t = leadT(l); return l.funnel === 'bot' && (!from || (!isNaN(t) && t >= from)); });
+    var posts = 0;
+    try{
+      czAll().forEach(function(it){
+        if(it.channel !== 'threads' || it.status !== 'published' || !(it.cta || /start=/.test(it.link || ''))) return;
+        var t = Date.parse(it.publishedAt || it.at); if(!from || (!isNaN(t) && t >= from)) posts++;
+      });
+    }catch(e){}
+    return {posts:posts, th:th.length, st:th.filter(function(l){ return qzAny(l, 'st'); }).length, fin:th.filter(function(l){ return qzAny(l, 'fin'); }).length,
+      bk:th.filter(booked).length, bot:bot.length, botFin:bot.filter(function(l){ return qzAny(l, 'fin'); }).length, botBk:bot.filter(booked).length};
+  }
+  function pc(a, b){ return b ? Math.round(a / b * 100) + '%' : '·'; }
+  function funnelHTML(){
+    var d = funnelData(V.fnP), steps = [
+      {l:'Постов со ссылкой в Threads', v:d.posts, s:''},
+      {l:'Пришли в бот из Threads', v:d.th, s:d.posts ? 'по ' + (d.th / d.posts).toFixed(1).replace('.', ',') + ' на пост' : ''},
+      {l:'Начали проверку', v:d.st, s:pc(d.st, d.th) + ' от пришедших'},
+      {l:'Закончили проверку', v:d.fin, s:pc(d.fin, d.st) + ' от начавших'},
+      {l:'Записались на разбор', v:d.bk, s:pc(d.bk, d.th) + ' от пришедших'}];
+    var worst = -1, wv = 2;
+    for(var i = 2; i < steps.length; i++){ var prev = steps[i - 1].v; if(prev){ var r = steps[i].v / prev; if(r < wv){ wv = r; worst = i; } } }
+    var per = [[7, '7 дней'], [30, '30 дней'], [0, 'Всё время']];
+    return '<div class="smm-fnh"><div class="pf-lbl">Воронка Threads → бот → разбор</div><div class="smm-sw">' +
+      per.map(function(p){ return '<button class="' + (V.fnP === p[0] ? 'on' : '') + '" onclick="r40bFnP(' + p[0] + ')">' + p[1] + '</button>'; }).join('') + '</div></div>' +
+      '<div class="smm-fn">' + steps.map(function(s, i){
+        return '<div class="' + (i === worst && d.th ? 'lo' : '') + '"><b>' + n(s.v) + '</b><span>' + esc(s.l) + '</span>' + (s.s ? '<i>' + esc(s.s) + '</i>' : '') + '</div>';
+      }).join('') + '</div>' +
+      '<div class="cx-note" style="margin:-4px 0 14px">Все лиды бота за период: ' + n(d.bot) + ', закончили проверку ' + n(d.botFin) + ', записались ' + n(d.botBk) + '.' +
+      (worst > 0 && d.th ? ' Больше всего теряется на шаге «' + esc(steps[worst].l) + '».' : '') + '</div>';
+  }
+  window.r40bFnP = function(p){ V.fnP = p; keep(); var b = document.getElementById('r40bFn'); if(b) b.innerHTML = funnelHTML(); };
+  window.r40bFunnelBlock = function(){ return '<div id="r40bFn">' + funnelHTML() + '</div>'; };
+
+  // ── SMM ──
+  function items(){ try{ return czAll(); }catch(e){ return []; } }
+  function range(){
+    var t = czToday();
+    if(V.day === 'yday') return [czAddDays(t, -1), czAddDays(t, -1)];
+    if(V.day === 'tom') return [czAddDays(t, 1), czAddDays(t, 1)];
+    if(V.day === 'week') return [czAddDays(t, -6), t];
+    if(V.day === 'next') return [t, czAddDays(t, 6)];
+    if(V.day === 'date' && /^\d{4}-\d\d-\d\d$/.test(V.from)) return [V.from, V.from];
+    return [t, t];
+  }
+  function editable(it){ return ['planned', 'approved', 'failed'].indexOf(it.status) >= 0; }
+  function lim(it){ return (typeof CT_LIM !== 'undefined' && CT_LIM[it.kind]) || 500; }
+  function itText(it){ return it.kind === 'carousel' ? (it.caption || it.title || '') : (it.text || it.title || it.hook || ''); }
+  function rowHTML(it){
+    var st = it.status, txt = itText(it), id = String(it.id), stt = it.stats || {};
+    var fmt = (typeof CT_FMT !== 'undefined' && CT_FMT[it.format]) || (it.kind === 'carousel' ? 'Карусель' : it.kind === 'reels' ? 'Reels' : '');
+    var meta = [];
+    meta.push(czPill(it));
+    if(it.url) meta.push('<a href="' + escA(it.url) + '" target="_blank" rel="noopener">Открыть пост ↗</a>');
+    if(st === 'published') meta.push('<span class="smm-ld">' + n(stt.leads || 0) + ' ' + pl(stt.leads || 0, 'лид', 'лида', 'лидов') + '</span>' + (stt.razbor ? '<span>· разборов ' + n(stt.razbor) + '</span>' : ''));
+    else if(it.cta || /start=/.test(it.link || '')) meta.push('<span>со ссылкой на бот</span>');
+    if(it.parts && it.parts.length) meta.push('<span>серия: +' + it.parts.length + '</span>');
+    if(st === 'failed' && it.error) meta.push('<span class="smm-err">' + esc(String(it.error).slice(0, 120)) + '</span>');
+    var body;
+    if(V.ed === id){
+      var len = Array.from(String(it.text || '')).length;
+      body = '<div class="smm-ed"><textarea id="r40bEd" oninput="r40bCnt(this,' + lim(it) + ')">' + esc(it.text || '') + '</textarea>' +
+        '<div class="row"><button class="p" onclick="r40bSave(\'' + escA(id) + '\')">Сохранить</button><button onclick="r40bEdit(\'\')">Отмена</button>' +
+        '<span class="cnt' + (len > lim(it) ? ' over' : '') + '" id="r40bCnt">' + len + ' / ' + lim(it) + '</span></div></div>';
+    } else {
+      body = '<div class="smm-x' + (V.open[id] ? ' open' : '') + '" onclick="r40bOpen(\'' + escA(id) + '\')">' + esc(txt || 'Без текста') + '</div>';
+    }
+    var acts = '';
+    if(V.ed !== id){
+      if(editable(it) && (it.kind === 'threads' || it.kind === 'telegram')) acts += '<button onclick="r40bEdit(\'' + escA(id) + '\')">Изменить</button>';
+      else if(editable(it)) acts += '<button onclick="czOpenItem(\'' + escA(id) + '\')">Открыть</button>';
+      if(editable(it)) acts += '<button onclick="r40bSkip(\'' + escA(id) + '\')">Пропустить</button>';
+      if(st === 'skipped') acts += '<button onclick="r40bSkip(\'' + escA(id) + '\')">Вернуть</button>';
+    }
+    return '<div class="smm-it ' + esc(st) + '" data-id="' + escA(id) + '"><div class="smm-t">' + esc(czHM(it.publishedAt && st === 'published' ? it.publishedAt : it.at)) +
+      '<small>' + esc(czChName(it.channel)) + '</small>' + (fmt ? '<small>' + esc(fmt) + '</small>' : '') + '</div>' +
+      '<div>' + body + '<div class="smm-m">' + meta.join('') + '</div></div><div class="smm-a">' + acts + '</div></div>';
+  }
+  function paint(){
+    var root = document.getElementById('r40bSmm'); if(!root) return;
+    var all = items(), t = czToday(), r = range(), q = V.q.trim().toLowerCase();
+    var thToday = all.filter(function(x){ return x.channel === 'threads' && czDay(x.at) === t && x.status !== 'skipped'; });
+    var pubToday = thToday.filter(function(x){ return x.status === 'published'; }).length;
+    var perDay = 16; try{ perDay = czThN(); }catch(e){}
+    var list = all.filter(function(x){
+      var d = czDay(x.status === 'published' && x.publishedAt ? x.publishedAt : x.at);
+      if(!d || d < r[0] || d > r[1]) return false;
+      if(V.ch && x.channel !== V.ch) return false;
+      if(V.st && x.status !== V.st) return false;
+      if(q && itText(x).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    }).sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); });
+    var byDay = {};
+    list.forEach(function(x){ var d = czDay(x.at); (byDay[d] = byDay[d] || []).push(x); });
+    var days = Object.keys(byDay).sort();
+    var leadsToday = thToday.reduce(function(a, x){ return a + ((x.stats && x.stats.leads) || 0); }, 0);
+    var html = '<div class="smm-today">Опубликовано <b>' + n(pubToday) + ' из ' + n(Math.max(perDay, thToday.length)) + '</b> сегодня в Threads' +
+      (leadsToday ? ' · лидов с сегодняшних постов: ' + n(leadsToday) : '') + '</div>';
+    var dayBtns = [['yday', 'Вчера'], ['today', 'Сегодня'], ['tom', 'Завтра'], ['week', '7 дней назад'], ['next', '7 дней вперёд']];
+    html += '<div class="smm-bar"><div class="smm-sw">' + dayBtns.map(function(b){ return '<button class="' + (V.day === b[0] ? 'on' : '') + '" onclick="r40bDay(\'' + b[0] + '\')">' + b[1] + '</button>'; }).join('') + '</div>' +
+      '<input type="date" value="' + escA(V.day === 'date' ? V.from : '') + '" onchange="r40bDate(this.value)" title="День">' +
+      '<select onchange="r40bF(\'ch\',this.value)"><option value="">Все каналы</option>' + CT_CH.map(function(c){ return '<option value="' + c.id + '"' + (V.ch === c.id ? ' selected' : '') + '>' + esc(c.n) + '</option>'; }).join('') + '</select>' +
+      '<select onchange="r40bF(\'st\',this.value)"><option value="">Все статусы</option>' + Object.keys(CT_ST).map(function(k){ return '<option value="' + k + '"' + (V.st === k ? ' selected' : '') + '>' + esc(CT_ST[k]) + '</option>'; }).join('') + '</select>' +
+      '<input type="search" placeholder="Поиск по тексту" value="' + escA(V.q) + '" oninput="r40bQ(this.value)"></div>';
+    if(!days.length){
+      html += '<div class="smm-none">' + (all.length ? 'За выбранные дни публикаций нет. Пачку Threads на день сервер собирает утром, план виден в Контент-заводе.' : 'Публикаций пока нет. Их собирает контент-движок, настройки в Контент-заводе.') + '</div>';
+    }
+    days.forEach(function(d){
+      var xs = byDay[d], pub = xs.filter(function(x){ return x.status === 'published'; }).length, live = xs.filter(function(x){ return x.status !== 'skipped'; }).length;
+      var ld = xs.reduce(function(a, x){ return a + ((x.stats && x.stats.leads) || 0); }, 0);
+      html += '<div class="smm-day"><h4>' + esc(czDayName(d)) + (d === t ? ' · сегодня' : '') + '</h4><span>вышло ' + n(pub) + ' из ' + n(live) + (ld ? ' · ' + n(ld) + ' ' + pl(ld, 'лид', 'лида', 'лидов') : '') + '</span></div>' +
+        xs.map(rowHTML).join('');
+    });
+    root.innerHTML = html;
+  }
+  window.renderMSmm = function(){
+    try{ loadContent(); }catch(e){}
+    var el = pgSet('SMM', 'Все публикации контент-движка по дням: текст, время, статус, ссылка на пост и лиды с каждого');
+    el.innerHTML = '<div class="smm">' + window.r40bFunnelBlock() + '<div id="r40bSmm"></div></div>';
+    paint();
+  };
+  window.r40bDay = function(d){ V.day = d; keep(); paint(); };
+  window.r40bDate = function(v){ if(v){ V.day = 'date'; V.from = v; } else V.day = 'today'; keep(); paint(); };
+  window.r40bF = function(k, v){ V[k] = v; keep(); paint(); };
+  var qT = null;
+  window.r40bQ = function(v){ V.q = v; clearTimeout(qT); qT = setTimeout(function(){ paint(); var i = document.querySelector('.smm-bar input[type=search]'); if(i){ i.focus(); i.setSelectionRange(v.length, v.length); } }, 250); };
+  window.r40bOpen = function(id){ V.open[id] = !V.open[id]; paint(); };
+  window.r40bEdit = function(id){ V.ed = id || null; paint(); var ta = document.getElementById('r40bEd'); if(ta){ ta.focus(); } };
+  window.r40bCnt = function(ta, max){ var c = document.getElementById('r40bCnt'), l = Array.from(ta.value).length; if(c){ c.textContent = l + ' / ' + max; c.classList.toggle('over', l > max); } };
+  window.r40bSave = function(id){
+    var it = czItem(id), ta = document.getElementById('r40bEd'); if(!it || !ta) return;
+    var v = ta.value.trim(), max = lim(it);
+    if(!v){ toast('Текст пустой'); return; }
+    if(Array.from(v).length > max){ toast('Длиннее ' + max + ' знаков: Threads не примет'); return; }
+    if(!editable(it)){ toast('Пост уже вышел, править нельзя'); V.ed = null; paint(); return; }
+    it.text = v; it.edited = true; it.editedAt = new Date().toISOString(); it.editedBy = czWho();
+    if(it.status === 'failed'){ czLog(it, 'planned', 'failed'); it.status = 'planned'; delete it.error; }
+    saveContent(); czPush(); V.ed = null; paint(); toast('Сохранено');
+  };
+  window.r40bSkip = function(id){
+    var it = czItem(id); if(!it || it.status === 'published') return;
+    var from = it.status, to = from === 'skipped' ? 'planned' : 'skipped';
+    it.status = to; if(to !== 'failed') delete it.error;
+    czLog(it, to, from); saveContent(); czPush(); paint();
+    toast(to === 'skipped' ? 'Пропущено: не выйдет' : 'Вернули в план');
+  };
+
+  // Раздел без своей строки в карте разделов открывается через заглушку
+  if(typeof renderStub === 'function'){
+    var stub0 = renderStub;
+    renderStub = function(s){ if(s === 'mSmm') return window.renderMSmm(); return stub0.apply(this, arguments); };
+  }
+  // Воронка в «Обзоре» маркетинга и в «Конверсиях» CRM
+  if(typeof renderMktHome === 'function'){
+    var mh0 = renderMktHome;
+    renderMktHome = function(){ var r = mh0.apply(this, arguments); try{ var m = document.getElementById('mhRoot'); if(m && !document.getElementById('r40bFn')) m.insertAdjacentHTML('beforebegin', window.r40bFunnelBlock()); }catch(e){} return r; };
+  }
+  if(typeof renderCrmFunnel === 'function'){
+    var cf0 = renderCrmFunnel;
+    renderCrmFunnel = function(){ var r = cf0.apply(this, arguments); try{ var b = document.querySelector('#pg-stub #stubBody'); if(b && !document.getElementById('r40bFn')) b.insertAdjacentHTML('afterbegin', window.r40bFunnelBlock()); }catch(e){} return r; };
+  }
+  // Автоответ бота на карточке лида: видно, что бот ответил, и что лид написал сам
+  function hm(v){ return typeof r6Time === 'function' ? r6Time(v) : ''; }
+  window.r40bReplyLine = function(l){
+    if(!l || !l.tgId) return '';
+    var out = '';
+    if(l.autoFix && l.safetyAt) out += '<div class="cx-ar warn" title="Ответ не ушёл за 2 минуты, бот прислал приветствие сам">⚠️ Бот ответил со страховкой ' + esc(hm(l.safetyAt)) + '</div>';
+    else if(l.botReplyAt) out += '<div class="cx-ar" title="' + escA(l.botReply || '') + '">🤖 Бот ответил ' + esc(hm(l.botReplyAt)) + '</div>';
+    else if(l.funnel === 'bot') out += '<div class="cx-ar warn">⚠️ Ответа бота не видно</div>';
+    if(l.tgIn && l.tgInAt) out += '<div class="cx-ar in">💬 Написал: «' + esc(String(l.tgIn).slice(0, 60)) + '» ' + esc(hm(l.tgInAt)) + '</div>';
+    var q = l.qz && typeof l.qz === 'object' ? l.qz : null;
+    if(q){
+      var fin = Object.keys(q).map(function(k){ return q[k]; }).filter(function(x){ return x && x.fin; }).sort(function(a, b){ return String(b.fin).localeCompare(String(a.fin)); })[0];
+      if(fin) out += '<div class="cx-ar">✅ Проверка «' + esc(fin.organ || '') + '»: ' + esc(fin.score) + ' из ' + esc(fin.of || 6) + (fin.loss ? ', ≈' + n(fin.loss) + ' ₸/мес' : '') + '</div>';
+      else if(qzAny(l, 'st')) out += '<div class="cx-ar">▶️ Начал проверку в чате</div>';
+    }
+    return out;
+  };
+  if(typeof crmCkLine === 'function'){
+    var ck0 = crmCkLine;
+    crmCkLine = function(l){ var a = ''; try{ a = window.r40bReplyLine(l); }catch(e){} return a + ck0.apply(this, arguments); };
+  }
 })();
 </script>
 </body>

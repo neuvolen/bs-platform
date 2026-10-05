@@ -282,6 +282,9 @@ func (c *Client) Status() map[string]any {
 		st["quota"] = q
 	}
 	st["providers"] = c.Providers()
+	if si := c.LastSearch(); !si.At.IsZero() {
+		st["search"] = si // R39: the last web search for «Состояние ИИ»
+	}
 	if c.Paused() {
 		st["paused"], st["message"] = true, QuotaMessage
 	}
@@ -342,6 +345,10 @@ func UserMessage(err error) string {
 	}
 	if errors.Is(err, ErrNoKey) {
 		return ErrNoKey.Error()
+	}
+	var se *SearchError
+	if errors.As(err, &se) {
+		return se.Msg
 	}
 	var he *HTTPError
 	if errors.As(err, &he) {

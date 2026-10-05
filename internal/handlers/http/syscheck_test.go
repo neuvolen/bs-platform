@@ -199,7 +199,7 @@ func TestR36SystemCheck(t *testing.T) {
 			Text  string      `json:"text"`
 		}
 		_ = json.Unmarshal(w.Body.Bytes(), &j)
-		if w.Code != 200 || len(j.Items) != 7 || j.Items[0].Key != "claude" || j.Items[0].State != "ok" || !strings.HasPrefix(j.Text, "🩺") {
+		if w.Code != 200 || len(j.Items) < 9 || j.Items[0].Key != "claude" || j.Items[7].Key != "search" || j.Items[8].Key != "airecs" || j.Items[0].State != "ok" || !strings.HasPrefix(j.Text, "🩺") {
 			t.Fatalf("http: %d %s", w.Code, w.Body.String())
 		}
 		if strings.Contains(w.Body.String(), key) || strings.Contains(w.Body.String(), "SYSCHECK") {

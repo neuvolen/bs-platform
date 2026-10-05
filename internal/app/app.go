@@ -346,9 +346,13 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 		f := httpapi.NewLeadFunnel(d.PlatformRepo, botSvc.SendMessageKB, admins)
 		g.Funnel = f
 		f.Photo, f.Doc = botSvc.SendPhotoKB, botSvc.SendDocumentKB
+		f.Edit, f.Meta = botSvc.EditMessageKB, pg.NewBotRepo(d.DB) // R40b: the in-chat checklist, the autoreply health
 		if os.Getenv("LEAD_FUNNEL") != "off" {
-			botSvc.SetStartHook(f.WithReferrals(d.PlatformRepo, g.Admins))
+			botSvc.SetStartHook(f.StartHook(d.PlatformRepo, g.Admins)) // R40b: WithReferrals + the safety net's «handled»
 			botSvc.SetCallbackHook(f.HandleCallback)
+			botSvc.SetLeadTextHook(f.HandleLeadText) // R40b: a lead's message is answered, not dropped
+			botSvc.SetInboundHook(f.NoteInbound)     // R40b: every lead message on record before the answer
+			go f.SafetyLoop(context.Background())    // R40b: no answer in 2 minutes: the standard welcome once
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()

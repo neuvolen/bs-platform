@@ -92,7 +92,8 @@ func TestBuildInsights(t *testing.T) {
 	if c := by["club_reports"]; c.N != 1 {
 		t.Errorf("reports: %+v", c)
 	}
-	if c := by["club_nps"]; c.V != "7,0" || !strings.Contains(c.Take, "Недовольных (6 и ниже): 1") {
+	// R39: NPS (% промоутеров − % критиков), не средний балл: 9 и 5 дают 0, средняя 7,0
+	if c := by["club_nps"]; c.V != "0" || c.N != 0 || !strings.Contains(c.Take, "средняя оценка 7,0") || !strings.Contains(c.Take, "критиков 1") {
 		t.Errorf("nps: %+v", c)
 	}
 	if c := by["track_health"]; !strings.Contains(c.Take, "«Нет учёта» у 2 из 2") || !strings.Contains(c.Take, "«Финансы»") {

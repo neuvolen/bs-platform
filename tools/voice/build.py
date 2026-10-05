@@ -49,6 +49,7 @@ SAY = [
     (r"\bCRM\b", "эс эр эм"),
     (r"\bCtrl K\b", "Контрол Кей"),
     (r"\bGallup\b", "Геллап"),
+    (r"\bГэллап\b", "Геллап"),
     (r"\bИИ\b", "искусственного интеллекта"),
     (r"до 22:00", "до десяти вечера"),
     (r"10 000 тенге", "десять тысяч тенге"),
@@ -62,6 +63,9 @@ STRESS = [
     ("skrʲiptˈy", "skrʲˈipty"),      # скрИпты
     ("ɭʲistˈɑmʲɪ", "ɭʲˈistʌmʲɪ"),   # чек-лИстами
     ("ɭʲistˈy", "ɭʲˈisty"),          # чек-лИсты
+    ("ɭʲistˈof", "ɭʲˈistʌf"),        # чек-лИстов
+    ("zˈɑmʲir", "zʌmʲˈer"),          # замЕр
+    ("sammˈɑrʲɪ", "sˈammʌrʲɪ"),      # сАммари
     ("ʃtotˈo", "ʃtˈotʌ"),            # чтО-то
     ("ɡʲiɭɭˈɑp", "ɡˈɛɭʌp"),          # ГЭллап
     ("trʲikʲˈink", "trʲˈekʲink"),    # трЕкинг
@@ -104,6 +108,19 @@ def tour_texts(html):
         add(a.get("d"))
     add((d.get("help") or {}).get("d"))
     add((d.get("bye") or {}).get("d"))
+    return out
+
+
+def login_texts(html):
+    """R40c: the guided demo of the login page (web/login.html, bsLoginTour): the spoken line v of every step."""
+    m = re.search(r'<script type="application/json" id="bsLoginTour">(.*?)</script>', html, re.S)
+    if not m:
+        sys.exit("bsLoginTour block not found")
+    out = []
+    for st in json.loads(m.group(1)).get("steps") or []:
+        s = " ".join((st.get("v") or "").split())
+        if s and s not in out:
+            out.append(s)
     return out
 
 
@@ -226,12 +243,20 @@ def main():
     ap.add_argument("--raw", action="store_true", help="plain TTS, no pitch/EQ/room (for voice comparison)")
     ap.add_argument("--asr", help="sherpa-onnx GigaAM CTC model dir: read every file back")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--login", action="store_true", help="the login page demo (web/login.html → web/voice/login)")
     ap.add_argument("--length-scale", type=float, default=LENGTH_SCALE)
     a = ap.parse_args()
 
     from piper import PiperVoice
     voice = PiperVoice.load(a.model)
-    texts = tour_texts(open(a.html, encoding="utf-8").read())
+    if a.login:
+        if a.html.endswith("platform.html"):
+            a.html = os.path.join(ROOT, "web/login.html")
+        if a.out.rstrip("/").endswith("web/voice"):
+            a.out = os.path.join(a.out, "login")
+        texts = login_texts(open(a.html, encoding="utf-8").read())
+    else:
+        texts = tour_texts(open(a.html, encoding="utf-8").read())
     os.makedirs(a.out, exist_ok=True)
     tmp = tempfile.mkdtemp()
     index, report = {}, []

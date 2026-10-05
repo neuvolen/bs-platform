@@ -409,9 +409,11 @@ func untilAlmatyHour(now time.Time, hh int) time.Duration {
 }
 
 // RecsLoop: one recommendation a day at 07:00 Almaty (after a restart past
-// 07:00 the day's one is made if it is missing).
+// 07:00 the day's one is made if it is missing). R39: a failed run is tried
+// again within the day (ai_recs_status.go) and leaves its error in
+// bs_ai_recs.run for the platform and /status.
 func (h *PlatformAI) RecsLoop(ctx context.Context) {
-	t := time.NewTimer(3 * time.Minute)
+	t := time.NewTimer(RecsStartDelay)
 	started := false
 	for {
 		select {
@@ -428,27 +430,52 @@ func (h *PlatformAI) RecsLoop(ctx context.Context) {
 			cancel()
 			go h.recsAskLoop(ctx)
 		}
-		now := time.Now()
-		if now.In(almaty).Hour() >= aiRecsHour && h.AI.Status()["text"] != "" {
-			c, cancel := context.WithTimeout(ctx, 20*time.Minute)
-			rec, err := h.dailyRec(c, now, false)
-			if err == errRecDone {
-				// Found earlier but not decided on (a restart in between).
-				if d, e := h.repo.GetDoc(c, "club", aiRecsKey); e == nil && d != nil && !d.Deleted {
-					_, items := readRecs(d.Value)
-					rec, err = pendingAutoRec(items, now.In(almaty).Format("2006-01-02")), nil
-				}
-			}
-			if err != nil {
-				log.Printf("ai recs: %v", err)
-			} else if rec != nil {
-				out, aerr := h.autoRec(c, rec, now)
-				log.Printf("ai recs: %s (%s): %s %v", rec["title"], rec["organ"], out, aerr)
-			}
-			cancel()
-		}
-		t.Reset(untilAlmatyHour(time.Now(), aiRecsHour))
+		t.Reset(h.recsTick(ctx, time.Now()).Sub(time.Now()))
 	}
+}
+
+// RecsStartDelay: the first run waits for the server to settle (tests: 0).
+var RecsStartDelay = 3 * time.Minute
+
+// recsTick: one pass of the loop; the answer is when to run again.
+func (h *PlatformAI) recsTick(ctx context.Context, now time.Time) time.Time {
+	if now.In(almaty).Hour() < aiRecsHour || h.repo == nil {
+		return now.Add(untilAlmatyHour(now, aiRecsHour))
+	}
+	c, cancel := context.WithTimeout(ctx, 20*time.Minute)
+	defer cancel()
+	if h.AI == nil || h.AI.Status()["text"] == "" {
+		err := errors.New("нет ключа Claude")
+		next := recsNext(now, false, 0)
+		h.noteRecsRun(c, now, err, next)
+		log.Printf("ai recs: %v", err)
+		return next
+	}
+	rec, err := h.dailyRec(c, now, false)
+	if err == errRecDone {
+		// Found earlier but not decided on (a restart in between).
+		if d, e := h.repo.GetDoc(c, "club", aiRecsKey); e == nil && d != nil && !d.Deleted {
+			_, items := readRecs(d.Value)
+			if rec = pendingAutoRec(items, now.In(almaty).Format("2006-01-02")); rec == nil {
+				return now.Add(untilAlmatyHour(now, aiRecsHour))
+			}
+			err = nil
+		}
+	}
+	if err != nil {
+		tries := h.noteRecsRun(c, now, err, time.Time{})
+		next := recsNext(now, true, tries)
+		h.noteRecsNext(c, next)
+		log.Printf("ai recs: %v (attempt %d, next %s)", err, tries, next.In(almaty).Format("02.01 15:04"))
+		return next
+	}
+	if rec != nil {
+		out, aerr := h.autoRec(c, rec, now)
+		log.Printf("ai recs: %s (%s): %s %v", rec["title"], rec["organ"], out, aerr)
+	}
+	next := recsNext(now, false, 0)
+	h.noteRecsRun(c, now, nil, next)
+	return next
 }
 
 // RecsNow: POST /ai/recs (team) finds one more recommendation now.

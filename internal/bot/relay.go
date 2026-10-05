@@ -323,6 +323,7 @@ func (s *Service) Receive(ctx context.Context, body []byte) (bool, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			s.shadowUpdate(ctx, body)
+			s.noteInbound(ctx, body) // R40b: a lead's message is on record before any answer (lead_inbound.go)
 		}()
 	}
 	return fresh, err

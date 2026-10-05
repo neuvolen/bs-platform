@@ -403,8 +403,8 @@ func TestR32eLeadPain(t *testing.T) {
 	if !f.HandleCallback(ctx, cb) || len(got) != 1 {
 		t.Fatalf("pick: %+v", got)
 	}
-	if !strings.Contains(got[0].text, "Финансы: начните") || !strings.Contains(got[0].text, "Платёжный календарь за один вечер") ||
-		!strings.Contains(got[0].text, "Кейс: ") || strings.Contains(got[0].text, "—") {
+	// R40b: the pick starts the in-chat check of that organ (lead_quiz.go)
+	if kbq, _ := json.Marshal(got[0].kb); !strings.Contains(got[0].text, "Проверка: Деньги бизнеса") || !strings.Contains(string(kbq), "lm_q_fin_0") || strings.Contains(got[0].text, "—") {
 		t.Fatalf("checklists: %q", got[0].text)
 	}
 	d, _ := repo.GetDoc(ctx, "club", "bs_crm")

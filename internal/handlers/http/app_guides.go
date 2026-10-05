@@ -33,7 +33,8 @@ func (g *AppGateway) Guides(c *gin.Context) {
 }
 
 func (g *AppGateway) Guide(c *gin.Context) {
-	if _, ok := g.identify(c, c.Query("_tg")); !ok {
+	u, ok := g.identify(c, c.Query("_tg"))
+	if !ok {
 		return
 	}
 	b := content.Guide(c.Param("id"))
@@ -41,6 +42,7 @@ func (g *AppGateway) Guide(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 		return
 	}
+	g.noteGuideOpen(u, c.Param("id")) // R40b: lead_open.go
 	c.Header("Cache-Control", "private, max-age=86400")
 	c.Data(http.StatusOK, "application/json; charset=utf-8", b)
 }

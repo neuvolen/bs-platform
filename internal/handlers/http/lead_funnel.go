@@ -46,6 +46,12 @@ type LeadFunnel struct {
 	// Photo and Doc send a picture or a file (the bot service); nil in tests means text only.
 	Photo func(ctx context.Context, chatID int64, key string, photo []byte, caption string, kb map[string]any) error
 	Doc   func(ctx context.Context, chatID int64, key, name string, data []byte, fileID, caption string, kb map[string]any) error
+	// R40b (lead_autoreply.go, lead_quiz.go): Edit replaces a message's text
+	// and buttons (the in-chat checklist); Meta keeps the autoreply health
+	// for /status. Both nil in older tests: a new message, no health.
+	Edit func(ctx context.Context, chatID, msgID int64, text string, kb map[string]any) error
+	Meta autoMeta
+	hmu  sync.Mutex
 }
 
 func NewLeadFunnel(docs funnelDocs, send func(ctx context.Context, chatID int64, text string, kb map[string]any) error, admins []int64) *LeadFunnel {
@@ -123,6 +129,7 @@ func (f *LeadFunnel) mutate(ctx context.Context, key string, fn func(doc map[str
 		if _, err := f.docs.PutDoc(ctx, "club", key, base, string(val), false, "server:funnel"); err == nil {
 			return nil
 		}
+		time.Sleep(time.Duration(20*(try+1)) * time.Millisecond) // R40b: a short pause, the other writer finishes
 	}
 	return pg.ErrPlatformConflict
 }
@@ -177,8 +184,9 @@ func welcomeText(first string) string {
 		b.WriteString("Привет! 👋\n\n")
 	}
 	b.WriteString("Это <b>Business Surgery</b>, клуб бизнес-трекинга в Алматы.\n\n")
-	b.WriteString("Для вас бесплатно открыты <b>99 гайдов</b> по всем органам бизнеса: финансы, продажи, команда, маркетинг, стратегия. В каждом история предпринимателя с цифрами и пошаговый план.\n\n")
-	b.WriteString("Гайды в приложении BS. Оно открывается прямо в Telegram, ничего устанавливать не нужно. Нажмите белую кнопку ниже 👇")
+	// R40b: сначала польза прямо в чате (проверка на 2 минуты), 99 гайдов остаются в приложении
+	b.WriteString("Начнём с быстрой проверки прямо здесь: 6 вопросов да/нет, 2 минуты. В конце покажу, сколько денег бизнес теряет в месяц, и один шаг, который вернёт часть.\n\n")
+	b.WriteString("А все <b>99 гайдов</b> с чек-листами лежат в приложении BS, кнопка ниже.")
 	return b.String()
 }
 
@@ -272,25 +280,35 @@ func (f *LeadFunnel) sendWelcome(ctx context.Context, chatID int64, first, param
 
 // HandleStart answers a new person's /start (the hook of the bot service).
 func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
+	if bot.IsRetry(ctx) && f.handledSince(ctx, st.ChatID, st.Date) {
+		return true // R40b: the same /start taken again after a restart
+	}
 	src := startSource(st.Param)
 	isNew, repeat, err := f.ensureLead(ctx, st.ChatID, st.FirstName, st.LastName, st.Username, src,
-		"Нажал Старт в боте ("+src+"), позван в приложение к 99 гайдам", "Снова нажал Старт в боте ("+src+")", true)
+		"Нажал Старт в боте ("+src+")", "Снова нажал Старт в боте ("+src+")", true)
 	if err != nil {
 		log.Printf("funnel: crm: %v", err)
+		f.replyFail(ctx, st.ChatID, "CRM недоступна: "+err.Error())
 		return false // the script answers instead
 	}
 	if repeat {
+		f.markHandled(ctx, st.ChatID)
 		return true // the second /start within a minute: quiet, like the script
 	}
 	if err := f.sendWelcome(ctx, st.ChatID, st.FirstName, st.Param); err != nil {
 		log.Printf("funnel: welcome %d: %v", st.ChatID, err)
+		f.replyFail(ctx, st.ChatID, err.Error())
 		return false
 	}
-	if isNew { // R32e: чек-лист по боли (lead_pain.go)
+	what := "приветствие"
+	if isNew { // R32e: чек-лист по боли (lead_pain.go); R40b: дальше проверка прямо в чате (lead_quiz.go)
 		if err := f.sendPainAsk(ctx, st.ChatID); err != nil {
 			log.Printf("funnel: pain ask %d: %v", st.ChatID, err)
+		} else {
+			what = "приветствие и выбор чек-листа"
 		}
 	}
+	f.replyOK(ctx, st.ChatID, what)
 	return true
 }
 
@@ -302,6 +320,9 @@ var lmGuide = map[string]string{"sales": "g015", "unit": "g078", "delegate": "g0
 func (f *LeadFunnel) HandleCallback(ctx context.Context, cb bot.CallbackUpdate) bool {
 	if strings.HasPrefix(cb.Data, leadPainPrefix) { // R32e: lead_pain.go
 		return f.painPick(ctx, cb)
+	}
+	if strings.HasPrefix(cb.Data, quizPrefix) || strings.HasPrefix(cb.Data, quizBookPrefix) { // R40b: lead_quiz.go
+		return f.quizCallback(ctx, cb)
 	}
 	if cb.Data == "sub_leadmagnets" || cb.Data == "sub_menu" {
 		_, _, _ = f.ensureLead(ctx, cb.ChatID, cb.FirstName, "", cb.Username, "Telegram: старое меню бота", "Открыл меню материалов в боте", "", false)
@@ -601,6 +622,8 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 		stage       int
 		first, last string
 		claim       bool // the «Я резидент» sequence (resident_claim.go)
+		qz          map[string]any
+		pain        string
 	}
 	var jobs []job
 	steps := warmSteps()
@@ -652,7 +675,8 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 			if stage >= len(steps) || now.Sub(start).Hours()/24 < steps[stage].day {
 				continue
 			}
-			jobs = append(jobs, job{tg: tg, stage: stage, first: leadFirst(m), last: lastTitle[tg]})
+			qz, _ := m["qz"].(map[string]any)
+			jobs = append(jobs, job{tg: tg, stage: stage, first: leadFirst(m), last: lastTitle[tg], qz: qz, pain: fmt.Sprint(m["pain"])})
 			m["warm"] = stage + 1
 			m["warmV"] = 2
 			m["warmAt"] = now.UTC().Format(time.RFC3339)
@@ -677,6 +701,8 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 		var keys map[string]any
 		if j.claim {
 			text, keys = csteps[j.stage].text(j.first, slotLine), csteps[j.stage].keys(f)
+		} else if t, k, ok := f.quizNudge(ctx, j.stage, j.first, j.qz, j.pain); ok {
+			text, keys = t, k // R40b: день 1 и 3: одна проверка прямо в чате (lead_quiz.go)
 		} else {
 			s := steps[j.stage]
 			text, keys = s.text(j.first, j.last, st[0], st[1]), s.keys(f)

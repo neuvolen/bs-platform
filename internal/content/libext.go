@@ -12,7 +12,7 @@ import (
 // документы клуба то, чего там ещё нет (handlers/http/library_ext.go).
 
 // LibExtVersion: поднимать, когда в library_ext добавлены новые пункты.
-const LibExtVersion = "2026-10-ext2"
+const LibExtVersion = "2026-10-ext3"
 
 //go:embed library_ext/*.json
 var libExtFS embed.FS

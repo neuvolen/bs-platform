@@ -28,7 +28,7 @@ func WireSysCheck(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team
 		},
 	}
 	if pm != nil && pm.AI != nil {
-		s.AI, s.Premium = pm.AI.AI, pm.AI.Premium
+		s.AI, s.Premium, s.Recs = pm.AI.AI, pm.AI.Premium, pm.AI
 	}
 	if botSvc != nil && botSvc.Enabled() {
 		s.Send = botSvc.SendMessage

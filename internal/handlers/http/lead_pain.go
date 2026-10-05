@@ -62,7 +62,8 @@ func (f *LeadFunnel) sendPainAsk(ctx context.Context, chatID int64) error {
 		}
 		rows = append(rows, r)
 	}
-	return f.send(ctx, chatID, "Что в бизнесе сейчас болит сильнее всего?\n\nВыберите, и я пришлю три чек-листа именно по этому органу бизнеса. 15 минут на каждый.",
+	// R40b: кнопка запускает проверку прямо в чате (lead_quiz.go)
+	return f.send(ctx, chatID, "Что в бизнесе сейчас болит сильнее всего?\n\nВыберите, и начнём проверку по этому органу бизнеса.",
 		map[string]any{"inline_keyboard": rows})
 }
 
@@ -78,6 +79,9 @@ func (f *LeadFunnel) painPick(ctx context.Context, cb bot.CallbackUpdate) bool {
 	p := leadPainBy(strings.TrimPrefix(cb.Data, leadPainPrefix))
 	if p == nil {
 		return f.sendWelcome(ctx, cb.ChatID, cb.FirstName, "") == nil
+	}
+	if q := quizByKey(p.Key); q != nil { // R40b: польза сразу в чате, а не ссылка в приложение
+		return f.quizPainStart(ctx, cb, p.Organ, q)
 	}
 	_, _, _ = f.ensureLead(ctx, cb.ChatID, cb.FirstName, "", cb.Username, "Telegram: бот", "Выбрал боль в боте: "+p.Organ, "", false)
 	gs := painGuides(p.Organ, 3)

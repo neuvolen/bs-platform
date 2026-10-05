@@ -130,7 +130,7 @@ func init() {
 	seedJSON = seed
 	appHTML = html
 	appPage = build(injectMarker(injectVoice(html)))
-	loginPage = build(loginWithIcons(string(loginHTML), html))
+	loginPage = build(injectLoginVoice(loginWithIcons(string(loginHTML), html))) // R40c: demo voice map (login_voice.go)
 }
 
 // stripSeed replaces `var NAME = <json>;` lines with empty values and returns
@@ -274,4 +274,6 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	r.GET("/promo/:file", servePromo) // promo.go: screens for the login page (R38a)
 	r.HEAD("/promo/:file", servePromo)
 	r.HEAD("/voice/:file", serveVoice)
+	r.GET("/voice/login/:file", serveLoginVoice) // login_voice.go: the login demo voice (R40c)
+	r.HEAD("/voice/login/:file", serveLoginVoice)
 }

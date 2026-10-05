@@ -103,6 +103,8 @@ type SysCheck struct {
 		SetMeta(ctx context.Context, key, value string) error
 	}
 	DB func(ctx context.Context) error
+	// Recs: the daily AI recommendations (R39, ai_recs_status.go); nil: no line.
+	Recs *PlatformAI
 	// Webhook: whether Telegram calls the server; nil when there is no bot.
 	Webhook func(ctx context.Context) (owned bool, url string)
 	Export  func(ctx context.Context) bool
@@ -138,7 +140,7 @@ func (s *SysCheck) Run(ctx context.Context) CheckResult {
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	r := CheckResult{At: s.now(), Version: versionText(s.build())}
-	items := make([]CheckItem, 7)
+	items := make([]CheckItem, 9)
 	var wg sync.WaitGroup
 	par := func(i int, f func() CheckItem) {
 		wg.Add(1)
@@ -161,8 +163,11 @@ func (s *SysCheck) Run(ctx context.Context) CheckResult {
 		return CheckItem{Key: "version", Title: "Версия", State: "ok", Text: r.Version}
 	})
 	par(6, func() CheckItem { return s.db(ctx) })
-	wg.Wait()
+	par(7, func() CheckItem { return s.search(ctx) })
+	par(8, func() CheckItem { return s.recs(ctx) })
+	wg.Wait() // R39: 7 «Поиск в интернете», 8 «Рекомендации ИИ»
 	r.Items = items
+	r.Items = append(r.Items, s.autoreply(ctx)) // R40b: lead_autoreply.go
 	return r
 }
 
@@ -372,6 +377,28 @@ func (s *SysCheck) voice(ctx context.Context) CheckItem {
 	} else if st.Error != "" && st.On {
 		it.State = "warn"
 		it.Text += " · " + voiceStop(st)
+	}
+	// R39: the chosen voice needs a paid plan: a premade voice reads the tour
+	if st.Fallback {
+		name := st.Picked
+		if name == "" {
+			name = st.Voice
+		}
+		it.Text = fmt.Sprintf("ElevenLabs «%s» (запасной: выбранный голос требует платного тарифа), готово %d из %d", name, st.Ready, st.Total)
+		switch {
+		case st.Running:
+			it.Text += ", озвучивается"
+		case st.Error != "":
+			it.Text += ", " + voiceStop(st)
+		}
+		it.State, it.Sig = "ok", "el-fb|"+name
+		if st.Ready < st.Total {
+			it.State = "warn"
+		}
+		it.Note = fmt.Sprintf("ℹ️ Голос тура: ElevenLabs «%s» (запасной), выбранный голос «%s» требует платного тарифа ElevenLabs. После перехода на платный тариф тур переозвучится выбранным голосом сам", name, st.Target)
+	}
+	if st.Stopped == "quota" && st.Chars > 0 {
+		it.Text += fmt.Sprintf(" · весь тур: %s символов", spaced(st.Chars))
 	}
 	if st.EnvError != "" {
 		it.State = "warn"

@@ -547,24 +547,20 @@ func buildInsights(docs map[string]any, boards []map[string]any, now time.Time) 
 			add(insightCard{ID: "club_meet", Area: "club", Src: "Клуб → Встречи", N: float64(up), Label: "встреч на 7 дней", Take: take, Open: "aSched", Tone: map[bool]string{true: "bad", false: ""}[up == 0]})
 		}
 		if nps := iList(sd["nps"]); len(nps) > 0 {
-			s, k, low := 0.0, 0, 0
+			// R39: NPS = % промоутеров (9-10) − % критиков (0-6), последний опрос, без Chat ID вместо оценки (nps.go)
+			var rows []map[string]any
 			for _, x := range nps {
-				if m := iMap(x); m != nil && iStr(m["score"]) != "" {
-					v := iNum(m["score"])
-					s += v
-					k++
-					if v <= 6 {
-						low++
-					}
+				if m := iMap(x); m != nil {
+					rows = append(rows, m)
 				}
 			}
-			if k > 0 {
-				avg := s / float64(k)
-				take := fmt.Sprintf("Средняя оценка %.1f из 10 по %d %s.", avg, k, plural(k, "ответу", "ответам", "ответам"))
-				if low > 0 {
-					take += fmt.Sprintf(" Недовольных (6 и ниже): %d, им стоит позвонить.", low)
+			if r := ComputeNPS(rows); r.Count > 0 {
+				take := fmt.Sprintf("NPS %d по %d %s, средняя оценка %s из 10. Промоутеров %d, критиков %d.", r.NPS, r.Count, plural(r.Count, "ответу", "ответам", "ответам"),
+					strings.Replace(fmt.Sprintf("%.1f", r.Avg), ".", ",", 1), r.Promoters, r.Detractors)
+				if r.Detractors > 0 {
+					take += " Критикам (6 и ниже) стоит позвонить."
 				}
-				add(insightCard{ID: "club_nps", Area: "club", Src: "Продажи → NPS", N: avg, V: strings.Replace(fmt.Sprintf("%.1f", avg), ".", ",", 1), Label: "NPS резидентов", Take: take, Open: "nps", Tone: map[bool]string{true: "bad", false: "good"}[avg < 8]})
+				add(insightCard{ID: "club_nps", Area: "club", Src: "Клуб → NPS", N: float64(r.NPS), V: strconv.Itoa(r.NPS), Label: "NPS резидентов", Take: take, Open: "nps", Tone: map[bool]string{true: "bad", false: "good"}[r.NPS < 30]})
 			}
 		}
 	}

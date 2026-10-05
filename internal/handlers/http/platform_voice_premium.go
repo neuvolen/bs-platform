@@ -88,6 +88,9 @@ type premiumCfg struct {
 	// EnvVoice: the ELEVENLABS_VOICE_ID already taken (R36c): a voice the
 	// owner picks in the settings later is not overridden at every start.
 	EnvVoice string `json:"envVoice,omitempty"`
+	// Fallback: a premade voice reads the tour while the chosen one needs a
+	// paid plan (R39, platform_voice_fallback.go).
+	Fallback *premiumFallback `json:"fallback,omitempty"`
 }
 
 type premiumOverlay struct {
@@ -103,6 +106,7 @@ type premiumJob struct {
 	Error   string `json:"error,omitempty"`
 	Stopped string `json:"stopped,omitempty"` // quota | key | voice | net
 	At      string `json:"at,omitempty"`
+	StopAt  string `json:"stopAt,omitempty"` // when it stopped (R39: the background loop waits)
 }
 
 // PremiumVoice: the ElevenLabs voice of the tour.
@@ -257,7 +261,9 @@ func (p *PremiumVoice) applyEnvVoice(ctx context.Context) {
 // never required. msg is the reason in words when the voice cannot be used.
 func (p *PremiumVoice) resolveVoice(ctx context.Context, id string) (v ai.ElevenVoice, libID, ownerID, msg string) {
 	_, err := p.EL.Probe(ctx, "", id, ai.ElevenModel())
-	if err == nil {
+	// R39: paid_plan_required: the voice exists, the plan does not let the API
+	// read it yet: it stays the chosen voice and a premade one stands in
+	if err == nil || isPaidPlanVoice(err) {
 		v = ai.ElevenVoice{ID: id}
 		if got, verr := p.EL.Voice(ctx, id); verr == nil {
 			v.Name, v.PreviewURL = got.Name, got.PreviewURL
@@ -458,6 +464,10 @@ type PremiumState struct {
 	KeySource string
 	// EnvError: why ELEVENLABS_VOICE_ID / ELEVENLABS_API_KEY are not used.
 	EnvError string
+	// R39: a premade voice reads while the chosen one (Target) needs a paid plan
+	Fallback bool
+	Target   string
+	Chars    int // characters of all tour phrases
 }
 
 func (p *PremiumVoice) State(ctx context.Context) PremiumState {
@@ -471,17 +481,22 @@ func (p *PremiumVoice) State(ctx context.Context) PremiumState {
 	if kp := keyProblem(); kp != "" {
 		st.EnvError = kp
 	}
-	if job.VoiceID != c.Voice.ID {
+	eff := c.effective()
+	st.Chars = p.tourChars()
+	if c.fallbackOn() {
+		st.Fallback, st.Target = true, c.Voice.Name
+	}
+	if job.VoiceID != eff.ID {
 		st.Running, st.Error, st.Stopped = false, "", ""
 	}
 	if c.Active.ID != "" {
 		_, n, _ := p.have(ctx, c.Active, texts)
 		st.On, st.Voice, st.Ready = n > 0, c.Active.Name, n
 	}
-	if c.Voice.ID != "" && c.Voice.ID != c.Active.ID {
-		st.Picked = c.Voice.Name
+	if eff.ID != "" && eff.ID != c.Active.ID {
+		st.Picked = eff.Name
 		if !st.On {
-			_, n, _ := p.have(ctx, c.Voice, texts)
+			_, n, _ := p.have(ctx, eff, texts)
 			st.Ready = n
 		}
 	}
@@ -498,7 +513,7 @@ func (p *PremiumVoice) Start(ctx context.Context) {
 		defer t.Stop()
 		for {
 			p.applyEnvVoice(ctx)
-			p.maybeRun(ctx)
+			p.maybeRunAuto(ctx) // R39: no new try right after a quota or plan stop
 			select {
 			case <-ctx.Done():
 				return
@@ -512,23 +527,24 @@ func (p *PremiumVoice) Start(ctx context.Context) {
 // maybeRun starts the reading when the picked voice is missing phrases.
 func (p *PremiumVoice) maybeRun(ctx context.Context) {
 	c := p.config()
-	if c.Voice.ID == "" || p.key() == "" {
+	v := c.effective() // R39: the premade voice while the chosen one needs a paid plan
+	if v.ID == "" || p.key() == "" {
 		return
 	}
 	p.mu.Lock()
-	running := p.job.Running && p.job.VoiceID == c.Voice.ID
+	running := p.job.Running && p.job.VoiceID == v.ID
 	p.mu.Unlock()
 	if running {
 		return
 	}
 	texts := p.texts()
-	if _, n, err := p.have(ctx, c.Voice, texts); err == nil && n == len(texts) {
-		if c.Active.ID != c.Voice.ID {
-			p.finish(ctx, c.Voice)
+	if _, n, err := p.have(ctx, v, texts); err == nil && n == len(texts) {
+		if c.Active.ID != v.ID {
+			p.finish(ctx, v)
 		}
 		return
 	}
-	p.run(ctx, c.Voice)
+	p.run(ctx, v)
 }
 
 // run reads every missing phrase with v in the background.
@@ -566,7 +582,7 @@ func (p *PremiumVoice) read(ctx context.Context, v premiumVoice, texts []string)
 		if _, ok := have[t]; ok {
 			continue
 		}
-		if ctx.Err() != nil || p.config().Voice.ID != v.ID {
+		if ctx.Err() != nil || p.config().effective().ID != v.ID {
 			p.progress(func(j *premiumJob) {
 				if j.VoiceID == v.ID {
 					j.Running = false
@@ -600,11 +616,16 @@ func (p *PremiumVoice) read(ctx context.Context, v premiumVoice, texts []string)
 			}
 			msg := ai.ElevenMessage(err)
 			log.Printf("tts premium: %s: stopped at a phrase (%s): %v", v.Name, why, err)
+			stop := time.Now().UTC().Format(time.RFC3339)
 			p.progress(func(j *premiumJob) {
 				if j.VoiceID == v.ID {
-					j.Running, j.Error, j.Stopped = false, msg, why
+					j.Running, j.Error, j.Stopped, j.StopAt = false, msg, why, stop
 				}
 			})
+			// R39: the chosen voice needs a paid plan: a premade voice reads the tour now
+			if isPaidPlanVoice(err) && p.useFallback(ctx, v, err) {
+				p.Kick()
+			}
 			return
 		}
 		if err := p.repo.PutTTSMime(context.WithoutCancel(ctx), premiumKey(v, t), "elevenlabs:"+v.ID, premiumStyle, t, "audio/mpeg", audio); err != nil {
@@ -627,7 +648,7 @@ func (p *PremiumVoice) read(ctx context.Context, v premiumVoice, texts []string)
 func (p *PremiumVoice) finish(ctx context.Context, v premiumVoice) {
 	ctx = context.WithoutCancel(ctx)
 	c := p.config()
-	if c.Voice.ID != v.ID {
+	if c.effective().ID != v.ID {
 		return
 	}
 	changed := c.Active.ID != v.ID || c.Active.Model != v.Model || c.Active.Settings != v.Settings
@@ -685,6 +706,15 @@ func (p *PremiumVoice) view(ctx context.Context) gin.H {
 	if c.Active.ID != "" {
 		out["active"] = gin.H{"id": c.Active.ID, "name": c.Active.Name}
 	}
+	// R39: the premade voice that reads while the chosen one needs a paid plan,
+	// the cost of a full reading and the plan's terms (ElevenLabs help center)
+	out["chars"] = p.tourChars()
+	out["planNote"] = elevenPlanNote
+	if c.fallbackOn() {
+		eff := c.effective()
+		_, n, _ := p.have(ctx, eff, texts)
+		out["fallback"] = gin.H{"id": eff.ID, "name": eff.Name, "why": c.Fallback.Why, "since": c.Fallback.At, "ready": n}
+	}
 	if ver, m := p.Overlay(); ver != "" {
 		out["playing"], out["ver"] = "premium", ver
 		// a file of the voice playing: the page compares it with its own map
@@ -698,7 +728,7 @@ func (p *PremiumVoice) view(ctx context.Context) gin.H {
 	} else {
 		out["playing"] = "builtin"
 	}
-	if job.VoiceID != "" && job.VoiceID == c.Voice.ID {
+	if job.VoiceID != "" && job.VoiceID == c.effective().ID {
 		out["job"] = job
 		if job.Running && job.Done > 0 {
 			out["ready"] = job.Done

@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -30,8 +28,10 @@ const (
 	DefaultModel      = "claude-sonnet-5"
 	DefaultHeavyModel = "claude-opus-5"
 	anthropicVersion  = "2023-06-01"
-	// DefaultWebSearchTool: the web search server tool (AI_WEB_SEARCH_TOOL).
-	DefaultWebSearchTool = "web_search_20250305"
+	// DefaultWebSearchTool: the newest web search server tool version
+	// (docs: web_search_20260318, 20260209, 20250305); AI_WEB_SEARCH_TOOL
+	// puts another one first. claude_search.go walks down the list.
+	DefaultWebSearchTool = "web_search_20260318"
 	// cacheSystemMin: a system prompt this long (runes) is marked for prompt
 	// caching; shorter ones are below the API's minimum cacheable size anyway.
 	cacheSystemMin = 3000
@@ -77,6 +77,9 @@ func (c *Client) KeySource() string {
 }
 
 func (c *Client) models(ctx context.Context) []string {
+	if m, _ := ctx.Value(modelKey{}).(string); m != "" {
+		return []string{m}
+	}
 	c.modelMu.Lock()
 	base := c.ClaudeModel
 	c.modelMu.Unlock()
@@ -160,8 +163,18 @@ func modelMissing(err error) bool {
 	if !errors.As(err, &he) {
 		return false
 	}
-	low := strings.ToLower(he.Body)
-	return he.Status == 404 || (he.Status == 400 && strings.Contains(low, "model") && (strings.Contains(low, "not found") || strings.Contains(low, "invalid") || strings.Contains(low, "does not exist")))
+	// R39: the API's message, not the body (its type "invalid_request_error"
+	// made every 400 that names a model look like a missing model), and a
+	// tool the model does not take is not a missing model (claude_search.go).
+	low := strings.ToLower(apiMessage(he.Body))
+	if low == "" {
+		low = strings.ToLower(he.Body)
+	}
+	if he.Status == 404 {
+		return true
+	}
+	return he.Status == 400 && !strings.Contains(low, "tool") && strings.Contains(low, "model") &&
+		(strings.Contains(low, "not found") || strings.Contains(low, "invalid") || strings.Contains(low, "does not exist"))
 }
 
 // claudeMessages runs a request on the task's model; a model the API does
@@ -286,45 +299,6 @@ func (c *Client) claude(ctx context.Context, system, prompt string, asJSON bool)
 	ans := out.text()
 	if strings.TrimSpace(ans) == "" {
 		return "", &ErrEmptyAnswer{Reason: out.StopReason}
-	}
-	return ans, nil
-}
-
-func (c *Client) webSearchTool() map[string]any {
-	t := strings.TrimSpace(os.Getenv("AI_WEB_SEARCH_TOOL"))
-	if t == "" {
-		t = DefaultWebSearchTool
-	}
-	uses := 8
-	if v, err := strconv.Atoi(os.Getenv("AI_WEB_SEARCH_MAX_USES")); err == nil && v > 0 {
-		uses = v
-	}
-	return map[string]any{"type": t, "name": "web_search", "max_uses": uses, "user_location": map[string]any{"type": "approximate", "city": "Almaty", "country": "KZ", "timezone": "Asia/Almaty"}}
-}
-
-// claudeSearch: Claude with the web search server tool. A long search
-// pauses the turn (pause_turn): the answer so far goes back and Claude goes on.
-func (c *Client) claudeSearch(ctx context.Context, prompt string) (string, error) {
-	msgs := []map[string]any{{"role": "user", "content": prompt}}
-	ans := ""
-	for turn := 0; turn < 5; turn++ {
-		body := map[string]any{"max_tokens": 16000, "tools": []map[string]any{c.webSearchTool()}, "messages": msgs}
-		b, err := c.claudeMessages(ctx, body)
-		if err != nil {
-			return "", err
-		}
-		var out claudeOut
-		if err := json.Unmarshal(b, &out); err != nil {
-			return "", fmt.Errorf("ответ ИИ не читается: %v", err)
-		}
-		ans += out.text()
-		if out.StopReason != "pause_turn" {
-			break
-		}
-		msgs = append(msgs, map[string]any{"role": "assistant", "content": out.Content})
-	}
-	if strings.TrimSpace(ans) == "" {
-		return "", &ErrEmptyAnswer{}
 	}
 	return ans, nil
 }

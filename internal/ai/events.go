@@ -54,6 +54,10 @@ func transient(err error) bool {
 	if IsQuota(err) {
 		return false
 	}
+	var se *SearchError
+	if errors.As(err, &se) {
+		return se.Kind == "results" // too_many_requests, unavailable: the search itself was busy
+	}
 	var he *HTTPError
 	if errors.As(err, &he) {
 		switch he.Status {
@@ -102,6 +106,11 @@ func FriendlyError(err error) string {
 	if IsQuota(err) {
 		return quotaText(err)
 	}
+	// R39: a web search refusal in words, with Anthropic's own message
+	var se *SearchError
+	if errors.As(err, &se) {
+		return se.Msg
+	}
 	var he *HTTPError
 	if errors.As(err, &he) {
 		low := strings.ToLower(he.Body)
@@ -112,8 +121,10 @@ func FriendlyError(err error) string {
 			return keyRejected(he)
 		case he.Status >= 500:
 			return "Сервис ИИ сейчас перегружен (" + fmt.Sprint(he.Status) + "). Попробуйте ещё раз через пару минут"
-		case strings.Contains(low, "web_search") || strings.Contains(low, "google_search") || strings.Contains(low, "search") && strings.Contains(low, "not supported") || strings.Contains(low, "grounding"):
-			return "Модель ИИ не умеет искать в интернете. Укажите другую модель в AI_MODEL"
+		case strings.Contains(low, "google_search") || strings.Contains(low, "grounding"):
+			return "Gemini отклонил поиск в интернете: " + apiMessage(he.Body)
+		case strings.Contains(low, "web_search"):
+			return "Поиск в интернете отклонён Anthropic: " + apiMessage(he.Body)
 		case he.Status == 404 || he.Status == 400 && strings.Contains(low, "model"):
 			return "Модель ИИ недоступна. Укажите рабочую модель в AI_MODEL"
 		}

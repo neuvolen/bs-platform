@@ -124,7 +124,7 @@ func TestR32cGeminiBillingFallsBackToClaude(t *testing.T) {
 	f.mu.Lock()
 	last := f.clBodies[len(f.clBodies)-1]
 	f.mu.Unlock()
-	if !strings.Contains(last, `"web_search_20250305"`) {
+	if !strings.Contains(last, `"`+DefaultWebSearchTool+`"`) {
 		t.Fatalf("search body: %s", last)
 	}
 	st := c.Status()

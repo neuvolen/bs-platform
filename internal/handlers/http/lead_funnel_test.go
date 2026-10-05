@@ -137,8 +137,9 @@ func TestLeadFunnel(t *testing.T) {
 		t.Fatalf("warm repeated: %d", n)
 	}
 	got = sentTo(777)
-	if !strings.Contains(got[len(got)-1]["text"].(string), "Платёжный календарь") {
-		t.Fatalf("warm text should know the checklist: %v", got[len(got)-1]["text"])
+	// R40b: day 1 offers one checklist right in the chat (lead_quiz.go)
+	if kbs, _ := json.Marshal(got[len(got)-1]["reply_markup"]); !strings.Contains(got[len(got)-1]["text"].(string), "6 вопросов") || !strings.Contains(string(kbs), "lm_q_") {
+		t.Fatalf("warm day 1 should offer the in-chat check: %v %s", got[len(got)-1]["text"], kbs)
 	}
 	f.now = func() time.Time { return noon(2).Add(10 * time.Hour) } // 22:00: quiet hours
 	f.now = func() time.Time { x := noon(4); return x.Add(10 * time.Hour) }

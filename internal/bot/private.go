@@ -112,11 +112,17 @@ func (s *Service) handleOwn(ctx context.Context, u *pg.BotUpdate) {
 			log.Printf("bot: mark %d: %v", u.UpdateID, e)
 		}
 	}()
-	if u.Tries > 1 || time.Since(u.Received) > time.Hour {
+	if time.Since(u.Received) > time.Hour {
 		return // a command older than an hour is not run (as the script did)
+	}
+	if u.Tries > 1 && !s.leadRetry(ctx, u) {
+		return // R40b: a lead's message after a restart is still answered (lead_inbound.go)
 	}
 	c, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
+	if u.Tries > 1 {
+		c = WithRetry(c)
+	}
 	switch u.Kind {
 	case "message":
 		if !s.takeStart(c, u.Body) {
@@ -353,6 +359,12 @@ func (s *Service) private(ctx context.Context, body []byte) {
 				"/fines: неоплаченные штрафы\n/residents: резиденты и долги\n/status: проверка системы\n/version: где работает бот\n\n"+
 				"Штрафы, оплаты, расписание и резиденты: в приложении BS и на платформе.")
 		}
+		return
+	}
+	if !isRes && cmd == "" {
+		// R40b: a lead's message used to end here without an answer; now the
+		// funnel answers it, keeps it in the CRM card and tells the team.
+		s.leadText(ctx, body)
 		return
 	}
 	if cmd != "" || !isRes {
