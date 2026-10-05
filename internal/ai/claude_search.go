@@ -399,7 +399,10 @@ func SearchMessage(err error) string {
 // SearchPing: a tiny live search for /status (at most one search; the
 // result is kept 10 minutes so repeated checks do not pay again).
 func (c *Client) SearchPing(ctx context.Context) (SearchInfo, error) {
-	if !c.HasClaude() {
+	if len(c.SearchModels()) == 0 {
+		if c.HasText() {
+			return SearchInfo{}, ErrNoSearch
+		}
 		return SearchInfo{}, ErrNoKey
 	}
 	m := c.smemo()
@@ -412,7 +415,23 @@ func (c *Client) SearchPing(ctx context.Context) (SearchInfo, error) {
 		}
 		return p, errors.New(p.Error)
 	}
-	so, err := c.searchRun(ctx, "Найди в интернете официальный сайт акимата города Алматы и ответь одной строкой: его адрес.", 1, 400)
+	const ask = "Найди в интернете официальный сайт акимата города Алматы и ответь одной строкой: его адрес."
+	var so searchOut
+	var err error = ErrNoSearch
+	if c.HasClaude() {
+		if q := c.quotaClosed("claude"); q != nil {
+			err = q
+		} else {
+			so, err = c.searchRun(ctx, ask, 1, 400)
+		}
+	}
+	// R42: no Claude (or no balance): Gemini with Google Search grounding
+	if err != nil && c.Gemini != "" && (errors.Is(err, ErrNoSearch) || IsQuota(err)) {
+		if err = c.spend("gemini_search"); err == nil {
+			_, err = c.geminiSearch(ctx, ask)
+			c.noteGeminiSearch(err)
+		}
+	}
 	si := c.LastSearch()
 	si.Searches, si.Sources = so.searches, so.sources
 	m.mu.Lock()

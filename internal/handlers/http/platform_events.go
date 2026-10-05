@@ -78,6 +78,11 @@ func (h *PlatformAI) eventsState() gin.H {
 		out["error"] = ai.FriendlyError(r.err)
 		out["detail"] = ai.UserMessage(r.err)
 		out["quota"] = ai.IsQuota(r.err)
+		// R42: no model can search now: the feed stays, the page says why
+		if ai.SearchUnavailable(r.err) && h.AI != nil && h.AI.HasText() {
+			out["nosearch"] = true
+			out["error"] = EventsNoSearch
+		}
 	} else {
 		out["found"] = r.found
 	}
@@ -111,3 +116,6 @@ func (h *PlatformAI) EventsStatus(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, h.eventsState())
 }
+
+// EventsNoSearch: the events feed without a model that can search (R42).
+const EventsNoSearch = "Поиск в интернете сейчас недоступен (у Claude нет баланса, бесплатный лимит поиска Gemini исчерпан или нет ключа). Лента осталась прежней, обновится сама, когда поиск вернётся"

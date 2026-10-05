@@ -138,13 +138,20 @@ func (h *PlatformAI) noteRecsNext(ctx context.Context, next time.Time) {
 // search: «Поиск в интернете: работает / ошибка (причина)», a tiny live search.
 func (s *SysCheck) search(ctx context.Context) CheckItem {
 	it := CheckItem{Key: "search", Title: "Поиск в интернете"}
-	if s.AI == nil || !s.AI.HasClaude() {
-		it.State, it.Text, it.Sig = "off", "нет ключа Claude", "nokey"
+	if s.AI == nil || len(s.AI.SearchModels()) == 0 {
+		it.State, it.Text, it.Sig = "off", "нет ключа Claude или Gemini", "nokey"
 		return it
 	}
 	c, cancel := context.WithTimeout(ctx, 40*time.Second)
 	defer cancel()
 	si, err := s.AI.SearchPing(c)
+	if err != nil && ai.SearchUnavailable(err) {
+		// R42: events keep the feed, AI recs go without search
+		it.State, it.Sig = "warn", "nosearch"
+		it.Text = "недоступен (" + ai.SearchMessage(err) + "): лента мероприятий остаётся прежней, рекомендации ИИ делаются без поиска"
+		it.Note = "⚠️ Поиск в интернете недоступен: мероприятия не обновляются, рекомендации ИИ делаются без поиска"
+		return it
+	}
 	if err != nil {
 		msg := ai.SearchMessage(err)
 		it.State, it.Text, it.Sig = "fail", "ошибка ("+msg+")", "err"

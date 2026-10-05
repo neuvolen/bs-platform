@@ -140,7 +140,7 @@ func (s *SysCheck) Run(ctx context.Context) CheckResult {
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	r := CheckResult{At: s.now(), Version: versionText(s.build())}
-	items := make([]CheckItem, 9)
+	items := make([]CheckItem, 10)
 	var wg sync.WaitGroup
 	par := func(i int, f func() CheckItem) {
 		wg.Add(1)
@@ -165,7 +165,8 @@ func (s *SysCheck) Run(ctx context.Context) CheckResult {
 	par(6, func() CheckItem { return s.db(ctx) })
 	par(7, func() CheckItem { return s.search(ctx) })
 	par(8, func() CheckItem { return s.recs(ctx) })
-	wg.Wait() // R39: 7 «Поиск в интернете», 8 «Рекомендации ИИ»
+	par(9, func() CheckItem { return s.chain(ctx) })
+	wg.Wait() // R39: 7 «Поиск в интернете», 8 «Рекомендации ИИ»; R42: 9 «ИИ: кто отвечает»
 	r.Items = items
 	r.Items = append(r.Items, s.autoreply(ctx)) // R40b: lead_autoreply.go
 	return r
@@ -244,6 +245,13 @@ func (s *SysCheck) claude(ctx context.Context) CheckItem {
 	it := CheckItem{Key: "claude", Title: "ИИ Claude"}
 	if s.AI == nil || !s.AI.HasClaude() {
 		it.State, it.Text, it.Sig = "fail", noKeyText(s.AI), "nokey"
+		if s.AI != nil && s.AI.HasText() {
+			// R42: Claude is optional when a free provider has a key
+			it.State, it.Sig = "off", "nokey-free"
+			it.Text = "ключа нет, ИИ работает через бесплатные модели"
+			it.Note = ""
+			return it
+		}
 		it.Note = "❌ ИИ Claude не подключён: нет ключа (Настройки платформы → «Ключ Claude» или ANTHROPIC_API_KEY в Railway и Deploy)"
 		return it
 	}
@@ -265,6 +273,12 @@ func (s *SysCheck) claude(ctx context.Context) CheckItem {
 		}
 		it.State, it.Text, it.Sig = "fail", "ошибка: "+msg+" ("+src+")", sig
 		it.Note = "❌ ИИ Claude не отвечает: " + msg
+		// R42: a free provider answers instead: not a failure of the platform
+		if alt := firstOther(s.AI, "claude"); alt != "" {
+			it.State = "warn"
+			it.Text += "; вместо него отвечает " + ai.ProviderLabel(alt)
+			it.Note = "⚠️ ИИ Claude не отвечает (" + msg + "), ИИ работает через " + ai.ProviderLabel(alt)
+		}
 		return it
 	}
 	it.State, it.Text, it.Sig = "ok", "отвечает, модель "+model+", "+src, "ok"
@@ -660,4 +674,14 @@ func (m *SysCheckModule) Register(r *gin.Engine) {
 	g.Use(middleware.RequireRole("admin", "moderator"))
 	g.POST("/check", m.s.Check)
 	g.GET("/check", m.s.Check)
+}
+
+// firstOther: the first provider other than skip that would answer now (R42).
+func firstOther(c *ai.Client, skip string) string {
+	for _, p := range c.ProviderStates() {
+		if p.Name != skip && p.State == "ok" {
+			return p.Name
+		}
+	}
+	return ""
 }

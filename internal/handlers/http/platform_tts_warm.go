@@ -225,7 +225,7 @@ func (h *PlatformAI) TTSWarm(c *gin.Context) {
 			jobs = append(jobs, ttsJob{key: key, text: text, voice: voice})
 		}
 	}
-	noTTS := h.AI == nil || h.AI.Gemini == ""
+	noTTS := h.AI == nil || !h.AI.HasTTS()
 	queued := 0
 	if !noTTS && h.AI.QuotaUntil("tts").IsZero() {
 		queued = ttsW.add(h, jobs)
@@ -272,7 +272,7 @@ func (h *PlatformAI) TourVoiceLoop(ctx context.Context, texts func() []string) {
 // quota is used up nothing is queued (no call is burnt): the loop checks
 // again later and goes on the next day.
 func (h *PlatformAI) PrewarmTour(ctx context.Context, list []string) (queued, missing int) {
-	if h.AI == nil || h.AI.Gemini == "" || len(list) == 0 {
+	if h.AI == nil || !h.AI.HasTTS() || len(list) == 0 {
 		return 0, 0
 	}
 	voice := h.ttsVoice(ctx)

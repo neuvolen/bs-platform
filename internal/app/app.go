@@ -283,7 +283,7 @@ func BuildContent(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, jwtS
 		e.Threads = pm.AI.PublishThreadsText
 		e.ThreadsReply = pm.AI.PublishThreadsReply
 		if pm.AI.AI != nil {
-			e.AI = pm.AI.AI.Text // the daily Threads batch (content_threads.go)
+			e.AI = httpapi.ThreadsAI(pm.AI.AI) // the daily Threads batch (content_threads.go), R42: within the free budget
 		}
 		pm.AI.SetQueueOwnsThreads(e.OwnsThreadsDay)
 	}

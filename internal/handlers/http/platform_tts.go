@@ -117,7 +117,7 @@ func (h *PlatformAI) TTS(c *gin.Context) {
 		serve(data, true)
 		return
 	}
-	if h.AI == nil || h.AI.Gemini == "" {
+	if h.AI == nil || !h.AI.HasTTS() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no_tts"})
 		return
 	}

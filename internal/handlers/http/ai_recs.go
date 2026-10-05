@@ -66,6 +66,7 @@ type aiRecCand struct {
 	Title     string   `json:"title"`
 	Summary   string   `json:"summary"`
 	Source    string   `json:"source"`
+	NoSearch  bool     `json:"-"` // R42: found without web search («без поиска»)
 	Company   string   `json:"company"`
 	Author    string   `json:"author"`
 	URL       string   `json:"url"`
@@ -286,6 +287,9 @@ func (h *PlatformAI) dailyRec(ctx context.Context, now time.Time, force bool) (m
 		"metrics": recNZ(cand.Metrics), "adapt": cand.Adapt, "item": cand.card(organ),
 		"t": cand.Title, "d": cand.Summary, "k": "world",
 	}
+	if cand.NoSearch {
+		rec["nosearch"] = true
+	}
 	err := h.updateRecs(ctx, func(items []any) ([]any, bool) {
 		if !force {
 			for _, it := range items {
@@ -343,6 +347,14 @@ func (h *PlatformAI) recCandidate(ctx context.Context, organ string, titles, rej
 	c, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	ans, err := h.AI.Search(c, fmt.Sprintf(aiRecPrompt, organ, list))
+	noSearch := false
+	if err != nil && ai.SearchUnavailable(err) && h.AI.HasText() {
+		// R42: no model can search now: the model's own knowledge, checked
+		// against the library, marked «без поиска»
+		log.Printf("ai recs: web search unavailable (%s), without search", ai.UserMessage(err))
+		ans, err = h.AI.JSON(c, "Ты аналитик клуба бизнес-трекинга. Отвечай только JSON.", aiRecNoSearchPrompt(organ, list))
+		noSearch = true
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +366,17 @@ func (h *PlatformAI) recCandidate(ctx context.Context, organ string, titles, rej
 	if cand.Title == "" || len(cand.Steps) < 3 || cand.Why == "" {
 		return nil, errors.New("ИИ вернул неполную рекомендацию")
 	}
+	cand.NoSearch = noSearch
 	return &cand, nil
+}
+
+// aiRecNoSearchPrompt: the recommendation without web search (R42): a
+// well-known practice from the model's knowledge, no invented link.
+func aiRecNoSearchPrompt(organ, list string) string {
+	p := fmt.Sprintf(aiRecPrompt, organ, list)
+	p = strings.Replace(p, "Найди в интернете ОДНУ лучшую мировую практику", "Поиск в интернете сейчас недоступен. Выбери из своих знаний ОДНУ лучшую мировую практику", 1)
+	p = strings.Replace(p, "Укажи реальный источник со ссылкой, которую ты нашёл в поиске.", "Укажи реальный источник (книга, автор, компания). Ссылку пиши только если точно знаешь официальный адрес, иначе оставь url пустым.", 1)
+	return p
 }
 
 func recDupByTitle(title string, titles []string) string {
@@ -445,7 +467,7 @@ func (h *PlatformAI) recsTick(ctx context.Context, now time.Time) time.Time {
 	c, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 	if h.AI == nil || h.AI.Status()["text"] == "" {
-		err := errors.New("нет ключа Claude")
+		err := errors.New("нет ключа ИИ")
 		next := recsNext(now, false, 0)
 		h.noteRecsRun(c, now, err, next)
 		log.Printf("ai recs: %v", err)

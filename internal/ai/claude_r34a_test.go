@@ -279,9 +279,13 @@ func TestR34aSettingsKeyAndPing(t *testing.T) {
 	}
 }
 
-func TestR34aFromEnvGeminiOffByDefault(t *testing.T) {
-	t.Setenv("GEMINI_API_KEY", "g")
+// R42: Gemini's free key answers text and search without GEMINI_ENABLED;
+// GEMINI_ENABLED=0 opts out; its speech (transcription, TTS) needs =1.
+func TestR42FromEnvGeminiFreeByDefault(t *testing.T) {
+	t.Setenv("GEMINI_API_KEY", " \"g\" ")
 	t.Setenv("GEMINI_ENABLED", "")
+	t.Setenv("GROQ_API_KEY", "")
+	t.Setenv("OPENROUTER_API_KEY", "")
 	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test-a-0123456789")
 	t.Setenv("AI_MODEL", "")
 	t.Setenv("AI_CLAUDE_MODEL", "")
@@ -289,14 +293,19 @@ func TestR34aFromEnvGeminiOffByDefault(t *testing.T) {
 	t.Setenv("AI_TEXT_ORDER", "")
 	t.Setenv("ASR_LOCAL", "0")
 	c := FromEnv()
-	if c.Gemini != "" || strings.Join(c.TextModels(), ",") != "claude" || c.ClaudeModel != DefaultModel || c.HeavyModel != DefaultHeavyModel || c.Keys != SharedKeys {
+	if c.Gemini != "g" || strings.Join(c.TextModels(), ",") != "claude,gemini" || c.ClaudeModel != DefaultModel || c.HeavyModel != DefaultHeavyModel || c.Keys != SharedKeys {
 		t.Fatalf("default: %+v %v", c.TextModels(), c.ClaudeModel)
 	}
-	if c.ASR != nil || len(c.SpeechModels()) != 0 {
-		t.Fatal("ASR_LOCAL=0")
+	if c.ASR != nil || len(c.SpeechModels()) != 0 || c.HasTTS() {
+		t.Fatal("ASR_LOCAL=0, no Gemini speech without GEMINI_ENABLED=1")
 	}
 	if _, err := c.Transcribe(context.Background(), []byte("x"), "audio/webm"); !errors.Is(err, ErrNoSpeech) {
 		t.Fatal(err)
+	}
+	t.Setenv("GEMINI_ENABLED", "0")
+	c = FromEnv()
+	if c.Gemini != "" || strings.Join(c.TextModels(), ",") != "claude" {
+		t.Fatalf("opt-out: %v", c.TextModels())
 	}
 	for _, p := range c.Providers() {
 		if p["name"] == "gemini" {
@@ -304,14 +313,16 @@ func TestR34aFromEnvGeminiOffByDefault(t *testing.T) {
 		}
 	}
 	t.Setenv("GEMINI_ENABLED", "1")
+	t.Setenv("GROQ_API_KEY", "gsk_x")
+	t.Setenv("OPENROUTER_API_KEY", "sk-or-x")
 	t.Setenv("AI_MODEL", "claude-x")
 	t.Setenv("AI_MODEL_HEAVY", "claude-y")
 	t.Setenv("ASR_LOCAL", "")
 	c = FromEnv()
-	if c.Gemini != "g" || strings.Join(c.TextModels(), ",") != "claude,gemini" || c.ClaudeModel != "claude-x" || c.HeavyModel != "claude-y" {
-		t.Fatalf("emergency: %v %s", c.TextModels(), c.ClaudeModel)
+	if c.Gemini != "g" || strings.Join(c.TextModels(), ",") != "claude,gemini,groq,openrouter" || c.ClaudeModel != "claude-x" || c.HeavyModel != "claude-y" {
+		t.Fatalf("all: %v %s", c.TextModels(), c.ClaudeModel)
 	}
-	if strings.Join(c.SpeechModels(), ",") != "local,gemini" {
+	if strings.Join(c.SpeechModels(), ",") != "local,gemini" || !c.HasTTS() {
 		t.Fatal(c.SpeechModels())
 	}
 }

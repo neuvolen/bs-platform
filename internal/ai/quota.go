@@ -47,12 +47,22 @@ import (
 // QuotaMessage: what people see while Claude's balance is used up.
 const QuotaMessage = "Закончился баланс Claude: пополните его в console.anthropic.com (Plans & Billing). Сервисы ИИ временно на паузе"
 
-// GeminiQuotaMessage: Gemini's quota (only with GEMINI_ENABLED=1).
-const GeminiQuotaMessage = "Закончилась квота Gemini: пополните баланс в Google AI Studio. Сервисы ИИ временно на паузе"
+// GeminiQuotaMessage: Gemini's free quota (R42: the free fallback).
+const GeminiQuotaMessage = "Закончился бесплатный лимит Gemini на сегодня. Он восстановится сам в полночь по времени Google (днём по Алматы)"
+
+// AllPausedMessage: no provider can answer (R42: every free limit is used up).
+const AllPausedMessage = "ИИ временно на паузе: у Claude нет баланса, а бесплатные лимиты на сегодня закончились. Лимиты восстановятся сами"
 
 func quotaMessage(service string) string {
-	if service == "gemini" || service == "tts" {
+	switch service {
+	case "gemini", "gemini-lite", "tts":
 		return GeminiQuotaMessage
+	case "groq", "openrouter":
+		return "Закончился бесплатный лимит " + ProviderLabel(service) + " на сегодня. Он восстановится сам"
+	case "openai":
+		return "Закончилась квота OpenAI"
+	case "all":
+		return AllPausedMessage
 	}
 	return QuotaMessage
 }
@@ -75,6 +85,7 @@ type QuotaError struct {
 	Until   time.Time
 	Daily   bool
 	Billing bool  // the key's balance or plan, not a time window
+	Budget  bool  // R42: the platform's own daily budget for the provider
 	Err     error // Google's answer, when this call got it
 }
 
@@ -193,11 +204,20 @@ func (c *Client) noteQuota(service string, err error) *QuotaError {
 	if !ok {
 		return nil
 	}
+	return c.hold(service, q, err)
+}
+
+// hold closes the service for what q says (R42: any provider).
+func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 	now := quotaNow()
 	until := now.Add(time.Minute)
 	switch {
-	case q.Daily:
+	case q.Daily && service != "groq" && service != "openrouter":
 		until = nextPacificMidnight(now)
+	case q.Daily && q.Retry > time.Minute:
+		until = now.Add(q.Retry)
+	case q.Daily:
+		until = budgetReset(service, now)
 	case q.Billing:
 		until = now.Add(QuotaHold())
 	case q.Retry > 0:

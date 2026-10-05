@@ -7,9 +7,11 @@
 // or the key the owner pastes in the platform settings (keys.go).
 // Speech becomes text on the server itself (asr_local.go, Whisper through
 // sherpa-onnx); OPENAI_API_KEY adds Whisper API as a fallback.
-// Gemini stays only as an emergency switch: GEMINI_ENABLED=1 with
-// GEMINI_API_KEY puts it after Claude (text, search, transcription, tour TTS).
-// AI_TEXT_ORDER (e.g. "claude,openai") changes which model is asked first.
+// R42: when Claude has no key or balance, the free tiers answer (free.go):
+// Gemini (GEMINI_API_KEY, on by default; GEMINI_ENABLED=0 opts out), Groq
+// (GROQ_API_KEY), OpenRouter (OPENROUTER_API_KEY). Gemini's speech
+// (transcription fallback, tour TTS) stays behind GEMINI_ENABLED=1.
+// AI_TEXT_ORDER (e.g. "claude,groq") changes which model is asked first.
 package ai
 
 import (
@@ -33,8 +35,16 @@ import (
 )
 
 type Client struct {
-	Anthropic, Gemini, OpenAI             string // keys (Gemini only with GEMINI_ENABLED=1, FromEnv)
+	Anthropic, Gemini, OpenAI             string // keys
+	Groq, OpenRouter                      string // R42: free OpenAI-compatible providers (free.go)
 	ClaudeModel, GeminiModel              string
+	GeminiLightModel                      string // R42: short JSON tasks (AI_GEMINI_MODEL_LIGHT)
+	GroqModel, GroqLightModel, GroqBase   string
+	OpenRouterModel, OpenRouterLightModel string
+	OpenRouterBase                        string
+	// GeminiTextOnly: Gemini answers text and search only; its speech
+	// (transcription, tour TTS) needs GEMINI_ENABLED=1 (FromEnv, R42).
+	GeminiTextOnly                        bool
 	HeavyModel                            string // AI_MODEL_HEAVY: Heavy(ctx) tasks
 	OpenAIModel, OpenAISTTModel           string
 	AnthropicBase, GeminiBase, OpenAIBase string
@@ -56,6 +66,12 @@ type Client struct {
 	// OnQuota is told when a service closes for a long time (a daily or
 	// billing quota); the platform tells the owner once a day (R32c).
 	OnQuota func(*QuotaError)
+	// OnSwitch is told when another provider durably answers text tasks
+	// (R42: Claude ran out of balance, Gemini's day is over); from is "" at start.
+	OnSwitch func(from, to string)
+
+	budget budgets
+	sw     switchState
 }
 
 // HTTPError is a non-2xx answer of a model API (Body is complete).
@@ -181,6 +197,29 @@ func (c *Client) newestFlash(ctx context.Context, cur string) string {
 // once if the configured one was retired.
 // While Gemini's quota is used up it is not called at all (quota.go).
 func (c *Client) geminiCall(ctx context.Context, method string, body any) ([]byte, error) {
+	return c.geminiCallModel(ctx, "", method, body)
+}
+
+// geminiCallModel: model "" is GeminiModel; another (the light model) has
+// its own quota ("gemini-lite": Google counts per model) and on any refusal
+// the main model answers instead.
+func (c *Client) geminiCallModel(ctx context.Context, model, method string, body any) ([]byte, error) {
+	if model != "" && model != c.geminiModel() {
+		if c.quotaClosed("gemini-lite") == nil {
+			url := fmt.Sprintf("%s/v1beta/models/%s:%s?key=%s", c.GeminiBase, model, method, c.Gemini)
+			b, err := c.do(ctx, jsonReq("POST", url, body))
+			if err == nil {
+				return b, nil
+			}
+			c.noteQuota("gemini-lite", err)
+			if ctx.Err() != nil {
+				return nil, err
+			}
+			if _, retired := retiredModel(err); !retired && !IsQuota(err) && !transient(err) {
+				return nil, err
+			}
+		}
+	}
 	if q := c.quotaClosed("gemini"); q != nil {
 		return nil, q
 	}
@@ -208,31 +247,42 @@ func FromEnv() *Client {
 		return def
 	}
 	gem := ""
-	if GeminiEnabled() {
-		gem = env("GEMINI_API_KEY", "")
+	if !GeminiDisabled() { // R42: the free fallback, on unless GEMINI_ENABLED=0
+		gem = envClean("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_AI_API_KEY")
 	}
 	ek := EnvKey() // R37: any sensible name, a cleaned value (envkey.go)
 	return &Client{
-		Anthropic:      ek.Key,
-		Env:            &ek,
-		Gemini:         gem,
-		OpenAI:         env("OPENAI_API_KEY", ""),
-		ClaudeModel:    env("AI_MODEL", env("AI_CLAUDE_MODEL", DefaultModel)),
-		HeavyModel:     env("AI_MODEL_HEAVY", DefaultHeavyModel),
-		Keys:           SharedKeys,
-		ASR:            LocalASRFromEnv(),
-		GeminiModel:    env("AI_GEMINI_MODEL", "gemini-3.8-flash"),
-		OpenAIModel:    env("AI_OPENAI_MODEL", "gpt-4o-mini"),
-		OpenAISTTModel: env("AI_OPENAI_STT_MODEL", "whisper-1"),
-		AnthropicBase:  env("ANTHROPIC_API_BASE", "https://api.anthropic.com"),
-		GeminiBase:     env("GEMINI_API_BASE", "https://generativelanguage.googleapis.com"),
-		OpenAIBase:     env("OPENAI_API_BASE", "https://api.openai.com"),
-		HTTP:           &http.Client{Timeout: 10 * time.Minute},
-		TextOrder:      strings.FieldsFunc(strings.ToLower(env("AI_TEXT_ORDER", "")), func(r rune) bool { return r == ',' || r == ' ' }),
+		Anthropic:            ek.Key,
+		Env:                  &ek,
+		Gemini:               gem,
+		GeminiTextOnly:       !GeminiEnabled(),
+		GeminiLightModel:     env("AI_GEMINI_MODEL_LIGHT", "gemini-3.5-flash-lite"),
+		Groq:                 envClean("GROQ_API_KEY"),
+		GroqModel:            env("AI_GROQ_MODEL", "openai/gpt-oss-120b"),
+		GroqLightModel:       env("AI_GROQ_MODEL_LIGHT", "openai/gpt-oss-20b"),
+		GroqBase:             env("GROQ_API_BASE", "https://api.groq.com/openai/v1"),
+		OpenRouter:           envClean("OPENROUTER_API_KEY"),
+		OpenRouterModel:      env("AI_OPENROUTER_MODEL", "openrouter/free"),
+		OpenRouterLightModel: env("AI_OPENROUTER_MODEL_LIGHT", ""),
+		OpenRouterBase:       env("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"),
+		OpenAI:               env("OPENAI_API_KEY", ""),
+		ClaudeModel:          env("AI_MODEL", env("AI_CLAUDE_MODEL", DefaultModel)),
+		HeavyModel:           env("AI_MODEL_HEAVY", DefaultHeavyModel),
+		Keys:                 SharedKeys,
+		ASR:                  LocalASRFromEnv(),
+		GeminiModel:          env("AI_GEMINI_MODEL", "gemini-3.8-flash"),
+		OpenAIModel:          env("AI_OPENAI_MODEL", "gpt-4o-mini"),
+		OpenAISTTModel:       env("AI_OPENAI_STT_MODEL", "whisper-1"),
+		AnthropicBase:        env("ANTHROPIC_API_BASE", "https://api.anthropic.com"),
+		GeminiBase:           env("GEMINI_API_BASE", "https://generativelanguage.googleapis.com"),
+		OpenAIBase:           env("OPENAI_API_BASE", "https://api.openai.com"),
+		HTTP:                 &http.Client{Timeout: 10 * time.Minute},
+		TextOrder:            strings.FieldsFunc(strings.ToLower(env("AI_TEXT_ORDER", "")), func(r rune) bool { return r == ',' || r == ' ' }),
 	}
 }
 
-// GeminiEnabled: the emergency switch GEMINI_ENABLED=1 (default off, R34a).
+// GeminiEnabled: GEMINI_ENABLED=1 also turns on Gemini's speech
+// (transcription fallback, tour TTS). Text and search need no switch (R42).
 func GeminiEnabled() bool {
 	v := strings.ToLower(strings.TrimSpace(os.Getenv("GEMINI_ENABLED")))
 	return v == "1" || v == "true" || v == "yes" || v == "on"
@@ -247,11 +297,14 @@ func (c *Client) SpeechModels() []string {
 	if c.OpenAI != "" {
 		out = append(out, "openai")
 	}
-	if c.Gemini != "" {
+	if c.Gemini != "" && !c.GeminiTextOnly {
 		out = append(out, "gemini")
 	}
 	return out
 }
+
+// HasTTS: Gemini may speak the tour's phrases (GEMINI_ENABLED=1, R42).
+func (c *Client) HasTTS() bool { return c != nil && c.Gemini != "" && !c.GeminiTextOnly }
 
 // Status says what is available, for the page to explain what is missing.
 func (c *Client) Status() map[string]any {
@@ -282,11 +335,19 @@ func (c *Client) Status() map[string]any {
 		st["quota"] = q
 	}
 	st["providers"] = c.Providers()
+	// R42: every provider of the chain, the one answering now, today's use
+	st["chain"] = c.ProviderStates()
+	st["answering"] = c.Answering()
 	if si := c.LastSearch(); !si.At.IsZero() {
 		st["search"] = si // R39: the last web search for «Состояние ИИ»
 	}
+	st["searchModels"] = c.SearchModels()
 	if c.Paused() {
-		st["paused"], st["message"] = true, QuotaMessage
+		msg := QuotaMessage
+		if ms := c.TextModels(); len(ms) > 1 || len(ms) == 1 && ms[0] != "claude" {
+			msg = AllPausedMessage
+		}
+		st["paused"], st["message"] = true, msg
 	}
 	return st
 }
@@ -312,6 +373,12 @@ func (c *Client) Providers() []map[string]any {
 	if c.Gemini != "" {
 		add("gemini", c.Gemini, "gemini")
 	}
+	if c.Groq != "" {
+		add("groq", c.Groq, "groq")
+	}
+	if c.OpenRouter != "" {
+		add("openrouter", c.OpenRouter, "openrouter")
+	}
 	if c.OpenAI != "" {
 		add("openai", c.OpenAI, "")
 	}
@@ -323,12 +390,7 @@ func (c *Client) Providers() []map[string]any {
 func (c *Client) Paused() bool {
 	ms := c.TextModels()
 	for _, m := range ms {
-		switch m {
-		case "claude", "gemini":
-			if c.quotaClosed(m) == nil {
-				return false
-			}
-		default:
+		if c.quotaClosed(m) == nil && c.budgetLeft(m) {
 			return false
 		}
 	}
@@ -350,7 +412,14 @@ func UserMessage(err error) string {
 	if errors.As(err, &se) {
 		return se.Msg
 	}
+	if errors.Is(err, ErrNoSearch) {
+		return ErrNoSearch.Error()
+	}
+	var pe *ProviderError
 	var he *HTTPError
+	if errors.As(err, &pe) && errors.As(err, &he) && (he.Status == 401 || he.Status == 403) {
+		return "Ключ " + ProviderLabel(pe.Name) + " не принят: проверьте " + providerEnv[pe.Name] + " в переменных Railway"
+	}
 	if errors.As(err, &he) {
 		if he.Status == 401 || he.Status == 403 {
 			return keyRejected(he)
@@ -367,7 +436,7 @@ func UserMessage(err error) string {
 	return msg
 }
 
-var ErrNoKey = errors.New("Нет ключа Claude: вставьте его в Настройках платформы («Ключ Claude») или в переменную ANTHROPIC_API_KEY в Railway")
+var ErrNoKey = errors.New("Нет ключа ИИ: добавьте бесплатный ключ GEMINI_API_KEY (aistudio.google.com) или ANTHROPIC_API_KEY в переменные Railway, либо вставьте ключ Claude в Настройках платформы («Ключ Claude»)")
 
 // KeyRejected: the API refused the key (401/403).
 const KeyRejected = "Ключ Claude не принят: проверьте его в Настройках платформы («Ключ Claude») или ANTHROPIC_API_KEY в Railway"
@@ -402,10 +471,11 @@ func (c *Client) JSON(ctx context.Context, system, prompt string) (string, error
 // Claude, then Gemini (emergency only), then OpenAI. Only models with a key;
 // one missing from TextOrder goes last.
 func (c *Client) TextModels() []string {
-	has := map[string]bool{"gemini": c.Gemini != "", "claude": c.claudeKey() != "", "openai": c.OpenAI != ""}
+	has := map[string]bool{"gemini": c.Gemini != "", "claude": c.claudeKey() != "", "openai": c.OpenAI != "",
+		"groq": c.Groq != "", "openrouter": c.OpenRouter != ""}
 	var out []string
 	seen := map[string]bool{}
-	for _, m := range append(append([]string{}, c.TextOrder...), "claude", "gemini", "openai") {
+	for _, m := range append(append([]string{}, c.TextOrder...), providerOrder...) {
 		if has[m] && !seen[m] {
 			seen[m] = true
 			out = append(out, m)
@@ -419,26 +489,47 @@ func (c *Client) chain(ctx context.Context, system, prompt string, asJSON bool) 
 	if len(models) == 0 {
 		return "", ErrNoKey
 	}
+	light := isLight(ctx, asJSON, system, prompt)
+	cps := c.compats()
 	var first error
+	quotaAll, tried := true, 0
+	var soonest time.Time
 	for _, m := range models {
 		var ans string
 		var err error
-		switch m {
-		case "claude":
-			ans, err = c.claude(ctx, system, prompt, asJSON)
-		case "gemini":
-			if asJSON {
-				ans, err = c.geminiCfg(ctx, system, []map[string]any{{"text": prompt}}, map[string]any{"responseMimeType": "application/json", "temperature": 0.2})
-			} else {
-				ans, err = c.gemini(ctx, system, []map[string]any{{"text": prompt}})
+		if q := c.quotaClosed(m); q != nil {
+			err = q
+		} else if berr := c.spend(m); berr != nil {
+			err = berr
+		} else {
+			tried++
+			switch m {
+			case "claude":
+				ans, err = c.claude(ctx, system, prompt, asJSON)
+			case "gemini":
+				ans, err = c.geminiText(ctx, system, prompt, asJSON, light)
+			default:
+				if p := cps[m]; p != nil {
+					ans, _, err = c.compatChat(ctx, p, system, prompt, asJSON, light)
+				}
 			}
-		case "openai":
-			ans, err = c.openaiChat(ctx, system, prompt)
 		}
 		if err == nil {
+			c.noteAnswered(m, models)
 			return ans, nil
 		}
-		// a paused Gemini says less than the fallback's own failure
+		var qe *QuotaError
+		if errors.As(err, &qe) {
+			if soonest.IsZero() || qe.Until.Before(soonest) {
+				soonest = qe.Until
+			}
+		} else if !IsQuota(err) {
+			quotaAll = false
+		}
+		if tried > 0 || !IsQuota(err) {
+			log.Printf("ai: %s did not answer: %s", m, UserMessage(err))
+		}
+		// a paused provider says less than the fallback's own failure
 		if first == nil || (IsQuota(first) && !IsQuota(err)) {
 			first = err
 		}
@@ -446,7 +537,23 @@ func (c *Client) chain(ctx context.Context, system, prompt string, asJSON bool) 
 			break
 		}
 	}
+	if quotaAll && len(models) > 1 && ctx.Err() == nil {
+		return "", &QuotaError{Service: "all", Until: soonest, Daily: true, Err: first}
+	}
 	return "", first
+}
+
+// geminiText: a text or JSON task on Gemini, the light model for short tasks.
+func (c *Client) geminiText(ctx context.Context, system, prompt string, asJSON, light bool) (string, error) {
+	var cfg map[string]any
+	if asJSON {
+		cfg = map[string]any{"responseMimeType": "application/json", "temperature": 0.2}
+	}
+	model := ""
+	if light {
+		model = c.GeminiLightModel
+	}
+	return c.geminiCfgModel(ctx, model, system, []map[string]any{{"text": prompt}}, cfg)
 }
 
 // ErrNoSpeech: no way to turn a recording into text.
@@ -531,6 +638,10 @@ func (c *Client) gemini(ctx context.Context, system string, parts []map[string]a
 }
 
 func (c *Client) geminiCfg(ctx context.Context, system string, parts []map[string]any, cfg map[string]any) (string, error) {
+	return c.geminiCfgModel(ctx, "", system, parts, cfg)
+}
+
+func (c *Client) geminiCfgModel(ctx context.Context, model, system string, parts []map[string]any, cfg map[string]any) (string, error) {
 	body := map[string]any{
 		"system_instruction": map[string]any{"parts": []map[string]any{{"text": system}}},
 		"contents":           []map[string]any{{"role": "user", "parts": parts}},
@@ -538,7 +649,7 @@ func (c *Client) geminiCfg(ctx context.Context, system string, parts []map[strin
 	if cfg != nil {
 		body["generationConfig"] = cfg
 	}
-	b, err := c.geminiCall(ctx, "generateContent", body)
+	b, err := c.geminiCallModel(ctx, model, "generateContent", body)
 	if err != nil {
 		return "", err
 	}
@@ -546,7 +657,8 @@ func (c *Client) geminiCfg(ctx context.Context, system string, parts []map[strin
 		Candidates []struct {
 			Content struct {
 				Parts []struct {
-					Text string `json:"text"`
+					Text    string `json:"text"`
+					Thought bool   `json:"thought"`
 				} `json:"parts"`
 			} `json:"content"`
 		} `json:"candidates"`
@@ -557,7 +669,9 @@ func (c *Client) geminiCfg(ctx context.Context, system string, parts []map[strin
 	var sb strings.Builder
 	for _, cnd := range out.Candidates {
 		for _, p := range cnd.Content.Parts {
-			sb.WriteString(p.Text)
+			if !p.Thought {
+				sb.WriteString(p.Text)
+			}
 		}
 		break
 	}
@@ -616,29 +730,6 @@ func (c *Client) geminiMedia(ctx context.Context, data []byte, mime string) (map
 	return map[string]any{"file_data": map[string]any{"mime_type": mime, "file_uri": f.File.URI}}, nil
 }
 
-func (c *Client) openaiChat(ctx context.Context, system, prompt string) (string, error) {
-	r := jsonReq("POST", c.OpenAIBase+"/v1/chat/completions", map[string]any{
-		"model":    c.OpenAIModel,
-		"messages": []map[string]any{{"role": "system", "content": system}, {"role": "user", "content": prompt}},
-	})
-	r.Header.Set("Authorization", "Bearer "+c.OpenAI)
-	b, err := c.do(ctx, r)
-	if err != nil {
-		return "", err
-	}
-	var out struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(b, &out); err != nil || len(out.Choices) == 0 {
-		return "", errors.New("ИИ вернул пустой ответ")
-	}
-	return out.Choices[0].Message.Content, nil
-}
-
 func (c *Client) whisper(ctx context.Context, audio []byte, mime string) (string, error) {
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
@@ -693,12 +784,18 @@ const eventsPrompt = `Найди в интернете бизнес-меропр
 Верни ТОЛЬКО JSON: {"items":[{"title":"...","date":"YYYY-MM-DD","time":"HH:MM","place":"...","url":"ссылка на страницу события","price":"бесплатно или цена","source":"домен","tags":["нетворкинг|конференция|обучение|выставка|завтрак|IT|маркетинг|финансы|продажи"]}]}
 Только реальные события с датой и ссылкой, которые ты нашёл в поиске. Не выдумывай. До 30 событий.`
 
-// Search asks a model that can search the web (Claude with the web search
-// server tool; Gemini with google_search only with GEMINI_ENABLED=1) and
-// returns its text answer. An overloaded or rate-limited model is asked
-// again (SearchBackoff).
+// Search asks a model that can search the web: Claude with the web search
+// server tool, then Gemini with Google Search grounding (R42: a free key, its
+// own daily budget AI_BUDGET_GEMINI_SEARCH) and returns its text answer. An
+// overloaded or rate-limited model is asked again (SearchBackoff). With no
+// model able to search, the error is ErrNoSearch (SearchUnavailable): the
+// callers degrade (events keep the feed, AI recs go without search).
 func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
-	if c.Gemini == "" && c.claudeKey() == "" {
+	ms := c.SearchModels()
+	if len(ms) == 0 {
+		if c.HasText() {
+			return "", ErrNoSearch
+		}
 		return "", ErrNoKey
 	}
 	try := func(f func(context.Context, string) (string, error)) (string, error) {
@@ -717,16 +814,25 @@ func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
 	// The same order as Text (Claude first). A model with a used-up quota
 	// answers at once without a call.
 	var first error
-	for _, m := range c.TextModels() {
+	for _, m := range ms {
 		var ans string
 		var err error
-		switch m {
-		case "gemini":
-			ans, err = try(c.geminiSearch)
-		case "claude":
-			ans, err = try(c.claudeSearch)
-		default:
-			continue
+		if q := c.quotaClosed(m); q != nil {
+			err = q
+		} else {
+			switch m {
+			case "gemini":
+				if err = c.spend("gemini_search"); err == nil {
+					if err = c.spend("gemini"); err == nil {
+						ans, err = try(c.geminiSearch)
+						c.noteGeminiSearch(err)
+					}
+				}
+			case "claude":
+				if err = c.spend("claude"); err == nil {
+					ans, err = try(c.claudeSearch)
+				}
+			}
 		}
 		if err == nil {
 			return ans, nil
@@ -739,6 +845,25 @@ func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
 		}
 	}
 	return "", first
+}
+
+// SearchModels: the models that can search the web now or later (a key).
+func (c *Client) SearchModels() []string {
+	var out []string
+	for _, m := range c.TextModels() {
+		if m == "claude" || m == "gemini" {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func (c *Client) noteGeminiSearch(err error) {
+	si := SearchInfo{At: time.Now(), OK: err == nil, Model: c.geminiModel(), Tool: "google_search"}
+	if err != nil {
+		si.Error = UserMessage(err)
+	}
+	c.noteSearch(si)
 }
 
 func (c *Client) geminiSearch(ctx context.Context, prompt string) (string, error) {

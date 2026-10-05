@@ -136,7 +136,7 @@ func (h *PlatformAI) ttsState(missing int) (string, time.Time) {
 	if missing == 0 {
 		return "ready", time.Time{}
 	}
-	if h.AI == nil || h.AI.Gemini == "" {
+	if h.AI == nil || !h.AI.HasTTS() {
 		return "noKey", time.Time{}
 	}
 	if u := h.AI.QuotaUntil("tts"); !u.IsZero() {

@@ -9896,7 +9896,7 @@ function delEvent(i){
 // ═══ РЕКОМЕНДАЦИИ ИИ ═══
 // R32c: ошибка ИИ одной понятной фразой. Квота Gemini (429, RESOURCE_EXHAUSTED, billing) всегда
 // звучит одинаково, сырой JSON ответа API на страницу не попадает никогда
-var BS_AI_QUOTA_MSG = 'Закончилась квота Gemini: пополните баланс в Google AI Studio или добавьте ключ Claude. Сервисы ИИ временно на паузе';
+var BS_AI_QUOTA_MSG = 'ИИ временно на паузе: у Claude нет баланса, а бесплатные лимиты на сегодня закончились. Лимиты восстановятся сами';
 function bsAiErr(e, def){
   e = String(e || '').trim();
   if(!e) return def || '';
@@ -9929,6 +9929,7 @@ function aiwCard(x){
   return '<div class="aiw-c st-' + escA(st) + '" data-id="' + escA(x.id) + '">' +
     '<div class="aiw-top"><span class="aiw-k">' + (x.kind === 'diag' ? 'ДИАГНОЗ' : 'ИНСТРУМЕНТ') + '</span>' +
       (x.organ ? '<span class="aiw-o">' + esc(x.organ) + '</span>' : '') +
+      (x.nosearch ? '<span class="aiw-o" title="Поиск в интернете был недоступен: практика из знаний модели, проверьте источник">без поиска</span>' : '') +
       '<span class="aiw-d">' + esc(x.date || '') + '</span><span class="aiw-st">' + (AIW_ST[st] || esc(st)) + '</span></div>' +
     '<div class="aiw-t">' + esc(x.title || x.t || '') + '</div>' +
     (src ? '<div class="aiw-src">' + (x.url ? '<a href="' + escA(x.url) + '" target="_blank" rel="noopener">' + esc(src) + ' ↗</a>' : esc(src)) + '</div>' : '') +
@@ -28004,7 +28005,7 @@ function paint(m){
       '<div class="r32-meter"><b style="width:' + pct + '%"></b></div></div>';
     // R34a: «Состояние ИИ»: всё делает Claude, расшифровка записей на сервере (GET /ai/status)
     var ai = aiLine(AIST);
-    h += '<div class="r32-row"><div><div class="r32-k">Состояние ИИ</div><div class="r32-h">Тексты, поиск, мероприятия, рекомендации и саммари разборов делает Claude. Записи разборов расшифровываются на сервере</div></div><div></div>' +
+    h += '<div class="r32-row"><div><div class="r32-k">Состояние ИИ</div><div class="r32-h">Тексты, поиск, мероприятия, рекомендации и саммари разборов делает Claude, а без его баланса бесплатные Gemini, Groq и OpenRouter. Записи разборов расшифровываются на сервере</div></div><div></div>' +
       '<div class="r32-st ' + ai.cls + '" id="r32AiSt" style="grid-column:1/-1;min-width:0"><i></i><span style="min-width:0;overflow-wrap:anywhere">' + ea(ai.t) + '</span></div></div>';
     h += keyRow(AIKEY);
     // R39: экспорт в таблицу: одна строка админа (вкладка «Экспорт» в Клубе убрана)
@@ -28041,19 +28042,41 @@ function paint(m){
   };
 }
 var AIST = null, lastMan = null;
+function aiUntil(u){
+  var d = new Date(u); if(isNaN(d)) return '';
+  var t = new Date();
+  return d.toDateString() === t.toDateString() ? d.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}) : d.toLocaleDateString('ru', {day:'2-digit', month:'2-digit'}) + ' ' + d.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'});
+}
+// R42: каждая модель цепочки: работает / нет ключа / лимит до HH:MM / нет баланса, запросы сегодня из бюджета
+function aiProvLine(p){
+  var t = (p.label || p.name) + ': ';
+  if(p.state === 'none') return t + 'нет ключа';
+  if(p.state === 'off') return t + 'выключен';
+  if(p.state === 'billing') t += 'нет баланса';
+  else if(p.state === 'quota' || p.state === 'budget') t += aiUntil(p.until) ? 'лимит до ' + aiUntil(p.until) : 'лимит на сегодня исчерпан';
+  else t += 'работает';
+  if(p.budget > 0) t += ', ' + (p.used || 0) + ' из ' + p.budget + ' сегодня';
+  if(p.active) t += ' (отвечает сейчас)';
+  return t;
+}
 function aiLine(st){
   if(!st) return {t: 'Состояние ИИ: проверяю…', cls: 'wait'};
-  var ps = st.providers || [], c = ps.find(function(p){ return p.name === 'claude'; }) || {}, g = ps.find(function(p){ return p.name === 'gemini'; });
-  var ct = c.state === 'ok' ? 'Claude работает' + (st.model ? ' (' + st.model + ')' : '') :
-    c.state === 'quota' ? 'Claude: закончился баланс' + (c.until ? ', пауза до ' + fmtUntil(c.until) : '') : 'Claude: нет ключа, вставьте его ниже';
-  var parts = [ct];
-  if(g) parts.push(g.state === 'ok' ? 'Gemini включён как запасной' : g.state === 'quota' ? 'Gemini: квота закончилась' : 'Gemini: нет ключа');
-  // R39: последний поиск в интернете (мероприятия, рекомендации): работает или ответ Anthropic словами
+  var parts = [];
+  var ch = Array.isArray(st.chain) ? st.chain : null;
+  if(ch){
+    ch.forEach(function(p){ parts.push(aiProvLine(p)); });
+  } else {
+    var ps = st.providers || [], c = ps.find(function(p){ return p.name === 'claude'; }) || {};
+    parts.push(c.state === 'ok' ? 'Claude работает' + (st.model ? ' (' + st.model + ')' : '') : c.state === 'quota' ? 'Claude: закончился баланс' : 'Claude: нет ключа');
+  }
+  // R39: последний поиск в интернете (мероприятия, рекомендации): работает или ответ словами
   var srch = st.search;
   if(srch) parts.push(srch.ok ? 'поиск в интернете работает' + (srch.model ? ' (' + srch.model + ')' : '') : 'поиск в интернете: ошибка (' + (srch.error || 'нет ответа') + ')');
+  else if(Array.isArray(st.searchModels) && !st.searchModels.length) parts.push('поиск в интернете недоступен: мероприятия не обновляются, рекомендации без поиска');
   var sp = st.speech === 'local' ? 'расшифровка: ' + (st.speech_model || 'Whisper на сервере') : st.speech === 'openai' ? 'расшифровка: Whisper API' : st.speech === 'gemini' ? 'расшифровка: Gemini' : 'расшифровка недоступна';
   parts.push(sp);
-  var cls = st.paused || (!st.text) ? 'err' : (c.state === 'ok' ? '' : 'wait');
+  var ans = st.answering || '';
+  var cls = st.paused || !st.text || (ch && !ans) ? 'err' : (ans === 'claude' || (!ch && st.text === 'claude') ? '' : 'wait');
   return {t: (st.paused ? 'Сервисы ИИ на паузе. ' : '') + parts.join(' · '), cls: cls};
 }
 // R34a: «Ключ Claude (Anthropic)»: ключ уходит на сервер и обратно не приходит, видны только 4 последних символа
@@ -28062,12 +28085,14 @@ function keyNow(k){
   if(!k) return 'Проверяю…';
   if(k.source === 'env') return 'Ключ задан в Railway (ANTHROPIC_API_KEY ' + (k.last4 || '') + '): он главнее ключа из настроек';
   if(k.source === 'settings') return 'Сохранён ключ ' + (k.last4 || '') + '. Он зашифрован на сервере';
-  return 'Ключа нет: ИИ не работает, пока его не вставить';
+  // R42: без Claude отвечают бесплатные модели (Gemini, Groq, OpenRouter)
+  if(AIST && AIST.answering && AIST.answering !== 'claude') return 'Ключа нет: ИИ работает через бесплатные модели. Ключ Claude не обязателен';
+  return 'Ключа нет: ИИ не работает, пока не добавлен ключ Claude или бесплатный GEMINI_API_KEY в Railway';
 }
 function keyRow(k){
   var has = k && k.source;
   return '<div class="r32-row" id="r34Key"><div><div class="r32-k">Ключ Claude (Anthropic)</div><div class="r32-h">Ключ из console.anthropic.com → API Keys. Хранится на сервере в зашифрованном виде, сюда не возвращается</div></div><div></div>' +
-    '<div class="r32-st ' + (has ? '' : 'err') + '" id="r34KeySt" style="grid-column:1/-1;min-width:0"><i></i><span style="min-width:0;overflow-wrap:anywhere">' + ea(keyNow(k)) + '</span></div>' +
+    '<div class="r32-st ' + (has || (AIST && AIST.answering) ? '' : 'err') + '" id="r34KeySt" style="grid-column:1/-1;min-width:0"><i></i><span style="min-width:0;overflow-wrap:anywhere">' + ea(keyNow(k)) + '</span></div>' +
     '<div class="r34-kf"><input type="password" id="r34KeyIn" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="' + (has ? 'Новый ключ sk-ant-…' : 'sk-ant-…') + '" aria-label="Ключ Claude">' +
     '<button type="button" class="pri" data-k="save">Сохранить</button><button type="button" data-k="test">Проверить</button>' +
     (k && k.saved ? '<button type="button" data-k="del">Удалить</button>' : '') + '</div>' +
@@ -28747,7 +28772,7 @@ body.r32t .side-subs{display:none}
     var key = gem ? 'Gemini' : '';
     var quota = code === 429 || (!code || code === 400) && /exceeded your current quota|resource_exhausted|too many requests/.test(low);
     // квота: та же фраза, что у сервера и bsAiErr (R32c: ИИ переходит на Claude, если есть ключ)
-    if(quota) return typeof BS_AI_QUOTA_MSG === 'string' ? BS_AI_QUOTA_MSG : 'Закончилась квота Gemini: пополните баланс в Google AI Studio или добавьте ключ Claude. Сервисы ИИ временно на паузе';
+    if(quota) return typeof BS_AI_QUOTA_MSG === 'string' ? BS_AI_QUOTA_MSG : 'ИИ временно на паузе: у Claude нет баланса, а бесплатные лимиты на сегодня закончились. Лимиты восстановятся сами';
     if(code === 401 || code === 403 || /api key not valid|permission_denied|unauthenticated|invalid.?api.?key/.test(low))
       return 'ИИ-ключ' + (key ? ' ' + key : '') + ' не принят. Проверьте ключ и доступ в Google AI Studio';
     if(code === 503 || code === 529 || /overloaded|unavailable|high demand/.test(low))

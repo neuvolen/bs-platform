@@ -21,4 +21,12 @@ tools and the model are downloaded on the first recording.
 | `ASR_DIR` | `/data/bs-asr` if `/data` is writable, else tmp | put on a Railway volume to keep the download across deploys |
 | `ASR_PRELOAD` | off | `1`: download at start |
 | `OPENAI_API_KEY` | none | Whisper API, fallback for transcription |
-| `GEMINI_ENABLED` | off | `1` with `GEMINI_API_KEY`: Gemini as an emergency fallback (text, search, transcription, tour TTS) |
+| `GEMINI_API_KEY` | none | free Google AI Studio key: text and web search (Google Search grounding) when Claude has no key or balance |
+| `GEMINI_ENABLED` | auto | `0`: never use Gemini; `1`: also Gemini transcription fallback and tour TTS |
+| `GROQ_API_KEY` | none | free Groq key (OpenAI-compatible), after Gemini |
+| `OPENROUTER_API_KEY` | none | free OpenRouter `:free` models, after Groq |
+| `AI_BUDGET_GEMINI` / `_GEMINI_SEARCH` / `_GROQ` / `_OPENROUTER` / `_CLAUDE` | 1000 / 100 / 900 / 45 / 0 | daily request budget per provider (0 = unlimited) to stay inside free limits |
+| `AI_GEMINI_MODEL` / `AI_GEMINI_MODEL_LIGHT` | `gemini-3.8-flash` / `gemini-3.5-flash-lite` | Gemini models (heavy and default / short JSON tasks) |
+| `AI_GROQ_MODEL` / `AI_GROQ_MODEL_LIGHT` | `openai/gpt-oss-120b` / `openai/gpt-oss-20b` | Groq models |
+| `AI_OPENROUTER_MODEL` | `openrouter/free` | OpenRouter model (the free router) |
+| `AI_TEXT_ORDER` | `claude,gemini,groq,openrouter,openai` | the order of the text chain |

@@ -1562,3 +1562,21 @@ func threadsTrim(q []*contentItem, st contentSettings, now time.Time) []*content
 	}
 	return out
 }
+
+// ThreadsReserve: the share of the answering free provider's daily budget
+// the Threads batch leaves for the team's own tasks (R42).
+const ThreadsReserve = 40
+
+// ErrThreadsBudget: the batch goes without AI to save the free limit.
+var ErrThreadsBudget = errors.New("бесплатный лимит ИИ бережём для задач команды: посты дня из библиотеки")
+
+// ThreadsAI: the batch's AI, used only while the free budget allows (R42);
+// otherwise the batch takes the library's ready posts.
+func ThreadsAI(c *ai.Client) func(ctx context.Context, system, prompt string) (string, error) {
+	return func(ctx context.Context, system, prompt string) (string, error) {
+		if !c.BudgetAllows(ThreadsReserve) {
+			return "", ErrThreadsBudget
+		}
+		return c.Text(ctx, system, prompt)
+	}
+}

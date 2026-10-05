@@ -81,6 +81,10 @@ func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {
 	if c.OnQuota == nil {
 		c.OnQuota = h.quotaAlert
 	}
+	// R42: once when another provider starts answering (Claude → Gemini …)
+	if c.OnSwitch == nil {
+		c.OnSwitch = h.switchAlert
+	}
 	// R34a: Whisper on the server, downloaded ahead of the first recording
 	if c.ASR != nil && os.Getenv("ASR_PRELOAD") == "1" {
 		go func() {
