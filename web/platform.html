@@ -3290,6 +3290,8 @@ body.light .cz{--cz-s2:rgba(20,20,22,.48);--cz-s3:rgba(20,20,22,.2)}
 .cz-p.skipped{text-decoration:line-through;opacity:.7}
 .cz-p.failed{color:var(--pred);border-color:var(--pred)}
 .cz-p.wait{border-style:dashed;color:var(--ptx)}
+.cz-p.sent{border-style:dashed;border-color:var(--ptx);color:var(--ptx)}
+.cz-p.missed{color:var(--pm);border-style:dotted}
 .cz-tm{font-size:11px;font-weight:700;color:var(--pm)}
 .cz-k{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--ptx);border:1px solid var(--pi);border-radius:5px;padding:1px 6px}
 .cz-ed{font-size:10.5px;font-weight:700;color:var(--pm);font-style:italic}
@@ -21854,7 +21856,7 @@ var CT = {view:'cal', off:0, car:null, lib:null, libLoading:false, libErr:'', li
   busy:{}, png:{}, anAll:false, tp:null, edId:null};
 var CT_CH = [{id:'threads', n:'Threads', p:'th', src:'Threads:'}, {id:'telegram', n:'Telegram', p:'tg', src:'Telegram-канал:'}, {id:'instagram', n:'Instagram', p:'ig', src:'Instagram:'}];
 var CT_KIND = {threads:'Threads', telegram:'Telegram', carousel:'Карусель', reels:'Reels'};
-var CT_ST = {planned:'План', approved:'Одобрено', published:'Вышло', skipped:'Пропуск', failed:'Ошибка'};
+var CT_ST = {planned:'План', approved:'Одобрено', published:'Вышло', skipped:'Пропуск', failed:'Ошибка', sent:'Ждёт публикации', missed:'Не опубликован'};
 var CT_LIM = {threads:500, telegram:4096, carousel:2200, reels:2200};
 var CT_RUB = {guide:'Чек-листы', guides:'Чек-листы', cases:'Кейсы', objections:'Возражения', format:'Формат'};
 var CT_WD = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -21865,6 +21867,12 @@ var CT_BOT = '@bsurgery_bot';
 // R28: Threads через пользу, пачка постов на день (сервер собирает её в 06:30, content_threads.go)
 var CT_FMT = {tip:'Совет', checklist:'Чек-лист', numbers:'Цифры', myth:'Миф', question:'Вопрос', 'case':'Кейс', symptom:'Симптом', series:'Серия', library:'Библиотека'};
 function czThN(){ var n = parseInt(czC().settings.channels.threads.perDay, 10); if(isNaN(n) || n < 1) n = 16; return Math.min(25, n); }
+// R43: ручной Threads (нет THREADS_TOKEN): сервер пишет bs_content.threadsMode, бот присылает владельцу 4 поста в день
+function czThManual(){ var m = czC().threadsMode; return !!(m && m.manual); }
+function czThManN(){ var n = parseInt(czC().settings.channels.threads.manualPerDay, 10); if(isNaN(n) || n < 1) n = 4; return Math.min(12, n); }
+function czThDayN(){ return czThManual() ? czThManN() : czThN(); }
+function czSetThManN(v){ var n = Math.max(1, Math.min(12, parseInt(v, 10) || 4)); czC().settings.channels.threads.manualPerDay = n; czSetSave('Threads вручную: ' + n + ' ' + czPl(n, 'пост', 'поста', 'постов') + ' в день'); czSetPaint(); }
+function czIntent(t){ return 'https://www.threads.net/intent/post?text=' + encodeURIComponent(String(t || '')); }
 function czDefaults(){
   return {channels:{threads:{on:true, time:'10:00', perDay:16}, telegram:{on:true, chat:'', time:'12:00'}, instagram:{on:false, time:'19:00'}},
     days:[1, 2, 3, 4, 5, 6], approval:'auto', previewHour:9};
@@ -22234,6 +22242,7 @@ function czSetPaint(){
   };
   var hours = ''; for(var hh = 0; hh < 24; hh++) hours += '<option value="' + hh + '"' + (hh === s.previewHour ? ' selected' : '') + '>' + (hh < 10 ? '0' : '') + hh + ':00</option>';
   B.innerHTML = '<div class="dh">КАНАЛЫ</div>' +
+    (czThManual() ? '<div class="cz-pd" id="czThManRow"><span>Постов в день (вручную)</span><input class="inp" type="number" min="1" max="12" id="czThManN" value="' + czThManN() + '" onchange="czSetThManN(this.value)"><span>Ручной режим: нет THREADS_TOKEN. Бот присылает пост в 09:30, 12:30, 16:30, 19:30 с кнопкой «Опубликовать в Threads»</span></div>' : '') +
     row('threads', 'Threads', '<div class="cz-pd"><span>Постов в день</span><input class="inp" type="number" min="1" max="25" id="czThN" value="' + czThN() + '" onchange="czSetThN(this.value)"><span>' +
       (czThN() > 1 ? 'с 08:00 до 22:00, у каждого поста своё время' : 'один пост во время слева') + '</span></div>',
       czThN() > 1 ? 'Пачка дня собирается в 06:30: польза из библиотеки (шаг, ошибка, метрика, расчёт в ₸), примерно каждый 4-й пост со ссылкой на 99 чек-листов. Править и пропускать можно в календаре' : 'Посты до 500 знаков, ссылка на чек-лист в конце') +
@@ -33423,6 +33432,10 @@ function ptUgcHTML(){
 .smm-bar select,.smm-bar input{height:32px;border-radius:8px;border:1px solid var(--pb);background:var(--pc);color:var(--ptx);font:inherit;font-size:12.5px;padding:0 9px;max-width:100%}
 .smm-bar input[type=search]{flex:1;min-width:160px}
 .smm-today{font-size:13px;font-weight:700;color:var(--ptx);margin:0 0 4px}
+.smm-man{display:flex;flex-direction:column;gap:4px;border:1px dashed var(--ptx);border-radius:12px;padding:10px 12px;margin:0 0 12px;background:var(--pc)}
+.smm-man b{font-size:13.5px;color:var(--ptx)}
+.smm-man span{font-size:12.5px;color:var(--pm);line-height:1.45}
+.smm-a .smm-pub{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;background:var(--pon);color:var(--pontx);font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap}
 .smm-today b{font-size:18px}
 .smm-day{margin:18px 0 6px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .smm-day h4{margin:0;font-size:14px;font-weight:800;letter-spacing:-.2px}
@@ -33454,7 +33467,7 @@ function ptUgcHTML(){
 @media (max-width:720px){
   .smm-fn{grid-template-columns:repeat(2,minmax(0,1fr))}
   .smm-it{grid-template-columns:44px minmax(0,1fr)}
-  .smm-a{grid-column:1 / -1;flex-direction:row;justify-content:flex-end}
+  .smm-a{grid-column:1 / -1;flex-direction:row;justify-content:flex-end;flex-wrap:wrap}
 }
 </style>
 <script id="r40bScript">
@@ -33525,6 +33538,8 @@ function ptUgcHTML(){
     return [t, t];
   }
   function editable(it){ return ['planned', 'approved', 'failed'].indexOf(it.status) >= 0; }
+  // R43: ручной Threads: ссылка «Опубликовать в Threads» (threads.net/intent), копирование текста, отметка
+  function byHand(it){ return it.channel === 'threads' && czThManual() && ['planned', 'approved', 'sent', 'missed'].indexOf(it.status) >= 0; }
   function lim(it){ return (typeof CT_LIM !== 'undefined' && CT_LIM[it.kind]) || 500; }
   function itText(it){ return it.kind === 'carousel' ? (it.caption || it.title || '') : (it.text || it.title || it.hook || ''); }
   function rowHTML(it){
@@ -33533,6 +33548,7 @@ function ptUgcHTML(){
     var meta = [];
     meta.push(czPill(it));
     if(it.url) meta.push('<a href="' + escA(it.url) + '" target="_blank" rel="noopener">Открыть пост ↗</a>');
+    if(st === 'published' && it.byHand) meta.push('<span>вручную</span>');
     if(st === 'published') meta.push('<span class="smm-ld">' + n(stt.leads || 0) + ' ' + pl(stt.leads || 0, 'лид', 'лида', 'лидов') + '</span>' + (stt.razbor ? '<span>· разборов ' + n(stt.razbor) + '</span>' : ''));
     else if(it.cta || /start=/.test(it.link || '')) meta.push('<span>со ссылкой на бот</span>');
     if(it.parts && it.parts.length) meta.push('<span>серия: +' + it.parts.length + '</span>');
@@ -33548,6 +33564,8 @@ function ptUgcHTML(){
     }
     var acts = '';
     if(V.ed !== id){
+      if(byHand(it)) acts += '<a class="smm-pub" href="' + escA(czIntent(it.text)) + '" target="_blank" rel="noopener">Опубликовать в Threads</a>' +
+        '<button onclick="r43Copy(\'' + escA(id) + '\')">Скопировать текст</button><button onclick="r43Done(\'' + escA(id) + '\')">✅ Опубликовал</button>';
       if(editable(it) && (it.kind === 'threads' || it.kind === 'telegram')) acts += '<button onclick="r40bEdit(\'' + escA(id) + '\')">Изменить</button>';
       else if(editable(it)) acts += '<button onclick="czOpenItem(\'' + escA(id) + '\')">Открыть</button>';
       if(editable(it)) acts += '<button onclick="r40bSkip(\'' + escA(id) + '\')">Пропустить</button>';
@@ -33562,7 +33580,7 @@ function ptUgcHTML(){
     var all = items(), t = czToday(), r = range(), q = V.q.trim().toLowerCase();
     var thToday = all.filter(function(x){ return x.channel === 'threads' && czDay(x.at) === t && x.status !== 'skipped'; });
     var pubToday = thToday.filter(function(x){ return x.status === 'published'; }).length;
-    var perDay = 16; try{ perDay = czThN(); }catch(e){}
+    var perDay = 16; try{ perDay = czThDayN(); }catch(e){}
     var list = all.filter(function(x){
       var d = czDay(x.status === 'published' && x.publishedAt ? x.publishedAt : x.at);
       if(!d || d < r[0] || d > r[1]) return false;
@@ -33575,7 +33593,10 @@ function ptUgcHTML(){
     list.forEach(function(x){ var d = czDay(x.at); (byDay[d] = byDay[d] || []).push(x); });
     var days = Object.keys(byDay).sort();
     var leadsToday = thToday.reduce(function(a, x){ return a + ((x.stats && x.stats.leads) || 0); }, 0);
-    var html = '<div class="smm-today">Опубликовано <b>' + n(pubToday) + ' из ' + n(Math.max(perDay, thToday.length)) + '</b> сегодня в Threads' +
+    var man = false; try{ man = czThManual(); }catch(e){}
+    var html = (man ? '<div class="smm-man"><b>Threads: ручной режим</b><span>Нет THREADS_TOKEN, поэтому бот присылает владельцу ' + n(perDay) + ' ' + pl(perDay, 'пост', 'поста', 'постов') +
+      ' в день с 09:00 до 21:00: «Опубликовать в Threads» открывает окно поста с готовым текстом, после публикации нажмите «✅ Опубликовал». Здесь те же кнопки для компьютера. В каждом посте своя ссылка на бот, лиды считаются по посту.</span></div>' : '') +
+      '<div class="smm-today">Опубликовано <b>' + n(pubToday) + ' из ' + n(Math.max(perDay, thToday.length)) + '</b> сегодня в Threads' +
       (leadsToday ? ' · лидов с сегодняшних постов: ' + n(leadsToday) : '') + '</div>';
     var dayBtns = [['yday', 'Вчера'], ['today', 'Сегодня'], ['tom', 'Завтра'], ['week', '7 дней назад'], ['next', '7 дней вперёд']];
     html += '<div class="smm-bar"><div class="smm-sw">' + dayBtns.map(function(b){ return '<button class="' + (V.day === b[0] ? 'on' : '') + '" onclick="r40bDay(\'' + b[0] + '\')">' + b[1] + '</button>'; }).join('') + '</div>' +
@@ -33617,6 +33638,17 @@ function ptUgcHTML(){
     it.text = v; it.edited = true; it.editedAt = new Date().toISOString(); it.editedBy = czWho();
     if(it.status === 'failed'){ czLog(it, 'planned', 'failed'); it.status = 'planned'; delete it.error; }
     saveContent(); czPush(); V.ed = null; paint(); toast('Сохранено');
+  };
+  window.r43Copy = function(id){
+    var it = czItem(id); if(!it) return;
+    var t = String(it.text || ''), done = function(){ toast('Текст скопирован'); };
+    try{ navigator.clipboard.writeText(t).then(done, function(){ fb(); }); }catch(e){ fb(); }
+    function fb(){ var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ toast('Не скопировалось: выделите текст вручную'); } ta.remove(); }
+  };
+  window.r43Done = function(id){
+    var it = czItem(id); if(!it || it.status === 'published') return;
+    var from = it.status; it.status = 'published'; it.byHand = true; it.publishedAt = new Date().toISOString(); delete it.error;
+    czLog(it, 'published', from); saveContent(); czPush(); paint(); toast('Отмечено: опубликован');
   };
   window.r40bSkip = function(id){
     var it = czItem(id); if(!it || it.status === 'published') return;

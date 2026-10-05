@@ -29,6 +29,7 @@ func NewContentModule(e *ContentEngine, secret []byte) *ContentModule {
 }
 
 func (m *ContentModule) Register(r *gin.Engine) {
+	r.GET("/go/th/:id", m.goThreads) // the manual Threads mode's long-post button (content_threads_manual.go)
 	g := r.Group("/api/v1/platform/content")
 	g.Use(middleware.AuthJWT(m.secret))
 	g.Use(middleware.RequireRole("admin", "moderator"))

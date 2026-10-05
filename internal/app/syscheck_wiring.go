@@ -30,6 +30,9 @@ func WireSysCheck(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team
 	if pm != nil && pm.AI != nil {
 		s.AI, s.Premium, s.Recs = pm.AI.AI, pm.AI.Premium, pm.AI
 	}
+	if contentEngine != nil {
+		s.Threads = contentEngine.ThreadsStatus
+	}
 	if botSvc != nil && botSvc.Enabled() {
 		s.Send = botSvc.SendMessage
 		s.Webhook = botSvc.WebhookOwned

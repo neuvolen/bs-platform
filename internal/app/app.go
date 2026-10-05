@@ -271,6 +271,9 @@ func WireCalls(pm *httpapi.PlatformModule, botSvc *bot.Service, team string) {
 	go pm.AI.CallSumLoop(context.Background(), 5*time.Minute) // R32e: quiet-hours sends, auto-publish
 }
 
+// contentEngine: the wired engine, for the /status line (syscheck_wiring.go).
+var contentEngine *httpapi.ContentEngine
+
 // BuildContent wires the content engine (bs_content): planning, the owner's
 // morning preview in the bot, publishing to Threads and the Telegram channel.
 func BuildContent(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, jwtSecret, team string) httpapi.RoutesRegistrar {
@@ -279,7 +282,11 @@ func BuildContent(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, jwtS
 	}
 	e := httpapi.NewContentEngine(d.PlatformRepo)
 	e.Owner = httpapi.FirstTeamID(team)
+	contentEngine = e
+	// R43: no THREADS_TOKEN: the bot sends the owner each post to publish by hand
+	e.ThreadsManual = func(context.Context) bool { return true }
 	if pm != nil && pm.AI != nil {
+		e.ThreadsManual = func(ctx context.Context) bool { return !pm.AI.HasThreadsToken(ctx) }
 		e.Threads = pm.AI.PublishThreadsText
 		e.ThreadsReply = pm.AI.PublishThreadsReply
 		if pm.AI.AI != nil {

@@ -69,6 +69,9 @@ type contentChan struct {
 	From    string `json:"from,omitempty"`
 	To      string `json:"to,omitempty"`
 	BuildAt string `json:"buildAt,omitempty"`
+	// ManualPerDay: posts a day in the manual mode (no THREADS_TOKEN): the
+	// bot sends each one to the owner (content_threads_manual.go), 0: 4.
+	ManualPerDay int `json:"manualPerDay,omitempty"`
 }
 
 type contentSettings struct {
@@ -81,6 +84,8 @@ type contentSettings struct {
 	Approval    string `json:"approval"`
 	PreviewHour int    `json:"previewHour"`
 	Rev         int    `json:"rev,omitempty"` // settings layout; 2: Telegram channel off by default
+	// manual: Threads has no token, the owner publishes by hand (set by the engine, not stored)
+	manual bool
 }
 
 // contentTelegramDefault: the Telegram channel is off unless the team turns it on.
@@ -198,6 +203,11 @@ type contentItemData struct {
 	CTA     bool     `json:"cta,omitempty"`     // ends with the link to the 99 checklists
 	Tries   int      `json:"tries,omitempty"`   // failed attempts to publish
 	RetryAt string   `json:"retryAt,omitempty"` // not before
+	// The manual Threads mode (content_threads_manual.go): the bot sent the
+	// post to the owner (status sent), he published it himself (byHand).
+	SentAt string `json:"sentAt,omitempty"`
+	MsgID  int64  `json:"msgId,omitempty"`
+	ByHand bool   `json:"byHand,omitempty"`
 }
 
 // contentItem keeps the fields the platform adds that the server does not know.
@@ -221,6 +231,8 @@ type contentDocData struct {
 	Queue    []*contentItem  `json:"queue"`
 	History  []*contentItem  `json:"history"`
 	Stats    json.RawMessage `json:"stats,omitempty"`
+	// ThreadsMode: the server tells the platform whether Threads is manual
+	ThreadsMode *threadsMode `json:"threadsMode,omitempty"`
 }
 
 type contentDoc struct {
@@ -310,7 +322,7 @@ func (it *contentItem) day() string {
 }
 
 func (it *contentItem) used() bool {
-	return it.Status == "planned" || it.Status == "approved" || it.Status == "published" || it.Status == ""
+	return it.Status == "planned" || it.Status == "approved" || it.Status == "published" || it.Status == "sent" || it.Status == ""
 }
 
 // ── The engine ──
@@ -337,6 +349,9 @@ type ContentEngine struct {
 	ThreadsReply func(ctx context.Context, replyTo, text string) (string, error)
 	// Go runs the batch build in the background (tests run it inline).
 	Go func(func())
+	// ThreadsManual: true when Threads has no token (the owner publishes by
+	// hand from the bot's message); nil: never.
+	ThreadsManual func(ctx context.Context) bool
 
 	now      func() time.Time
 	pubMu    sync.Mutex
@@ -344,6 +359,9 @@ type ContentEngine struct {
 	thMu     sync.Mutex
 	thHold   time.Time // Threads waits until then (token, limits)
 	thLast   time.Time // the last Threads post
+	manMu    sync.Mutex
+	manAt    time.Time // when manual was checked
+	manVal   bool
 }
 
 func NewContentEngine(docs funnelDocs) *ContentEngine {
@@ -748,7 +766,7 @@ func (s contentSettings) fits(it *contentItem, at time.Time) bool {
 // plan fills the next 14 days; reset re-plans the server's untouched items too.
 // Returns how many items were added.
 func (e *ContentEngine) plan(d *contentDoc, now time.Time, reset bool) int {
-	st := parseContentSettings(d.Settings)
+	st := e.stCached(d)
 	lib := e.lib()
 	bySrc := map[string]*content.LibItem{}
 	for _, li := range lib {
@@ -783,7 +801,7 @@ func (e *ContentEngine) plan(d *contentDoc, now time.Time, reset bool) int {
 		case ok && it.Status == "published" && at.Before(today.AddDate(0, 0, -2)):
 			d.History = append(d.History, it)
 			continue
-		case ok && (it.Status == "skipped" || it.Status == "failed") && at.Before(today.AddDate(0, 0, -14)):
+		case ok && (it.Status == "skipped" || it.Status == "failed" || it.Status == "missed") && at.Before(today.AddDate(0, 0, -14)):
 			continue
 		case ok && it.Auto && !it.Edited && it.Status == "planned" && at.After(now) && ((reset && it.Gen == "") || !st.fits(it, at)):
 			continue // re-planned below (the Threads batch stays: it is made once a day)
@@ -844,6 +862,7 @@ func (e *ContentEngine) plan(d *contentDoc, now time.Time, reset bool) int {
 
 // Plan fills the queue (reset: re-plans every untouched future item).
 func (e *ContentEngine) Plan(ctx context.Context, reset bool) (int, *contentDoc, error) {
+	e.manual(ctx)
 	added := 0
 	d, err := e.update(ctx, func(d *contentDoc) bool {
 		added = e.plan(d, e.now(), reset)
@@ -925,9 +944,16 @@ func (e *ContentEngine) Publish(ctx context.Context, id string, force bool) (*co
 	if it == nil {
 		return nil, errContentNotFound
 	}
-	st := parseContentSettings(d.Settings)
+	st := e.settings(ctx, d)
 	if it.Status == "published" {
 		return it, errors.New("Уже опубликовано")
+	}
+	if it.Channel == "threads" && st.manual {
+		// no token: the post goes to the owner's bot to publish by hand
+		if !force {
+			return it, nil
+		}
+		return e.sendManual(ctx, id, true)
 	}
 	if it.Manual || it.Channel == "instagram" {
 		return it, errors.New("Instagram публикуется вручную: отметьте пост опубликованным на платформе")
@@ -1077,7 +1103,7 @@ func (e *ContentEngine) due(ctx context.Context) []string {
 	quotaFull := false
 	_, err := e.update(ctx, func(d *contentDoc) bool {
 		ids = ids[:0]
-		st := parseContentSettings(d.Settings)
+		st := e.stCached(d)
 		changed := false
 		thOK := !e.thHeld(now)
 		if n, _ := threads24h(d, now); n >= threadsQuotaSafe {
@@ -1088,6 +1114,9 @@ func (e *ContentEngine) due(ctx context.Context) []string {
 		for _, it := range d.Queue {
 			if it.Manual || (it.Channel != "threads" && it.Channel != "telegram") || !st.channel(it.Channel).On {
 				continue
+			}
+			if it.Channel == "threads" && st.manual {
+				continue // the manual mode sends them to the owner (manualDue)
 			}
 			at, ok := parseContentAt(it.At)
 			if !ok || at.After(now) {
@@ -1146,6 +1175,10 @@ func (e *ContentEngine) due(ctx context.Context) []string {
 // Tick: publish what is due, make the day's Threads batch after 06:30 and
 // send the morning preview (every minute).
 func (e *ContentEngine) Tick(ctx context.Context) {
+	if e.manual(ctx) {
+		e.manualDue(ctx)
+	}
+	e.noteMode(ctx)
 	for _, id := range e.due(ctx) {
 		c, cancel := context.WithTimeout(ctx, 3*time.Minute)
 		_, _ = e.Publish(c, id, false)
@@ -1288,7 +1321,7 @@ func (e *ContentEngine) Preview(ctx context.Context, force bool) bool {
 	if err != nil {
 		return false
 	}
-	st := parseContentSettings(d.Settings)
+	st := e.settings(ctx, d)
 	if !force && now.Hour() < st.PreviewHour {
 		return false
 	}
@@ -1299,6 +1332,9 @@ func (e *ContentEngine) Preview(ctx context.Context, force bool) bool {
 	}
 	var items []*contentItem
 	for _, it := range dayItems(d, day) {
+		if st.manual && it.Channel == "threads" {
+			continue // each comes by itself at its time
+		}
 		if it.Status == "planned" || it.Status == "approved" {
 			items = append(items, it)
 		}
@@ -1318,6 +1354,9 @@ func (e *ContentEngine) Preview(ctx context.Context, force bool) bool {
 // the bot service calls it for the team only.
 func (e *ContentEngine) HandleCallback(ctx context.Context, cb bot.CallbackUpdate) (string, bool) {
 	data := strings.TrimPrefix(cb.Data, "cnt_")
+	if strings.HasPrefix(data, "th_") {
+		return e.manualCallback(ctx, cb, strings.TrimPrefix(data, "th_")), true
+	}
 	by := fmt.Sprintf("tg:%d", cb.FromID)
 	day, toast := "", ""
 	var err error

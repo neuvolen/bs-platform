@@ -94,6 +94,10 @@ func startSource(p string) string {
 	if c := PartnerCode(strings.TrimPrefix(p, "pt_")); strings.HasPrefix(p, "pt_") && c != "" { // R38b: partners.go
 		return PartnerSource("", c)
 	}
+	// The manual Threads mode: each post has its own code th_p2610051448 (content_threads_manual.go).
+	if l := thPostSource(strings.TrimPrefix(p, "th_")); strings.HasPrefix(p, "th_") && l != "" {
+		return l
+	}
 	// The content engine's links: th_g003, tg_case_isfandiyar, ig_g010 (content_engine.go).
 	for pre, l := range map[string]string{"th_": "Threads", "tg_": "Telegram-канал", "ig_": "Instagram"} {
 		if rest := strings.TrimPrefix(p, pre); rest != p && rest != "" {

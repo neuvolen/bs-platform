@@ -62,6 +62,9 @@ var contentThreadsPerDay = threadsPerDayDef
 // ── Settings ──
 
 func (s contentSettings) threadsPerDay() int {
+	if s.manual {
+		return s.manualPerDay()
+	}
 	n := s.Channels.Threads.PerDay
 	if n <= 0 {
 		n = contentThreadsPerDay
@@ -76,7 +79,7 @@ func (s contentSettings) threadsPerDay() int {
 }
 
 // threadsBatch: Threads posts several times a day from the daily batch.
-func (s contentSettings) threadsBatch() bool { return s.threadsPerDay() > 1 }
+func (s contentSettings) threadsBatch() bool { return s.manual || s.threadsPerDay() > 1 }
 
 func hmMinutes(v string, def int) int {
 	h, m, ok := strings.Cut(strings.TrimSpace(v), ":")
@@ -984,7 +987,7 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	if err != nil {
 		return nil, err
 	}
-	st := parseContentSettings(d.Settings)
+	st := e.settings(ctx, d)
 	if !st.Channels.Threads.On {
 		return nil, errors.New("Threads выключен в настройках")
 	}
@@ -1001,6 +1004,15 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	res := &ThreadsBuild{Day: key, PerDay: n}
 	slots := threadsSlots(day, n, from, to)
 	formats := threadsDayFormats(n, key)
+	if st.manual {
+		// by hand: posts at 09:30, 12:30, 16:30, 19:30 (jittered), no series (a reply chain needs the API)
+		slots = threadsManualSlots(day, n)
+		for i, f := range formats {
+			if f == "series" {
+				formats[i] = "tip"
+			}
+		}
+	}
 	ctas := threadsCTASlots(n, formats)
 
 	removable := func(it *contentItem) bool {
@@ -1178,6 +1190,9 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 		it.Kind, it.Channel = "threads", "threads"
 		it.At = sp.At.In(almaty).Format(time.RFC3339)
 		it.Status, it.Auto = "planned", true
+		if st.manual {
+			manualize(it) // each post gets its own bot link (th_p…) for the leads
+		}
 		if it.CTA {
 			res.CTA++
 			ctaN++
@@ -1287,7 +1302,7 @@ func (e *ContentEngine) noteBuild(ctx context.Context, key string, n int, res *T
 // buildDue starts today's batch after buildAt (once; again when the cadence
 // grew or the AI failed and slots stayed empty, at most 3 times an hour apart).
 func (e *ContentEngine) buildDue(ctx context.Context, d *contentDoc) {
-	st := parseContentSettings(d.Settings)
+	st := e.settings(ctx, d)
 	if !st.Channels.Threads.On || !st.threadsBatch() {
 		return
 	}
@@ -1492,7 +1507,7 @@ func (e *ContentEngine) ThreadsDays(ctx context.Context) (map[string]any, error)
 	if err != nil {
 		return nil, err
 	}
-	st := parseContentSettings(d.Settings)
+	st := e.settings(ctx, d)
 	s, _ := e.state(ctx)
 	today := dayStart(e.now())
 	days := []map[string]any{}
@@ -1515,7 +1530,8 @@ func (e *ContentEngine) ThreadsDays(ctx context.Context) (map[string]any, error)
 	from, to := st.threadsWindow()
 	bh := st.threadsBuildAt()
 	return map[string]any{"perDay": st.threadsPerDay(), "from": fmt.Sprintf("%02d:%02d", from/60, from%60), "to": fmt.Sprintf("%02d:%02d", to/60, to%60),
-		"buildAt": fmt.Sprintf("%02d:%02d", bh/60, bh%60), "days": days, "max": threadsPerDayMax}, nil
+		"buildAt": fmt.Sprintf("%02d:%02d", bh/60, bh%60), "days": days, "max": threadsPerDayMax,
+		"manual": st.manual, "manualPerDay": st.manualPerDay()}, nil
 }
 
 // threadsTrim: the cadence went down, so a day's untouched future batch posts

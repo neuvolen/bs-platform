@@ -114,6 +114,8 @@ type SysCheck struct {
 	Send    func(ctx context.Context, chatID int64, text string) error
 	Owner   int64
 	Now     func() time.Time
+	// Threads: the content engine's Threads line (mode, today's posts); nil: no line.
+	Threads func(ctx context.Context) (state, text, sig string)
 	// NoQuiet: send at any hour (SYSCHECK_QUIET=off, test stands).
 	NoQuiet bool
 
@@ -169,6 +171,14 @@ func (s *SysCheck) Run(ctx context.Context) CheckResult {
 	wg.Wait() // R39: 7 «Поиск в интернете», 8 «Рекомендации ИИ»; R42: 9 «ИИ: кто отвечает»
 	r.Items = items
 	r.Items = append(r.Items, s.autoreply(ctx)) // R40b: lead_autoreply.go
+	if s.Threads != nil {                       // R43: «Threads: ручной режим, сегодня опубликовано X из 4»
+		it := CheckItem{Key: "threads", Title: "Threads"}
+		it.State, it.Text, it.Sig = s.Threads(ctx)
+		if it.Sig != "" {
+			it.Note = stateMark(it.State) + " Threads: " + it.Text
+		}
+		r.Items = append(r.Items, it)
+	}
 	return r
 }
 

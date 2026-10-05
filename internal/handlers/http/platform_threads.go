@@ -75,6 +75,10 @@ func (h *PlatformAI) threadsToken(ctx context.Context) string {
 	return env
 }
 
+// HasThreadsToken: a token is set (in Railway or refreshed by the server);
+// without one the content engine runs Threads by hand (content_threads_manual.go).
+func (h *PlatformAI) HasThreadsToken(ctx context.Context) bool { return h.threadsToken(ctx) != "" }
+
 func (h *PlatformAI) threadsCall(ctx context.Context, method, path string, q url.Values) (map[string]any, error) {
 	u := h.threadsBase() + path + "?" + q.Encode()
 	req, _ := http.NewRequestWithContext(ctx, method, u, nil)
