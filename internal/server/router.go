@@ -23,6 +23,7 @@ func SetupRouter(registrars ...httpapi.RoutesRegistrar) *gin.Engine {
 		},
 		ExposeHeaders: []string{
 			"Set-Cookie",
+			"ETag", // R44: the Mini App keeps the bundle's tag and asks with _et (app_gzip.go)
 		},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
