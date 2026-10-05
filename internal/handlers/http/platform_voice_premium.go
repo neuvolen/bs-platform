@@ -135,7 +135,16 @@ func elevenEnvKey() string { return strings.TrimSpace(os.Getenv("ELEVENLABS_API_
 
 // elevenEnvVoice: ELEVENLABS_VOICE_ID in Railway: the tour is read with this
 // voice without picking it in the settings (R36c).
-func elevenEnvVoice() string { return strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID")) }
+func elevenEnvVoice() string {
+	if v := strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID")); v != "" {
+		return v
+	}
+	return defaultElevenVoice
+}
+
+// defaultElevenVoice: the voice the owner chose in ElevenLabs (05.10.2026),
+// used when ELEVENLABS_VOICE_ID is not set; only the API key is needed.
+const defaultElevenVoice = "ogi2DyUAKJb7CEdqqvlU"
 
 var voiceIDShape = regexp.MustCompile(`^[A-Za-z0-9]{20}$`)
 
@@ -171,7 +180,11 @@ func (p *PremiumVoice) applyEnvVoice(ctx context.Context) {
 		return
 	}
 	if p.key() == "" {
-		p.setEnvErr("в Railway указан ELEVENLABS_VOICE_ID, но нет ключа: добавьте ELEVENLABS_API_KEY (или ключ в Настройках платформы)")
+		if strings.TrimSpace(os.Getenv("ELEVENLABS_VOICE_ID")) == "" {
+			p.setEnvErr("голос выбран, нужен ключ ElevenLabs: добавьте ELEVENLABS_API_KEY в Railway (или ключ в Настройках платформы)")
+		} else {
+			p.setEnvErr("в Railway указан ELEVENLABS_VOICE_ID, но нет ключа: добавьте ELEVENLABS_API_KEY (или ключ в Настройках платформы)")
+		}
 		return
 	}
 	c := p.config()

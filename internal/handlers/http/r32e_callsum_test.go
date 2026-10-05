@@ -322,7 +322,8 @@ func TestR32eCallSummaryFlow(t *testing.T) {
 		t.Fatalf("settings default: %s", w.Body.String())
 	}
 	a1, a2 := call("sum-e1", "Айдос Онлайнов"), call("sum-e1", "Айдос Онлайнов")
-	old := time.Now().Add(-25 * time.Hour).UTC().Format(time.RFC3339)
+	noon := time.Date(2026, 10, 5, 12, 0, 0, 0, csAlmaty)
+	old := noon.Add(-25 * time.Hour).UTC().Format(time.RFC3339)
 	for _, x := range []string{a1, a2} {
 		_, m := h.jobMeta(ctx, x)
 		callSumStateOf(m)["createdAt"] = old
@@ -332,7 +333,6 @@ func TestR32eCallSummaryFlow(t *testing.T) {
 		b, _ := json.Marshal(m)
 		_ = repo.UpdateAIJob(ctx, x, "done", "", b)
 	}
-	noon := time.Date(2026, 10, 5, 12, 0, 0, 0, csAlmaty)
 	h.CallSumTick(ctx, noon)
 	if _, m := h.jobMeta(ctx, a1); callSumStatus(m) != "draft" {
 		t.Fatal("published without the setting")
