@@ -59,13 +59,20 @@ type ElevenSettings struct {
 	Similarity   float64 `json:"similarity_boost"`
 	Style        float64 `json:"style"`
 	SpeakerBoost bool    `json:"use_speaker_boost"`
+	// Speed: voice_settings.speed, 1.0 normal, ElevenLabs allows 0.7-1.2
+	// (R40d: the login demo reads a bit faster). 0: not sent, the voice's own pace.
+	Speed float64 `json:"speed,omitempty"`
 }
 
 var DefaultElevenSettings = ElevenSettings{Stability: 0.55, Similarity: 0.8, Style: 0.1, SpeakerBoost: true}
 
 // Sig: the settings in the file key (other settings, other recordings).
 func (s ElevenSettings) Sig() string {
-	return fmt.Sprintf("%.2f/%.2f/%.2f/%t", s.Stability, s.Similarity, s.Style, s.SpeakerBoost)
+	sig := fmt.Sprintf("%.2f/%.2f/%.2f/%t", s.Stability, s.Similarity, s.Style, s.SpeakerBoost)
+	if s.Speed != 0 && s.Speed != 1 {
+		sig += fmt.Sprintf("/x%.2f", s.Speed) // the tour's keys (no speed) stay as they were
+	}
+	return sig
 }
 
 // ElevenVoice: a voice offered in the settings.

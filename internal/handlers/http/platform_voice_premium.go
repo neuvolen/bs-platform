@@ -130,6 +130,10 @@ type PremiumVoice struct {
 		sig string // last4 of the key | voice id of the last try
 		at  time.Time
 	}
+	// R40d: the login page demo, read with the tour's voice (platform_voice_login.go)
+	loginTexts func() []string
+	login      loginJob
+	loginOver  atomic.Pointer[loginOverlay]
 }
 
 // NewPremiumVoice: the ElevenLabs client reads ELEVENLABS_API_KEY, else the saved key.
@@ -354,6 +358,7 @@ func (p *PremiumVoice) Load(ctx context.Context) {
 		}
 	}
 	p.refreshOverlay(ctx)
+	p.refreshLoginOverlay(ctx)
 }
 
 func (p *PremiumVoice) config() premiumCfg {
@@ -468,6 +473,11 @@ type PremiumState struct {
 	Fallback bool
 	Target   string
 	Chars    int // characters of all tour phrases
+	// R40d: the login page demo read with the tour's voice
+	LoginReady, LoginTotal int
+	LoginOn                bool // the page plays the ElevenLabs lines
+	LoginRunning           bool
+	LoginStopped           string
 }
 
 func (p *PremiumVoice) State(ctx context.Context) PremiumState {
@@ -483,6 +493,7 @@ func (p *PremiumVoice) State(ctx context.Context) PremiumState {
 	}
 	eff := c.effective()
 	st.Chars = p.tourChars()
+	st.LoginReady, st.LoginTotal, st.LoginOn, st.LoginRunning, st.LoginStopped = p.loginState(ctx)
 	if c.fallbackOn() {
 		st.Fallback, st.Target = true, c.Voice.Name
 	}
@@ -514,6 +525,7 @@ func (p *PremiumVoice) Start(ctx context.Context) {
 		for {
 			p.applyEnvVoice(ctx)
 			p.maybeRunAuto(ctx) // R39: no new try right after a quota or plan stop
+			p.maybeRunLogin(ctx) // R40d: the login demo after the tour
 			select {
 			case <-ctx.Done():
 				return
@@ -665,6 +677,7 @@ func (p *PremiumVoice) finish(ctx context.Context, v premiumVoice) {
 		}
 	})
 	p.refreshOverlay(ctx)
+	p.maybeRunLogin(ctx) // R40d: the login demo follows the tour's voice
 	if changed {
 		log.Printf("tts premium: the tour speaks with %s now", v.Name)
 		if p.OnReady != nil {
@@ -714,6 +727,10 @@ func (p *PremiumVoice) view(ctx context.Context) gin.H {
 		eff := c.effective()
 		_, n, _ := p.have(ctx, eff, texts)
 		out["fallback"] = gin.H{"id": eff.ID, "name": eff.Name, "why": c.Fallback.Why, "since": c.Fallback.At, "ready": n}
+	}
+	// R40d: the login page demo, read with the same voice
+	if lr, lt, lon, lrun, _ := p.loginState(ctx); lt > 0 {
+		out["login"] = gin.H{"ready": lr, "total": lt, "on": lon, "running": lrun, "chars": loginChars(p.loginLines()), "speed": LoginSpeed}
 	}
 	if ver, m := p.Overlay(); ver != "" {
 		out["playing"], out["ver"] = "premium", ver
@@ -958,6 +975,7 @@ func (p *PremiumVoice) Off(c *gin.Context) {
 		return
 	}
 	p.refreshOverlay(c.Request.Context())
+	p.refreshLoginOverlay(c.Request.Context())
 	log.Printf("tts premium: off, the built-in recordings play (%s)", platformUser(c))
 	c.JSON(http.StatusOK, p.view(c.Request.Context()))
 }
@@ -1010,6 +1028,8 @@ func (p *PremiumVoice) File(c *gin.Context) {
 func (p *PremiumVoice) Register(pub, g *gin.RouterGroup) {
 	pub.GET("/tts/p/:file", p.File)
 	pub.HEAD("/tts/p/:file", p.File)
+	pub.GET("/tts/login/:file", p.LoginFile) // R40d: the login demo's lines only
+	pub.HEAD("/tts/login/:file", p.LoginFile)
 	g.GET("/tts/premium", p.Get)
 	g.PUT("/tts/premium/key", p.PutKey)
 	g.DELETE("/tts/premium/key", p.DeleteKey)

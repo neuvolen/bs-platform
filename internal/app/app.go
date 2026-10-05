@@ -235,6 +235,9 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) *htt
 	if m.AI.Premium != nil {
 		// R36: the owner's ElevenLabs voice replaces the built-in files once every phrase is read
 		web.VoiceOverlay = m.AI.Premium.Overlay
+		// R40d: the login demo is read with the same voice, a bit faster
+		web.LoginVoiceOverlay = m.AI.Premium.LoginOverlay
+		m.AI.Premium.SetLoginTexts(web.LoginLines)
 	}
 	return m
 }

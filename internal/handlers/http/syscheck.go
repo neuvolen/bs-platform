@@ -400,6 +400,20 @@ func (s *SysCheck) voice(ctx context.Context) CheckItem {
 	if st.Stopped == "quota" && st.Chars > 0 {
 		it.Text += fmt.Sprintf(" · весь тур: %s символов", spaced(st.Chars))
 	}
+	// R40d: the login page demo, read with the same voice: «демо на входе: 9 из 9»
+	if st.LoginTotal > 0 {
+		if st.On {
+			it.Text += fmt.Sprintf(" · демо на входе: %d из %d", st.LoginReady, st.LoginTotal)
+			switch {
+			case st.LoginRunning:
+				it.Text += ", озвучивается"
+			case st.LoginStopped != "" && st.LoginReady < st.LoginTotal:
+				it.Text += ", остановлено (" + voiceStop(PremiumState{Stopped: st.LoginStopped, Error: "ElevenLabs"}) + ")"
+			}
+		} else {
+			it.Text += " · демо на входе: встроенные записи"
+		}
+	}
 	if st.EnvError != "" {
 		it.State = "warn"
 		if strings.Contains(st.EnvError, "не принят") {

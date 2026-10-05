@@ -490,9 +490,11 @@ body.dm-lock{overflow:hidden}
   // R40c: «Посмотреть, как это работает»: камера наезжает на экран кабинета резидента, вокруг затемнение,
   // подпись и голос на каждом шаге. Голос: статичные mp3 (bsLoginVoice от сервера), звук только после клика
   var D = document.getElementById('demo'); if(!D) return;
-  var steps = [], vmap = {};
+  var steps = [], vmap = {}, vbase = {};
   try{ steps = JSON.parse(document.getElementById('bsLoginTour').textContent).steps || []; }catch(e){}
   try{ var vm = document.getElementById('bsLoginVoice'); if(vm) vmap = JSON.parse(vm.textContent) || {}; }catch(e){}
+  // R40d: bsLoginVoice: голос ElevenLabs, как в обучении платформы (когда сервер его сделал); bsLoginVoiceBase: встроенные записи, запасной путь
+  try{ var vb = document.getElementById('bsLoginVoiceBase'); if(vb) vbase = JSON.parse(vb.textContent) || {}; }catch(e){}
   if(!steps.length) return;
   var $ = function(id){ return document.getElementById(id); };
   var cam = $('dmCam'), view = $('dmView'), spot = $('dmSpot'), next = $('dmNext'), back = $('dmBack'), dots = $('dmDots');
@@ -534,7 +536,7 @@ body.dm-lock{overflow:hidden}
   }
   function play(s){
     clearTimeout(tm); D.classList.remove('talk');
-    var u = voiceUrl(s), wait = Math.max(4200, spoken(s).length * 75);
+    var u = voiceUrl(s), wait = Math.max(3600, spoken(s).length * 65);
     if(au){ try{ au.pause(); }catch(e){} }
     if(!u || muted || !au){ auto(wait); return; }
     au.src = u; au.currentTime = 0;
@@ -567,7 +569,11 @@ body.dm-lock{overflow:hidden}
     if(open) return;
     opener = (e && e.currentTarget) || document.activeElement;
     // звук включается только здесь, по клику человека
-    if(!au && window.Audio){ try{ au = new Audio(); au.preload = 'auto'; au.addEventListener('ended', function(){ D.classList.remove('talk'); auto(rm ? 1600 : 900); }); au.addEventListener('error', function(){ D.classList.remove('talk'); auto(3800); }); }catch(err){ au = null; } }
+    if(!au && window.Audio){ try{ au = new Audio(); au.preload = 'auto'; au.addEventListener('ended', function(){ D.classList.remove('talk'); auto(rm ? 1200 : 300); }); au.addEventListener('error', function(){
+      // файл ElevenLabs не загрузился: та же фраза встроенной записью
+      var b = vbase[spoken(steps[cur])];
+      if(b && au.src.indexOf(b) < 0 && open && !muted){ au.src = b; try{ var p2 = au.play(); if(p2 && p2.catch) p2.catch(function(){ D.classList.remove('talk'); auto(3000); }); }catch(err){ auto(3000); } return; }
+      D.classList.remove('talk'); auto(3000); }); }catch(err){ au = null; } }
     D.classList.toggle('muted', muted); $('dmMute').setAttribute('aria-pressed', muted ? 'true' : 'false');
     open = true; D.hidden = false; document.body.classList.add('dm-lock');
     requestAnimationFrame(function(){ D.classList.add('in'); go(0); next.focus(); });

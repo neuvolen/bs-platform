@@ -74,6 +74,8 @@ STRESS = [
 ]
 
 LENGTH_SCALE = 1.3
+# R40d: the login demo reads about 15% faster than the tour (owner: «побыстрее»)
+LOGIN_LENGTH_SCALE = 1.1
 SENTENCE_GAP = 0.34
 PITCH_MEDIAN, PITCH_RANGE, TEMPO_STRETCH = 136.0, 0.8, 1.08
 
@@ -244,8 +246,10 @@ def main():
     ap.add_argument("--asr", help="sherpa-onnx GigaAM CTC model dir: read every file back")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--login", action="store_true", help="the login page demo (web/login.html → web/voice/login)")
-    ap.add_argument("--length-scale", type=float, default=LENGTH_SCALE)
+    ap.add_argument("--length-scale", type=float, default=None)
     a = ap.parse_args()
+    if a.length_scale is None:
+        a.length_scale = LOGIN_LENGTH_SCALE if a.login else LENGTH_SCALE
 
     from piper import PiperVoice
     voice = PiperVoice.load(a.model)

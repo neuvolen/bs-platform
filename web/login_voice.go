@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -59,16 +60,68 @@ func LoginVoice(text string) string {
 	return "/voice/login/" + k + ".mp3"
 }
 
+// LoginLines: the spoken lines of the login demo (the server voices them
+// with the tour's ElevenLabs voice, R40d).
+func LoginLines() []string { return LoginTourLines(loginHTML) }
+
 // injectLoginVoice puts the line → URL map where the page has <!--LOGINVOICE-->.
-func injectLoginVoice(page string) string {
-	m := map[string]string{}
+func injectLoginVoice(page string) string { return injectLoginVoiceWith(page, nil) }
+
+// injectLoginVoiceWith: bsLoginVoice is the map the demo plays (the server's
+// ElevenLabs files when over has them, R40d), bsLoginVoiceBase the bundled
+// Piper files: the page falls back to them when a file does not load.
+func injectLoginVoiceWith(page string, over map[string]string) string {
+	m, base := map[string]string{}, map[string]string{}
 	for _, t := range LoginTourLines([]byte(page)) {
-		if u := LoginVoice(t); u != "" {
+		u := LoginVoice(t)
+		if u != "" {
+			base[t] = u
+		}
+		if o := over[t]; o != "" {
+			u = o
+		}
+		if u != "" {
 			m[t] = u
 		}
 	}
 	b, _ := json.Marshal(m) // json.Marshal escapes "<": no </script> inside
-	return strings.Replace(page, "<!--LOGINVOICE-->", `<script type="application/json" id="bsLoginVoice">`+string(b)+`</script>`, 1)
+	tag := `<script type="application/json" id="bsLoginVoice">` + string(b) + `</script>`
+	if len(over) > 0 {
+		bb, _ := json.Marshal(base)
+		tag += `<script type="application/json" id="bsLoginVoiceBase">` + string(bb) + `</script>`
+	}
+	return strings.Replace(page, "<!--LOGINVOICE-->", tag, 1)
+}
+
+// LoginVoiceOverlay (set by the server): line → URL of the login demo read
+// with the tour's ElevenLabs voice, and its version; "" while the bundled
+// recordings play. Like the platform page, the login page is built once per
+// version, so its ETag changes with the voice.
+var LoginVoiceOverlay func() (version string, urls map[string]string)
+
+var loginHTMLBase string // the login page with icons, before the voice map
+
+var loginOverlayPage struct {
+	sync.Mutex
+	ver string
+	p   page
+}
+
+func currentLoginPage() page {
+	if LoginVoiceOverlay == nil {
+		return loginPage
+	}
+	ver, urls := LoginVoiceOverlay()
+	if ver == "" || len(urls) == 0 {
+		return loginPage
+	}
+	loginOverlayPage.Lock()
+	defer loginOverlayPage.Unlock()
+	if loginOverlayPage.ver != ver {
+		loginOverlayPage.p = build(injectLoginVoiceWith(loginHTMLBase, urls))
+		loginOverlayPage.ver = ver
+	}
+	return loginOverlayPage.p
 }
 
 func serveLoginVoice(c *gin.Context) {

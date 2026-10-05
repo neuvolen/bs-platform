@@ -130,7 +130,8 @@ func init() {
 	seedJSON = seed
 	appHTML = html
 	appPage = build(injectMarker(injectVoice(html)))
-	loginPage = build(injectLoginVoice(loginWithIcons(string(loginHTML), html))) // R40c: demo voice map (login_voice.go)
+	loginHTMLBase = loginWithIcons(string(loginHTML), html)
+	loginPage = build(injectLoginVoice(loginHTMLBase)) // R40c: demo voice map (login_voice.go)
 }
 
 // stripSeed replaces `var NAME = <json>;` lines with empty values and returns
@@ -264,7 +265,7 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 			serve(c, currentAppPage()) // R36: with the premium voice's files when it is on (voice.go)
 			return
 		}
-		serve(c, loginPage)
+		serve(c, currentLoginPage()) // R40d: with the ElevenLabs demo voice when it is ready (login_voice.go)
 	}
 	r.GET("/", h)
 	r.HEAD("/", h)

@@ -3,7 +3,8 @@
 #   tools/voice/build.sh            new and changed phrases only, stale files removed
 #   tools/voice/build.sh --force    everything again (after changing the voice or the processing)
 #   CHECK=0 tools/voice/build.sh    skip the speech-recogniser read-back
-#   tools/voice/build.sh --login    the login page demo instead (bsLoginTour in web/login.html → web/voice/login)
+#   tools/voice/build.sh --login    the login page demo instead (bsLoginTour in web/login.html → web/voice/login),
+#                                   read ~15% faster (length_scale 1.1); add --force after changing the pace
 # Voice: Piper ru_RU-dmitri-medium (CC0 dataset). The EQ in build.py is fitted to it;
 # another voice (VOICE=denis) needs EQ refitted. ruslan is CC BY-NC-SA: not for this product.
 # The GigaAM recogniser is a non-commercial model used only to check the files, never shipped.
