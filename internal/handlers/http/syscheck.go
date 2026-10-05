@@ -252,6 +252,12 @@ func (s *SysCheck) claude(ctx context.Context) CheckItem {
 		if ai.IsQuota(err) {
 			msg, sig = ai.QuotaMessage, "quota"
 		}
+		if d := ai.HTTPDetail(err); d != "" {
+			msg += "; " + d
+		}
+		if h := s.AI.ClaudeKeyHint(); h != "" {
+			msg += ". Причина: " + h
+		}
 		it.State, it.Text, it.Sig = "fail", "ошибка: "+msg+" ("+src+")", sig
 		it.Note = "❌ ИИ Claude не отвечает: " + msg
 		return it
@@ -369,6 +375,11 @@ func (s *SysCheck) voice(ctx context.Context) CheckItem {
 	}
 	if st.EnvError != "" {
 		it.State = "warn"
+		if strings.Contains(st.EnvError, "не принят") {
+			if h := ai.ElevenKeyHint(elevenEnvKey()); h != "" {
+				st.EnvError += ". Причина: " + h
+			}
+		}
 		it.Text += " · ElevenLabs не подключён: " + st.EnvError
 		it.Sig += "|env"
 		it.Note = "⚠️ Голос ElevenLabs: " + st.EnvError

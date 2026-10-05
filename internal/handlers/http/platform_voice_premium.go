@@ -151,7 +151,7 @@ var voiceIDShape = regexp.MustCompile(`^[A-Za-z0-9]{20}$`)
 // keyProblem: a voice id pasted where the key goes (keys start with sk_).
 func keyProblem() string {
 	if k := elevenEnvKey(); k != "" && voiceIDShape.MatchString(k) {
-		return "в ELEVENLABS_API_KEY вставлен id голоса, а не ключ: ключ начинается с sk_, id голоса нужно положить в ELEVENLABS_VOICE_ID"
+		return "в ELEVENLABS_API_KEY вставлен id голоса, а не ключ: ключ начинается с sk_"
 	}
 	return ""
 }
