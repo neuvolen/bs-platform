@@ -51,11 +51,23 @@ func meetingStart(m club.Meeting) time.Time {
 // DueReminders lists the reminders to send at now. texts holds the
 // «Настройки» templates schedule_3days and schedule_1day.
 func DueReminders(meetings []club.Meeting, residents []club.Resident, texts map[string]string, now time.Time) []MeetingReminder {
+	return DueRemindersWA(meetings, residents, texts, now, nil)
+}
+
+// DueRemindersWA: as DueReminders, also for the residents in wa (normalized
+// names) who read WhatsApp and may have no Telegram (their TgID is then -1).
+func DueRemindersWA(meetings []club.Meeting, residents []club.Resident, texts map[string]string, now time.Time, wa map[string]bool) []MeetingReminder {
 	ids := map[string]int64{}
 	names := map[string]string{} // the resident's name as the debts sheet has it
 	for _, r := range residents {
-		if r.TgID != 0 && !r.Former && r.Name != "" {
+		if r.Former || r.Name == "" {
+			continue
+		}
+		if r.TgID != 0 {
 			ids[club.NormName(r.Name)] = r.TgID
+			names[club.NormName(r.Name)] = r.Name
+		} else if wa[club.NormName(r.Name)] && !r.Archived {
+			ids[club.NormName(r.Name)] = -1
 			names[club.NormName(r.Name)] = r.Name
 		}
 	}
@@ -127,7 +139,7 @@ func (s *Service) maybeMeetingReminders(ctx context.Context, now time.Time) ([]M
 		texts[k], _ = s.repo.Setting(ctx, k)
 	}
 	var sent []MeetingReminder
-	for _, r := range DueReminders(snap.Meetings, snap.Residents, texts, now) {
+	for _, r := range DueRemindersWA(snap.Meetings, snap.Residents, texts, now, s.waNames(ctx, snap.Residents)) {
 		if !s.once(ctx, "meet:"+r.Key, 30*24*time.Hour) {
 			continue
 		}
@@ -135,7 +147,12 @@ func (s *Service) maybeMeetingReminders(ctx context.Context, now time.Time) ([]M
 		if r.Wheel {
 			kb = map[string]any{"inline_keyboard": [][]map[string]any{{{"text": "🧬 Обновить колесо", "web_app": map[string]string{"url": webApp("wheel")}}}}}
 		}
-		if err := s.SendMessageKB(ctx, r.TgID, r.Text, kb); err != nil {
+		tg := r.TgID
+		if tg < 0 {
+			tg = 0
+		}
+		// R38c: a resident who reads WhatsApp gets it there (outreach.go)
+		if err := s.SendResident(ctx, "meeting", r.Key, r.Resident, tg, r.Text, kb); err != nil {
 			log.Printf("bot meeting reminder %s: %v", r.Key, err)
 			continue
 		}

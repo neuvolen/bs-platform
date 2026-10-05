@@ -101,7 +101,7 @@ func (e *featEnv) group(t *testing.T, from int64, thread int, text string, at ti
 	if _, err := e.s.Receive(context.Background(), []byte(b)); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(150 * time.Millisecond)
+	e.s.shadowWG.Wait()
 }
 
 func TestReportFeedback(t *testing.T) {

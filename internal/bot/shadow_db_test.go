@@ -89,7 +89,7 @@ func TestShadowDayEndToEnd(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	time.Sleep(500 * time.Millisecond) // the server bot reads in the background
+	s.shadowWG.Wait() // the server bot reads in the background
 	rows, _ := db.Pool.Query(ctx, `SELECT update_id, verdict, resident, late, to_char(day,'DD.MM') FROM bot_reports ORDER BY update_id`)
 	got := []string{}
 	for rows.Next() {

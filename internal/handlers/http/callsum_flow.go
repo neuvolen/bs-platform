@@ -744,6 +744,20 @@ func (h *PlatformAI) callSumSendTG(ctx context.Context, j *pg.AIJob, meta map[st
 			meta["sent"] = sent
 		}
 	}
+	if h.WAResident != nil {
+		// R38c: WhatsApp instead of Telegram: the text with where the PDF is
+		date := csS(meta["date"])
+		txt := firstName(resident) + ", привет! Саммари нашего разбора" + map[bool]string{true: " · " + date, false: ""}[date != ""] +
+			"\n\nВсё главное в одном файле: диагнозы, решения, план на 10 дней, метрики и домашнее задание. PDF в приложении BS: Трекинг → Саммари разборов."
+		if ok, err := h.WAResident(ctx, "summary", j.ID, resident, txt); ok {
+			if err != nil {
+				done(false, err.Error())
+			} else {
+				done(true, "")
+			}
+			return
+		}
+	}
 	id, name, _ := h.repo.ResidentTgByName(ctx, resident)
 	if id == 0 {
 		done(false, "резидент не найден в клубе или без Telegram")

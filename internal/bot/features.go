@@ -232,9 +232,15 @@ func ReminderText(tpl, first string) string {
 // EveningTargets: active residents with a Chat ID and no report today.
 // Admins and exceptions are not reminded (the script reminded admins too).
 func EveningTargets(residents []club.Resident, reported []DayReport) []club.Resident {
+	return EveningTargetsWA(residents, reported, nil)
+}
+
+// EveningTargetsWA: as EveningTargets, with the residents in wa (normalized
+// names, WhatsApp) even without Telegram.
+func EveningTargetsWA(residents []club.Resident, reported []DayReport, wa map[string]bool) []club.Resident {
 	var out []club.Resident
 	for _, r := range residents {
-		if r.Name == "" || r.Former || r.Exception || r.Admin || r.TgID == 0 {
+		if r.Name == "" || r.Former || r.Exception || r.Admin || (r.TgID == 0 && !wa[club.NormName(r.Name)]) {
 			continue
 		}
 		if submitted(r, reported) {
@@ -282,9 +288,11 @@ func (s *Service) maybeEveningReminder(ctx context.Context, now time.Time) ([]st
 	}
 	tpl, _ := s.repo.Setting(ctx, "report_reminder")
 	var sent []string
-	for _, r := range EveningTargets(snap.Residents, rep) {
+	until := day.Add(24 * time.Hour)
+	for _, r := range EveningTargetsWA(snap.Residents, rep, s.waNames(ctx, snap.Residents)) {
 		first := strings.Fields(r.Name)[0]
-		if err := s.SendMessage(ctx, r.TgID, ReminderText(tpl, first)); err != nil {
+		// R38c: WhatsApp for those who chose it; the queued copy expires at midnight
+		if err := s.SendResidentExpiring(ctx, "report", day.Format("2006-01-02"), r.Name, r.TgID, ReminderText(tpl, first), nil, until); err != nil {
 			log.Printf("bot evening: %s: %v", r.Name, err)
 			continue
 		}

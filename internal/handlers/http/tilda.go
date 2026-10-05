@@ -243,7 +243,8 @@ func tildaFieldNames(r *http.Request, body []byte) []string {
 // tildaGuess: a field named by the owner in Tilda («Ваш_номер», «Input_2»):
 // the phone is the value that looks like one, the name a field called so.
 var tildaSkip = map[string]bool{"tranid": true, "formid": true, "formname": true, "cookies": true, "ts": true, "test": true,
-	"token": true, "api_key": true, "apikey": true, "key": true, "secret": true, "tilda_token": true, "referer": true, "page": true, "url": true}
+	"token": true, "api_key": true, "apikey": true, "key": true, "secret": true, "tilda_token": true, "referer": true, "page": true, "url": true,
+	"ref": true, "partner": true, "pt": true} // R38b: the partner code is not a name
 
 func tildaGuess(f map[string]string) (name, phone string) {
 	keys := make([]string, 0, len(f))
@@ -318,6 +319,7 @@ type tildaLead struct {
 	Form, TranID, FormID, Page                      string
 	Source, Campaign                                string
 	UTM                                             map[string]string
+	Ref                                             string // R38b: partner code from ?ref=<code> (partners.go)
 }
 
 func tildaParse(f map[string]string) tildaLead {
@@ -359,6 +361,10 @@ func tildaParse(f map[string]string) tildaLead {
 	}
 	if l.Name == "" && l.Email != "" {
 		l.Name = l.Email
+	}
+	if r := PartnerCode(tildaPick(f, "ref", "partner", "pt")); r != "" { // R38b: a partner's landing link
+		l.Ref = r
+		l.Source = PartnerSource("", r)
 	}
 	return l
 }
@@ -931,6 +937,10 @@ func (t *TildaLeads) upsertCRM(ctx context.Context, l tildaLead, via string) (is
 	if via == "script" {
 		logText += " · через таблицу"
 	}
+	pn := ""
+	if l.Ref != "" {
+		pn = partnerName(ctx, t.Docs, l.Ref)
+	}
 	err = f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
 		isNew = false
 		leads, _ := crm["leads"].([]any)
@@ -1007,6 +1017,12 @@ func (t *TildaLeads) upsertCRM(ctx context.Context, l tildaLead, via string) (is
 		}
 		if l.Revenue != "" {
 			lead["revenue"] = l.Revenue
+		}
+		if l.Ref != "" && lead["partner"] == nil && isNew { // R38b
+			lead["partner"] = l.Ref
+			if pn != "" {
+				lead["partnerName"], lead["source"] = pn, PartnerSource(pn, l.Ref)
+			}
 		}
 		lead["siteAt"] = now.UTC().Format(time.RFC3339)
 		addLog(lead, now, logText)

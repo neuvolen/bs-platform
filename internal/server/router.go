@@ -5,6 +5,7 @@ import (
 	"time"
 
 	httpapi "github.com/bnursik/business_surgery_backend/internal/handlers/http"
+	"github.com/bnursik/business_surgery_backend/internal/middleware"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -27,6 +28,8 @@ func SetupRouter(registrars ...httpapi.RoutesRegistrar) *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}
 
+	// R38a: http → https (301/308) behind Railway's proxy, HSTS on the custom domain
+	r.Use(middleware.HTTPS())
 	r.Use(cors.New(corsConfig))
 
 	r.GET("/health", func(c *gin.Context) {

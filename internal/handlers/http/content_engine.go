@@ -1,6 +1,8 @@
 package http
 
 import (
+	"github.com/bnursik/business_surgery_backend/internal/middleware"
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -351,9 +353,9 @@ func NewContentEngine(docs funnelDocs) *ContentEngine {
 // ContentPlatformURL: PLATFORM_URL, else PUBLIC_URL/platform.
 func ContentPlatformURL() string {
 	if u := strings.TrimSpace(os.Getenv("PLATFORM_URL")); u != "" {
-		return u
+		return middleware.HTTPSURL(u) // R38a
 	}
-	if u := strings.TrimRight(strings.TrimSpace(os.Getenv("PUBLIC_URL")), "/"); u != "" {
+	if u := middleware.HTTPSURL(os.Getenv("PUBLIC_URL")); u != "" {
 		return u + "/platform"
 	}
 	return "https://bs-platform-production.up.railway.app/platform"

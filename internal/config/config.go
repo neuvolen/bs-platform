@@ -1,6 +1,10 @@
 package config
 
-import "os"
+import (
+	"os"
+
+	"github.com/bnursik/business_surgery_backend/internal/middleware"
+)
 
 type Config struct {
 	Port       string
@@ -38,7 +42,7 @@ func Load() Config {
 
 		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
 		PlatformTeam:     os.Getenv("PLATFORM_TEAM"),
-		PublicURL:        os.Getenv("PUBLIC_URL"),
+		PublicURL:        middleware.HTTPSURL(os.Getenv("PUBLIC_URL")), // R38a: links and the webhook always on https
 		TelegramAPIBase:  os.Getenv("TELEGRAM_API_BASE"),
 		BotRelayPattern:  os.Getenv("BOT_RELAY_PATTERN"),
 		BotShadowNotify:  os.Getenv("BOT_SHADOW_NOTIFY"),

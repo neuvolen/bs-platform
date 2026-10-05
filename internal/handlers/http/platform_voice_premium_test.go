@@ -138,7 +138,7 @@ func TestR36PremiumVoice(t *testing.T) {
 	if d == nil || !strings.HasPrefix(d.Value, "v1:") || strings.Contains(d.Value, "sk_r36") {
 		t.Fatalf("sealed: %+v", d)
 	}
-	if _, j, _ := call(adm, "POST", "/tts/premium/key/test", `{}`); j["ok"] != true || j["message"] != "Ключ работает: тариф creator, осталось символов 95 000 из 100 000" {
+	if _, j, _ := call(adm, "POST", "/tts/premium/key/test", `{}`); j["ok"] != true || j["message"] != "Ключ работает: голос ogi2DyUAKJb7CEdqqvlU прочитал «Тест» (1 КБ звука), тариф creator, осталось символов 95 000 из 100 000" {
 		t.Fatalf("test: %+v", j)
 	}
 	// «Подобрать голос»
@@ -165,7 +165,7 @@ func TestR36PremiumVoice(t *testing.T) {
 		t.Fatalf("pick: %+v", j)
 	}
 	j = wait(func(j map[string]any) bool { return j["playing"] == "premium" })
-	if j["ready"] != 5.0 || hits["/v1/voices/add/own2/v_deep"] != 1 || hits["/v1/text-to-speech/added_deep"] != 6 {
+	if j["ready"] != 5.0 || hits["/v1/voices/add/own2/v_deep"] != 1 || hits["/v1/text-to-speech/added_deep"] != 5 { // R38c: the one 429 went to «Проверить»
 		t.Fatalf("read: %+v hits %v", j, hits)
 	}
 	ver1, m1 := p.Overlay()
@@ -285,6 +285,10 @@ func TestR36cEnvVoice(t *testing.T) {
 			_, _ = w.Write([]byte(`{"voices":[]}`))
 		case r.URL.Path == "/v1/voices/add/own9/libVoice02":
 			_, _ = w.Write([]byte(`{"voice_id":"addedLib02"}`))
+		case r.URL.Path == "/v1/text-to-speech/libVoice02" || r.URL.Path == "/v1/text-to-speech/nopeVoice03":
+			// R38c: a voice not in the account does not speak until added
+			w.WriteHeader(404)
+			_, _ = w.Write([]byte(`{"detail":{"type":"not_found","code":"voice_not_found","status":"voice_not_found","message":"A voice with the voice_id was not found."}}`))
 		case strings.HasPrefix(r.URL.Path, "/v1/text-to-speech/"):
 			w.Header().Set("Content-Type", "audio/mpeg")
 			_, _ = w.Write(append([]byte("ID3:"+r.URL.Path), make([]byte, 300)...))
@@ -370,7 +374,7 @@ func TestR36cEnvVoice(t *testing.T) {
 	// an id ElevenLabs does not know
 	t.Setenv("ELEVENLABS_VOICE_ID", "nopeVoice03")
 	p2.applyEnvVoice(ctx)
-	if it := check(p2); !strings.Contains(it.Text, "nopeVoice03 из ELEVENLABS_VOICE_ID не найден") || it.State != "warn" {
+	if it := check(p2); !strings.Contains(it.Text, "голос nopeVoice03 не найден ни в вашем аккаунте") || it.State != "warn" {
 		t.Fatalf("unknown voice: %+v", it)
 	}
 	if strings.Contains(check(p2).Text, "—") {

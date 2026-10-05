@@ -63,6 +63,9 @@ type PlatformAI struct {
 	// SendDoc sends a file to a Telegram chat (the bot): the published
 	// «Саммари разбора» PDF to the resident (callsum_flow.go, R32e).
 	SendDoc func(ctx context.Context, chatID int64, name string, data []byte, caption string) error
+	// WAResident: R38c: a resident who chose WhatsApp gets the text there
+	// (sent or queued); handled false: the resident reads Telegram.
+	WAResident func(ctx context.Context, kind, key, name, text string) (handled bool, err error)
 	// KeySecret seals the Claude key saved in the settings (JWT_SECRET; platform_ai_key.go).
 	KeySecret []byte
 	// Premium: the tour's ElevenLabs voice (R36, platform_voice_premium.go).

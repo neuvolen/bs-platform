@@ -392,7 +392,8 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 		for id := range g.Admins {
 			admins = append(admins, id)
 		}
-		writes.Notify = &httpapi.WriteNotify{Send: botSvc.SendMessageKB, Topic: botSvc.SendTopic, Admins: admins}
+		writes.Notify = &httpapi.WriteNotify{Send: botSvc.SendMessageKB, Topic: botSvc.SendTopic, Admins: admins,
+			Resident: botSvc.SendResident} // R38c: WhatsApp for the residents who chose it
 		g.Contact, g.Photo = botSvc.RequestContact, botSvc.SendPhotoKB
 		botSvc.SetFineSink(func(ctx context.Context, fines []bot.FineRow) ([]string, error) {
 			var added []string

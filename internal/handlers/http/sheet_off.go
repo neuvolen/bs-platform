@@ -232,6 +232,9 @@ type WriteNotify struct {
 	Topic func(ctx context.Context, chat, thread int64, text string) error
 	// Admins get the team's notes (a diagnostic request).
 	Admins []int64
+	// Resident: R38c: a notice to a resident by the channel the resident chose
+	// (WhatsApp or Telegram, bot.Service.SendResident); nil: Telegram only.
+	Resident func(ctx context.Context, kind, key, name string, tg int64, text string, kb map[string]any) error
 }
 
 // teamOnly: the club's own data; the app's sections are anyone's (as the script).
@@ -370,6 +373,12 @@ func (w *ClubWrites) notices(ctx context.Context, action string, p map[string]st
 	}
 	sched := map[string]any{"inline_keyboard": [][]map[string]any{{{"text": "📱 Открыть в BS", "web_app": map[string]string{"url": bot.WebAppBase + "?p=schedule"}}}}}
 	send := func(name, text string, kb map[string]any) {
+		if n.Resident != nil {
+			if err := n.Resident(ctx, "notice", action+"|"+time.Now().In(club.Almaty).Format("2006-01-02")+"|"+text, name, tgOf(name), text, kb); err != nil {
+				log.Printf("club write notice %s: %v", action, err)
+			}
+			return
+		}
 		if id := tgOf(name); id != 0 {
 			if err := n.Send(ctx, id, text, kb); err != nil {
 				log.Printf("club write notice %s: %v", action, err)

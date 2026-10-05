@@ -1,0 +1,10 @@
+[
+ {"id": "partners", "n": "Партнёры", "any": ["партнёр:", "партнер:", "#partner"]},
+ {"id": "refs", "n": "Рефералы резидентов", "any": ["реферал", "рекомендац", "#ref"]},
+ {"id": "threads", "n": "Threads", "any": ["threads", "^th_", "utm:threads"]},
+ {"id": "ig", "n": "Instagram и креативы", "any": ["instagram", "инстаграм", "карусель", "реклама", "таргет", "креатив", "tiktok", "reels", "^ig", "utm:ig", "utm:instagram", "utm:fb", "utm:facebook", "utm:target", "utm:tiktok"]},
+ {"id": "site", "n": "Сайт (Tilda)", "any": ["сайт", "tilda", "лендинг", "форма", "site"]},
+ {"id": "tg", "n": "Telegram-канал и чек-листы", "any": ["telegram", "телеграм", "чек-лист", "гайд", "лид-магнит", "бот", "диагностик"]},
+ {"id": "direct", "n": "WhatsApp и прямые", "any": ["whatsapp", "^wa", "звонок", "выступление", "qr", "офлайн"]},
+ {"id": "base", "n": "База (старые лиды)", "any": []}
+]

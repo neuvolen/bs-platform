@@ -113,7 +113,7 @@ func TestDailyCheckAtTenNoChatIDNoise(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	time.Sleep(500 * time.Millisecond)
+	s.shadowWG.Wait()
 	ex(`UPDATE bot_updates SET received_at = $1 WHERE update_id = 1`, day.Add(-2*time.Hour))
 
 	at := func(h, m int) time.Time { return time.Date(t0.Year(), t0.Month(), t0.Day(), h, m, 0, 0, club.Almaty) }

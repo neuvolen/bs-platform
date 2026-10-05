@@ -70,6 +70,12 @@ type Service struct {
 	teamCb    map[string]TeamCallbackHook
 	files     sync.Map                    // Telegram file_id of what the server uploaded
 	sysCheck  atomic.Pointer[SystemCheck] // R36: the admins' /status (syscheck_hook.go)
+	shadowWG  sync.WaitGroup              // background reads of incoming updates (Receive)
+	// R38c (outreach.go): anyone's buttons, a shared phone, WhatsApp residents
+	pubCb       map[string]TeamCallbackHook
+	contactHook ContactHook
+	waRoute     WhatsAppRoute
+	waSink      WhatsAppSink
 }
 
 type Options struct {
@@ -311,7 +317,9 @@ func (s *Service) Receive(ctx context.Context, body []byte) (bool, error) {
 	if err == nil && fresh {
 		s.Wake()
 		// The server bot reads the message too, without answering anyone.
+		s.shadowWG.Add(1)
 		go func() {
+			defer s.shadowWG.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			s.shadowUpdate(ctx, body)
@@ -366,7 +374,7 @@ func (s *Service) relayOne(ctx context.Context, u *pg.BotUpdate) {
 		s.handleOwn(ctx, u) // the server is the bot (private.go)
 		return
 	}
-	if u.Tries <= 1 && ((u.Kind == "message" && s.takeStart(ctx, u.Body)) || (u.Kind == "callback_query" && s.takeCallback(ctx, u.Body))) {
+	if u.Tries <= 1 && ((u.Kind == "message" && (s.takeStart(ctx, u.Body) || s.takeContact(ctx, u.Body))) || (u.Kind == "callback_query" && s.takeCallback(ctx, u.Body))) {
 		if e := s.repo.MarkRelayed(ctx, u.UpdateID, 204, 0); e != nil {
 			log.Printf("bot relay: mark %d: %v", u.UpdateID, e)
 		}

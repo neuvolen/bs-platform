@@ -122,6 +122,10 @@ type PremiumVoice struct {
 	overlay atomic.Pointer[premiumOverlay]
 	kick    chan struct{}
 	envErr  string // why ELEVENLABS_VOICE_ID is not used (R36c)
+	envTry  struct {
+		sig string // last4 of the key | voice id of the last try
+		at  time.Time
+	}
 }
 
 // NewPremiumVoice: the ElevenLabs client reads ELEVENLABS_API_KEY, else the saved key.
@@ -202,28 +206,23 @@ func (p *PremiumVoice) applyEnvVoice(ctx context.Context) {
 		}
 		return
 	}
+	// R38c: a failed try is not repeated every 15 minutes with the same key
+	// and voice (each try reads «Тест»): once an hour, or at once after a new
+	// key or «Проверить».
+	sig := ai.Last4(p.key()) + "|" + id
+	p.mu.Lock()
+	if p.envTry.sig == sig && time.Since(p.envTry.at) < time.Hour {
+		p.mu.Unlock()
+		return
+	}
+	p.envTry.sig, p.envTry.at = sig, time.Now()
+	p.mu.Unlock()
 	cctx, cancel := context.WithTimeout(ctx, 40*time.Second)
 	defer cancel()
-	v, err := p.EL.Voice(cctx, id)
-	libID, ownerID := "", ""
-	if err != nil {
-		var ee *ai.ElevenError
-		if !errors.As(err, &ee) || (ee.Status != 404 && ee.Status != 400 && ee.Code != "voice_not_found") {
-			p.setEnvErr(ai.ElevenMessage(err))
-			return
-		}
-		sv, ok, ferr := p.EL.FindShared(cctx, id)
-		if ferr != nil || !ok || sv.OwnerID == "" {
-			p.setEnvErr("голос " + id + " из ELEVENLABS_VOICE_ID не найден в ElevenLabs: проверьте id (Voices → ⋯ → Copy voice ID)")
-			return
-		}
-		got, aerr := p.EL.AddShared(cctx, sv.OwnerID, sv.ID, "BS гид: "+sv.Name)
-		if aerr != nil {
-			p.setEnvErr("голос из библиотеки не добавился: " + ai.ElevenMessage(aerr))
-			return
-		}
-		v = ai.ElevenVoice{ID: got, Name: sv.Name, PreviewURL: sv.PreviewURL}
-		libID, ownerID = sv.ID, sv.OwnerID
+	v, libID, ownerID, msg := p.resolveVoice(cctx, id)
+	if msg != "" {
+		p.setEnvErr(msg)
+		return
 	}
 	name := strings.TrimSpace(v.Name)
 	if r := []rune(name); len(r) > 60 {
@@ -245,6 +244,48 @@ func (p *PremiumVoice) applyEnvVoice(ctx context.Context) {
 	}
 	p.setEnvErr("")
 	log.Printf("tts premium: voice %s (%s) taken from ELEVENLABS_VOICE_ID", name, v.ID)
+}
+
+// resolveVoice: the voice id made usable with the fewest permissions (R38c).
+//
+//  1. «Тест» is read with the id directly: only «Text to Speech» is needed,
+//     and a library voice usually speaks so without being added.
+//  2. Only when ElevenLabs answers voice_not_found the voice is looked up in
+//     the library and added to the account (that needs «Voices: Write»).
+//
+// The name of the voice is a nicety: read when the key may («Voices: Read»),
+// never required. msg is the reason in words when the voice cannot be used.
+func (p *PremiumVoice) resolveVoice(ctx context.Context, id string) (v ai.ElevenVoice, libID, ownerID, msg string) {
+	_, err := p.EL.Probe(ctx, "", id, ai.ElevenModel())
+	if err == nil {
+		v = ai.ElevenVoice{ID: id}
+		if got, verr := p.EL.Voice(ctx, id); verr == nil {
+			v.Name, v.PreviewURL = got.Name, got.PreviewURL
+		} else if id == defaultElevenVoice {
+			v.Name = "голос владельца" // the key may not read voices: the name is not needed
+		}
+		return v, "", "", ""
+	}
+	if !ai.IsElevenVoiceMissing(err) {
+		return v, "", "", ai.ElevenMessage(err)
+	}
+	sv, ok, ferr := p.EL.FindShared(ctx, id)
+	if ferr != nil {
+		return v, "", "", "голос " + id + " не в вашем аккаунте ElevenLabs, а найти его в библиотеке не вышло: " + ai.ElevenMessage(ferr) +
+			". Проще всего: elevenlabs.io → Voices → Voice Library → найдите голос → «Add to my voices»"
+	}
+	if !ok || sv.OwnerID == "" {
+		return v, "", "", "голос " + id + " не найден ни в вашем аккаунте ElevenLabs, ни в библиотеке: проверьте id (Voices → ⋯ → Copy voice ID)"
+	}
+	got, aerr := p.EL.AddShared(ctx, sv.OwnerID, sv.ID, "BS гид: "+sv.Name)
+	if aerr != nil {
+		return v, "", "", "голос «" + sv.Name + "» из библиотеки нужно добавить в аккаунт ElevenLabs, а ключ не смог: " + ai.ElevenMessage(aerr) +
+			". Или добавьте его вручную: Voices → Voice Library → «" + sv.Name + "» → «Add to my voices»"
+	}
+	if _, err := p.EL.Probe(ctx, "", got, ai.ElevenModel()); err != nil {
+		return v, "", "", "голос «" + sv.Name + "» добавлен, но не читает: " + ai.ElevenMessage(err)
+	}
+	return ai.ElevenVoice{ID: got, Name: sv.Name, PreviewURL: sv.PreviewURL}, sv.ID, sv.OwnerID, ""
 }
 
 func (p *PremiumVoice) key() string {
@@ -545,16 +586,17 @@ func (p *PremiumVoice) read(ctx context.Context, v premiumVoice, texts []string)
 		acancel()
 		if err != nil {
 			why := "net"
-			switch {
-			case ai.IsElevenQuota(err):
+			switch ai.ElevenKind(err) {
+			case ai.ElevenKindQuota:
 				why = "quota"
-			case ai.IsElevenKey(err):
+			case ai.ElevenKindKey:
 				why = "key"
-			default:
-				var ee *ai.ElevenError
-				if errors.As(err, &ee) && ee.Status == 404 {
-					why = "voice"
-				}
+			case ai.ElevenKindPerm:
+				why = "perm"
+			case ai.ElevenKindVoice:
+				why = "voice"
+			case ai.ElevenKindPlan, ai.ElevenKindAbuse:
+				why = "plan"
 			}
 			msg := ai.ElevenMessage(err)
 			log.Printf("tts premium: %s: stopped at a phrase (%s): %v", v.Name, why, err)
@@ -734,21 +776,52 @@ func (p *PremiumVoice) TestKey(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": false, "message": "Это не похоже на ключ ElevenLabs"})
 		return
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 40*time.Second)
 	defer cancel()
-	plan, err := p.EL.Subscription(ctx, key)
+	// R38c: the check is the real thing: «Тест» read with the voice the tour
+	// uses (needs only «Text to Speech»). The plan's characters are read
+	// when the key may («User: Read»), never required.
+	cfg := p.config()
+	voice, vname := cfg.Voice.ID, cfg.Voice.Name
+	if voice == "" {
+		voice, vname = elevenEnvVoice(), ""
+	}
+	n, err := p.EL.Probe(ctx, key, voice, ai.ElevenModel())
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"ok": false, "message": ai.ElevenMessage(err)})
+		msg := ai.ElevenMessage(err)
+		if ai.IsElevenVoiceMissing(err) {
+			msg = "Ключ принят, но голоса " + voice + " нет в вашем аккаунте ElevenLabs. Сервер добавит его из библиотеки сам, если у ключа есть право «Voices: Write»; или добавьте голос вручную: Voices → Voice Library → «Add to my voices». " + msg
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": false, "message": msg, "kind": ai.ElevenKind(err)})
 		return
 	}
-	msg := "Ключ работает"
-	if plan.Tier != "" {
-		msg += ": тариф " + plan.Tier
+	who := "голос " + voice
+	if strings.HasPrefix(vname, "голос ") {
+		who = vname
+	} else if vname != "" {
+		who = "голос «" + vname + "»"
 	}
-	if plan.Limit > 0 {
-		msg += ", осталось символов " + fmtThousands(float64(plan.Limit-plan.Used)) + " из " + fmtThousands(float64(plan.Limit))
+	msg := "Ключ работает: " + who + " прочитал «" + ai.ProbeText + "» (" + strconv.Itoa((n+1023)/1024) + " КБ звука)"
+	out := gin.H{"ok": true, "voice": voice, "bytes": n}
+	if plan, perr := p.EL.Subscription(ctx, key); perr == nil {
+		if plan.Tier != "" {
+			msg += ", тариф " + plan.Tier
+			out["tier"] = plan.Tier
+		}
+		if plan.Limit > 0 {
+			msg += ", осталось символов " + fmtThousands(float64(plan.Limit-plan.Used)) + " из " + fmtThousands(float64(plan.Limit))
+			out["left"] = plan.Limit - plan.Used
+		}
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "message": msg, "tier": plan.Tier, "left": plan.Limit - plan.Used})
+	out["message"] = msg
+	if key == "" || key == p.key() {
+		// the env voice is tried again at once (not in an hour)
+		p.mu.Lock()
+		p.envTry.sig = ""
+		p.mu.Unlock()
+		p.Kick()
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // Voices: GET /tts/premium/voices?q=

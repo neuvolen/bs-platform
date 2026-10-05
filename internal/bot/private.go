@@ -289,6 +289,9 @@ func (s *Service) private(ctx context.Context, body []byte) {
 		return
 	}
 	if phone := readContact(body); phone != "" {
+		if s.takeContact(ctx, body) { // R38c: a phone for an event's RSVP
+			return
+		}
 		s.contactNote(ctx, m, phone)
 		return
 	}

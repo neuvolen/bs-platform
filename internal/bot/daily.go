@@ -233,11 +233,12 @@ func (s *Service) maybeDailyCheck(ctx context.Context, now time.Time) (*DailyOut
 	}
 	for _, n := range out.Fined {
 		id := chat[club.NormName(n)]
-		if id == 0 {
+		if id == 0 && s.WhatsAppPhone(ctx, n) == "" {
 			continue
 		}
 		txt := fill(tpl, map[string]string{"имя": strings.Fields(n)[0], "дата": res.Day, "kaspi": KaspiLink})
-		if err := s.SendMessageKB(ctx, id, txt, appButton("fines")); err != nil {
+		// R38c: WhatsApp for those who chose it (outreach.go)
+		if err := s.SendResident(ctx, "fine", res.Day, n, id, txt, appButton("fines")); err != nil {
 			log.Printf("bot daily: note to %s: %v", n, err)
 		}
 	}

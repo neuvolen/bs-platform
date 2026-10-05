@@ -210,6 +210,8 @@ func serve(c *gin.Context, p page) {
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("X-Robots-Tag", "noindex, nofollow")
 	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	// R38a: a stray http:// picture or script on the page is fetched over https (no "not secure" warning)
+	h.Set("Content-Security-Policy", "upgrade-insecure-requests")
 	if match := c.GetHeader("If-None-Match"); match != "" && strings.Contains(match, p.etag) {
 		c.Status(http.StatusNotModified)
 		return
@@ -269,5 +271,7 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	r.GET("/platform", h)
 	r.GET("/dl/:name", func(c *gin.Context) { serveDL(c, secret, sessionCookie) })
 	r.GET("/voice/:file", serveVoice) // voice.go: the tour's recorded phrases
+	r.GET("/promo/:file", servePromo) // promo.go: screens for the login page (R38a)
+	r.HEAD("/promo/:file", servePromo)
 	r.HEAD("/voice/:file", serveVoice)
 }

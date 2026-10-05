@@ -85,6 +85,9 @@ func startSource(p string) string {
 			return "Гайд: " + t
 		}
 	}
+	if c := PartnerCode(strings.TrimPrefix(p, "pt_")); strings.HasPrefix(p, "pt_") && c != "" { // R38b: partners.go
+		return PartnerSource("", c)
+	}
 	// The content engine's links: th_g003, tg_case_isfandiyar, ig_g010 (content_engine.go).
 	for pre, l := range map[string]string{"th_": "Threads", "tg_": "Telegram-канал", "ig_": "Instagram"} {
 		if rest := strings.TrimPrefix(p, pre); rest != p && rest != "" {

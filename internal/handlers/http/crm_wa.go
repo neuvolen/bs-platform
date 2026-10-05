@@ -1,6 +1,8 @@
 package http
 
 import (
+	"github.com/bnursik/business_surgery_backend/internal/middleware"
+
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -74,7 +76,7 @@ func (h *PlatformAI) greenCall(ctx context.Context, g *greenAPI, method, verb st
 }
 
 func publicBase() string {
-	if u := strings.TrimRight(strings.TrimSpace(os.Getenv("PUBLIC_URL")), "/"); u != "" {
+	if u := middleware.HTTPSURL(os.Getenv("PUBLIC_URL")); u != "" { // R38a: http:// in the variable still gives https links
 		return u
 	}
 	if d := strings.TrimSpace(os.Getenv("RAILWAY_PUBLIC_DOMAIN")); d != "" {

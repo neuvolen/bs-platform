@@ -13038,13 +13038,14 @@ function renderDiagMap(){
   var counts = {}, organs = {}, byRes = {};
 
   active.forEach(function(b){
-    var seen = {};
+    var seen = {}, seenOrg = {};
     dmNodes(b).forEach(function(n){
       if(n.type !== 'diag' || !n.title) return;
       if(seen[n.title]) return;
       seen[n.title] = 1;
       counts[n.title] = (counts[n.title]||0) + 1;
-      if(n.organ) organs[n.organ] = (organs[n.organ]||0) + 1;
+      // R38a: орган считается один раз на резидента (два диагноза «Финансов» давали «10 из 8»)
+      if(n.organ && !seenOrg[n.organ]){ seenOrg[n.organ] = 1; organs[n.organ] = (organs[n.organ]||0) + 1; }
       byRes[n.title] = byRes[n.title] || [];
       byRes[n.title].push(b.name || 'Без имени');
     });
@@ -19613,9 +19614,12 @@ function crmCardMenu(e, id){
     '<div class="r11-mi" onclick="crmCmGo(\'sel\')">Выбрать несколько</div>' +
     '<div class="r11-mi del" onclick="crmCmGo(\'del\')">Удалить</div>';
   var r = e.currentTarget.getBoundingClientRect();
-  m.style.top = Math.round(r.bottom + 4) + 'px';
   m.style.left = Math.round(Math.max(8, Math.min(window.innerWidth - 188, r.right - 180))) + 'px';
   m.classList.add('on');
+  // R39: у нижнего края экрана меню открывается вверх, чтобы не уйти за экран
+  var h = m.offsetHeight || 120, top = r.bottom + 4;
+  if(top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+  m.style.top = Math.round(top) + 'px';
 }
 function crmCmGo(a){
   var m = document.getElementById('crmCm'), id = m ? m.dataset.id : ''; crmCmClose(); if(!id) return;
@@ -21252,7 +21256,7 @@ function g12Norm(G){
     });
     return G;
   }
-  G = G && typeof G === 'object' ? G : r8Cl(R8DOC.goals);
+  G = G && typeof G === 'object' && !Array.isArray(G) ? G : r8Cl(R8DOC.goals); // R38a: старый формат goals:[] давал «function filter()» в «Фильтре задачи»
   function L(a){ return (Array.isArray(a) ? a : []).filter(function(x){ return x != null && String(x).trim(); }).map(function(x){ return {t:String(x)}; }); }
   function K(a){ return (Array.isArray(a) ? a : []).filter(Boolean).map(function(x){ return typeof x === 'object' ? {t:String(x.t || ''), u:String(x.u || '')} : {t:String(x), u:''}; }); }
   return {v:2, sections:[
@@ -21261,7 +21265,7 @@ function g12Norm(G){
     {id:'infra', kind:'list', t:'Инфраструктура', items:L(G.infra)},
     {id:'vision', kind:'list', t:'Видение', items:L(G.vision)},
     {id:'final', kind:'text', t:'Конечная цель', items:G.final ? [{t:String(G.final)}] : []},
-    {id:'filter', kind:'text', t:'Фильтр задачи', items:G.filter ? [{t:String(G.filter)}] : []},
+    {id:'filter', kind:'text', t:'Фильтр задачи', items:G.filter && typeof G.filter !== 'function' ? [{t:String(G.filter)}] : []},
     {id:'links', kind:'links', t:'Ссылки', items:K(G.links)},
     {id:'comp', kind:'links', t:'Конкуренты', items:K(G.comp)}
   ]};
@@ -31007,7 +31011,7 @@ var MERGE = {
 var GROUPED = {club: 1, sales: 1, mkt: 1}; // R36a: «Маркетинг» тоже одним пунктом с вкладками сверху
 function blkOf(s){ return Object.keys(GROUPED).find(function(k){ return BLOCKS[k] && BLOCKS[k].tabs.some(function(t){ return t.id === s; }); }) || ''; }
 function grpOf(blk, s){ return (MERGE[blk] || []).find(function(g){ return g.ids.indexOf(s) >= 0; }) || null; }
-function isOn(){ return typeof MODE !== 'undefined' && MODE === 'admin' && typeof section !== 'undefined' && !!blkOf(section); }
+function isOn(){ return typeof MODE !== 'undefined' && MODE === 'admin' && typeof section !== 'undefined' && !!blkOf(section) && !(window.BK_EXT && BK_EXT.skip && BK_EXT.skip(section)); } // R38a: доска трекинга без полосы
 // Вкладки блока: объединённые экраны встают на место первого из них
 function tabsOf(blk){
   var out = [], seen = {};
@@ -31105,9 +31109,12 @@ function mktKpi(){
   ];
 }
 var KPI = {club: clubKpi, sales: salesKpi, mkt: mktKpi};
+// R38a: «BS» и «Трекинг» добавляются своим блоком (r38aScript): разделы, вкладки-объединения, показатели, счётчики, кнопки
+window.BK_EXT = window.BK_EXT || {}; BK_EXT.G = GROUPED; BK_EXT.M = MERGE; BK_EXT.K = KPI;
 window.bkDebtors = function(){ try{ srF = 'debt'; }catch(e){} goSection('sRes'); };
 // Счётчики у вкладок
 function badge(id){
+  if(window.BK_EXT && BK_EXT.badge){ try{ var bx = BK_EXT.badge(id); if(bx !== undefined) return bx; }catch(e){} } // R38a
   try{
     if(id === 'sRes') return {n: RESIDENTS.length};
     if(id === 'fines'){ var u = (FINES || []).filter(function(f){ return !/^оплатил/i.test(String(f.status || '').trim()); }).length; return u ? {n: u, red: 1} : null; }
@@ -31131,6 +31138,9 @@ function bar(){
     });
     tabDrag(el);
   }
+  // R38a: полоса встаёт под шапку открытой страницы (у «Болезней», «Инструментов», «Контактов» свои страницы)
+  var host = document.querySelector('.page.on > .pw');
+  if(host && el.parentNode !== host){ var ph = host.querySelector(':scope > .ph'); host.insertBefore(el, ph ? ph.nextSibling : host.firstChild); }
   return el;
 }
 var painting = false;
@@ -31143,7 +31153,7 @@ function paint(){
   if(curBlock !== blk){ curBlock = blk; try{ renderSide(); }catch(e){} }
   painting = true;
   try{
-    var pt = document.querySelector('#pg-stub .pt'); if(pt && pt.textContent !== BLOCKS[blk].name) pt.textContent = BLOCKS[blk].name;
+    var pt = document.querySelector('.page.on .pt') || document.querySelector('#pg-stub .pt'); if(pt && pt.textContent !== BLOCKS[blk].name) pt.textContent = BLOCKS[blk].name;
     actions();
     var tabs = tabsOf(blk), g = grpOf(blk, section);
     var k = KPI[blk]();
@@ -31175,6 +31185,7 @@ function actions(){
   // CRM: «История», «Выбрать», «Импорт базы», «+ Новый лид» из строки фильтров в шапку
   var cb = body.querySelector('.cx-bar');
   if(cb) Array.prototype.slice.call(cb.querySelectorAll(':scope > button.btn')).forEach(function(b){ b.classList.add('bk-a'); pa.appendChild(b); });
+  if(window.BK_EXT && BK_EXT.act){ try{ BK_EXT.act(section, pa, body); }catch(e){} } // R38a
   // R36a: у «Обзора» маркетинга своих кнопок нет: календарь и новая идея в шапке
   if(section === 'mHome' && !pa.querySelector('[data-mk]'))
     pa.innerHTML = '<button type="button" class="bk-a" data-mk="cal" onclick="CT.view=\'cal\';CT._v0=1;goSection(\'content\')">Контент-план</button>' +
@@ -31952,5 +31963,1285 @@ window.r36Settings = {load: loadVoice, state: function(){ return PV; }};
 })();
 </script>
 <!-- /R36b -->
+<!-- R38a: «BS» и «Трекинг» (админ) как «Клуб», «Продажи», «Маркетинг»: один пункт меню, вкладки сверху, показатели, кнопки в шапке -->
+<style id="r38aStyle">
+/* Кнопки, перенесённые в шапку, внутри страницы не повторяются */
+body.bk-on .bk-lift{display:none!important}
+body.bk-on .pf-tools:not(:has(> :not(.bk-lift))){display:none}
+/* «Инструменты» и «Чек-листы» уже переключаются в полосе «База знаний» */
+body.bk-on #r32ToolSw{display:none}
+/* Полоса на чужих страницах (Болезни, Инструменты, Контакты) */
+.page:not(#pg-stub) > .pw > #bkBar{margin-top:2px}
+/* Доска администратора: вкладки «Трекинга» сверху, как у резидента */
+body.r38b #r32Tabs .r32-tab small{margin-left:7px;font-size:11px;font-weight:700;opacity:.6}
+</style>
+<script id="r38aScript">
+(function(){
+'use strict';
+if(typeof BLOCKS === 'undefined' || !window.BK_EXT) return;
+function E(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function nf(v){ v = Math.round(Number(v) || 0); return (v < 0 ? '−' : '') + String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+function pl(n, a, b, c){ n = Math.abs(n) % 100; var x = n % 10; if(n > 10 && n < 20) return c; if(x > 1 && x < 5) return b; if(x === 1) return a; return c; }
+function iso(d){ return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function day(k){ var d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + (k || 0)); return iso(d); }
+var DAY = 864e5;
+
+// ═══ 1. Разделы ═══
+// «Трекинг» админа: Доска · Резиденты · Карта диагнозов · База знаний (Болезни, Инструменты, Чек-листы, Стикеры) · Ресурсы и контакты.
+// «Идеи и заметки» (с аналитикой и инсайтами всей платформы) переехали в «BS». Адреса #notes, #diagLib, #guides и т. п. прежние
+var T = BLOCKS.track.tabs, L = BLOCKS.lib.tabs;
+function take(arr, id){ var i = arr.findIndex(function(t){ return t.id === id; }); return i < 0 ? null : arr.splice(i, 1)[0]; }
+var nt = take(T, 'notes');
+if(nt && !L.some(function(t){ return t.id === 'notes'; })){ var ei = L.findIndex(function(t){ return t.id === 'events'; }); L.splice(ei < 0 ? L.length : ei + 1, 0, nt); }
+T.forEach(function(t){ if(t.id === 'board') t.n = 'Доска'; if(t.id === 'boards') t.n = 'Резиденты'; });
+if(!T.some(function(t){ return t.id === 'guides'; })){ var ti = T.findIndex(function(t){ return t.id === 'toolLib'; }); T.splice(ti < 0 ? T.length : ti + 1, 0, {id: 'guides', n: 'Чек-листы'}); }
+// Порядок по умолчанию: доска, резиденты, карта, база знаний, ресурсы и контакты
+var DEF = ['board', 'boards', 'diagMap', 'diagLib', 'toolLib', 'guides', 'stickers', 'resLib', 'contacts'];
+T.sort(function(a, b){ var x = DEF.indexOf(a.id), y = DEF.indexOf(b.id); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y); });
+BK_EXT.G.lib = 1; BK_EXT.G.track = 1;
+BK_EXT.M.track = [
+  {n: 'База знаний', ids: ['diagLib', 'toolLib', 'guides', 'stickers'], sub: {diagLib: 'Болезни', toolLib: 'Инструменты', guides: 'Чек-листы', stickers: 'Стикеры'}},
+  {n: 'Ресурсы и контакты', ids: ['resLib', 'contacts'], sub: {resLib: 'Ресурсы', contacts: 'Контакты'}}
+];
+// Доска (холст) идёт без полосы показателей: сверху только вкладки
+BK_EXT.skip = function(s){ return s === 'board'; };
+
+// ═══ 2. Замеры: когда менялись (для показателя «Замеры за 30 дней») ═══
+var tsnap = {};
+function tkey(t){ var o = {}; Object.keys(t || {}).forEach(function(k){ if(k !== 'at') o[k] = t[k]; }); return JSON.stringify(o); }
+var _ob = window.openBoard;
+if(typeof _ob === 'function') window.openBoard = openBoard = function(id){ var r = _ob.apply(this, arguments); try{ if(curBoard) tsnap[curBoard.id] = tkey(curBoard.tests); }catch(e){} return r; };
+var _sbs = window.saveBoardSilent;
+if(typeof _sbs === 'function') window.saveBoardSilent = saveBoardSilent = function(){
+  try{
+    if(curBoard && curBoard.tests){
+      var k = tkey(curBoard.tests), was = tsnap[curBoard.id];
+      if(was !== undefined && was !== k) curBoard.tests.at = new Date().toISOString();
+      tsnap[curBoard.id] = k;
+    }
+  }catch(e){}
+  return _sbs.apply(this, arguments);
+};
+
+// ═══ 3. Показатели ═══
+function dchip(cur, pre, good, label){
+  if(pre === null || pre === undefined) return '';
+  var df = cur - pre; if(!df) return '<span class="fx-dt">0 ' + label + '</span>';
+  return '<span class="fx-dt ' + ((df > 0) === good ? 'up' : 'dn') + '">' + (df > 0 ? '▲ +' : '▼ −') + Math.abs(df) + ' <em>' + label + '</em></span>';
+}
+function taskDone(t){ return !!(t && (t.completed || (t.kind === 'repeat' && (t.done || 0) >= (t.times || 3)))); }
+function taskOver(t, today){ return !!(t && t.date && !taskDone(t) && String(t.date).slice(0, 10) < today); }
+function hasVals(o){ return !!o && Object.keys(o).some(function(k){ var v = o[k]; return k !== 'at' && (typeof v === 'number' ? v > 0 : (v && typeof v === 'object' ? hasVals(v) : false)); }); }
+function trackData(){
+  var R = (typeof RESIDENTS !== 'undefined' && RESIDENTS) || [];
+  var act = R.filter(function(r){ return r && !r.former && !r.excluded; });
+  var actN = {}; act.forEach(function(r){ actN[String(r.name).toLowerCase()] = 1; });
+  var g = typeof boardsByResident === 'function' ? boardsByResident().list : [];
+  var mine = g.filter(function(x){ return x.latest && (!act.length || actN[x.key]); });
+  var today = day(0), now = Date.now();
+  var hs = [], hp = [], over = 0, overRes = 0, open = 0, meas = 0, measAll = 0;
+  mine.forEach(function(x){
+    var b = x.latest, h = b.health || {};
+    var s = typeof healthScore === 'function' ? healthScore(h) : 0;
+    if(s){ hs.push(s); var hi = (b.history || []).slice().reverse().find(function(v){ return v && v.health && healthScore(v.health); }); if(hi) hp.push(healthScore(hi.health)); }
+    var o = 0;
+    (b.nodes || []).forEach(function(n){ if(n.type !== 'task' || !n.task) return; if(!taskDone(n.task)) open++; if(taskOver(n.task, today)) o++; });
+    over += o; if(o) overRes++;
+    measAll++;
+    // Время замера пишется при изменении (tests.at); у старых досок без отметки берётся последнее сохранение доски
+    var t = b.tests || {}, at = t.at ? Date.parse(t.at) : (hasVals(t) ? Date.parse(b.updated || b.date || 0) : 0);
+    if(at && now - at <= 30 * DAY) meas++;
+  });
+  var avg = function(a){ return a.length ? Math.round(a.reduce(function(x, y){ return x + y; }, 0) / a.length) : 0; };
+  return {act: act.length || g.length, cyc: mine.length, h: avg(hs), hN: hs.length, hPrev: hp.length ? avg(hp) : null, over: over, overRes: overRes, open: open, meas: meas, measAll: measAll};
+}
+function trackKpi(){
+  var D = trackData(), no = Math.max(0, D.act - D.cyc);
+  return [
+    {k: 'cyc', c: 'c-in', l: 'Резиденты в цикле', v: nf(D.cyc) + '<small>из ' + nf(D.act) + '</small>', s: no ? 'без разбора ' + no : 'у всех есть разбор', go: "goSection('boards')"},
+    {k: 'health', c: 'c-pro', l: 'Здоровье бизнеса', v: D.hN ? nf(D.h) + '<small>из 100</small>' : '0', d: D.hN ? dchip(D.h, D.hPrev, true, 'к прошлому циклу') : '',
+      s: D.hN ? 'среднее, оценено у ' + D.hN + ' из ' + D.cyc : 'трекеры ещё не оценили', go: "goSection('diagMap')"},
+    {k: 'over', c: 'c-out', l: 'Задачи просрочены', v: nf(D.over), cls: D.over ? 'neg' : '', s: D.over ? 'у ' + D.overRes + ' ' + pl(D.overRes, 'резидента', 'резидентов', 'резидентов') + ' · открыто ' + nf(D.open) : 'всё в срок · открыто ' + nf(D.open), go: "goSection('boards')"},
+    {k: 'meas', c: 'c-cash', l: 'Замеры за 30 дней', v: nf(D.meas) + '<small>из ' + nf(D.measAll) + '</small>', s: D.measAll - D.meas ? 'не обновлялись ' + (D.measAll - D.meas) : 'все свежие', go: "goSection('boards')"}
+  ];
+}
+function evWeek(){
+  if(typeof MKT === 'undefined' || !MKT){ try{ loadMkt(); }catch(e){} }
+  var a = day(0), b = day(6);
+  var inW = function(d){ d = String(d || '').slice(0, 10); return d >= a && d <= b; };
+  var ours = ((typeof MKT !== 'undefined' && MKT && MKT.events) || []).filter(function(e){ return e && e.kind !== 'Материал в Полезное' && inW(e.date); }).length;
+  var feed = 0; try{ feed = evFeed().items.filter(function(x){ return x && x.title && inW(x.date); }).length; }catch(e){}
+  return {ours: ours, feed: feed};
+}
+function libData(){
+  if(typeof KANBAN === 'undefined' || !KANBAN){ try{ loadKanban(); }catch(e){} }
+  var C = (typeof KANBAN !== 'undefined' && KANBAN && KANBAN.cards) || [];
+  var isDone = function(c){ return typeof kb12IsDone === 'function' ? kb12IsDone(c) : (c.col === 'done' || !!c.done); };
+  var isOver = function(c){ return typeof kb12Overdue === 'function' ? kb12Overdue(c) : false; };
+  var wk = Date.now() - 7 * DAY;
+  var work = C.filter(function(c){ return !isDone(c); }), od = C.filter(isOver);
+  var doneW = C.filter(function(c){ if(!isDone(c)) return false; var t = Date.parse(c.doneAt || c.updated || ''); return t && t >= wk; }).length;
+  var I = (typeof INBOX !== 'undefined' && INBOX) || [];
+  var nw = I.filter(function(x){ return x && x.status === 'new'; });
+  var nwW = nw.filter(function(x){ var t = Date.parse(x.date || x.created || ''); return t && t >= wk; }).length;
+  var an = 0; try{ var A = window.R32AN; if(A && A.data && A.data.cards) an = A.data.cards.filter(function(c){ return !(Object.prototype.hasOwnProperty.call(A.hide || {}, c.id) && A.hide[c.id] === String(c.take || '')); }).length; }catch(e){}
+  return {work: work.length, od: od.length, doneW: doneW, ev: evWeek(), ins: nw.length, insW: nwW, an: an, ideas: C.filter(function(c){ return c.col === 'idea' && !isDone(c); }).length};
+}
+function libKpi(){
+  var D = libData(), ev = D.ev.ours + D.ev.feed;
+  return [
+    {k: 'work', c: 'c-pro', l: 'Задачи в работе', v: nf(D.work), s: (D.doneW ? 'закрыто за неделю ' + D.doneW : 'карточек на доске') + (D.ideas ? ' · идей ' + D.ideas : ''), go: "goSection('kanban')"},
+    {k: 'od', c: 'c-out', l: 'Просрочено', v: nf(D.od), cls: D.od ? 'neg' : '', s: D.od ? 'срок прошёл, ' + pl(D.od, 'карточка', 'карточки', 'карточек') + ' не закрыт' + (D.od === 1 ? 'а' : 'ы') : 'всё в срок', go: "goSection('kanban')"},
+    {k: 'ev', c: 'c-mg', l: 'Мероприятия на неделе', v: nf(ev), s: 'наших ' + D.ev.ours + ' · в Алматы ' + D.ev.feed, go: "goSection('events')"},
+    {k: 'ins', c: 'c-in', l: 'Новые идеи и инсайты', v: nf(D.ins + D.an), s: D.ins + D.an ? 'с досок ' + D.ins + (D.an ? ' · аналитика ' + D.an : '') : 'всё разобрано', go: "try{R8V.notes=" + (D.ins || !D.an ? "'inbox'" : "'an'") + "}catch(e){};goSection('notes')"}
+  ];
+}
+BK_EXT.K.track = trackKpi; BK_EXT.K.lib = libKpi;
+window.r38aKpi = {track: trackData, lib: libData};
+
+// Счётчики у вкладок
+BK_EXT.badge = function(id){
+  if(id === 'kanban'){ var d = libData(); return d.od ? {n: d.od, red: 1} : (d.work ? {n: d.work} : null); }
+  if(id === 'notes'){ var n = ((typeof INBOX !== 'undefined' && INBOX) || []).filter(function(x){ return x && x.status === 'new'; }).length; return n ? {n: n} : null; }
+  if(id === 'events'){ var e = evWeek(); return e.ours + e.feed ? {n: e.ours + e.feed} : null; }
+  if(id === 'boards'){ var t = trackData(); return t.over ? {n: t.over, red: 1} : null; }
+  return undefined;
+};
+
+// ═══ 4. Кнопки раздела в шапку ═══
+var LIFT = {
+  boards: [{sel: '#stubBody > .pf-tools > .pf-p', t: '+ Новый разбор'}],
+  resLib: [{sel: '#stubBody > button.bg', t: '+ Ресурс'}],
+  stickers: [{sel: '#stubBody > .pf-tools > label.pf-p', t: 'Загрузить стикеры'}],
+  events: [{sel: '#stubBody .ev-sec-h button[onclick^="editEvent(null)"]', t: '+ Мероприятие'}]
+};
+BK_EXT.act = function(s, pa){
+  (LIFT[s] || []).forEach(function(x){
+    var b = document.querySelector(x.sel); if(!b) return;
+    b.classList.add('bk-lift');
+    var have = pa.querySelector('[data-r38="' + s + x.t + '"]');
+    if(have){ have._src = b; return; }
+    var q = document.createElement('button'); q.type = 'button'; q.className = 'bk-a' + (/^\+/.test(x.t) ? ' pri' : ''); q.textContent = x.t;
+    q.setAttribute('data-r38', s + x.t); q._src = b;
+    q.addEventListener('click', function(){ var src = q._src && document.contains(q._src) ? q._src : document.querySelector(x.sel); if(src) src.click(); });
+    pa.appendChild(q);
+  });
+};
+
+// ═══ 5. Доска администратора: вкладки «Трекинга» сверху (как у резидента) ═══
+function strip(){
+  var on = typeof MODE !== 'undefined' && MODE === 'admin' && typeof section !== 'undefined' && section === 'board' && BLOCKS.track.tabs.some(function(t){ return t.id === 'board'; });
+  var el = document.getElementById('r32Tabs');
+  if(!on){
+    if(document.body.classList.contains('r38b')){ document.body.classList.remove('r38b'); if(typeof MODE === 'undefined' || MODE !== 'res'){ document.body.classList.remove('r32t'); if(el) el.innerHTML = ''; } }
+    return;
+  }
+  if(!el){ el = document.createElement('div'); el.id = 'r32Tabs'; el.setAttribute('role', 'tablist'); document.body.appendChild(el); }
+  var tabs = typeof window.bkTabsOf === 'function' ? window.bkTabsOf('track') : BLOCKS.track.tabs.map(function(t){ return {id: t.id, n: t.n, ids: [t.id]}; });
+  var h = tabs.map(function(t){
+    var b = null; try{ b = BK_EXT.badge(t.id); }catch(e){}
+    return '<div class="r32-tab' + (t.ids.indexOf('board') >= 0 ? ' on' : '') + '" role="tab" data-s="' + E(t.id) + '" onclick="goSection(this.dataset.s)">' + E(t.n) + (b ? '<small>' + nf(b.n) + '</small>' : '') + '</div>';
+  }).join('');
+  if(el._r38 !== h || !el.innerHTML){ el.innerHTML = h; el._r38 = h; }
+  document.body.classList.add('r32t', 'r38b');
+}
+window.r38aStrip = strip;
+var _go = window.goSection;
+window.goSection = goSection = function(){ var r = _go.apply(this, arguments); try{ strip(); }catch(e){} return r; };
+var _rs = window.renderSide;
+window.renderSide = renderSide = function(){ var r = _rs.apply(this, arguments); try{ strip(); }catch(e){} return r; };
+var _sm = window.setMode;
+if(typeof _sm === 'function') window.setMode = setMode = function(){ var r = _sm.apply(this, arguments); try{ strip(); if(window.bkPaint) bkPaint(); }catch(e){} return r; };
+
+try{ if(curBoard) tsnap[curBoard.id] = tkey(curBoard.tests); }catch(e){}
+// Вкладки уже могли нарисоваться до этого блока: порядок (bs_order) и меню применяются заново
+try{ applyOrder(); }catch(e){}
+try{ if(typeof section !== 'undefined'){ strip(); if(window.bkPaint) bkPaint(); } }catch(e){}
+})();
+</script>
+<!-- /R38a -->
+<!-- R38b: Маркетинг → «Партнёрства и UGC» (bs_partners), воронки CRM, база из сервера -->
+<style id="r38bStyle">
+.pt-wrap{display:flex;flex-direction:column;gap:14px}
+.pt-kpi{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.pt-kpi>div{border:1px solid var(--pb);border-radius:12px;padding:12px 14px;background:var(--pc);min-width:0}
+.pt-kpi span{display:block;font-size:11px;font-weight:700;color:var(--pm);letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pt-kpi b{display:block;font:800 21px 'Manrope',sans-serif;margin-top:6px;white-space:nowrap}
+.pt-kpi b.pay{color:var(--fc-cash)}
+.pt-kpi i{display:block;font-style:normal;font-size:11px;color:var(--pm);margin-top:2px}
+.pt-sw{display:flex;gap:4px;flex-wrap:wrap}
+.pt-sw b{height:32px;padding:0 12px;display:flex;align-items:center;border:1px solid var(--pi);border-radius:8px;font-size:12.5px;font-weight:700;color:var(--pm);cursor:pointer}
+.pt-sw b.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.pt-sw b small{margin-left:6px;font-size:11px;opacity:.75}
+.pt-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pt-bar .inp{height:34px;max-width:260px}
+.pt-bar select.inp{max-width:220px;padding-top:0;padding-bottom:0;line-height:32px}
+.pt-kb{display:grid;grid-template-columns:repeat(6,minmax(200px,1fr));gap:10px;overflow-x:auto;padding-bottom:6px}
+.pt-col{border:1px solid var(--pb);border-radius:12px;background:var(--pd);min-height:180px;display:flex;flex-direction:column}
+.pt-col.drop{border-color:var(--ptx)}
+.pt-ch{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 4px;font-weight:800;font-size:13px}
+.pt-ch em{font-style:normal;color:var(--pm);font-size:12px}
+.pt-cd{font-size:11px;color:var(--pm);padding:0 12px 8px}
+.pt-cl{display:flex;flex-direction:column;gap:8px;padding:0 8px 10px;max-height:62vh;overflow-y:auto}
+.pt-card{border:1px solid var(--pi);border-radius:10px;padding:10px 11px;background:var(--pc);cursor:pointer;font-size:12.5px}
+.pt-card:hover{border-color:var(--pm)}
+.pt-card .n{font-weight:800;font-size:13px;line-height:1.3}
+.pt-card .m{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.pt-tag{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,var(--ptx) 8%,transparent);color:var(--pm)}
+.pt-pr{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px}
+.pt-pr.A{background:color-mix(in srgb,var(--fc-in) 18%,transparent);color:var(--fc-in)}
+.pt-pr.B{background:color-mix(in srgb,var(--fc-pro) 18%,transparent);color:var(--fc-pro)}
+.pt-pr.C{background:color-mix(in srgb,var(--ptx) 8%,transparent);color:var(--pm)}
+.pt-card .nx{margin-top:6px;color:var(--pm);font-size:11.5px}
+.pt-card .nx.over{color:var(--fc-out)}
+.pt-card .ld{margin-top:6px;font-size:11.5px;font-weight:700}
+.pt-unv{font-size:10.5px;color:var(--fc-cash);font-weight:700}
+.pt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.pt-tbl th{text-align:left;font-size:11px;color:var(--pm);font-weight:700;padding:8px 10px;border-bottom:1px solid var(--pb);white-space:nowrap}
+.pt-tbl td{padding:9px 10px;border-bottom:1px solid var(--ph);vertical-align:top}
+.pt-tbl tr.cl{cursor:pointer}
+.pt-tbl tr.cl:hover td{background:color-mix(in srgb,var(--ptx) 4%,transparent)}
+.pt-tbl td.num{text-align:right;white-space:nowrap;font-weight:700}
+.pt-st{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.pt-st.accrued{background:color-mix(in srgb,var(--fc-cash) 18%,transparent);color:var(--fc-cash)}
+.pt-st.paid{background:color-mix(in srgb,var(--fc-in) 18%,transparent);color:var(--fc-in)}
+.pt-box{border:1px solid var(--pb);border-radius:14px;padding:16px 18px;background:var(--pc)}
+.pt-box h3{font:800 15px 'Manrope',sans-serif;margin:0 0 10px}
+.pt-box p,.pt-box li{font-size:13px;line-height:1.55;color:var(--ptx)}
+.pt-box ol,.pt-box ul{margin:0;padding-left:20px}
+.pt-box li{margin:4px 0}
+.pt-mut{color:var(--pm);font-size:12px}
+.pt-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.pt-set{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:6px 0 12px}
+.pt-set label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--pm);font-weight:700}
+.pt-set .inp{height:34px;width:150px}
+.pt-chips{display:flex;gap:6px;flex-wrap:wrap}
+.pt-chips b{height:30px;padding:0 10px;display:flex;align-items:center;border:1px solid var(--pi);border-radius:8px;font-size:12px;font-weight:700;color:var(--pm);cursor:pointer}
+.pt-chips b.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.pt-tier{display:grid;grid-template-columns:110px 70px 120px 1fr;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--ph);font-size:12.5px}
+.pt-tier .inp{height:32px}
+.pt-tpl{border:1px solid var(--pb);border-radius:12px;padding:14px 16px;background:var(--pc);display:flex;flex-direction:column;gap:8px}
+.pt-tpl pre{white-space:pre-wrap;font:500 13px/1.55 'Manrope',sans-serif;margin:0;color:var(--ptx)}
+.pt-tpl .h{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.pt-tpl .h b{font-size:12px;color:var(--pm);letter-spacing:.3px;text-transform:uppercase}
+.pt-link{display:flex;gap:8px;align-items:center;border:1px solid var(--pi);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+.pt-link code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.pt-link span{font-size:11px;color:var(--pm);font-weight:700;white-space:nowrap}
+.pt-f{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.pt-f>span{font-size:11px;color:var(--pm);font-weight:700}
+.pt-f .inp,.pt-f textarea{width:100%}
+.pt-f textarea{min-height:70px;resize:vertical}
+.pt-f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pt-del{margin-top:14px}
+.pt-del.arm{background:var(--fc-out)!important;color:#fff!important;border-color:var(--fc-out)!important}
+.pt-empty{padding:24px;text-align:center;color:var(--pm);font-size:13px;border:1px dashed var(--pi);border-radius:12px}
+.cx-pipes{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.cx-pipe{height:34px;padding:0 11px;display:flex;align-items:center;gap:6px;border:1px solid var(--pi);border-radius:9px;font-size:12.5px;font-weight:700;color:var(--pm);cursor:pointer;white-space:nowrap}
+.cx-pipe b{font-weight:800;color:var(--ptx)}
+.cx-pipe i{font-style:normal;font-size:11px;opacity:.8}
+.cx-pipe.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.cx-pipe.on b{color:var(--pontx)}
+.cx-pr{font-size:12px;color:var(--pm);font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;margin-left:4px}
+.cx-imp{font-size:12px;color:var(--pm);margin:-2px 0 10px;line-height:1.6}
+.cx-imp .cx-pr{margin-left:10px}
+.cx-imp b{color:var(--ptx)}
+.cx-rule{border:1px solid var(--pb);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.cx-rule .h{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:13px;margin-bottom:6px}
+.cx-rule textarea{width:100%;min-height:52px;resize:vertical}
+@media (max-width:1100px){.pt-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}.pt-grid2{grid-template-columns:1fr}}
+@media (max-width:640px){.pt-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}.pt-tier{grid-template-columns:1fr 1fr}.pt-f2{grid-template-columns:1fr}}
+</style>
+<div class="sheet r6s" id="ptSheet" onclick="if(event.target===this)ptClose()"><div class="si"><div class="sh"><div><div class="st" id="ptTitle">Партнёр</div><div class="ss" id="ptSub"></div></div><div class="x" onclick="ptClose()">✕</div></div><div class="sb" id="ptBody"></div></div></div>
+<div class="sheet r6s" id="crmPipeSheet" onclick="if(event.target===this)closeSheet('crmPipeSheet')"><div class="si"><div class="sh"><div><div class="st">Правила воронок</div><div class="ss">Лид попадает в первую воронку, где в источнике нашлось слово. Остальные идут в «База»</div></div><div class="x" onclick="closeSheet('crmPipeSheet')">✕</div></div><div class="sb" id="crmPipeBody"></div></div></div>
+<script id="r38bScript">
+// ═══ R38b: воронки CRM ═══
+// Те же воронки и правила, что на сервере (internal/content/crm_pipes.json): первая воронка с совпавшим
+// словом в источнике забирает лида, «^слово» значит «источник начинается с», utm:<источник> смотрит utm_source,
+// #partner и #ref отмечают лидов партнёра и реферала. Правила команда меняет в «Правила» (bs_crm.pipeRules).
+var CRM_PIPES_DEF = [{"id":"partners","n":"Партнёры","any":["партнёр:","партнер:","#partner"]},{"id":"refs","n":"Рефералы резидентов","any":["реферал","рекомендац","#ref"]},{"id":"threads","n":"Threads","any":["threads","^th_","utm:threads"]},{"id":"ig","n":"Instagram и креативы","any":["instagram","инстаграм","карусель","реклама","таргет","креатив","tiktok","reels","^ig","utm:ig","utm:instagram","utm:fb","utm:facebook","utm:target","utm:tiktok"]},{"id":"site","n":"Сайт (Tilda)","any":["сайт","tilda","лендинг","форма","site"]},{"id":"tg","n":"Telegram-канал и чек-листы","any":["telegram","телеграм","чек-лист","гайд","лид-магнит","бот","диагностик"]},{"id":"direct","n":"WhatsApp и прямые","any":["whatsapp","^wa","звонок","выступление","qr","офлайн"]},{"id":"base","n":"База (старые лиды)","any":[]}];
+(function(){
+  var LSK = 'r38_crmPipe';
+  try{ CRMV.pipe = localStorage.getItem(LSK) || 'all'; }catch(e){ CRMV.pipe = 'all'; }
+  function low(s){ return String(s == null ? '' : s).toLowerCase().trim(); }
+  window.crmPipes = function(){
+    var R = (CRM && CRM.pipeRules && typeof CRM.pipeRules === 'object') ? CRM.pipeRules : {};
+    return CRM_PIPES_DEF.map(function(p){ return {id: p.id, n: p.n, any: Array.isArray(R[p.id]) ? R[p.id] : p.any, custom: Array.isArray(R[p.id])}; });
+  };
+  window.crmPipeOf = function(l, pipes){
+    pipes = pipes || crmPipes();
+    var src = low(l && l.source), text = src;
+    if(l && l.utm && l.utm.utm_source) text += ' utm:' + low(l.utm.utm_source);
+    if(l && l.partner) text += ' #partner';
+    if(l && l.ref && String(l.ref) !== '0') text += ' #ref';
+    for(var i = 0; i < pipes.length; i++){
+      var a = pipes[i].any || [];
+      for(var j = 0; j < a.length; j++){
+        var t = low(a[j]); if(!t) continue;
+        if(t[0] === '^'){ if(src.indexOf(t.slice(1)) === 0) return pipes[i].id; }
+        else if(text.indexOf(t) >= 0) return pipes[i].id;
+      }
+    }
+    return pipes.length ? pipes[pipes.length - 1].id : '';
+  };
+  // Счётчики и конверсия по воронкам
+  window.crmPipeStats = function(){
+    if(!CRM) loadCRM();
+    var pipes = crmPipes(), st = {all: {n: 0, act: 0, won: 0}};
+    pipes.forEach(function(p){ st[p.id] = {n: 0, act: 0, won: 0}; });
+    (CRM.leads || []).forEach(function(l){
+      if(!l) return;
+      var id = crmPipeOf(l, pipes);
+      [st.all, st[id]].forEach(function(s){ if(!s) return; s.n++; if(l.col === 'won') s.won++; else if(l.col !== 'lost') s.act++; });
+    });
+    return st;
+  };
+  function conv(s){ return s.n ? Math.round(s.won / s.n * 1000) / 10 : 0; }
+  window.crmPipesHTML = function(){
+    var st = crmPipeStats(), pipes = crmPipes(), cur = CRMV.pipe || 'all';
+    var chip = function(id, n){
+      var s = st[id] || {n: 0, won: 0};
+      return '<div class="cx-pipe' + (cur === id ? ' on' : '') + '" data-p="' + id + '" onclick="crmPipe(this.dataset.p)" title="' + escA(n + ': ' + s.n + ' лидов, резидентов ' + s.won + ', конверсия ' + conv(s) + '%') + '">' +
+        esc(n) + ' <b>' + fmtN(s.n) + '</b>' + (s.n ? '<i>' + String(conv(s)).replace('.', ',') + '%</i>' : '') + '</div>';
+    };
+    var bi = CRM && CRM.baseImport, imp = '';
+    if(bi && typeof bi === 'object'){
+      var d = bi.at ? new Date(bi.at) : null;
+      imp = '<div class="cx-imp" id="crmImp">База сервера: загружено <b data-k="added">' + fmtN(bi.added || 0) + '</b> ' + r38pl(bi.added || 0, 'лид', 'лида', 'лидов') +
+        (d && !isNaN(d) ? ' · ' + d.toLocaleDateString('ru', {day: 'numeric', month: 'long'}) : '') +
+        ' · найдено людей ' + fmtN(bi.found || 0) + ', уже были в CRM ' + fmtN(bi.inCrm || 0) + ', резиденты и удалённые пропущены (' + fmtN(bi.skipped || 0) + ')' +
+        '<span class="cx-pr" onclick="crmBaseImport()">Повторить импорт</span></div>';
+    } else {
+      imp = '<div class="cx-imp" id="crmImp">База сервера ещё не загружена в CRM<span class="cx-pr" onclick="crmBaseImport()">Загрузить сейчас</span></div>';
+    }
+    return '<div class="cx-pipes" id="crmPipes">' + chip('all', 'Все') + pipes.map(function(p){ return chip(p.id, p.n); }).join('') +
+      '<span class="cx-pr" onclick="crmPipeRules()">Правила</span></div>' + imp;
+  };
+  window.r38pl = function(n, a, b, c){ n = Math.abs(n) % 100; var k = n % 10; if(n > 10 && n < 20) return c; if(k > 1 && k < 5) return b; if(k === 1) return a; return c; };
+  window.crmPipe = function(id){
+    CRMV.pipe = id; try{ localStorage.setItem(LSK, id); }catch(e){}
+    renderCrmMain();
+  };
+  function paintPipes(){
+    var box = document.querySelector('.crm2'); if(!box) return;
+    ['crmPipes', 'crmImp'].forEach(function(id){ var x = document.getElementById(id); if(x) x.remove(); });
+    var t = document.createElement('div'); t.innerHTML = crmPipesHTML();
+    var at = box.querySelector('.cx-bar') || box.firstChild;
+    while(t.firstChild) box.insertBefore(t.firstChild, at);
+  }
+  // Канбан, показатели и поиск внутри выбранной воронки: на время отрисовки в CRM.leads только её лиды
+  var _rm = window.renderCrmMain;
+  window.renderCrmMain = renderCrmMain = function(){
+    var cur = CRMV.pipe || 'all';
+    try{ paintPipes(); }catch(e){}
+    if(cur === 'all' || !CRM || CRMV.view !== 'board') return _rm.apply(this, arguments);
+    var full = CRM.leads, pipes = crmPipes();
+    CRM.leads = full.filter(function(l){ return l && crmPipeOf(l, pipes) === cur; });
+    try{ return _rm.apply(this, arguments); } finally { CRM.leads = full; }
+  };
+  window.crmBaseImport = function(){
+    var el = document.getElementById('crmImp'); if(el) el.innerHTML = 'Загружаю базу сервера…';
+    r6Api('POST', '/crm/base-import').then(function(j){
+      if(!j || j.error){ toast((j && j.error) || 'Сервер не ответил'); if(el) paintPipes(); return; }
+      if(!CRM) loadCRM();
+      CRM.baseImport = j; // сервер уже записал лидов в bs_crm, синхронизация привезёт их
+      toast(j.added ? 'Загружено новых лидов: ' + j.added : 'Новых лидов нет, все уже в CRM');
+      try{ if(window.BSSync && BSSync.tick) BSSync.tick(); }catch(e){}
+      if(section === 'leads') renderCrmMain();
+    });
+  };
+  window.crmPipeRules = function(){
+    var b = document.getElementById('crmPipeBody');
+    b.innerHTML = crmPipes().map(function(p){
+      var last = p.id === CRM_PIPES_DEF[CRM_PIPES_DEF.length - 1].id;
+      return '<div class="cx-rule"><div class="h"><span>' + esc(p.n) + '</span>' + (p.custom ? '<span class="cx-pr" data-p="' + p.id + '" onclick="crmPipeReset(this.dataset.p)">Как было</span>' : '') + '</div>' +
+        (last ? '<div class="pt-mut">Сюда попадают все лиды, которых не забрали воронки выше: старые базы, «Не указан», ручные лиды без источника</div>' :
+        '<textarea class="inp" data-p="' + p.id + '" onchange="crmPipeSave(this)" placeholder="слова через запятую">' + esc((p.any || []).join(', ')) + '</textarea>') + '</div>';
+    }).join('') + '<div class="pt-mut">Слова ищутся в источнике лида без учёта регистра. «^wa» значит «источник начинается с wa», «utm:ig» смотрит utm_source заявки с сайта, #partner и #ref отмечают лидов партнёров и рефералов.</div>';
+    document.getElementById('crmPipeSheet').classList.add('on');
+  };
+  window.crmPipeSave = function(ta){
+    if(!CRM) loadCRM();
+    if(!CRM.pipeRules || typeof CRM.pipeRules !== 'object') CRM.pipeRules = {};
+    CRM.pipeRules[ta.dataset.p] = String(ta.value || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+    saveCRM(); toast('Правило сохранено');
+    crmPipeRules();
+    if(section === 'leads') renderCrmMain();
+  };
+  window.crmPipeReset = function(id){
+    if(CRM && CRM.pipeRules){ delete CRM.pipeRules[id]; saveCRM(); }
+    crmPipeRules(); if(section === 'leads') renderCrmMain();
+  };
+})();
+
+// ═══ R38b: Маркетинг → «Партнёрства и UGC» ═══
+var PD = null;
+var PT = {view: 'pipe', q: '', type: '', pr: '', links: null, open: null, del: '', tplType: 'gallup', tplP: ''};
+var PT_STAGES = [
+  {id: 'found',  n: 'Найден',       d: 'Нашли, ещё не писали'},
+  {id: 'wrote',  n: 'Написали',     d: 'Первое сообщение ушло'},
+  {id: 'meet',   n: 'Встреча',      d: 'Созвон или встреча назначены'},
+  {id: 'deal',   n: 'Договорились', d: 'Условия приняты, ссылка выдана'},
+  {id: 'active', n: 'Активный',     d: 'Отправляет людей'},
+  {id: 'pause',  n: 'Пауза',        d: 'Не сейчас'}
+];
+var PT_TYPES = {gallup: 'Gallup-коучи', coach: 'Коучи', accounting: 'Бухгалтерия', legal: 'Юристы', bank: 'Банки и лизинг', fund: 'Фонды',
+  coworking: 'Коворкинги', hr: 'HR и рекрутинг', marketing: 'Маркетинг', association: 'Ассоциации', media: 'Медиа и блогеры', events: 'Мероприятия', other: 'Другое'};
+var PT_VER = {contacts: 'контакты проверены', known: 'уже знакомы', site: 'сайт найден, контакт проверить', no: 'не проверено'};
+function ptDefaults(){
+  return {rewardClub: 100000, razborMode: 'percent', razborPercent: 10, razborPrice: 50000, razborFixed: 5000, ugcVideo: 20000, ugcCase: 30000,
+    tiers: [{id: 'base', n: 'Партнёр', from: 0, reward: 100000, perks: 'Ссылка с меткой, готовые тексты, отчёт по лидам'},
+      {id: 'silver', n: 'Серебро', from: 3, reward: 120000, perks: 'От 3 резидентов за полгода: совместный эфир раз в квартал, логотип на бизнес-завтраке'},
+      {id: 'gold', n: 'Золото', from: 6, reward: 150000, perks: 'От 6 резидентов за полгода: гостевой разбор для клиентов партнёра, место спикера на мероприятиях BS'}]};
+}
+function loadPartners(){
+  var d = null; try{ d = JSON.parse(localStorage.getItem('bs_partners') || 'null'); }catch(e){}
+  if(!d || typeof d !== 'object') d = {};
+  if(!Array.isArray(d.partners)) d.partners = [];
+  if(!Array.isArray(d.ledger)) d.ledger = [];
+  if(!d.settings || typeof d.settings !== 'object') d.settings = {};
+  var def = ptDefaults(); Object.keys(def).forEach(function(k){ if(d.settings[k] === undefined) d.settings[k] = def[k]; });
+  d.partners = d.partners.filter(Boolean);
+  d.partners.forEach(function(p){ if(!p.stage || !PT_STAGES.some(function(s){ return s.id === p.stage; })) p.stage = 'found'; if(!p.id) p.id = 'p_' + (p.code || Math.random().toString(36).slice(2, 8)); });
+  PD = d; return d;
+}
+function savePartners(){ try{ localStorage.setItem('bs_partners', JSON.stringify(PD)); }catch(e){} }
+function ptById(id){ if(!PD) loadPartners(); return PD.partners.find(function(p){ return String(p.id) === String(id); }) || null; }
+function ptLow(s){ return String(s == null ? '' : s).toLowerCase().trim(); }
+// Лиды партнёра в CRM: поле partner или источник «Партнёр: <имя или код>»
+function ptLeads(p){
+  if(!CRM) loadCRM();
+  var nm = ptLow(p.name), code = ptLow(p.code);
+  return (CRM.leads || []).filter(function(l){
+    if(!l) return false;
+    if(l.partner) return ptLow(l.partner) === code;
+    var m = String(l.source || '').match(/^партн[её]р:\s*(.+)$/i);
+    return !!m && (ptLow(m[1]) === nm || ptLow(m[1]) === code);
+  });
+}
+function ptRows(p){ return PD.ledger.filter(function(r){ return r && ptLow(r.partner) === ptLow(p.code); }); }
+function ptMoney(v){ return fmtN(v) + ' ₸'; }
+function ptRazbor(){
+  var s = PD.settings;
+  if(s.razborMode === 'off') return 0;
+  if(s.razborMode === 'fixed') return Number(s.razborFixed) || 0;
+  return Math.round((Number(s.razborPrice) || 50000) * (Number(s.razborPercent) || 0) / 100);
+}
+function ptReward(p){
+  if(Number(p.reward) > 0) return Number(p.reward);
+  var t = (PD.settings.tiers || []).find(function(x){ return x.id === p.tier; });
+  if(t && Number(t.reward) > 0) return Number(t.reward);
+  return Number(PD.settings.rewardClub) || 100000;
+}
+function ptLinks(p){
+  var L = PT.links || {}, bot = L.bot || 'bsurgery_bot';
+  var base = L.base || (/^https?:/.test(location.origin) ? location.origin : 'https://bs-platform-production.up.railway.app');
+  return {bot: 'https://t.me/' + bot + '?start=pt_' + p.code, plat: base.replace(/\/$/, '') + '/p/' + p.code, site: (L.site || 'https://bxclub.kz') + '/?ref=' + p.code};
+}
+function ptFetchLinks(){
+  if(PT.links || PT._lf) return; PT._lf = 1;
+  r6Api('GET', '/partners/links').then(function(j){ if(j && j.bot){ PT.links = j; if(section === 'mPartners' && PT.open) ptPaintLinks(); } });
+}
+function ptStats(){
+  if(!PD) loadPartners();
+  var leads = 0, won = 0, acc = 0, paid = 0, act = 0, work = 0;
+  PD.partners.forEach(function(p){
+    var ls = ptLeads(p); leads += ls.length; won += ls.filter(function(l){ return l.col === 'won'; }).length;
+    if(p.stage === 'active') act++;
+    if(['wrote', 'meet', 'deal'].indexOf(p.stage) >= 0) work++;
+  });
+  PD.ledger.forEach(function(r){ if(!r) return; if(r.status === 'paid') paid += Number(r.amount) || 0; else acc += Number(r.amount) || 0; });
+  return {leads: leads, won: won, conv: leads ? Math.round(won / leads * 1000) / 10 : 0, acc: acc, paid: paid, act: act, work: work, all: PD.partners.length};
+}
+function ptCode(name){
+  var map = {а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sh',ы:'y',э:'e',ю:'yu',я:'ya',ә:'a',ғ:'g',қ:'k',ң:'n',ө:'o',ұ:'u',ү:'u',һ:'h',і:'i'};
+  var s = ptLow(name).split('').map(function(c){ return map[c] !== undefined ? map[c] : (/[a-z0-9]/.test(c) ? c : '_'); }).join('').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 16) || 'partner';
+  if(s.length < 2) s += '_p';
+  var c = s, i = 2; while(PD.partners.some(function(p){ return p.code === c; })){ c = s.slice(0, 14) + '_' + i; i++; }
+  return c;
+}
+
+function renderPartners(){
+  loadPartners(); ptFetchLinks();
+  var el = pgSet('Маркетинг', 'Партнёрства и UGC: партнёры, которые отправляют к нам собственников, выплаты и программа');
+  var s = ptStats();
+  var views = [['pipe', 'Воронка', s.all], ['list', 'Список', 0], ['ledger', 'Выплаты', PD.ledger.filter(function(r){ return r && r.status !== 'paid'; }).length], ['strategy', 'Стратегия', 0], ['tpl', 'Тексты', 0], ['ugc', 'UGC', 0]];
+  el.innerHTML = '<div class="pt-wrap" id="ptRoot">' +
+    '<div class="pt-kpi">' +
+      '<div data-k="all"><span>Партнёров в базе</span><b>' + fmtN(s.all) + '</b><i>в работе ' + fmtN(s.work) + '</i></div>' +
+      '<div data-k="act"><span>Активные</span><b>' + fmtN(s.act) + '</b><i>отправляют людей</i></div>' +
+      '<div data-k="leads"><span>Лиды от партнёров</span><b>' + fmtN(s.leads) + '</b><i>по ссылкам pt_ и ?ref</i></div>' +
+      '<div data-k="conv"><span>Конверсия в резидента</span><b>' + String(s.conv).replace('.', ',') + '%</b><i>' + fmtN(s.won) + ' ' + r38pl(s.won, 'резидент', 'резидента', 'резидентов') + '</i></div>' +
+      '<div data-k="acc"><span>К выплате</span><b class="pay">' + ptMoney(s.acc) + '</b><i>начислено, не выплачено</i></div>' +
+      '<div data-k="paid"><span>Выплачено</span><b>' + ptMoney(s.paid) + '</b><i>за всё время</i></div>' +
+    '</div>' +
+    '<div class="pt-bar"><div class="pt-sw" role="tablist">' + views.map(function(v){
+      return '<b class="' + (PT.view === v[0] ? 'on' : '') + '" data-v="' + v[0] + '" onclick="ptView(this.dataset.v)">' + v[1] + (v[2] ? '<small>' + fmtN(v[2]) + '</small>' : '') + '</b>';
+    }).join('') + '</div></div>' +
+    '<div id="ptMain"></div></div>';
+  var pa = document.getElementById('phAct');
+  if(pa) pa.innerHTML = '<button type="button" class="bk-a" onclick="ptView(\'tpl\')">Тексты для партнёров</button><button type="button" class="bk-a pri" id="ptAdd" onclick="ptNew()">+ Партнёр</button>';
+  ptMain();
+}
+function ptView(v){ PT.view = v; renderPartners(); }
+function ptFilterBar(){
+  var types = {}; PD.partners.forEach(function(p){ types[p.type || 'other'] = (types[p.type || 'other'] || 0) + 1; });
+  return '<div class="pt-bar"><input class="inp" id="ptQ" placeholder="Поиск: имя, город, контакт" value="' + escA(PT.q) + '" oninput="PT.q=this.value;ptMainOnly()">' +
+    '<select class="inp" id="ptType" onchange="PT.type=this.value;ptMainOnly()"><option value="">Все типы</option>' + Object.keys(PT_TYPES).filter(function(k){ return types[k]; }).map(function(k){
+      return '<option value="' + k + '"' + (PT.type === k ? ' selected' : '') + '>' + esc(PT_TYPES[k]) + ' · ' + types[k] + '</option>'; }).join('') + '</select>' +
+    '<div class="pt-chips">' + ['', 'A', 'B', 'C'].map(function(x){ return '<b class="' + (PT.pr === x ? 'on' : '') + '" data-x="' + x + '" onclick="PT.pr=this.dataset.x;ptMain()">' + (x ? 'Приоритет ' + x : 'Любой приоритет') + '</b>'; }).join('') + '</div></div>';
+}
+function ptList(){
+  var q = ptLow(PT.q);
+  return PD.partners.filter(function(p){
+    if(PT.type && (p.type || 'other') !== PT.type) return false;
+    if(PT.pr && p.priority !== PT.pr) return false;
+    if(!q) return true;
+    return [p.name, p.city, p.contact, p.audience, p.owner, p.notes, p.code].some(function(x){ return ptLow(x).indexOf(q) >= 0; });
+  }).sort(function(a, b){ return String(a.priority || 'C').localeCompare(String(b.priority || 'C')) || (Number(b.score) || 0) - (Number(a.score) || 0); });
+}
+function ptMain(){
+  var m = document.getElementById('ptMain'); if(!m) return;
+  if(PT.view === 'strategy'){ m.innerHTML = ptStrategyHTML(); return; }
+  if(PT.view === 'tpl'){ m.innerHTML = ptTplHTML(); return; }
+  if(PT.view === 'ugc'){ m.innerHTML = ptUgcHTML(); return; }
+  if(PT.view === 'ledger'){ m.innerHTML = ptLedgerHTML(); return; }
+  m.innerHTML = ptFilterBar() + '<div id="ptMainB"></div>';
+  ptMainOnly();
+}
+// Перерисовка без строки фильтров: поле поиска не теряет фокус
+function ptMainOnly(){
+  var b = document.getElementById('ptMainB'); if(!b){ ptMain(); return; }
+  b.innerHTML = PT.view === 'list' ? ptTableHTML() : ptBoardHTML();
+}
+function ptCardHTML(p){
+  var ls = ptLeads(p), won = ls.filter(function(l){ return l.col === 'won'; }).length;
+  var over = p.next && p.nextAt && typeof crmDaysLeft === 'function' && crmDaysLeft(p.nextAt) < 0;
+  return '<div class="pt-card" draggable="true" data-id="' + escA(p.id) + '" ondragstart="ptDrag(event,this)" onclick="ptOpen(this.dataset.id)">' +
+    '<div class="n">' + esc(p.name) + '</div>' +
+    '<div class="m"><span class="pt-pr ' + escA(p.priority || 'C') + '">' + esc(p.priority || 'C') + '</span><span class="pt-tag">' + esc(PT_TYPES[p.type] || PT_TYPES.other) + '</span>' +
+      (p.city ? '<span class="pt-tag">' + esc(p.city) + '</span>' : '') + (p.verified === 'no' ? '<span class="pt-unv">проверить</span>' : '') + '</div>' +
+    (ls.length ? '<div class="ld">' + fmtN(ls.length) + ' ' + r38pl(ls.length, 'лид', 'лида', 'лидов') + (won ? ' · ' + won + ' ' + r38pl(won, 'резидент', 'резидента', 'резидентов') : '') + '</div>' : '') +
+    (p.next ? '<div class="nx' + (over ? ' over' : '') + '">→ ' + esc(p.next) + (p.nextAt && typeof crmWhen === 'function' ? ' · ' + esc(crmWhen(p.nextAt)) : '') + '</div>' : '') +
+    (p.owner ? '<div class="nx">Ведёт: ' + esc(p.owner) + '</div>' : '') +
+  '</div>';
+}
+function ptBoardHTML(){
+  var list = ptList();
+  if(!PD.partners.length) return '<div class="pt-empty">Партнёров пока нет. Сервер загружает найденных партнёров при запуске; можно добавить своего кнопкой «+ Партнёр»</div>';
+  return '<div class="pt-kb">' + PT_STAGES.map(function(s){
+    var it = list.filter(function(p){ return p.stage === s.id; });
+    return '<div class="pt-col" data-st="' + s.id + '" ondragover="ptOver(event,this)" ondragleave="this.classList.remove(\'drop\')" ondrop="ptDrop(event,this)">' +
+      '<div class="pt-ch"><span>' + esc(s.n) + '</span><em>' + fmtN(it.length) + '</em></div><div class="pt-cd">' + esc(s.d) + '</div>' +
+      '<div class="pt-cl">' + (it.length ? it.map(ptCardHTML).join('') : '<div class="pt-mut" style="padding:8px 4px">Перетащите карточку сюда</div>') + '</div></div>';
+  }).join('') + '</div>';
+}
+function ptTableHTML(){
+  var list = ptList();
+  if(!list.length) return '<div class="pt-empty">Ничего не нашлось</div>';
+  return '<div style="overflow-x:auto"><table class="pt-tbl"><thead><tr><th>Партнёр</th><th>Тип</th><th>Приоритет</th><th>Этап</th><th>Контакт</th><th>Лиды</th><th>Ведёт</th><th>Следующий шаг</th></tr></thead><tbody>' +
+    list.map(function(p){
+      var ls = ptLeads(p), st = PT_STAGES.find(function(s){ return s.id === p.stage; }) || PT_STAGES[0];
+      return '<tr class="cl" data-id="' + escA(p.id) + '" onclick="ptOpen(this.dataset.id)"><td><b>' + esc(p.name) + '</b><div class="pt-mut">' + esc(p.city || '') + (p.verified ? ' · ' + esc(PT_VER[p.verified] || p.verified) : '') + '</div></td>' +
+        '<td>' + esc(PT_TYPES[p.type] || PT_TYPES.other) + '</td><td><span class="pt-pr ' + escA(p.priority || 'C') + '">' + esc(p.priority || 'C') + '</span></td><td>' + esc(st.n) + '</td>' +
+        '<td class="pt-mut">' + esc(p.contact || '') + '</td><td class="num">' + fmtN(ls.length) + '</td><td>' + esc(p.owner || '') + '</td><td>' + esc(p.next || '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+var ptDragId = null;
+function ptDrag(e, el){ ptDragId = el.dataset.id; try{ e.dataTransfer.setData('text/plain', ptDragId); e.dataTransfer.effectAllowed = 'move'; }catch(_){} }
+function ptOver(e, col){ if(!ptDragId) return; e.preventDefault(); col.classList.add('drop'); }
+function ptDrop(e, col){
+  e.preventDefault(); col.classList.remove('drop');
+  var id = ptDragId; try{ id = e.dataTransfer.getData('text/plain') || id; }catch(_){}
+  ptDragId = null; if(id) ptStage(id, col.dataset.st);
+}
+function ptLog(p, t){ if(!Array.isArray(p.log)) p.log = []; p.log.push({at: new Date().toISOString(), text: t}); if(p.log.length > 60) p.log = p.log.slice(-60); }
+function ptStage(id, st){
+  var p = ptById(id), s = PT_STAGES.find(function(x){ return x.id === st; });
+  if(!p || !s || p.stage === st) return;
+  var was = (PT_STAGES.find(function(x){ return x.id === p.stage; }) || PT_STAGES[0]).n;
+  p.stage = st; ptLog(p, 'Этап: ' + was + ' → ' + s.n);
+  savePartners(); toast('Этап: ' + s.n);
+  if(PT.open === String(id)) ptPaint(); else ptMainOnly();
+}
+function ptNew(){
+  loadPartners();
+  var p = {id: 'p' + Math.random().toString(36).slice(2, 9), code: '', name: '', type: 'other', city: 'Алматы', contact: '', url: '', audience: '', why: '', offer: '',
+    priority: 'B', verified: 'known', stage: 'found', owner: '', next: '', nextAt: '', notes: '', created: new Date().toISOString(), log: []};
+  p.code = ptCode('partner'); ptLog(p, 'Добавлен вручную');
+  PD.partners.unshift(p); savePartners();
+  ptOpen(p.id);
+  setTimeout(function(){ var n = document.getElementById('ptfName'); if(n) n.focus(); }, 60);
+}
+
+// ── Карточка партнёра ──
+function ptOpen(id){
+  var p = ptById(id); if(!p) return;
+  PT.open = String(id); PT.del = '';
+  ptPaint();
+  document.getElementById('ptSheet').classList.add('on');
+}
+function ptClose(){ closeSheet('ptSheet'); PT.open = null; if(section === 'mPartners') renderPartners(); }
+function ptField(k, label, val, type, ph){
+  var id = 'ptf' + k[0].toUpperCase() + k.slice(1);
+  if(type === 'area') return '<label class="pt-f"><span>' + label + '</span><textarea class="inp" id="' + id + '" data-k="' + k + '" onchange="ptSet(this)" placeholder="' + escA(ph || '') + '">' + esc(val || '') + '</textarea></label>';
+  return '<label class="pt-f"><span>' + label + '</span><input class="inp" id="' + id + '" data-k="' + k + '" type="' + (type || 'text') + '" value="' + escA(val == null ? '' : val) + '" onchange="ptSet(this)" placeholder="' + escA(ph || '') + '"></label>';
+}
+function ptSel(k, label, val, opts){
+  return '<label class="pt-f"><span>' + label + '</span><select class="inp" data-k="' + k + '" onchange="ptSet(this)">' + opts.map(function(o){
+    return '<option value="' + escA(o[0]) + '"' + (String(val || '') === String(o[0]) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
+}
+function ptPaint(){
+  var p = ptById(PT.open); if(!p) return;
+  var ls = ptLeads(p), rows = ptRows(p), won = ls.filter(function(l){ return l.col === 'won'; }).length;
+  document.getElementById('ptTitle').textContent = p.name || 'Новый партнёр';
+  document.getElementById('ptSub').textContent = (PT_TYPES[p.type] || PT_TYPES.other) + (p.city ? ' · ' + p.city : '') + ' · код ' + p.code;
+  var tiers = (PD.settings.tiers || []).map(function(t){ return [t.id, t.n + ' · ' + fmtN(t.reward) + ' ₸']; });
+  var sug = (PD.settings.tiers || []).filter(function(t){ return won >= (Number(t.from) || 0); }).pop();
+  document.getElementById('ptBody').innerHTML =
+    '<div class="pt-f"><span>Этап</span><div class="pt-chips">' + PT_STAGES.map(function(s){ return '<b class="' + (p.stage === s.id ? 'on' : '') + '" data-s="' + s.id + '" onclick="ptStage(PT.open,this.dataset.s)">' + esc(s.n) + '</b>'; }).join('') + '</div></div>' +
+    '<div class="pf-lbl" style="margin-top:6px">Ссылки партнёра</div><div id="ptLinks"></div>' +
+    '<div class="pt-f2">' + ptField('name', 'Название', p.name) + ptSel('type', 'Тип', p.type || 'other', Object.keys(PT_TYPES).map(function(k){ return [k, PT_TYPES[k]]; })) + '</div>' +
+    '<div class="pt-f2">' + ptField('owner', 'Кто ведёт', p.owner, 'text', 'Имя из команды') + ptSel('priority', 'Приоритет', p.priority || 'C', [['A', 'A: писать первым'], ['B', 'B: следом'], ['C', 'C: когда будет время']]) + '</div>' +
+    '<div class="pt-f2">' + ptField('next', 'Следующий шаг', p.next, 'text', 'Написать в Telegram') + ptField('nextAt', 'Когда', p.nextAt, 'date') + '</div>' +
+    ptField('contact', 'Контакты', p.contact, 'text', 'Телефон, Telegram, Instagram, почта') +
+    '<div class="pt-f2">' + ptField('city', 'Город', p.city) + ptField('url', 'Сайт или профиль', p.url) + '</div>' +
+    ptField('notes', 'Заметки', p.notes, 'area', 'О чём договорились, кто принимает решение') +
+    '<div class="pt-f2">' + ptSel('tier', 'Уровень', p.tier || 'base', tiers) + ptField('reward', 'Своя сумма за резидента, ₸', p.reward ? fmtN(p.reward) : '', 'text', 'по уровню: ' + fmtN(ptReward(p))) + '</div>' +
+    (sug && sug.id !== (p.tier || 'base') && won ? '<div class="pt-mut" style="margin:-4px 0 12px">По числу резидентов партнёру подходит уровень «' + esc(sug.n) + '»</div>' : '') +
+    (p.audience ? '<div class="pt-f"><span>Аудитория</span><div style="font-size:13px">' + esc(p.audience) + '</div></div>' : '') +
+    (p.why ? '<div class="pt-f"><span>Почему будет рекомендовать</span><div style="font-size:13px">' + esc(p.why) + '</div></div>' : '') +
+    ptField('offer', 'Наше предложение', p.offer, 'area') +
+    (p.verified ? '<div class="pt-mut" style="margin-bottom:12px">Данные: ' + esc(PT_VER[p.verified] || p.verified) + (p.note ? '. ' + esc(p.note) : '') + '</div>' : '') +
+    '<div class="pf-lbl">Лиды партнёра · ' + fmtN(ls.length) + '</div>' +
+    (ls.length ? '<table class="pt-tbl"><tbody>' + ls.map(function(l){ return '<tr class="cl" data-id="' + escA(l.id) + '" onclick="closeSheet(\'ptSheet\');openLead(this.dataset.id)"><td>' + esc(l.name || 'Без имени') + '</td><td>' + esc(crmCol(l.col).n) + '</td><td class="pt-mut">' + esc(l.date || '') + '</td></tr>'; }).join('') + '</tbody></table>'
+      : '<div class="pt-mut" style="margin-bottom:12px">Лидов пока нет. Они появятся, когда люди перейдут по ссылке партнёра</div>') +
+    '<div class="pf-lbl" style="margin-top:14px">Выплаты · к выплате ' + ptMoney(rows.filter(function(r){ return r.status !== 'paid'; }).reduce(function(a, r){ return a + (Number(r.amount) || 0); }, 0)) + '</div>' +
+    (rows.length ? ptLedgerTable(rows, true) : '<div class="pt-mut">Начислений нет. Строка «к выплате» появится, когда лид партнёра станет резидентом</div>') +
+    '<div class="pf-lbl" style="margin-top:14px">Готовый текст</div>' + ptTplFor(p) +
+    '<button class="btn pf-b pt-del' + (PT.del === p.id ? ' arm' : '') + '" onclick="ptDel()">' + (PT.del === p.id ? 'Нажмите ещё раз, чтобы удалить' : 'Удалить партнёра') + '</button>';
+  ptPaintLinks();
+}
+function ptPaintLinks(){
+  var p = ptById(PT.open), b = document.getElementById('ptLinks'); if(!p || !b) return;
+  var L = ptLinks(p);
+  b.innerHTML = [['bot', 'Бот', L.bot], ['plat', 'Платформа', L.plat], ['site', 'Сайт', L.site]].map(function(x){
+    return '<div class="pt-link" data-l="' + x[0] + '"><span>' + x[1] + '</span><code>' + esc(x[2]) + '</code><button class="btn pf-b" style="height:30px;padding:0 10px;font-size:12px" data-u="' + escA(x[2]) + '" onclick="r6Copy(this.dataset.u)">Копировать</button></div>';
+  }).join('') + '<div class="pt-mut" style="margin:-2px 0 14px">Переходы по ссылке платформы: ' + fmtN(p.clicks || 0) + '. Для сайта в форме Tilda нужно скрытое поле ref (Tilda заполнит его из адреса)</div>';
+}
+function ptSet(el){
+  var p = ptById(PT.open); if(!p) return;
+  var k = el.dataset.k, v = el.value;
+  if(k === 'reward'){ v = Number(String(v).replace(/\D/g, '')) || 0; if(!v){ delete p.reward; } else p.reward = v; }
+  else p[k] = v;
+  if(k === 'name' && v && /^partner(_\d+)?$/.test(p.code)) p.code = ptCode(v);
+  savePartners();
+  if(['name', 'type', 'city', 'tier', 'reward'].indexOf(k) >= 0) ptPaint();
+}
+function ptDel(){
+  var p = ptById(PT.open); if(!p) return;
+  if(PT.del !== p.id){ PT.del = p.id; ptPaint(); clearTimeout(PT._dt); PT._dt = setTimeout(function(){ if(PT.del === p.id){ PT.del = ''; if(PT.open) ptPaint(); } }, 4000); return; }
+  PD.partners = PD.partners.filter(function(x){ return x.id !== p.id; });
+  if(!Array.isArray(PD.deleted)) PD.deleted = [];
+  PD.deleted.push(p.id);
+  savePartners(); toast('Партнёр удалён');
+  ptClose();
+}
+
+// ── Выплаты ──
+function ptLedgerTable(rows, short){
+  return '<div style="overflow-x:auto"><table class="pt-tbl"><thead><tr><th>Дата</th>' + (short ? '' : '<th>Партнёр</th>') + '<th>Клиент</th><th>За что</th><th style="text-align:right">Сумма</th><th>Статус</th><th></th></tr></thead><tbody>' +
+    rows.slice().sort(function(a, b){ return String(b.at || '').localeCompare(String(a.at || '')); }).map(function(r){
+      var d = r.at ? new Date(r.at) : null;
+      return '<tr data-r="' + escA(r.id) + '"><td class="pt-mut">' + (d && !isNaN(d) ? d.toLocaleDateString('ru') : '') + '</td>' + (short ? '' : '<td>' + esc(r.partnerName || r.partner) + '</td>') +
+        '<td>' + esc(r.leadName || r.lead) + '</td><td>' + (r.kind === 'razbor' ? 'Оплаченный разбор' : 'Стал резидентом') + '</td><td class="num">' + ptMoney(r.amount) + '</td>' +
+        '<td><span class="pt-st ' + (r.status === 'paid' ? 'paid' : 'accrued') + '">' + (r.status === 'paid' ? 'Выплачено' : 'К выплате') + '</span></td>' +
+        '<td><button class="btn pf-b" style="height:28px;padding:0 10px;font-size:11.5px;white-space:nowrap" data-r="' + escA(r.id) + '" onclick="ptPay(this.dataset.r)">' + (r.status === 'paid' ? 'Вернуть' : 'Отметить выплату') + '</button></td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+function ptPay(id){
+  var r = PD.ledger.find(function(x){ return x && x.id === id; }); if(!r) return;
+  if(r.status === 'paid'){ r.status = 'accrued'; delete r.paidAt; toast('Снова к выплате'); }
+  else { r.status = 'paid'; r.paidAt = new Date().toISOString(); toast('Выплата отмечена: ' + ptMoney(r.amount)); }
+  savePartners();
+  if(PT.open && document.getElementById('ptSheet').classList.contains('on')) ptPaint(); else renderPartners();
+}
+function ptLedgerHTML(){
+  var rows = PD.ledger.filter(Boolean), s = ptStats();
+  return '<div class="pt-box"><h3>Журнал выплат партнёрам</h3><div class="pt-mut" style="margin-bottom:12px">Сервер раз в 10 минут смотрит CRM: лид партнёра стал резидентом → строка «к выплате» на ' + ptMoney(PD.settings.rewardClub) +
+    ' (или сумма уровня партнёра)' + (ptRazbor() ? ', разбор проведён → ' + ptMoney(ptRazbor()) : '') + '. Каждая строка один раз. Начислено ' + ptMoney(s.acc + s.paid) + ', выплачено ' + ptMoney(s.paid) + ', к выплате ' + ptMoney(s.acc) + '.</div>' +
+    (rows.length ? ptLedgerTable(rows, false) : '<div class="pt-empty">Начислений пока нет</div>') + '</div>';
+}
+
+// ── Стратегия: программа, уровни, совместный маркетинг ──
+function ptSetNum(el){
+  var k = el.dataset.k, v = Number(String(el.value).replace(/[^\d.]/g, '')) || 0;
+  PD.settings[k] = v; savePartners(); toast('Сохранено');
+  if(k !== 'razborPrice' && k !== 'razborPercent' && k !== 'razborFixed') return;
+  var o = document.getElementById('ptRzOut'); if(o) o.textContent = ptMoney(ptRazbor());
+}
+function ptRzMode(m){ PD.settings.razborMode = m; savePartners(); ptMain(); }
+function ptTier(el){
+  var t = (PD.settings.tiers || [])[+el.dataset.i]; if(!t) return;
+  var k = el.dataset.k; t[k] = (k === 'reward' || k === 'from') ? (Number(String(el.value).replace(/\D/g, '')) || 0) : el.value;
+  savePartners(); toast('Уровень сохранён');
+}
+function ptStrategyHTML(){
+  var s = PD.settings, rz = ptRazbor();
+  return '<div class="pt-grid2">' +
+    '<div class="pt-box"><h3>Партнёрская программа BS</h3>' +
+      '<ol><li><b>' + ptMoney(s.rewardClub) + ' за клиента клуба.</b> Начисляется, когда человек, пришедший по ссылке партнёра, оплатил участие в клубе (карточка лида в CRM перешла в «Резидент»). Выплата в течение 5 рабочих дней после оплаты, на Kaspi или счёт партнёра.</li>' +
+      '<li><b>За разбор: ' + (s.razborMode === 'off' ? 'не платим' : ptMoney(rz)) + '.</b> Предложение: 10% от цены разбора (' + ptMoney(s.razborPrice) + ' → ' + ptMoney(Math.round((s.razborPrice || 0) * 0.1)) + '), после того как клиент оплатил разбор и он состоялся. Если человек потом стал резидентом, партнёр получает обе суммы.</li>' +
+      '<li><b>Закрепление по первой ссылке.</b> Лид закрепляется за партнёром, если пришёл впервые по его ссылке: бот t.me/…?start=pt_код, платформа /p/код или сайт ?ref=код. Если человек уже был в CRM, источник не меняется.</li>' +
+      '<li><b>Возврат.</b> Если клиент вернул оплату в первые 14 дней, вознаграждение не выплачивается (команда отмечает вручную).</li>' +
+      '<li><b>Прозрачность.</b> Партнёр видит по запросу: сколько людей пришло, сколько записалось на разбор, сколько стало резидентами.</li></ol>' +
+      '<div class="pf-lbl" style="margin-top:14px">Суммы</div>' +
+      '<div class="pt-set"><label>За резидента, ₸<input class="inp" data-k="rewardClub" value="' + escA(fmtN(s.rewardClub)) + '" onchange="ptSetNum(this)"></label></div>' +
+      '<div class="pt-f"><span>За разбор</span><div class="pt-chips">' + [['percent', '% от цены разбора'], ['fixed', 'Фиксированная сумма'], ['off', 'Не платим']].map(function(o){
+        return '<b class="' + (s.razborMode === o[0] ? 'on' : '') + '" data-m="' + o[0] + '" onclick="ptRzMode(this.dataset.m)">' + o[1] + '</b>'; }).join('') + '</div></div>' +
+      (s.razborMode === 'percent' ? '<div class="pt-set"><label>Процент<input class="inp" data-k="razborPercent" value="' + escA(s.razborPercent) + '" onchange="ptSetNum(this)"></label><label>Цена разбора, ₸<input class="inp" data-k="razborPrice" value="' + escA(fmtN(s.razborPrice)) + '" onchange="ptSetNum(this)"></label></div>' : '') +
+      (s.razborMode === 'fixed' ? '<div class="pt-set"><label>Сумма, ₸<input class="inp" data-k="razborFixed" value="' + escA(fmtN(s.razborFixed)) + '" onchange="ptSetNum(this)"></label></div>' : '') +
+      '<div class="pt-mut">Сейчас за разбор: <b id="ptRzOut">' + ptMoney(rz) + '</b></div>' +
+    '</div>' +
+    '<div class="pt-box"><h3>Уровни партнёров</h3><div class="pt-mut" style="margin-bottom:8px">Уровень ставится в карточке партнёра; платформа подсказывает, когда партнёр дорос</div>' +
+      (s.tiers || []).map(function(t, i){
+        return '<div class="pt-tier"><b>' + esc(t.n) + '</b><label class="pt-mut">от<input class="inp" data-i="' + i + '" data-k="from" value="' + escA(t.from) + '" onchange="ptTier(this)"></label>' +
+          '<label class="pt-mut">₸ за резидента<input class="inp" data-i="' + i + '" data-k="reward" value="' + escA(fmtN(t.reward)) + '" onchange="ptTier(this)"></label><span class="pt-mut">' + esc(t.perks) + '</span></div>';
+      }).join('') +
+      '<h3 style="margin-top:16px">Совместный маркетинг</h3><ul>' +
+      '<li><b>Совместный эфир</b> (Instagram, YouTube, 40 минут): партнёр и основатель BS разбирают один бизнес вживую. Ссылка партнёра в описании.</li>' +
+      '<li><b>Гостевой разбор</b> для клиентов партнёра: 3 собственника, по 20 минут, остальные смотрят. Записи становятся контентом обеих сторон.</li>' +
+      '<li><b>Бизнес-завтрак</b> на площадке партнёра: 8-12 собственников, 90 минут, тема «Органы бизнеса: что болит сильнее всего». Регистрация через бота с меткой партнёра.</li>' +
+      '<li><b>Кейс-колонка</b> в медиа партнёра: история резидента с цифрами было/стало.</li>' +
+      '<li><b>Подарок клиентам партнёра:</b> интерактивные чек-листы BS бесплатно по ссылке партнёра (лид-магнит, без затрат для партнёра).</li></ul>' +
+      '<h3 style="margin-top:16px">С кого начинать</h3><ol>' +
+      '<li>Gallup-коучи: после разбора талантов собственнику нужен план для бизнеса, это прямой мост в BS.</li>' +
+      '<li>Бухгалтерии и юристы МСБ: видят хаос в деньгах и рисках раньше всех.</li>' +
+      '<li>Коворкинги и ассоциации: площадки для бизнес-завтраков и гостевых разборов.</li>' +
+      '<li>HR и маркетинговые агентства: взаимные рекомендации, у нас общий клиент.</li></ol>' +
+    '</div></div>';
+}
+
+// ── Тексты для первого сообщения ──
+var PT_TPL = {
+  gallup: {about: 'после разборов Gallup', hook: 'После разбора талантов у собственника часто остаётся вопрос, как применить их в своём бизнесе. Мы как раз разбираем бизнес по органам: деньги, продажи, команда, стратегия, и ведём собственника до результата.'},
+  coach: {about: 'про ваших клиентов-собственников', hook: 'Вы работаете с личными целями собственника, а мы чиним сам бизнес: деньги, продажи, команду. Вместе это сильнее, и клиенту не нужно выбирать.'},
+  accounting: {about: 'про ваших клиентов ИП и ТОО', hook: 'Вы первыми видите, где у клиента хаос в деньгах: кассовые разрывы, нет прибыли при росте выручки. Мы разбираем такие бизнесы и наводим порядок в управлении, бухгалтерии от этого тоже проще.'},
+  legal: {about: 'про ваших клиентов-предпринимателей', hook: 'К юристу собственник приходит, когда уже горит: споры, проверки, партнёры. Часто причина в управлении, и это мы как раз разбираем.'},
+  bank: {about: 'про клиентов МСБ', hook: 'Клиентам перед кредитом или лизингом полезно посмотреть на бизнес со стороны: окупится ли вложение, где теряются деньги. Мы делаем такой разбор, а клиенты с порядком в финансах лучше обслуживают кредит.'},
+  fund: {about: 'про программы для предпринимателей', hook: 'Мы проводим разборы бизнеса для собственников и можем дать вашим участникам практическую часть: живые разборы на примере их компаний.'},
+  coworking: {about: 'про мероприятия для ваших резидентов', hook: 'Предлагаем раз в месяц бизнес-завтрак для ваших резидентов: 90 минут, разбор живых кейсов, без продаж со сцены. Это повод прийти в пространство и остаться.'},
+  hr: {about: 'про ваших клиентов-собственников', hook: 'Часто собственник нанимает, чтобы закрыть хаос, а новый сотрудник уходит через месяц. Мы разбираем бизнес и выстраиваем процессы, после этого подбор работает лучше.'},
+  marketing: {about: 'про общих клиентов', hook: 'Вы приводите заявки, а дальше они часто сливаются в продажах. Мы разбираем бизнес клиента и чиним продажи и экономику, тогда ваша реклама окупается и клиент остаётся с вами дольше.'},
+  association: {about: 'про пользу для членов ассоциации', hook: 'Предлагаем гостевую встречу для членов ассоциации: разбор 2-3 бизнесов вживую по органам, деньги, продажи, команда. Для членов ассоциации специальные условия.'},
+  media: {about: 'про эфир или материал', hook: 'Предлагаем эфир или интервью: основатели BS разбирают реальный бизнес с цифрами, без воды. Аудитории полезно, а за каждого, кто придёт к нам в клуб, мы платим.'},
+  events: {about: 'про ваше мероприятие', hook: 'Можем выступить на вашем мероприятии с практикой: экспресс-разборы бизнеса участников прямо на площадке. Без гонорара, участникам подарок: разбор у нас.'},
+  other: {about: 'про партнёрство', hook: 'Мы разбираем бизнес собственников по органам: деньги, продажи, команда, стратегия, и ведём до результата в клубе.'}
+};
+function ptTplTexts(type, p){
+  var t = PT_TPL[type] || PT_TPL.other, s = PD ? PD.settings : ptDefaults();
+  var link = p ? ptLinks(p).bot : 'https://t.me/bsurgery_bot?start=pt_<код>', me = (p && p.owner) || 'Рустам';
+  var reward = p && PD ? ptReward(p) : s.rewardClub;
+  var offer = 'Предлагаем партнёрство: вы рекомендуете разбор BS, а мы платим ' + fmtN(reward) + ' ₸ за каждого, кто стал резидентом клуба' + (ptRazborText(s) ? ', и ' + ptRazborText(s) + ' за оплаченный разбор' : '') + '. Учёт честный: у вас личная ссылка, все переходы и оплаты видно.';
+  var tg = 'Здравствуйте! Меня зовут ' + me + ', я из Business Surgery, клуба бизнес-трекинга в Алматы. Пишу ' + t.about + '.\n\n' + t.hook + '\n\n' + offer + '\nВаша ссылка: ' + link + '\n\nУдобно созвониться на 15 минут на этой неделе?';
+  var wa = 'Здравствуйте! ' + me + ', Business Surgery (клуб бизнес-трекинга, Алматы). ' + t.hook + ' ' + offer + ' Можно обсудить в коротком звонке? Ссылка партнёра: ' + link;
+  var mail = 'Тема: Партнёрство с Business Surgery: ' + fmtN(reward) + ' ₸ за каждого клиента\n\nЗдравствуйте!\n\nМеня зовут ' + me + ', я из Business Surgery, клуба бизнес-трекинга для собственников в Алматы.\n\n' + t.hook + '\n\n' +
+    'Как это работает:\n1. Вы получаете личную ссылку: ' + link + '\n2. Рекомендуете разбор BS тем клиентам, кому он нужен.\n3. Когда клиент оплачивает участие в клубе, мы платим вам ' + fmtN(reward) + ' ₸' + (ptRazborText(s) ? ', за оплаченный разбор ' + ptRazborText(s) : '') + '.\n4. Раз в месяц присылаем отчёт: сколько людей пришло и что с ними.\n\n' +
+    'Кроме денег предлагаем совместный эфир или бизнес-завтрак для ваших клиентов.\n\nУдобно созвониться на 15 минут на этой неделе?\n\n' + me + ', Business Surgery';
+  return [['tg', 'Telegram', tg], ['wa', 'WhatsApp', wa], ['mail', 'Email', mail]];
+}
+function ptRazborText(s){ var v = ptRazbor(); return v ? fmtN(v) + ' ₸' : ''; }
+function ptTplBlock(x){
+  return '<div class="pt-tpl" data-ch="' + x[0] + '"><div class="h"><b>' + x[1] + '</b><button class="btn pf-b" style="height:30px;padding:0 10px;font-size:12px" onclick="r6Copy(this.closest(\'.pt-tpl\').querySelector(\'pre\').textContent)">Копировать</button></div><pre>' + esc(x[2]) + '</pre></div>';
+}
+function ptTplFor(p){ return '<div style="display:flex;flex-direction:column;gap:8px">' + ptTplTexts(p.type || 'other', p).slice(0, 1).map(ptTplBlock).join('') + '</div>'; }
+function ptTplHTML(){
+  var p = PT.tplP ? ptById(PT.tplP) : null, type = p ? (p.type || 'other') : PT.tplType;
+  return '<div class="pt-bar" style="margin-bottom:12px"><div class="pt-chips">' + Object.keys(PT_TPL).map(function(k){
+      return '<b class="' + (!p && PT.tplType === k ? 'on' : '') + '" data-t="' + k + '" onclick="PT.tplType=this.dataset.t;PT.tplP=\'\';ptMain()">' + esc(PT_TYPES[k]) + '</b>'; }).join('') + '</div></div>' +
+    '<div class="pt-bar" style="margin-bottom:12px"><select class="inp" onchange="PT.tplP=this.value;ptMain()" style="max-width:360px"><option value="">Подставить ссылку партнёра…</option>' +
+      PD.partners.map(function(x){ return '<option value="' + escA(x.id) + '"' + (p && p.id === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select>' +
+      '<span class="pt-mut">В тексте личная ссылка партнёра на бота; кто пишет, берётся из поля «Кто ведёт»</span></div>' +
+    '<div class="pt-grid2">' + ptTplTexts(type, p).map(ptTplBlock).join('') + '</div>';
+}
+
+// ── UGC: резиденты-амбассадоры ──
+function ptUgcHTML(){
+  var s = PD.settings;
+  return '<div class="pt-grid2"><div class="pt-box"><h3>Резиденты-амбассадоры</h3><ul>' +
+    '<li><b>Видео-отзыв</b> (60-90 секунд, вертикально, что было и что изменилось в цифрах): бонус ' + ptMoney(s.ugcVideo) + ' скидки на продление.</li>' +
+    '<li><b>Кейс с цифрами</b> для Threads и Instagram (было/стало, что сделали за цикл): публикация с отметкой резидента и бонус ' + ptMoney(s.ugcCase) + ' к продлению.</li>' +
+    '<li><b>Приглашение друзей:</b> ' + ptMoney(100000) + ' за каждого, кто стал резидентом (Продажи → Рефералы, ссылка у резидента в приложении).</li>' +
+    '<li><b>Амбассадор</b> (от 3 приглашённых за полгода): место спикера на бизнес-завтраке, совместный эфир с основателем, статус в клубе.</li>' +
+    '<li><b>Разбор в эфире:</b> резидент соглашается разобрать свой бизнес публично, получает внеочередную встречу.</li></ul>' +
+    '<div class="pf-lbl" style="margin-top:14px">Бонусы</div><div class="pt-set"><label>Видео-отзыв, ₸<input class="inp" data-k="ugcVideo" value="' + escA(fmtN(s.ugcVideo)) + '" onchange="ptSetNum(this)"></label>' +
+    '<label>Кейс с цифрами, ₸<input class="inp" data-k="ugcCase" value="' + escA(fmtN(s.ugcCase)) + '" onchange="ptSetNum(this)"></label></div></div>' +
+    '<div class="pt-box"><h3>Как собирать</h3><ol>' +
+    '<li>После каждой третьей встречи трекер спрашивает: что изменилось в цифрах. Если есть результат, предлагает кейс.</li>' +
+    '<li>Видео снимаем после встречи на телефон, 3 вопроса: с чем пришёл, что сделали, что сейчас.</li>' +
+    '<li>Кейс уходит в Контент-завод: пост в Threads и карусель в Instagram со ссылкой на бота.</li>' +
+    '<li>Бонус начисляется после публикации, отмечаем в карточке резидента.</li></ol>' +
+    '<h3 style="margin-top:16px">Правила</h3><ul><li>Публикуем только с письменного согласия резидента.</li><li>Цифры подтверждает резидент, без данных его клиентов.</li><li>Резидент может снять материал в любой момент.</li></ul></div></div>';
+}
+
+(function(){
+  if(typeof BLOCKS !== 'undefined' && BLOCKS.mkt && !BLOCKS.mkt.tabs.some(function(t){ return t.id === 'mPartners'; }))
+    BLOCKS.mkt.tabs.push({id: 'mPartners', n: 'Партнёрства и UGC'});
+  var _rs = window.renderStub;
+  window.renderStub = renderStub = function(s){ if(s === 'mPartners') return renderPartners(); return _rs.apply(this, arguments); };
+})();
+</script>
+<!-- /R38b -->
+<!-- R38c: мероприятия клуба с записью в боте, рассылки, WhatsApp для резидентов без Telegram -->
+<style id="r38cCss">
+.r38c{margin:0 0 26px}
+.r38c-card{background:var(--pc);border:1px solid var(--pb);border-radius:16px;padding:18px 20px;margin-bottom:14px}
+.r38c-top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.r38c-k{font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--pl)}
+.r38c-t{font-size:19px;font-weight:800;color:var(--ptx);margin-top:6px;line-height:1.25}
+.r38c-m{font-size:13px;color:var(--pm);margin-top:6px}
+.r38c-seats{text-align:right;color:var(--pm);font-size:12.5px;min-width:120px}
+.r38c-seats b{display:block;font-size:26px;color:var(--ptx);font-weight:800;line-height:1.1}
+.r38c-bar{height:5px;border-radius:5px;background:var(--pi);margin-top:7px;overflow:hidden}
+.r38c-bar i{display:block;height:100%;background:var(--pon);border-radius:5px}
+.r38c-addr{margin-top:14px;padding:12px 14px;border:1px dashed var(--pb);border-radius:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.r38c-addr .a{flex:1 1 220px;min-width:0;font-size:13.5px;color:var(--ptx);overflow-wrap:anywhere}
+.r38c-addr .a.no{color:var(--pm)}
+.r38c-addr input{flex:2 1 260px;min-width:0}
+.r38c-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.r38c-acts .pf-b{height:36px;font-size:13px}
+.r38c-cnt{display:inline-block;min-width:20px;padding:1px 6px;margin-left:6px;border-radius:8px;background:var(--pi);font-size:11.5px;font-weight:800}
+.r38c-ppl{margin-top:14px;border-top:1px solid var(--pb);padding-top:12px}
+.r38c-pr{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 110px 120px;gap:10px;align-items:center;padding:9px 2px;border-bottom:1px solid var(--ph);font-size:13px;color:var(--ptx)}
+.r38c-pr:last-child{border-bottom:0}
+.r38c-pr .s{font-size:11.5px;color:var(--pm)}
+.r38c-tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;padding:3px 7px;border-radius:6px;border:1px solid var(--pi);color:var(--ptx)}
+.r38c-tag.w{border-style:dashed;color:var(--pm)}
+.r38c-tag.x{color:var(--pdim);text-decoration:line-through}
+.r38c-lnk{background:none;border:0;color:var(--pm);font:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline;padding:0}
+.r38c-lnk.sure{color:var(--pred);font-weight:700}
+.r38c-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.r38c-form .inp{height:36px;flex:1 1 160px;min-width:0}
+.r38c-msg{font-size:12.5px;color:var(--pm);margin-top:8px;min-height:16px}
+.r38c-msg.ok{color:var(--ptx)}
+.r38c-msg.err{color:var(--pred)}
+.r38c-ov{position:fixed;inset:0;z-index:2600;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px;overflow:auto}
+.r38c-mod{width:min(980px,100%);background:var(--pd);border:1px solid var(--pb);border-radius:18px;padding:22px 24px;color:var(--ptx);box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.r38c-mh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.r38c-mh .h{font-size:20px;font-weight:800}
+.r38c-x{background:none;border:1px solid var(--pb);color:var(--ptx);width:34px;height:34px;border-radius:10px;cursor:pointer;font-size:18px;line-height:1}
+.r38c-cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:22px}
+@media(max-width:820px){.r38c-cols{grid-template-columns:1fr}.r38c-pr{grid-template-columns:minmax(0,1fr) 100px}.r38c-pr>:nth-child(2),.r38c-pr>:nth-child(3){display:none}}
+.r38c-ta{width:100%;min-height:330px;resize:vertical;font:inherit;font-size:13.5px;line-height:1.5;padding:12px 14px;border-radius:12px;background:var(--pc);color:var(--ptx);border:1px solid var(--pb)}
+.r38c-ta:disabled{opacity:.75}
+.r38c-chips{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 4px}
+.r38c-chip{border:1px solid var(--pb);background:var(--pc);color:var(--ptx);border-radius:9px;padding:7px 11px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.r38c-chip.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r38c-chip:disabled{opacity:.55;cursor:default}
+.r38c-sub .r38c-chip{font-size:11.5px;padding:5px 9px;font-weight:600}
+.r38c-count{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--pc);border:1px solid var(--pb);font-size:13px;line-height:1.5}
+.r38c-count b{font-size:22px;font-weight:800;display:block}
+.r38c-prev{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:300px;overflow:auto}
+.r38c-pbtn{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.r38c-pbtn span{display:block;text-align:center;padding:8px;border-radius:10px;background:var(--pi);font-size:12.5px;font-weight:700}
+.r38c-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;align-items:center}
+.r38c-st{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;padding:5px 10px;border-radius:9px;border:1px solid var(--pb)}
+.r38c-st i{width:8px;height:8px;border-radius:50%;background:var(--pm)}
+.r38c-st.draft i{background:#E5B94E}.r38c-st.sending i{background:#4E9BE5}.r38c-st.done i{background:#38C172}
+.r38c-wab{display:none;margin:4px 14px 6px;width:calc(100% - 28px);text-align:left;border:1px solid #2E7D4F;background:rgba(56,193,114,.12);color:var(--ptx);border-radius:10px;padding:8px 11px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.r38c-wab.on{display:flex;align-items:center;gap:8px}
+.r38c-wab b{margin-left:auto;background:#38C172;color:#000;border-radius:8px;padding:1px 7px;font-size:12px}
+.r38c-wi{border:1px solid var(--pb);border-radius:14px;padding:12px 14px;margin-bottom:10px;background:var(--pc)}
+.r38c-wi .h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px}
+.r38c-wi .tx{white-space:pre-wrap;font-size:12.5px;color:var(--pm);margin-top:8px;max-height:110px;overflow:auto;overflow-wrap:anywhere}
+.r38c-wi .b{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.r38c-wi .b .pf-b{height:34px;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center}
+.r38c-wi.done{opacity:.6}
+.r38c-ch{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--ph);font-size:13px}
+.r38c-ch>div:first-child{flex:1 1 100%;min-width:0}
+.r38c-ch select.inp{width:130px;flex:0 0 130px;height:34px;padding:0 10px;line-height:normal}
+.r38c-ch input.inp{flex:1 1 150px;width:auto;min-width:0;height:34px}
+.r38c-hint{padding:10px 12px;border-radius:10px;border:1px dashed #E5B94E;font-size:12.5px;margin:6px 0 10px}
+</style>
+<script id="r38cJs">
+(function(){
+  if(window.r38c) return;
+  var ESC = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+  function e(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return ESC[c]; }); }
+  function rcp(n){ n = Math.abs(n) % 100; var d = n % 10; return (n > 10 && n < 20) || d > 4 || d === 0 ? 'получателей' : d === 1 ? 'получатель' : 'получателя'; }
+  function n0(n){ return String(Math.round(+n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  function live(){ return !!(window.BSSync && BSSync.api); }
+  function admin(){ return typeof MODE === 'undefined' || MODE === 'admin'; }
+  function api(m, p, b){
+    if(!live()) return Promise.resolve({error:'offline', message:'Работает на сервере платформы'});
+    return BSSync.api(m, '/outreach' + p, b).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){ j = j || {}; j._status = r.status; return j; });
+    }, function(){ return {error:'net', message:'Нет связи с сервером'}; });
+  }
+  var MSG = {}; // сообщения карточек переживают перерисовку
+  function say(id, t, cls){ MSG[id] = [t || '', cls || '']; var el = document.getElementById(id); if(el){ el.className = 'r38c-msg' + (cls ? ' ' + cls : ''); el.textContent = t || ''; } }
+  function msg(id, def){ var m = MSG[id] || [def || '', '']; return '<div class="r38c-msg' + (m[1] ? ' ' + m[1] : '') + '" id="' + id + '">' + e(m[0]) + '</div>'; }
+  var KIND = {resident:'Резидент', lead:'Лид', team:'Команда', guest:'Гость', subscriber:'Подписчик'};
+  var STAT = {going:'Идёт', waitlist:'Ожидание', cancelled:'Отменил'};
+  var STAGES = [['new','Новый'],['work','В работе'],['qual','Квалифицирован'],['meet','Записан на разбор'],['diag','Разбор проведён'],['won','Резидент'],['lost','Отказ']];
+  var S = {events:[], ev:{}, open:{}, sure:'', bc:null, waq:null, ch:null, prevT:0};
+
+  // ═══ «WhatsApp: к отправке» в боковом меню ═══
+  function badge(n){
+    var b = document.getElementById('r38cWa');
+    if(!b){
+      var after = document.querySelector('#side .side-search');
+      if(!after) return;
+      b = document.createElement('button'); b.type = 'button'; b.id = 'r38cWa'; b.className = 'r38c-wab';
+      b.onclick = function(){ openWA(); };
+      after.insertAdjacentElement('afterend', b);
+    }
+    b.innerHTML = '<span>📲</span><span>WhatsApp: к отправке</span><b>' + n0(n) + '</b>';
+    b.title = 'Сообщения резидентам без Telegram: одна кнопка открывает WhatsApp с готовым текстом';
+    b.classList.toggle('on', n > 0 && admin());
+  }
+  function refreshBadge(){
+    if(!live() || !admin()) return Promise.resolve();
+    return api('GET', '/wa').then(function(j){ if(j && !j.error){ S.waq = j; badge(j.pending || 0); } });
+  }
+
+  // ═══ Карточка мероприятия на странице «Мероприятия» ═══
+  function seatsHTML(ev){
+    var pct = ev.seats > 0 ? Math.min(1, ev.going / ev.seats) : 0;
+    return '<div class="r38c-seats"><b>' + n0(ev.going) + '</b>из ' + (ev.seats > 0 ? n0(ev.seats) + ' мест' : 'без лимита') +
+      (ev.waitlist ? '<div>лист ожидания: ' + n0(ev.waitlist) + '</div>' : '') +
+      '<div class="r38c-bar"><i style="width:' + Math.round(pct * 100) + '%"></i></div></div>';
+  }
+  function pplHTML(ev){
+    var list = ev.participants || [];
+    var rows = list.map(function(p){
+      var tag = p.status === 'going' ? '' : (p.status === 'waitlist' ? ' w' : ' x');
+      var act = p.status === 'cancelled' ? '' : '<button type="button" class="r38c-lnk' + (S.sure === ev.id + '|' + p.who ? ' sure' : '') + '" data-r38="cancel" data-ev="' + e(ev.id) + '" data-who="' + e(p.who) + '">' +
+        (S.sure === ev.id + '|' + p.who ? 'Точно отменить?' : 'Отменить') + '</button>';
+      return '<div class="r38c-pr" data-who="' + e(p.who) + '"><div><div>' + e(p.name || 'Без имени') + '</div><div class="s">' + e(KIND[p.kind] || p.kind || '') + (p.username ? ' · @' + e(p.username) : '') + (/^wa:/.test(p.who) ? ' · WhatsApp' : '') + '</div></div>' +
+        '<div class="s">' + (p.phonePretty ? e(p.phonePretty) : 'номер не оставил') + '</div>' +
+        '<div><span class="r38c-tag' + tag + '">' + e(STAT[p.status] || p.status) + '</span></div><div>' + act + '</div></div>';
+    }).join('');
+    return '<div class="r38c-ppl"><div class="pf-lbl" style="margin-bottom:6px">Участники</div>' +
+      (rows || '<div class="pf-empty" style="padding:10px 0">Пока никто не записался: после рассылки здесь появятся те, кто нажал «Иду»</div>') +
+      '<div class="r38c-form"><input class="inp" id="r38cPN_' + e(ev.id) + '" placeholder="Имя (без Telegram)"><input class="inp" id="r38cPP_' + e(ev.id) + '" placeholder="WhatsApp: +7 707 114 46 45">' +
+      '<button type="button" class="btn pf-b" data-r38="addp" data-ev="' + e(ev.id) + '">Добавить участника</button></div>' +
+      msg('r38cPM_' + ev.id) + '</div>';
+  }
+  function setHTML(ev){
+    return '<div class="r38c-ppl"><div class="pf-lbl" style="margin-bottom:6px">Места, цена, оплата</div><div class="r38c-form">' +
+      '<label class="s" style="font-size:12px">Мест <input class="inp" style="width:90px" type="number" min="0" id="r38cSS_' + e(ev.id) + '" value="' + e(ev.seats) + '"></label>' +
+      '<label class="s" style="font-size:12px">Цена, ₸ <input class="inp" style="width:120px" type="number" min="0" id="r38cSPr_' + e(ev.id) + '" value="' + e(ev.price) + '"></label>' +
+      '<input class="inp" id="r38cSL_' + e(ev.id) + '" placeholder="Ссылка на оплату (Kaspi), https://…" value="' + e(ev.payLink || '') + '">' +
+      '<button type="button" class="btn pf-b" data-r38="saveset" data-ev="' + e(ev.id) + '">Сохранить</button></div>' +
+      msg('r38cSM_' + ev.id, ev.payLink ? '' : 'Без ссылки участники видят: «оплата на месте или по ссылке, которую пришлём»') + '</div>';
+  }
+  function cardHTML(ev){
+    var full = S.ev[ev.id] || ev, open = S.open[ev.id] || '';
+    var bc = (full.campaigns || [])[0];
+    var bcl = bc ? (bc.status === 'draft' ? 'Рассылка: черновик' : bc.status === 'sending' ? 'Рассылка отправляется' : 'Рассылка отправлена') : 'Рассылка';
+    return '<div class="r38c-card" data-ev="' + e(ev.id) + '">' +
+      '<div class="r38c-top"><div style="min-width:0"><div class="r38c-k">Мероприятие клуба · запись через бота</div><div class="r38c-t">' + e(ev.title) + '</div>' +
+        '<div class="r38c-m">' + e(ev.when) + ' · ' + e(ev.city) + ' · ' + (ev.price > 0 ? n0(ev.price) + ' ₸' : 'бесплатно') + (ev.past ? ' · прошло' : '') + '</div></div>' + seatsHTML(ev) + '</div>' +
+      '<div class="r38c-addr"><div class="a' + (ev.address ? '' : ' no') + '">📍 ' + (ev.address ? e(ev.address) : 'Адрес не указан: ' + e(ev.addressNote || 'сообщим участникам накануне')) + '</div>' +
+        '<input class="inp" id="r38cA_' + e(ev.id) + '" placeholder="Адрес: заведение, улица, дом" value="' + e(ev.address || '') + '">' +
+        '<button type="button" class="btn pf-b pf-p" data-r38="addr" data-ev="' + e(ev.id) + '">' + (ev.address ? 'Изменить адрес' : 'Указать адрес') + '</button></div>' +
+      msg('r38cAM_' + ev.id, 'Адрес сразу уйдёт всем, кто идёт; накануне в 18:00 и утром в 08:30 бот напомнит сам') +
+      '<div class="r38c-acts">' +
+        '<button type="button" class="btn pf-b pf-p" data-r38="bc" data-ev="' + e(ev.id) + '">' + e(bcl) + '</button>' +
+        '<button type="button" class="btn pf-b" data-r38="ppl" data-ev="' + e(ev.id) + '">Участники<span class="r38c-cnt">' + n0(ev.going + ev.waitlist) + '</span></button>' +
+        '<button type="button" class="btn pf-b" data-r38="set" data-ev="' + e(ev.id) + '">Места и оплата</button>' +
+      '</div>' + (open === 'ppl' ? pplHTML(full) : open === 'set' ? setHTML(full) : '') + '</div>';
+  }
+  function paintEvents(){
+    var box = document.getElementById('r38cEv'); if(!box) return;
+    var up = S.events.filter(function(x){ return !x.past; });
+    box.innerHTML = up.length ? up.map(cardHTML).join('') : '';
+  }
+  function loadEvents(){
+    return api('GET', '/events').then(function(j){
+      if(!j || j.error) return;
+      S.events = j.events || []; badge(j.waPending || 0);
+      paintEvents();
+      return Promise.all(S.events.filter(function(x){ return !x.past; }).map(function(x){ return loadEvent(x.id); }));
+    });
+  }
+  function loadEvent(id){
+    return api('GET', '/events/' + encodeURIComponent(id)).then(function(j){
+      if(!j || j.error) return j;
+      S.ev[id] = j;
+      S.events = S.events.map(function(x){ return x.id === id ? j : x; });
+      paintEvents(); return j;
+    });
+  }
+  function inject(){
+    if(typeof section !== 'undefined' && section !== 'events') return;
+    if(!live() || !admin()) return;
+    var body = document.getElementById('stubBody'); if(!body) return;
+    var box = document.getElementById('r38cEv');
+    if(!box || !body.contains(box)){
+      box = document.createElement('div'); box.id = 'r38cEv'; box.className = 'r38c';
+      body.insertBefore(box, body.firstChild);
+    }
+    if(S.events.length) paintEvents();
+    loadEvents();
+  }
+  if(typeof window.renderEvents === 'function'){
+    var orig = window.renderEvents;
+    window.renderEvents = function(){ var r = orig.apply(this, arguments); try{ inject(); }catch(er){} return r; };
+  }
+
+  // ═══ Рассылка ═══
+  function aud(){ return (S.bc && S.bc.aud) || {all:true}; }
+  function audHTML(c){
+    var a = aud(), dis = c.status !== 'draft' ? ' disabled' : '';
+    var crmOn = a.all || (a.crm && a.crm.length);
+    var chip = function(k, t, on){ return '<button type="button" class="r38c-chip' + (on ? ' on' : '') + '" data-r38="aud" data-k="' + k + '"' + dis + '>' + t + '</button>'; };
+    return '<div class="pf-lbl" style="margin:14px 0 2px">Кому</div><div class="r38c-chips">' +
+      chip('all', 'Все', a.all) + chip('residents', 'Резиденты', a.all || a.residents) + chip('subscribers', 'Подписчики бота', a.all || a.subscribers) + chip('crm', 'Лиды из CRM', crmOn) + '</div>' +
+      (crmOn && !a.all ? '<div class="r38c-chips r38c-sub">' + STAGES.map(function(s){ return chip('st:' + s[0], s[1], (a.crm || []).indexOf(s[0]) >= 0); }).join('') + '</div>' : '');
+  }
+  function countHTML(n){
+    if(!n) return '<div class="r38c-count" id="r38cCnt">Считаю получателей…</div>';
+    var no = [];
+    if(n.residentsNoChannel) no.push('резидентов без Telegram и WhatsApp: ' + n0(n.residentsNoChannel));
+    if(n.crmNoTelegram) no.push('лидов без Telegram: ' + n0(n.crmNoTelegram));
+    return '<div class="r38c-count" id="r38cCnt"><b>' + n0(n.total) + ' ' + rcp(n.total) + '</b>' +
+      'Telegram: ' + n0(n.telegram) + (n.whatsapp ? ' · WhatsApp: ' + n0(n.whatsapp) + ' (уйдёт в «WhatsApp: к отправке»)' : '') +
+      '<div class="s" style="color:var(--pm);font-size:12px;margin-top:4px">Резиденты ' + n0(n.residents) + ' · лиды ' + n0(n.crm) + ' · подписчики ' + n0(n.subscribers) +
+      (no.length ? ' · не получат: ' + no.join(', ') : '') + (n.teamExcluded ? ' · команда получает только тест' : '') + '</div></div>';
+  }
+  function bcStatus(c){
+    var p = c.progress || {};
+    if(c.status === 'draft') return '<span class="r38c-st draft"><i></i>Черновик: ничего не отправлено</span>';
+    if(c.status === 'sending') return '<span class="r38c-st sending"><i></i>Отправляется: ' + n0(p.sent + p.wa + p.failed) + ' из ' + n0(p.total) + '</span>';
+    return '<span class="r38c-st done"><i></i>Отправлено: Telegram ' + n0(p.sent) + (p.wa ? ', WhatsApp ' + n0(p.wa) : '') + (p.failed ? ', не доставлено ' + n0(p.failed) : '') + '</span>';
+  }
+  function previewHTML(t, ev){
+    return '<div class="pf-lbl" style="margin-bottom:6px">Так увидят в Telegram</div><div class="r38c-prev" id="r38cPrev">' + e(t) + '</div>' +
+      (ev ? '<div class="r38c-pbtn"><span>Иду</span><span>Подробнее</span></div>' : '');
+  }
+  function paintBC(){
+    var ov = document.getElementById('r38cBc'); if(!ov || !S.bc) return;
+    var c = S.bc.c, ev = S.bc.ev, draft = c.status === 'draft';
+    var quiet = c.quiet ? '<div class="r38c-msg">Сейчас тихие часы: рассылки уходят с 10:00 до 20:00 по Алматы</div>' : '';
+    ov.querySelector('.r38c-mod').innerHTML =
+      '<div class="r38c-mh"><div><div class="r38c-k">' + e(ev ? ev.title + ' · ' + ev.when : 'Рассылка') + '</div><div class="h">' + e(c.title || 'Рассылка') + '</div><div style="margin-top:8px">' + bcStatus(c) + '</div></div>' +
+        '<button type="button" class="r38c-x" data-r38="close" aria-label="Закрыть">×</button></div>' +
+      '<div class="r38c-cols"><div><div class="pf-lbl" style="margin-bottom:6px">Текст' + (draft ? ': можно править, переносы строк сохраняются' : '') + '</div>' +
+        '<textarea class="r38c-ta" id="r38cTx"' + (draft ? '' : ' disabled') + '>' + e(S.bc.text) + '</textarea>' +
+        audHTML(c) + countHTML(S.bc.counts) + '</div>' +
+      '<div>' + previewHTML(S.bc.text, ev) + '<div class="r38c-msg" style="margin-top:10px">«Иду» бронирует место (дальше лист ожидания), просит номер, если его нет, и заводит лида в CRM. Ответ с оплатой: ' +
+        e(ev && ev.payLink ? 'ссылка ' + ev.payLink : '«оплата на месте или по ссылке, которую пришлём»') + '</div></div></div>' +
+      '<div class="r38c-foot">' + (draft ?
+        '<button type="button" class="btn pf-b" data-r38="test">Тест себе в Telegram</button>' +
+        '<button type="button" class="btn pf-b pf-p" data-r38="send" id="r38cSend">Отправить' + (S.bc.counts ? ': ' + n0(S.bc.counts.total) + ' ' + rcp(S.bc.counts.total) : '') + '</button>' +
+        (S.bc.quietAsk ? '<button type="button" class="btn pf-b" data-r38="force">Отправить сейчас, несмотря на время</button>' : '') : '') +
+        '<span class="r38c-msg" id="r38cBM" style="margin:0"></span></div>' + quiet;
+    if(S.bc.note) say('r38cBM', S.bc.note[0], S.bc.note[1]);
+  }
+  function preview(){
+    if(!S.bc) return;
+    clearTimeout(S.prevT);
+    S.prevT = setTimeout(function(){
+      api('POST', '/campaigns/' + encodeURIComponent(S.bc.c.id) + '/preview', {audience: aud()}).then(function(j){
+        if(j && j.counts && S.bc){ S.bc.counts = j.counts; var el = document.getElementById('r38cCnt'); if(el) el.outerHTML = countHTML(j.counts);
+          var sb = document.getElementById('r38cSend'); if(sb) sb.textContent = 'Отправить: ' + n0(j.counts.total) + ' ' + rcp(j.counts.total); }
+      });
+    }, 250);
+  }
+  function openBC(evId){
+    var ev = S.ev[evId] || S.events.filter(function(x){ return x.id === evId; })[0];
+    var c = ev && (ev.campaigns || [])[0];
+    if(!c){ if(window.toast) toast('Для мероприятия нет рассылки'); return Promise.resolve(); }
+    var ov = document.getElementById('r38cBc');
+    if(!ov){ ov = document.createElement('div'); ov.id = 'r38cBc'; ov.className = 'r38c-ov'; ov.innerHTML = '<div class="r38c-mod"></div>'; document.body.appendChild(ov);
+      ov.addEventListener('mousedown', function(x){ if(x.target === ov) closeBC(); }); }
+    return api('GET', '/campaigns/' + encodeURIComponent(c.id)).then(function(j){
+      if(!j || j.error){ if(window.toast) toast((j && j.message) || 'Не получилось открыть рассылку'); return; }
+      var a = j.audience || {all:true};
+      S.bc = {c: j, ev: ev, text: j.text, aud: {all: !!a.all, residents: !!a.residents, subscribers: !!a.subscribers, crm: a.crm || []}, counts: j.counts || null};
+      paintBC();
+      if(j.status === 'sending') pollBC();
+    });
+  }
+  function closeBC(){ var ov = document.getElementById('r38cBc'); if(ov) ov.remove(); S.bc = null; }
+  function saveBC(){
+    var ta = document.getElementById('r38cTx'); if(ta) S.bc.text = ta.value;
+    return api('PUT', '/campaigns/' + encodeURIComponent(S.bc.c.id), {text: S.bc.text, audience: aud()});
+  }
+  function pollBC(){
+    setTimeout(function(){
+      if(!S.bc) return;
+      api('GET', '/campaigns/' + encodeURIComponent(S.bc.c.id)).then(function(j){
+        if(!j || j.error || !S.bc) return;
+        S.bc.c = j; paintBC();
+        if(j.status === 'sending') pollBC(); else { loadEvent(S.bc.ev.id); refreshBadge(); }
+      });
+    }, 1500);
+  }
+  function send(force){
+    var b = document.getElementById('r38cSend'); if(b) b.disabled = true;
+    S.bc.note = ['Сохраняю и отправляю…', ''];
+    say('r38cBM', S.bc.note[0]);
+    saveBC().then(function(j){
+      if(j && j.error && j._status !== 409) throw new Error(j.message || 'Текст не сохранился');
+      return api('POST', '/campaigns/' + encodeURIComponent(S.bc.c.id) + '/send', {force: !!force});
+    }).then(function(j){
+      if(j && j.error === 'quiet'){ S.bc.quietAsk = true; S.bc.note = [j.message, 'err']; paintBC(); return; }
+      if(!j || j.error){ S.bc.note = [(j && j.message) || 'Не отправлено', 'err']; paintBC(); return; }
+      S.bc.c = j; S.bc.quietAsk = false; S.bc.note = ['Рассылка пошла: бот отправляет по 14 сообщений в секунду, каждому один раз', 'ok'];
+      paintBC(); pollBC();
+    }).catch(function(er){ S.bc.note = [er.message, 'err']; paintBC(); });
+  }
+
+  // ═══ WhatsApp: очередь и каналы резидентов ═══
+  function waItem(w){
+    var pend = w.status === 'pending';
+    var st = {sent:'Отправлено' + (w.sentBy === 'telegram' ? ' из Telegram' : ''), auto:'Ушло через WhatsApp API', skipped:'Пропущено', expired:'Устарело'}[w.status] || '';
+    return '<div class="r38c-wi' + (pend ? '' : ' done') + '" data-wid="' + w.id + '"><div class="h"><div><b>' + e(w.resident || w.phonePretty) + '</b> · ' + e(w.phonePretty) + '</div><div class="s" style="color:var(--pm)">' + e(w.kindName) + ' · ' +
+      e(new Date(w.createdAt).toLocaleString('ru', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})) + (st ? ' · ' + e(st) : '') + '</div></div>' +
+      '<div class="tx">' + e(w.text) + '</div>' + (w.error ? '<div class="r38c-msg err">' + e(w.error) + '</div>' : '') +
+      '<div class="b">' + (pend ? '<a class="btn pf-b pf-p" href="' + e(w.link) + '" target="_blank" rel="noopener" data-r38="waopen" data-id="' + w.id + '">Открыть WhatsApp</a>' +
+        '<button type="button" class="btn pf-b" data-r38="waskip" data-id="' + w.id + '">Пропустить</button>' :
+        (w.status === 'auto' ? '' : '<button type="button" class="btn pf-b" data-r38="waback" data-id="' + w.id + '">Вернуть в очередь</button>')) + '</div></div>';
+  }
+  function chHTML(){
+    var c = S.ch; if(!c) return '<div class="r38c-msg">Загружаю резидентов…</div>';
+    return (c.hint ? '<div class="r38c-hint">' + e(c.hint) + '</div>' : '') +
+      (c.residents || []).map(function(r, i){
+        return '<div class="r38c-ch"><div>' + e(r.name) + '<div class="s" style="color:var(--pm);font-size:11.5px">' + (r.tg ? 'есть Telegram' : 'нет Telegram') + '</div></div>' +
+          '<select class="inp" id="r38cCs' + i + '"><option value="tg"' + (r.channel !== 'wa' ? ' selected' : '') + '>Telegram</option><option value="wa"' + (r.channel === 'wa' ? ' selected' : '') + '>WhatsApp</option></select>' +
+          '<input class="inp" id="r38cCp' + i + '" placeholder="+7 7__ ___ __ __" value="' + e(r.phonePretty || '') + '">' +
+          '<button type="button" class="btn pf-b" style="height:34px;font-size:12.5px" data-r38="chsave" data-i="' + i + '">Сохранить</button></div>';
+      }).join('');
+  }
+  function paintWA(){
+    var ov = document.getElementById('r38cWq'); if(!ov) return;
+    var q = S.waq || {items: []}, items = q.items || [];
+    var pend = items.filter(function(w){ return w.status === 'pending'; }), done = items.filter(function(w){ return w.status !== 'pending'; });
+    ov.querySelector('.r38c-mod').innerHTML =
+      '<div class="r38c-mh"><div><div class="r38c-k">Резиденты без Telegram</div><div class="h">WhatsApp: к отправке ' + n0(pend.length) + '</div>' +
+        '<div class="r38c-msg">' + (q.green ? 'WhatsApp API (Green-API) подключён: сообщения уходят сами, здесь только то, что не ушло' :
+          'Кнопка «Открыть WhatsApp» открывает чат с готовым текстом: нажмите «Отправить» в WhatsApp, сообщение отметится отправленным. Владельцу приходит одно уведомление в Telegram с такими же кнопками') + '</div></div>' +
+        '<button type="button" class="r38c-x" data-r38="waclose" aria-label="Закрыть">×</button></div>' +
+      '<div class="r38c-cols"><div>' + (pend.length ? pend.map(waItem).join('') : '<div class="pf-empty">Очередь пуста</div>') +
+        (done.length ? '<div class="pf-lbl" style="margin:18px 0 8px">Недавние</div>' + done.slice(0, 12).map(waItem).join('') : '') + '</div>' +
+      '<div><div class="pf-lbl" style="margin-bottom:6px">Канал связи резидентов</div><div class="r38c-msg" style="margin:0 0 8px">Напоминания, штрафы, саммари, рассылки и приглашения уходят резиденту туда, где он читает</div>' +
+        chHTML() + '<div class="r38c-msg" id="r38cChM"></div></div></div>';
+  }
+  function openWA(){
+    var ov = document.getElementById('r38cWq');
+    if(!ov){ ov = document.createElement('div'); ov.id = 'r38cWq'; ov.className = 'r38c-ov'; ov.innerHTML = '<div class="r38c-mod"></div>'; document.body.appendChild(ov);
+      ov.addEventListener('mousedown', function(x){ if(x.target === ov) closeWA(); }); }
+    paintWA();
+    return Promise.all([refreshBadge(), api('GET', '/channels').then(function(j){ if(j && !j.error) S.ch = j; })]).then(paintWA);
+  }
+  function closeWA(){ var ov = document.getElementById('r38cWq'); if(ov) ov.remove(); }
+  function waMark(id, op){
+    return api('POST', '/wa/' + id + '/' + op).then(function(j){
+      if(j && j.item && S.waq){ S.waq.items = S.waq.items.map(function(w){ return w.id === j.item.id ? j.item : w; }); S.waq.pending = j.pending; badge(j.pending || 0); }
+      paintWA();
+    });
+  }
+
+  // ═══ Клики ═══
+  document.addEventListener('click', function(x){
+    var b = x.target.closest && x.target.closest('[data-r38]'); if(!b || b.disabled) return;
+    var a = b.getAttribute('data-r38'), id = b.getAttribute('data-ev');
+    if(a === 'waopen'){ waMark(b.getAttribute('data-id'), 'sent'); return; } // ссылка открывается сама
+    x.preventDefault();
+    if(a === 'ppl' || a === 'set'){ S.open[id] = S.open[id] === a ? '' : a; paintEvents(); return; }
+    if(a === 'bc'){ openBC(id); return; }
+    if(a === 'close'){ closeBC(); return; }
+    if(a === 'waclose'){ closeWA(); return; }
+    if(a === 'waskip'){ waMark(b.getAttribute('data-id'), 'skip'); return; }
+    if(a === 'waback'){ waMark(b.getAttribute('data-id'), 'back'); return; }
+    if(a === 'addr'){
+      var v = (document.getElementById('r38cA_' + id) || {}).value || '';
+      if(v.trim().length < 5){ say('r38cAM_' + id, 'Укажите адрес: заведение, улица, дом', 'err'); return; }
+      b.disabled = true;
+      api('POST', '/events/' + encodeURIComponent(id) + '/address', {address: v}).then(function(j){
+        b.disabled = false;
+        if(!j || j.error){ say('r38cAM_' + id, (j && j.message) || 'Адрес не сохранился', 'err'); return; }
+        S.ev[id] = Object.assign(S.ev[id] || {}, j); S.events = S.events.map(function(z){ return z.id === id ? Object.assign(z, j) : z; });
+        paintEvents();
+        say('r38cAM_' + id, j.sentNow ? 'Адрес сохранён и отправлен участникам: ' + n0(j.going) : 'Адрес сохранён: участники получат его в 08:00 (сейчас ночь)', 'ok');
+      });
+      return;
+    }
+    if(a === 'cancel'){
+      var key = id + '|' + b.getAttribute('data-who');
+      if(S.sure !== key){ S.sure = key; paintEvents(); return; }
+      S.sure = '';
+      api('POST', '/events/' + encodeURIComponent(id) + '/participants/' + encodeURIComponent(b.getAttribute('data-who')) + '/cancel').then(function(j){ if(j && !j.error){ S.ev[id] = j; loadEvent(id); } });
+      return;
+    }
+    if(a === 'addp'){
+      var nm = (document.getElementById('r38cPN_' + id) || {}).value || '', ph = (document.getElementById('r38cPP_' + id) || {}).value || '';
+      api('POST', '/events/' + encodeURIComponent(id) + '/participants', {name: nm, phone: ph}).then(function(j){
+        if(!j || j.error){ say('r38cPM_' + id, (j && j.message) || 'Не добавлен', 'err'); return; }
+        loadEvent(id).then(function(){ say('r38cPM_' + id, j.added === 'waitlist' ? 'Мест нет: добавлен в лист ожидания' : 'Добавлен: напоминания уйдут в WhatsApp', 'ok'); });
+      });
+      return;
+    }
+    if(a === 'saveset'){
+      var body = {seats: +((document.getElementById('r38cSS_' + id) || {}).value || 0), price: +((document.getElementById('r38cSPr_' + id) || {}).value || 0), payLink: ((document.getElementById('r38cSL_' + id) || {}).value || '').trim()};
+      api('PUT', '/events/' + encodeURIComponent(id), body).then(function(j){
+        if(!j || j.error){ say('r38cSM_' + id, (j && j.message) || 'Не сохранилось', 'err'); return; }
+        loadEvent(id).then(function(){ say('r38cSM_' + id, 'Сохранено', 'ok'); });
+      });
+      return;
+    }
+    if(a === 'aud'){
+      var k = b.getAttribute('data-k'), au = aud();
+      if(k === 'all'){ au = au.all ? {all:false, residents:true, subscribers:false, crm:[]} : {all:true, residents:false, subscribers:false, crm:[]}; }
+      else {
+        if(au.all) au = {all:false, residents:true, subscribers:true, crm:STAGES.map(function(s){ return s[0]; })};
+        if(k === 'residents') au.residents = !au.residents;
+        else if(k === 'subscribers') au.subscribers = !au.subscribers;
+        else if(k === 'crm') au.crm = au.crm && au.crm.length ? [] : STAGES.filter(function(s){ return s[0] !== 'lost' && s[0] !== 'won'; }).map(function(s){ return s[0]; });
+        else if(k.indexOf('st:') === 0){ var st = k.slice(3), i = (au.crm || []).indexOf(st); au.crm = (au.crm || []).slice(); if(i >= 0) au.crm.splice(i, 1); else au.crm.push(st); }
+      }
+      var ta = document.getElementById('r38cTx'); if(ta) S.bc.text = ta.value;
+      S.bc.aud = au; S.bc.counts = null; paintBC(); preview();
+      return;
+    }
+    if(a === 'test'){
+      b.disabled = true;
+      saveBC().then(function(){ return api('POST', '/campaigns/' + encodeURIComponent(S.bc.c.id) + '/test'); }).then(function(j){
+        b.disabled = false; S.bc.note = [(j && j.message) || 'Тест не ушёл', j && j.ok ? 'ok' : 'err']; say('r38cBM', S.bc.note[0], S.bc.note[1]);
+      });
+      return;
+    }
+    if(a === 'send'){ send(false); return; }
+    if(a === 'force'){ send(true); return; }
+    if(a === 'chsave'){
+      var ix = +b.getAttribute('data-i'), r = S.ch.residents[ix];
+      var ch = document.getElementById('r38cCs' + ix).value, pv = document.getElementById('r38cCp' + ix).value;
+      api('PUT', '/channels', {name: r.name, channel: ch, phone: pv}).then(function(j){
+        if(!j || j.error){ say('r38cChM', (j && j.message) || 'Не сохранилось', 'err'); return; }
+        r.channel = j.channel; say('r38cChM', r.name + ': ' + (j.channel === 'wa' ? 'WhatsApp' : 'Telegram'), 'ok');
+      });
+      return;
+    }
+  });
+  document.addEventListener('input', function(x){
+    if(x.target && x.target.id === 'r38cTx' && S.bc){ S.bc.text = x.target.value; var p = document.getElementById('r38cPrev'); if(p) p.textContent = x.target.value; }
+  });
+  document.addEventListener('keydown', function(x){ if(x.key === 'Escape'){ if(document.getElementById('r38cBc')) closeBC(); else if(document.getElementById('r38cWq')) closeWA(); } });
+
+  // старт: значок очереди, #waq из уведомления в Telegram
+  var tries = 0;
+  (function boot(){
+    if(live() && document.getElementById('side')){
+      refreshBadge(); setInterval(refreshBadge, 60000);
+      if(location.hash === '#waq') setTimeout(openWA, 400);
+      return;
+    }
+    if(++tries < 120) setTimeout(boot, 500);
+  })();
+  window.r38c = {openWA: openWA, openBC: openBC, loadEvents: loadEvents, refreshBadge: refreshBadge, inject: inject, _s: S};
+})();
+</script>
 </body>
 </html>

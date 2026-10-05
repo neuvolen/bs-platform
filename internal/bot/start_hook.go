@@ -192,6 +192,19 @@ func (s *Service) takeCallback(ctx context.Context, body []byte) bool {
 	cb := u.Callback
 	up := CallbackUpdate{ID: cb.ID, ChatID: cb.Message.Chat.ID, MessageID: cb.Message.MessageID, FromID: cb.From.ID,
 		Data: cb.Data, FirstName: cb.From.FirstName, LastName: cb.From.LastName, Username: cb.From.Username}
+	// R38c: buttons anyone may press (an event's «Иду»), in a private chat.
+	if ph := s.publicHook(cb.Data); ph != nil && cb.Message.Chat.Type == "private" {
+		c, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+		if toast, ok := ph(c, up); ok {
+			p := map[string]any{"callback_query_id": cb.ID}
+			if toast != "" {
+				p["text"] = toast
+			}
+			_, _ = s.call(ctx, "answerCallbackQuery", p)
+			return true
+		}
+	}
 	// The team's buttons on the server's own messages.
 	if th := s.teamHook(cb.Data); th != nil && s.isAdmin(cb.From.ID) {
 		c, cancel := context.WithTimeout(ctx, 60*time.Second)

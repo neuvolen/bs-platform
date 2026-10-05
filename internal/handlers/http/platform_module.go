@@ -15,6 +15,8 @@ type PlatformModule struct {
 	auth   *PlatformAuthHandler
 	lead   *LeadHome // lead_home.go
 	secret []byte
+	// R38b: Маркетинг → «Партнёрства и UGC», воронки и база CRM (partners.go, crm_base.go)
+	Partners *Partners
 }
 
 func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte) *PlatformModule {
@@ -45,6 +47,10 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		go m.AI.SeedMarketingAll(context.Background())   // mkt_competitors.go
 		go m.AI.ThreadsLoop(context.Background())
 		go m.AI.SetupWhatsApp(context.Background())
+		m.Partners = NewPartners(h.repo)
+		m.Partners.Bot = func() string { n, _ := a.username(); return n }
+		m.Partners.Base = h.repo
+		m.Partners.Start(context.Background())
 	}
 	return m
 }
@@ -149,4 +155,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/crm/chats", m.AI.WAChats)
 	g.GET("/crm/chats/:phone", m.AI.WAMessages)
 	g.POST("/crm/chats/:phone/send", m.AI.WASend)
+	if m.Partners != nil {
+		m.Partners.Register(r, g) // R38b: /p/<code>, /r?ref=, /partners/links, /crm/base-import
+	}
 }

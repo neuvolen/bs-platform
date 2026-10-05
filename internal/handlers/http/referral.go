@@ -79,6 +79,12 @@ func (f *LeadFunnel) WithReferrals(residents refInviter, team map[int64]string) 
 			}
 			st.Param = "" // a broken or own link: an ordinary start
 		}
+		if strings.HasPrefix(st.Param, "pt_") { // R38b: a partner's link (partners.go)
+			if code := PartnerCode(strings.TrimPrefix(st.Param, "pt_")); code != "" {
+				return f.handlePartnerStart(ctx, st, code)
+			}
+			st.Param = ""
+		}
 		return f.HandleStart(ctx, st)
 	}
 }
