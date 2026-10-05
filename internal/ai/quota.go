@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -239,6 +240,21 @@ func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 	until, daily, billing := c.quota.until[service], c.quota.daily[service], c.quota.billing[service]
 	c.quota.mu.Unlock()
 	qe := &QuotaError{Service: service, Until: until, Daily: daily, Billing: billing, Err: err}
+	if wasOpen {
+		// R42: why a provider rests, for the logs (the API's own message, never a key)
+		kind := "rate limit"
+		if billing {
+			kind = "balance/billing"
+		} else if daily {
+			kind = "daily limit"
+		}
+		msg := ""
+		var he *HTTPError
+		if errors.As(err, &he) {
+			msg = apiMessage(he.Body)
+		}
+		log.Printf("ai: %s paused until %s (%s): %s", service, until.UTC().Format(time.RFC3339), kind, msg)
+	}
 	// The owner hears about a long pause once (OnQuota dedupes by day); a
 	// per-minute limit is not worth a message.
 	if wasOpen && (daily || billing) && c.OnQuota != nil {
