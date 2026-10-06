@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
@@ -17,6 +18,8 @@ type PlatformModule struct {
 	secret []byte
 	// R38b: Маркетинг → «Партнёрства и UGC», воронки и база CRM (partners.go, crm_base.go)
 	Partners *Partners
+	// R52: кто сейчас на доске: курсоры, выделение, аватары (platform_presence.go)
+	Presence *PlatformPresence
 }
 
 func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte) *PlatformModule {
@@ -25,6 +28,17 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		a.leads = &LeadFunnel{docs: h.repo, now: time.Now}
 	}
 	m := &PlatformModule{h: h, auth: a, secret: secret, AI: NewPlatformAI(h.repo, nil)}
+	m.Presence = NewPlatformPresence(func(tg int64) string { return a.team[tg] }, h.residentOf, func(ctx context.Context, id string) (string, error) {
+		if h.repo == nil {
+			return "", errors.New("no storage")
+		}
+		b, err := h.repo.GetBoard(ctx, id)
+		if err != nil || b == nil {
+			return "", errors.New("no board")
+		}
+		return b.Resident, nil
+	})
+	m.Presence.Start(context.Background())
 	m.AI.KeySecret = secret // R34a: seals the Claude key saved in the settings
 	// R36: the tour's premium voice (ElevenLabs), picked in the settings
 	m.AI.Premium = NewPremiumVoice(h.repo, m.AI.aiKeySecret, m.AI.tourTexts)
@@ -110,6 +124,8 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.Use(middleware.RequireRole("admin", "moderator", "resident"))
 
 	g.GET("/sync", m.h.Sync)
+	g.POST("/presence", m.Presence.Post)         // R52: platform_presence.go
+	g.GET("/presence/stream", m.Presence.Stream) // R52
 	g.PUT("/boards/:id", m.h.PutBoard)
 	g.DELETE("/boards/:id", m.h.DeleteBoard)
 	g.GET("/boards/:id/versions", m.h.BoardVersions)

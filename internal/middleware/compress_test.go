@@ -132,3 +132,13 @@ func TestR45CompressStream(t *testing.T) {
 		t.Fatalf("stream body: %v %q", err, b)
 	}
 }
+
+// R52: server-sent events are never compressed (each message must reach the browser at once)
+func TestCompressSkipsEventStream(t *testing.T) {
+	if compressibleType("text/event-stream; charset=utf-8") {
+		t.Fatal("text/event-stream must not be compressed")
+	}
+	if !compressibleType("text/plain") {
+		t.Fatal("plain text is still compressed")
+	}
+}

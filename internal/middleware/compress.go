@@ -76,6 +76,9 @@ func AcceptsEncoding(header, enc string) bool {
 
 func compressibleType(ct string) bool {
 	ct = strings.ToLower(ct)
+	if strings.Contains(ct, "event-stream") {
+		return false // R52: server-sent events go out as written, each message flushed at once
+	}
 	return strings.Contains(ct, "json") || strings.HasPrefix(ct, "text/") || strings.Contains(ct, "javascript") ||
 		strings.Contains(ct, "xml") || strings.Contains(ct, "svg")
 }
