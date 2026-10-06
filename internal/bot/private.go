@@ -344,6 +344,9 @@ func (s *Service) private(ctx context.Context, body []byte) {
 		return
 	}
 	if admin {
+		if s.takeTrend(ctx, m, body) { // R53: a Threads link → «Тренды Threads» (trends_hook.go)
+			return
+		}
 		switch cmd {
 		case "/version":
 			_ = s.SendMessage(ctx, m.ChatID, "🤖 Бот работает на сервере платформы.\nТаблица: "+sheetModeName(ctx)+
@@ -356,7 +359,8 @@ func (s *Service) private(ctx context.Context, body []byte) {
 			_ = s.SendMessageKB(ctx, m.ChatID, s.residentsText(ctx), kb(appBtn("👥 Резиденты в BS", "")))
 		case "/help_admin", "/помощь":
 			_ = s.SendMessage(ctx, m.ChatID, "Команды команды:\n/menu: панель\n/check: кто сдал отчёт сегодня\n"+
-				"/fines: неоплаченные штрафы\n/residents: резиденты и долги\n/status: проверка системы\n/version: где работает бот\n\n"+
+				"/fines: неоплаченные штрафы\n/residents: резиденты и долги\n/status: проверка системы\n/version: где работает бот\n"+
+				"/trend ссылка: чужой пост Threads в «Тренды Threads» (или просто пришлите ссылку)\n\n"+
 				"Штрафы, оплаты, расписание и резиденты: в приложении BS и на платформе.")
 		}
 		return

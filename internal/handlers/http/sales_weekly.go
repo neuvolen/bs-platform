@@ -426,8 +426,16 @@ func (s *ClubSales) WeeklyReport(ctx context.Context, now time.Time) (string, in
 		nums = append(nums, fmt.Sprintf("ИИ %d запросов", ai))
 	}
 	b.WriteString("\nЦифры: " + strings.Join(nums, " · "))
+	for _, f := range WeeklyExtra { // R53: «Тренды Threads» and the like: one line each
+		if l := f(ctx, from, to); l != "" {
+			b.WriteString("\n\n" + l)
+		}
+	}
 	return noLongDash(b.String()), len(act)
 }
+
+// WeeklyExtra: more lines for the Monday report (empty: nothing to say).
+var WeeklyExtra []func(ctx context.Context, from, to time.Time) string
 
 // weeklyDue: Monday from 10:05 Almaty, once per week.
 func weeklyDue(now time.Time) (string, bool) {

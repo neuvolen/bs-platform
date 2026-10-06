@@ -36382,5 +36382,323 @@ function r46LeadTeaser(){
 })();
 </script>
 <!-- /R51s -->
+<!-- R53: Маркетинг → «Тренды Threads»: чужие залетевшие посты рынка, разбор приёма, наш пост по мотивам в план SMM -->
+<style id="r53Style">
+.tr53{max-width:1100px}
+.tr53-sum{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0 0 10px}
+.tr53-sum>div{background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:10px 12px;min-width:0}
+.tr53-sum b{display:block;font-size:20px;font-weight:800;letter-spacing:-.4px;color:var(--ptx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr53-sum span{display:block;font-size:11.5px;font-weight:700;color:var(--pm);line-height:1.35}
+.tr53-tips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.tr53-tips span{font-size:12px;font-weight:700;color:var(--ptx);background:var(--ph);border:1px solid var(--pb);border-radius:999px;padding:5px 10px;line-height:1.3}
+.tr53-box{background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:12px;margin:0 0 12px}
+.tr53-box h4{margin:0 0 8px;font-size:13.5px;font-weight:800;color:var(--ptx)}
+.tr53-box .k{font-size:12px;color:var(--pm);line-height:1.45;margin:0 0 8px}
+.tr53 textarea,.tr53 input[type=text],.tr53 input[type=number]{width:100%;box-sizing:border-box;border-radius:10px;border:1px solid var(--pb);background:var(--ph);color:var(--ptx);font:inherit;font-size:13px;line-height:1.45;padding:8px 10px}
+.tr53 textarea{min-height:64px;resize:vertical}
+.tr53-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.tr53-nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px}
+.tr53-nums label{font-size:11px;font-weight:700;color:var(--pm)}
+.tr53 button.b{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--pb);background:var(--pc);color:var(--ptx);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.tr53 button.b.p{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.tr53 button.b:disabled{opacity:.55;cursor:default}
+.tr53 details summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--pm);margin-top:8px}
+.tr53-q{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 8px}
+.tr53-q span{font-size:11.5px;font-weight:700;color:var(--pm);border:1px dashed var(--pb);border-radius:999px;padding:3px 9px}
+.tr53-st{font-size:12px;color:var(--pm);margin-top:6px;line-height:1.4}
+.tr53-st.err{color:var(--pred)}
+.tr53-tabs{display:inline-flex;gap:4px;flex-wrap:wrap;margin:4px 0 10px}
+.tr53-tabs button{height:30px;padding:0 11px;border-radius:8px;border:1px solid var(--pb);background:var(--pc);color:var(--pm);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.tr53-tabs button.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.tr53-p{background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:12px;margin-bottom:8px}
+.tr53-p.best{border-color:var(--ptx);box-shadow:inset 3px 0 0 var(--ptx)}
+.tr53-h{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--pm);font-weight:700}
+.tr53-h b{font-size:13.5px;color:var(--ptx)}
+.tr53-h a{color:var(--ptx)}
+.tr53-h .src{border:1px solid var(--pb);border-radius:6px;padding:1px 6px;font-size:11px}
+.tr53-tx{font-size:13px;line-height:1.5;color:var(--ptx);white-space:pre-wrap;word-break:break-word;margin:8px 0 0;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.tr53-tx.open{display:block}
+.tr53-tx.sn{color:var(--pm);font-style:italic}
+.tr53-chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.tr53-chips span{font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 7px;background:var(--ph);color:var(--ptx);border:1px solid var(--pb)}
+.tr53-chips span.h{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.tr53-why{margin:8px 0 0;padding-left:18px;font-size:12.5px;line-height:1.5;color:var(--ptx)}
+.tr53-pat{font-size:12px;color:var(--pm);margin-top:6px}
+.tr53-err{font-size:12px;color:var(--pred);margin-top:6px}
+.tr53-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.tr53-vars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.tr53-v{border:1px solid var(--pb);border-radius:10px;padding:8px;background:var(--ph);display:flex;flex-direction:column;gap:6px;min-width:0}
+.tr53-v textarea{min-height:170px;background:var(--pc)}
+.tr53-v .m{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--pm);font-weight:700}
+.tr53-v .m .cnt{margin-left:auto}
+.tr53-v .m .cnt.over{color:var(--pred)}
+.tr53-v .ok{font-size:12px;font-weight:800;color:var(--ptx)}
+.tr53-none{font-size:13px;color:var(--pm);padding:18px;text-align:center;border:1px dashed var(--pb);border-radius:12px}
+@media (max-width:900px){.tr53-sum{grid-template-columns:repeat(2,minmax(0,1fr))}.tr53-vars{grid-template-columns:1fr}.tr53-nums{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<script>
+(function(){
+  var S = {d: null, f: 'inbox', open: {}, busy: {}, msg: '', err: false, loading: false};
+  var HOOK = {question:'Вопрос', number:'Цифра', provocation:'Провокация', story:'История', list:'Список', confession:'Признание', statement:'Утверждение'};
+  var CTA = {question:'вопрос в конце', comment:'просьба написать', save:'просьба сохранить', follow:'просьба подписаться', link:'ссылка'};
+  var SRC = {link:'ссылка', bot:'из бота', search:'поиск ИИ'};
+  function n(v){ return typeof fmtN === 'function' ? fmtN(v) : String(v); }
+  function pl(k, a, b, c){ k = Math.abs(k) % 100; var k1 = k % 10; if(k > 10 && k < 20) return c; if(k1 > 1 && k1 < 5) return b; if(k1 === 1) return a; return c; }
+  function api(m, p, b){ return typeof r6Api === 'function' ? r6Api(m, '/trends' + p, b) : Promise.resolve({error: 'Нет связи с сервером'}); }
+  function root(){ return document.getElementById('tr53'); }
+  function when(v){ var d = v ? new Date(v) : null; if(!d || isNaN(d)) return ''; return d.toLocaleDateString('ru', {day:'2-digit', month:'2-digit'}) + ' ' + d.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}); }
+  function say(t, err){ S.msg = t || ''; S.err = !!err; var el = document.getElementById('tr53Msg'); if(el){ el.textContent = S.msg; el.className = 'tr53-st' + (S.err ? ' err' : ''); } if(t) try{ toast(t); }catch(e){} }
+  function take(j){ if(j && Array.isArray(j.posts)) S.d = j; }
+  function load(){
+    S.loading = true; paint();
+    api('GET', '').then(function(j){ S.loading = false; if(j && !j.error) take(j); else say((j && j.error) || 'Сервер не ответил', true); paint(); });
+  }
+  function posts(){ return (S.d && S.d.posts) || []; }
+  function count(st){ return posts().filter(function(p){ return p.status === st; }).length; }
+  function sumHTML(){
+    var s = (S.d && S.d.summary) || {}, top = function(a){ return a && a[0] ? a[0].name : ' '; };
+    var cards = [[n(s.new || 0), 'новых за 7 дней'], [top(s.hooks), 'частый крючок'], [top(s.emotion), 'главная эмоция'],
+      [s.posts ? n(s.avgLen || 0) : ' ', 'знаков в среднем'], [s.posts ? (s.ctaPct || 0) + '%' : ' ', 'с призывом в конце']];
+    var h = '<div class="tr53-sum">' + cards.map(function(c){ return '<div><b>' + esc(c[0]) + '</b><span>' + esc(c[1]) + '</span></div>'; }).join('') + '</div>';
+    var tips = s.tips || [];
+    h += tips.length ? '<div class="tr53-tips">' + tips.map(function(t){ return '<span>' + esc(t) + '</span>'; }).join('') + '</div>'
+      : '<div class="tr53-tips"><span>Добавьте 3 и больше постов: сводка покажет, что повторяется у залетевших</span></div>';
+    if(s.posts) h = '<div class="pf-lbl" style="margin:0 0 6px">Что залетает: ' + esc(s.period || '') + ', разобрано ' + n(s.posts) + '</div>' + h;
+    return h;
+  }
+  function addHTML(){
+    return '<div class="tr53-box"><h4>Добавить залетевший пост</h4><div class="k">Ссылки на чужие посты Threads по теме бизнеса, по одной в строке. Сервер прочитает автора и текст, если Threads их отдаёт. ' +
+      'Можно и из телефона: «Поделиться» → наш бот, ссылка попадёт сюда.</div>' +
+      '<textarea id="tr53Links" placeholder="https://www.threads.com/@автор/post/…"></textarea>' +
+      '<details><summary>Threads не отдал текст? Вставьте его и цифры вручную (для одной ссылки)</summary>' +
+      '<textarea id="tr53Text" placeholder="Текст поста, как он есть" style="margin-top:6px"></textarea>' +
+      '<div class="tr53-nums"><div><label>Лайки</label><input type="number" min="0" id="tr53L"></div><div><label>Ответы</label><input type="number" min="0" id="tr53R"></div>' +
+      '<div><label>Репосты</label><input type="number" min="0" id="tr53P"></div><div><label>Подписчики автора</label><input type="number" min="0" id="tr53F"></div></div></details>' +
+      '<div class="tr53-row"><button class="b p" data-a="add"' + (S.busy.add ? ' disabled' : '') + '>' + (S.busy.add ? 'Читаю посты…' : 'Добавить и разобрать') + '</button></div></div>';
+  }
+  function searchHTML(){
+    var d = S.d || {}, q = d.queries || [];
+    var h = '<div class="tr53-box"><h4>Подобрать залетевшие</h4><div class="k">ИИ ищет в интернете популярные посты Threads за 2 недели по запросам ниже. ' +
+      'Ссылки проверяются через Threads, выдуманные отбрасываются. Кандидаты ждут во вкладке «Кандидаты».</div>' +
+      '<div class="tr53-q">' + q.map(function(x){ return '<span>' + esc(x) + '</span>'; }).join('') + '</div>' +
+      '<details><summary>Изменить запросы</summary><input type="text" id="tr53Qs" value="' + escA(q.join(', ')) + '" style="margin-top:6px"><div class="tr53-row"><button class="b" data-a="queries">Сохранить запросы</button></div></details>' +
+      '<div class="tr53-row"><button class="b p" data-a="search"' + (S.busy.search || d.canSearch === false ? ' disabled' : '') + '>' + (S.busy.search ? 'Ищу, это до минуты…' : 'Подобрать залетевшие') + '</button></div>';
+    if(d.canSearch === false) h += '<div class="tr53-st">Поиск в интернете не подключён (нужен ключ Gemini или баланс Claude). Ссылки можно вставлять вручную.</div>';
+    else if(d.searchErr) h += '<div class="tr53-st err">' + esc(d.searchErr) + '</div>';
+    else if(d.searchAt) h += '<div class="tr53-st">Последний подбор: ' + esc(when(d.searchAt)) + '</div>';
+    return h + '</div>';
+  }
+  function varHTML(p, v, i){
+    var len = Array.from(v.text || '').length;
+    var h = '<div class="tr53-v"><div class="m"><span>Вариант ' + (i + 1) + (v.by === 'ai' ? ' · ИИ' : v.by === 'rules' ? ' · шаблон' : '') + '</span>' +
+      '<span class="cnt' + (len > 500 ? ' over' : '') + '" data-cnt="' + escA(p.id + '/' + i) + '">' + len + ' / 500</span></div>';
+    if(v.planned){
+      h += '<div class="tr53-tx open" style="margin:0">' + esc(v.text) + '</div><div class="ok">✅ В плане SMM: ' + esc(when(v.plannedAt)) + '</div>';
+    } else {
+      h += '<textarea data-var="' + escA(p.id + '/' + i) + '">' + esc(v.text) + '</textarea>' +
+        (v.idea ? '<div class="m">Материал: ' + esc(v.idea) + '</div>' : '') +
+        '<div class="tr53-row" style="margin:0"><button class="b p" data-a="plan" data-id="' + escA(p.id) + '" data-v="' + i + '"' + (S.busy['plan' + p.id + i] ? ' disabled' : '') + '>В план SMM</button>' +
+        '<button class="b" data-a="copy" data-id="' + escA(p.id) + '" data-v="' + i + '">Скопировать</button></div>';
+    }
+    return h + '</div>';
+  }
+  function postHTML(p, best){
+    var a = p.an, txt = p.text || '', h = '<div class="tr53-p' + (best ? ' best' : '') + '" data-p="' + escA(p.id) + '">';
+    h += '<div class="tr53-h"><b>' + esc(p.author ? '@' + p.author : 'автор не известен') + '</b>' + (p.name ? '<span>' + esc(p.name) + '</span>' : '') +
+      '<span class="src">' + esc(SRC[p.source] || p.source || '') + (p.query ? ': ' + esc(p.query) : '') + '</span>' +
+      '<span>' + esc(when(p.addedAt)) + '</span>' + (best ? '<span>лучший по откликам</span>' : '') +
+      '<a href="' + escA(p.url) + '" target="_blank" rel="noopener">Открыть в Threads ↗</a></div>';
+    var m = [];
+    if(p.likes) m.push('♥ ' + n(p.likes)); if(p.replies) m.push('💬 ' + n(p.replies)); if(p.reposts) m.push('↻ ' + n(p.reposts));
+    if(a && a.er) m.push('ER ' + String(a.er).replace('.', ',') + '%');
+    if(p.status === 'cand') m.push(p.verified ? 'ссылка проверена' : 'ссылка не проверена');
+    if(m.length) h += '<div class="tr53-h" style="margin-top:4px;font-weight:600">' + m.map(function(x){ return '<span>' + esc(x) + '</span>'; }).join('') + '</div>';
+    if(txt) h += '<div class="tr53-tx' + (S.open[p.id] ? ' open' : '') + '" data-a="open" data-id="' + escA(p.id) + '">' + esc(txt) + '</div>';
+    else if(p.snippet) h += '<div class="tr53-tx sn">Пересказ поиска: ' + esc(p.snippet) + (p.why ? '\nПочему: ' + esc(p.why) : '') + '</div>';
+    if(p.fetchErr) h += '<div class="tr53-err">' + esc(p.fetchErr) + '</div>';
+    else if(p.note && !txt) h += '<div class="tr53-err">' + esc(p.note) + '</div>';
+    if(!txt && p.status !== 'cand'){
+      h += '<div class="tr53-box" style="margin:8px 0 0;background:var(--ph)"><div class="k">Вставьте текст поста, чтобы разобрать приём (и цифры, если видны)</div>' +
+        '<textarea data-mt="' + escA(p.id) + '" placeholder="Текст поста"></textarea>' +
+        '<div class="tr53-nums"><div><label>Лайки</label><input type="number" min="0" data-ml="' + escA(p.id) + '" value="' + (p.likes || '') + '"></div>' +
+        '<div><label>Ответы</label><input type="number" min="0" data-mr="' + escA(p.id) + '" value="' + (p.replies || '') + '"></div>' +
+        '<div><label>Репосты</label><input type="number" min="0" data-mp="' + escA(p.id) + '" value="' + (p.reposts || '') + '"></div>' +
+        '<div><label>Подписчики</label><input type="number" min="0" data-mf="' + escA(p.id) + '" value="' + (p.followers || '') + '"></div></div>' +
+        '<div class="tr53-row"><button class="b p" data-a="manual" data-id="' + escA(p.id) + '">Сохранить и разобрать</button></div></div>';
+    }
+    if(a){
+      h += '<div class="tr53-chips"><span class="h">' + esc(HOOK[a.hook] || a.hookName || '') + '</span><span>' + esc(a.emotion) + '</span><span>' + esc(a.topic) + '</span>' +
+        '<span>' + n(a.lines) + ' ' + pl(a.lines, 'строка', 'строки', 'строк') + ', ' + n(a.chars) + ' знаков, абзацев ' + n(a.paras) + '</span>' +
+        (a.listN >= 3 ? '<span>список из ' + n(a.listN) + '</span>' : '') + (a.cta ? '<span>' + esc(CTA[a.cta] || a.cta) + '</span>' : '<span>без призыва</span>') +
+        (a.local ? '<span>Казахстан</span>' : '') + (a.by === 'ai' ? '<span>разбор ИИ</span>' : '') + '</div>';
+      if(a.why && a.why.length) h += '<ul class="tr53-why">' + a.why.map(function(w){ return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>';
+      if(a.pattern) h += '<div class="tr53-pat">Приём: ' + esc(a.pattern) + '</div>';
+    }
+    var acts = '';
+    if(p.status === 'cand') acts += '<button class="b p" data-a="takein" data-id="' + escA(p.id) + '">В разбор</button>';
+    if(txt || p.snippet) acts += '<button class="b' + (p.status === 'cand' ? '' : ' p') + '" data-a="make" data-id="' + escA(p.id) + '"' + (S.busy['make' + p.id] ? ' disabled' : '') + '>' +
+      (S.busy['make' + p.id] ? 'Пишу 3 варианта…' : (p.vars && p.vars.length ? 'Ещё 3 варианта' : 'Сделать наш пост по мотивам')) + '</button>';
+    if(p.status !== 'cand') acts += '<button class="b" data-a="refetch" data-id="' + escA(p.id) + '"' + (S.busy['ref' + p.id] ? ' disabled' : '') + '>Прочитать ещё раз</button>';
+    acts += p.status === 'hidden' ? '<button class="b" data-a="unhide" data-id="' + escA(p.id) + '">Вернуть</button>' : '<button class="b" data-a="hide" data-id="' + escA(p.id) + '">Скрыть</button>';
+    acts += '<button class="b" data-a="del" data-id="' + escA(p.id) + '">Удалить</button>';
+    h += '<div class="tr53-acts">' + acts + '</div>';
+    if(p.madeNote && p.vars && p.vars.length) h += '<div class="tr53-st">' + esc(p.madeNote) + '</div>';
+    if(p.vars && p.vars.length) h += '<div class="tr53-vars">' + p.vars.map(function(v, i){ return varHTML(p, v, i); }).join('') + '</div>';
+    return h + '</div>';
+  }
+  function listHTML(){
+    var tabs = [['inbox', 'Входящие'], ['cand', 'Кандидаты'], ['done', 'В плане'], ['hidden', 'Скрытые']];
+    var h = '<div class="tr53-tabs">' + tabs.map(function(t){ return '<button class="' + (S.f === t[0] ? 'on' : '') + '" data-a="tab" data-f="' + t[0] + '">' + t[1] + ' · ' + n(count(t[0])) + '</button>'; }).join('') +
+      '<button data-a="reload">Обновить</button></div>';
+    var list = posts().filter(function(p){ return p.status === S.f; });
+    var best = (S.d && S.d.summary && S.d.summary.best) || '';
+    if(S.loading && !S.d) return h + '<div class="tr53-none">Загружаю…</div>';
+    if(!list.length) return h + '<div class="tr53-none">' + ({inbox: 'Пока пусто: вставьте ссылку на залетевший пост выше или пришлите её боту.', cand: 'Кандидатов нет: нажмите «Подобрать залетевшие».', done: 'Посты по мотивам ещё не в плане.', hidden: 'Скрытых нет.'}[S.f]) + '</div>';
+    return h + list.map(function(p){ return postHTML(p, p.id === best); }).join('');
+  }
+  function paint(){
+    var r = root(); if(!r) return;
+    var keep = {};
+    r.querySelectorAll('textarea[data-var],textarea[data-mt],#tr53Links,#tr53Text').forEach(function(t){ keep[t.id || t.dataset.var || ('m' + t.dataset.mt)] = t.value; });
+    r.innerHTML = sumHTML() + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">' + addHTML() + searchHTML() + '</div>' +
+      '<div id="tr53Msg" class="tr53-st' + (S.err ? ' err' : '') + '" style="margin:-4px 0 8px">' + esc(S.msg) + '</div>' + listHTML();
+    r.querySelectorAll('textarea[data-var],textarea[data-mt],#tr53Links,#tr53Text').forEach(function(t){ var k = t.id || t.dataset.var || ('m' + t.dataset.mt); if(keep[k] != null) t.value = keep[k]; });
+  }
+  function num(sel){ var el = root().querySelector(sel); var v = el ? parseInt(el.value, 10) : 0; return v > 0 ? v : 0; }
+  function mergeItem(it){
+    if(!it || !it.id) return;
+    try{
+      loadContent(); var cc = CONTENT;
+      if(!cc.queue.some(function(x){ return x.id === it.id; })){
+        czNormItem(it); cc.queue.push(it); cc.queue.sort(function(a, b){ return String(a.at).localeCompare(String(b.at)); });
+        saveContent(); czPush();
+      }
+    }catch(e){}
+  }
+  function act(a, el){
+    var id = el.dataset.id;
+    if(a === 'tab'){ S.f = el.dataset.f; paint(); return; }
+    if(a === 'reload'){ load(); return; }
+    if(a === 'open'){ S.open[id] = !S.open[id]; el.classList.toggle('open'); return; }
+    if(a === 'add'){
+      var links = (document.getElementById('tr53Links') || {}).value || '';
+      if(!/threads\.(com|net)\//i.test(links)){ say('Вставьте ссылку на пост Threads', true); return; }
+      var body = {links: links, text: (document.getElementById('tr53Text') || {}).value || '', likes: num('#tr53L'), replies: num('#tr53R'), reposts: num('#tr53P'), followers: num('#tr53F')};
+      S.busy.add = 1; paint();
+      api('POST', '/add', body).then(function(j){
+        delete S.busy.add;
+        if(j && !j.error){
+          take(j); S.f = 'inbox'; paint();
+          var l = document.getElementById('tr53Links'), t = document.getElementById('tr53Text');
+          if(l) l.value = ''; if(t) t.value = '';
+          say('Добавлено: ' + n(j.added) + (j.failed ? ', не прочитано ' + n(j.failed) + ': вставьте текст вручную' : '') + (j.later ? ', ещё ' + n(j.later) + ' читаются, нажмите «Обновить» через минуту' : ''), !!j.failed);
+        } else { paint(); say((j && j.error) || 'Не добавилось', true); }
+      });
+      return;
+    }
+    if(a === 'queries'){
+      var qs = ((document.getElementById('tr53Qs') || {}).value || '').split(/[,\n]/).map(function(x){ return x.trim(); }).filter(Boolean);
+      api('PUT', '/queries', {queries: qs}).then(function(j){ if(j && !j.error){ take(j); paint(); say('Запросы сохранены'); } else say((j && j.error) || 'Не сохранилось', true); });
+      return;
+    }
+    if(a === 'search'){
+      S.busy.search = 1; paint();
+      api('POST', '/search', {}).then(function(j){
+        delete S.busy.search; take(j);
+        if(j && j.ok){ S.f = 'cand'; paint(); say('Найдено новых: ' + n(j.found || 0)); }
+        else { paint(); say((j && j.error) || 'Поиск не ответил', true); }
+      });
+      return;
+    }
+    if(a === 'manual'){
+      var r = root(), q = function(k){ return r.querySelector('[data-' + k + '="' + CSS.escape(id) + '"]'); };
+      var text = (q('mt') || {}).value || '';
+      if(!text.trim()){ say('Вставьте текст поста', true); return; }
+      var iv = function(k){ var e = q(k); var v = e ? parseInt(e.value, 10) : 0; return v > 0 ? v : 0; };
+      api('PUT', '/' + encodeURIComponent(id), {text: text, likes: iv('ml'), replies: iv('mr'), reposts: iv('mp'), followers: iv('mf')}).then(function(j){
+        if(j && !j.error){ take(j); paint(); say('Разобрано'); } else say((j && j.error) || 'Не сохранилось', true);
+      });
+      return;
+    }
+    if(a === 'make'){
+      S.busy['make' + id] = 1; paint();
+      api('POST', '/' + encodeURIComponent(id) + '/make', {}).then(function(j){
+        delete S.busy['make' + id];
+        if(j && j.ok && j.post){
+          var ps = posts(); for(var i = 0; i < ps.length; i++) if(ps[i].id === id) ps[i] = j.post;
+          if(j.summary && S.d) S.d.summary = j.summary;
+          if(S.f === 'cand') S.f = 'inbox';
+          paint(); say('Готово: проверьте варианты и поставьте лучший в план');
+        } else { paint(); say((j && j.error) || 'Не получилось', true); }
+      });
+      return;
+    }
+    if(a === 'plan'){
+      var vi = +el.dataset.v, ta = root().querySelector('textarea[data-var="' + CSS.escape(id + '/' + vi) + '"]');
+      var tx = ta ? ta.value.trim() : '';
+      if(!tx){ say('Текст пустой', true); return; }
+      if(Array.from(tx).length > 500){ say('Длиннее 500 знаков: Threads не примет', true); return; }
+      S.busy['plan' + id + vi] = 1; el.disabled = true;
+      api('POST', '/' + encodeURIComponent(id) + '/plan', {text: tx, v: vi}).then(function(j){
+        delete S.busy['plan' + id + vi];
+        if(j && j.ok){
+          mergeItem(j.item);
+          var ps = posts(); for(var i = 0; i < ps.length; i++) if(ps[i].id === id && j.post) ps[i] = j.post;
+          paint(); say('В плане SMM: ' + when(j.item && j.item.at) + '. Бот пришлёт его в своё время');
+        } else { el.disabled = false; say((j && j.error) || 'Не получилось', true); }
+      });
+      return;
+    }
+    if(a === 'copy'){
+      var t2 = root().querySelector('textarea[data-var="' + CSS.escape(id + '/' + el.dataset.v) + '"]');
+      if(t2 && typeof r6Copy === 'function') r6Copy(t2.value);
+      return;
+    }
+    if(a === 'refetch' || a === 'takein'){
+      S.busy['ref' + id] = 1; paint();
+      api('POST', '/' + encodeURIComponent(id) + '/fetch', {}).then(function(j){
+        delete S.busy['ref' + id]; take(j);
+        if(a === 'takein') S.f = 'inbox';
+        paint(); say(j && j.ok ? 'Пост прочитан' : ((j && j.error) || 'Threads не ответил: вставьте текст вручную'), !(j && j.ok));
+      });
+      return;
+    }
+    if(a === 'hide' || a === 'unhide'){
+      api('PUT', '/' + encodeURIComponent(id), {status: a === 'hide' ? 'hidden' : 'inbox'}).then(function(j){ if(j && !j.error){ take(j); paint(); } else say((j && j.error) || 'Не получилось', true); });
+      return;
+    }
+    if(a === 'del'){
+      var go = function(){ api('DELETE', '/' + encodeURIComponent(id)).then(function(j){ if(j && !j.error){ take(j); paint(); say('Удалено'); } else say((j && j.error) || 'Не удалилось', true); }); };
+      if(typeof askConfirm === 'function') askConfirm('Удалить пост из трендов?', 'Варианты по мотивам тоже удалятся. Посты, уже поставленные в план, останутся в SMM.', go); else go();
+      return;
+    }
+  }
+  document.addEventListener('click', function(ev){
+    var el = ev.target.closest && ev.target.closest('#tr53 [data-a]'); if(!el || el.disabled) return;
+    act(el.dataset.a, el);
+  });
+  document.addEventListener('input', function(ev){
+    var t = ev.target; if(!t || !t.dataset || !t.dataset.var || !t.closest('#tr53')) return;
+    var c = root().querySelector('[data-cnt="' + CSS.escape(t.dataset.var) + '"]'), l = Array.from(t.value).length;
+    if(c){ c.textContent = l + ' / 500'; c.classList.toggle('over', l > 500); }
+  });
+  window.renderMTrends = function(){
+    var el = pgSet('Тренды Threads', 'Чужие залетевшие посты про бизнес: почему залетели и наш пост по мотивам в план SMM');
+    el.innerHTML = '<div class="tr53" id="tr53"></div>';
+    paint(); load();
+  };
+  window.r53 = {state: S, load: load, paint: paint};
+  try{
+    if(typeof CT_FMT !== 'undefined' && !CT_FMT.trend) CT_FMT.trend = 'По мотивам';
+    if(typeof BLOCKS !== 'undefined' && BLOCKS.mkt && !BLOCKS.mkt.tabs.some(function(t){ return t.id === 'mTrends'; })){
+      var at = BLOCKS.mkt.tabs.findIndex(function(t){ return t.id === 'mSmm'; });
+      BLOCKS.mkt.tabs.splice(at >= 0 ? at + 1 : BLOCKS.mkt.tabs.length, 0, {id: 'mTrends', n: 'Тренды Threads'});
+    }
+    var rs0 = window.renderStub;
+    window.renderStub = renderStub = function(s){ if(s === 'mTrends') return window.renderMTrends(); return rs0.apply(this, arguments); };
+  }catch(x){}
+})();
+</script>
+<!-- /R53 -->
 </body>
 </html>
