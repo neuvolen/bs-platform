@@ -259,6 +259,7 @@ func (w *ClubWrites) doLocal(ctx context.Context, source string, u *platformTgUs
 		return mustJSON(map[string]string{"error": err.Error()})
 	}
 	go w.notices(context.WithoutCancel(ctx), action, p)
+	w.after(ctx, action, p) // R51
 	return w.answer(ctx, action, p)
 }
 

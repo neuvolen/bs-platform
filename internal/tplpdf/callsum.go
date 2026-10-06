@@ -78,6 +78,10 @@ type CallDoc struct {
 	Homework     []string       `json:"homework"`
 	NextDate     string         `json:"nextDate"`
 	NextAgenda   []string       `json:"nextAgenda"`
+	// Footer: the line on every page (R51: the lead's express разбор); "" = CallFooter
+	Footer string `json:"footer,omitempty"`
+	// Pill: the cover's tag (R51: «ЭКСПРЕСС-РАЗБОР»); "" = «САММАРИ РАЗБОРА»
+	Pill string `json:"pill,omitempty"`
 
 	// R32d shape (older calls)
 	Summary   string   `json:"summary"`
@@ -235,6 +239,9 @@ func RenderCallSummary(c *CallDoc) ([]byte, error) {
 		d.color(cMute)
 		p.SetXY(mL, 11.2)
 		hd := "Саммари разбора"
+		if c.Pill != "" && c.Title != "" {
+			hd = c.Title
+		}
 		if c.Resident != "" {
 			hd += " · " + clip(c.Resident, 40)
 		}
@@ -254,7 +261,11 @@ func RenderCallSummary(c *CallDoc) ([]byte, error) {
 		d.font("r", 7)
 		d.color(cMute)
 		p.SetXY(mL, 285)
-		p.CellFormat(cW-30, 4, CallFooter, "", 0, "L", false, 0, "")
+		ft := CallFooter
+		if c.Footer != "" {
+			ft = c.Footer
+		}
+		p.CellFormat(cW-30, 4, ft, "", 0, "L", false, 0, "")
 		d.font("s", 7)
 		p.SetXY(pageW-mL-30, 285)
 		p.CellFormat(30, 4, fmt.Sprintf("стр. %d из {nb}", p.PageNo()), "", 0, "R", false, 0, "")
@@ -312,6 +323,9 @@ func (d *cdoc) cover() {
 	p.SetXY(pageW-mL-90, 19)
 	p.CellFormat(90, 4, "Business Surgery · bxclub.kz", "", 0, "R", false, 0, "")
 	pill := "САММАРИ РАЗБОРА"
+	if c.Pill != "" {
+		pill = c.Pill
+	}
 	if c.Resident != "" {
 		pill += " · " + strings.ToUpper(clip(c.Resident, 40))
 	}

@@ -54,6 +54,8 @@ type LeadFunnel struct {
 	hmu  sync.Mutex
 	// R47 (lead_dialog.go): the bot's messages to leads go to the dialog
 	dlgOn bool
+	// AfterRazbor: R51: a booked разбор is over (sales_razbor.go asks the team for the итоги).
+	AfterRazbor func(ctx context.Context, tg int64, name, when string)
 }
 
 func NewLeadFunnel(docs funnelDocs, send func(ctx context.Context, chatID int64, text string, kb map[string]any) error, admins []int64) *LeadFunnel {

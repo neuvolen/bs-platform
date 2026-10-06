@@ -335,6 +335,7 @@ func BuildBot(d *Deps, token, team, apiBase, publicURL, notify string) (*bot.Ser
 // BuildAppGateway: the Telegram app's calls go through the server.
 func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.Service) []httpapi.RoutesRegistrar {
 	g := httpapi.NewAppGateway(token, os.Getenv("APP_SCRIPT_URL"))
+	appGW = g // R51: sales_wiring.go
 	g.Admins = httpapi.ParsePlatformTeam(os.Getenv("PLATFORM_TEAM"))
 	if botSvc != nil {
 		// A club write the app's deployment of the script does not know yet

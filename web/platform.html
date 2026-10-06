@@ -17115,10 +17115,12 @@ var CRM_COLS = [
   {id:'qual', n:'Квалифицирован',    d:'Есть бизнес, боль и деньги'},
   {id:'meet', n:'Записан на разбор', d:'Дата разбора назначена'},
   {id:'diag', n:'Разбор проведён',   d:'Закрываем на резидентство'},
+  {id:'decide', n:'Решение',         d:'Нажал «Хочу в клуб» или договорились: договор и оплата'}, // R51s
   {id:'won',  n:'Резидент',          d:'Оплатил участие'},
+  {id:'later', n:'Отложено',         d:'«Не сейчас»: бот напомнит в выбранный день'},             // R51s
   {id:'lost', n:'Отказ',             d:'Не наш или не сейчас'}
 ];
-var CRM_FLOW = ['new', 'work', 'qual', 'meet', 'diag', 'won'];
+var CRM_FLOW = ['new', 'work', 'qual', 'meet', 'diag', 'decide', 'won'];
 // Старые колонки (Таргет, Звонок, КП, Дожим, Оплатил разбор, 3 месяца, год) переезжают в новые
 var CRM_OLD = {target:'new', call:'work', kp:'qual', push:'qual', paid:'meet', m3:'won', year:'won'};
 var LEAD_SOURCES = ['WhatsApp', 'Telegram', 'Instagram', 'Сайт', 'Рекомендация'];
@@ -35905,5 +35907,479 @@ function r46LeadTeaser(){
   window.r47 = {dlgOf: dlgOf, segLeads: segLeads, looksTilda: looksTilda, _v: V};
 })();
 </script>
+<!-- R51s: продажи клуба: сценарий после экспресс-разбора (итоги PDF, предложение, напоминания), этапы CRM «Решение» и «Отложено»,
+     кейсы «было → стало» с согласия резидентов (Маркетинг → Кейсы), итог периода и продление в 1 клик, настройки и тексты -->
+<style id="r51sStyle">
+.r51s-box{border:1px solid var(--pb);border-radius:14px;background:var(--pc);padding:14px;margin:12px 0}
+.r51s-box h4{margin:0 0 4px;font:800 14px 'Manrope',sans-serif;color:var(--ptx)}
+.r51s-box .k{font-size:12.5px;color:var(--pm);line-height:1.5}
+.r51s-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.r51s-acts .btn{height:34px;font-size:12.5px;padding:0 12px}
+.r51s-st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;padding:5px 10px;border-radius:8px;border:1px solid var(--pi);color:var(--ptx);margin-top:8px;max-width:100%;overflow-wrap:anywhere}
+.r51s-st.on{border-color:var(--fc-in,#3a9);color:var(--fc-in,#3a9)}
+.r51s-st.off{color:var(--pm)}
+.r51s-st.wait{border-color:#d98200;color:#d98200}
+.cx-ar.r51s-pz{color:var(--fc-in,#3a9)}
+.r51s-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;display:flex;align-items:center;justify-content:center;padding:16px}
+.r51s-m{background:var(--pc);color:var(--ptx);border:1px solid var(--pb);border-radius:16px;width:min(680px,100%);max-height:92vh;overflow:auto;padding:18px}
+.r51s-m .mh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
+.r51s-m .mh b{font:800 16px 'Manrope',sans-serif}
+.r51s-m .x{cursor:pointer;font-size:22px;line-height:1;color:var(--pm);padding:2px 6px}
+.r51s-m label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--pm);min-width:0}
+.r51s-m textarea{width:100%;min-height:70px;resize:vertical}
+.r51s-m .inp{width:100%;box-sizing:border-box}
+.r51s-g2{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin:6px 0}
+.r51s-g3{display:grid;grid-template-columns:1.2fr 1fr;gap:6px 10px;margin:6px 0}
+.r51s-sub{font:800 12px 'Manrope',sans-serif;letter-spacing:.3px;text-transform:uppercase;color:var(--pm);margin:14px 0 6px}
+.r51s-f{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px}
+.r51s-msg{font-size:12.5px;line-height:1.5;margin-top:8px;min-height:1em}
+.r51s-msg.err{color:var(--pred)}.r51s-msg.ok{color:var(--fc-in,#3a9)}
+.r51s-set{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0}
+.r51s-set label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--pm);min-width:0}
+.r51s-sw{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ptx);cursor:pointer;margin:6px 0}
+.r51s-sw input{width:18px;height:18px}
+.r51s-tx{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.r51s-tx textarea{min-height:120px}
+.r51s-pre{white-space:pre-wrap;font-size:12.5px;line-height:1.5;border:1px solid var(--pi);border-radius:10px;padding:10px;background:var(--pd);margin-top:8px}
+.r51s-cases{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.r51s-case{border:1px solid var(--pb);border-radius:14px;background:var(--pc);padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.r51s-case .t{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.r51s-case .t b{font-size:14px;font-weight:800;line-height:1.35}
+.r51s-case .who{font-size:12px;color:var(--pm)}
+.r51s-case ul{margin:0;padding-left:16px;font-size:12.5px;line-height:1.6}
+.r51s-case textarea{min-height:110px;font-size:12.5px}
+.r51s-chip{font-size:11px;font-weight:800;padding:3px 8px;border-radius:7px;border:1px solid var(--pi);white-space:nowrap}
+.r51s-chip.draft{color:#d98200;border-color:#d98200}.r51s-chip.approved{color:var(--ptx)}.r51s-chip.published{color:var(--fc-in,#3a9);border-color:var(--fc-in,#3a9)}.r51s-chip.hidden{color:var(--pm)}
+.r51s-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.r51s-tbl td,.r51s-tbl th{padding:8px 6px;border-top:1px solid var(--pi);text-align:left;vertical-align:middle}
+.r51s-tbl th{font-size:11px;color:var(--pm);text-transform:uppercase;letter-spacing:.3px;border-top:0}
+.r51s-tbl select{max-width:150px}
+.r51s-mode{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.r51s-mode button{height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--pi);background:none;color:var(--ptx);font:inherit;font-size:12.5px;font-weight:800;cursor:pointer}
+.r51s-mode button.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r51s-rep{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--pi);font-size:12.5px;flex-wrap:wrap}
+.r51s-rep:first-child{border-top:0}
+.r51s-rep .a{display:flex;gap:6px;flex-wrap:wrap}
+.r51s-rep .a .btn{height:30px;font-size:12px;padding:0 10px}
+@media (max-width:700px){.r51s-g2,.r51s-g3,.r51s-set,.r51s-cases{grid-template-columns:1fr}.r51s-m{padding:14px}.r51s-tbl .hm{display:none}}
+</style>
+<script id="r51sScript">
+(function(){
+  if(window.r51s) return;
+  function e(s){ return typeof esc === 'function' ? esc(s) : String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function ea(s){ return e(s).replace(/'/g, '&#39;'); }
+  function api(m, p, b){ return typeof r6Api === 'function' ? r6Api(m, p, b) : Promise.resolve({error:'Нет связи с сервером'}); }
+  function say(t){ if(typeof toast === 'function') toast(t); }
+  function md(){ try{ return typeof MODE === 'string' ? MODE : 'admin'; }catch(x){ return 'admin'; } }
+  function n0(n){ n = Number(n) || 0; return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  function tg(n){ return n0(n) + ' ₸'; }
+  function dm(v){ var d = v ? new Date(v) : null; if(!d || isNaN(d)) return ''; try{ return d.toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit', timeZone:'Asia/Almaty'}); }catch(x){ return ''; } }
+  function dmhm(v){ var d = v ? new Date(v) : null; if(!d || isNaN(d)) return ''; try{ return d.toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Almaty'}).replace(',', ''); }catch(x){ return ''; } }
+  function copy(t){ if(typeof r6Copy === 'function') r6Copy(t); else { try{ navigator.clipboard.writeText(t); say('Скопировано'); }catch(x){} } }
+  function pdf(path, name){
+    say('Готовим PDF…');
+    Promise.resolve().then(function(){ return BSSync.api('GET', path); }).then(function(r){
+      if(!r) throw new Error('Нет связи с сервером');
+      if(!r.ok) return r.json().then(function(j){ throw new Error((j && (j.message || j.error)) || ('Сервер ответил ' + r.status)); }, function(){ throw new Error('Сервер ответил ' + r.status); });
+      return r.blob();
+    }).then(function(bl){
+      var a = document.createElement('a'); a.href = URL.createObjectURL(bl);
+      a.download = String(name || 'BS').replace(/[\\/:*?"<>|]/g, '') + '.pdf'; a.rel = 'noopener'; a.style.display = 'none';
+      document.body.appendChild(a); a.click(); setTimeout(function(){ a.remove(); URL.revokeObjectURL(a.href); }, 60000);
+    }).catch(function(x){ say('PDF не получился: ' + (x && x.message || 'ошибка')); });
+  }
+  function modal(title, body, foot){
+    close();
+    var ov = document.createElement('div'); ov.className = 'r51s-ov'; ov.id = 'r51sOv';
+    ov.innerHTML = '<div class="r51s-m" role="dialog" aria-modal="true"><div class="mh"><b>' + e(title) + '</b><span class="x" data-r51="close" aria-label="Закрыть">×</span></div>' + body +
+      '<div class="r51s-msg" id="r51sMsg" role="status"></div><div class="r51s-f">' + (foot || '') + '</div></div>';
+    ov.addEventListener('click', function(ev){ if(ev.target === ov || (ev.target.dataset && ev.target.dataset.r51 === 'close')) close(); });
+    document.body.appendChild(ov);
+    return ov;
+  }
+  function close(){ var o = document.getElementById('r51sOv'); if(o) o.remove(); }
+  function msg(t, cls){ var m = document.getElementById('r51sMsg'); if(m){ m.textContent = t || ''; m.className = 'r51s-msg' + (cls ? ' ' + cls : ''); } }
+
+  // ═══ 1. Этапы CRM «Решение» и «Отложено» заданы в CRM_COLS (иначе leadNorm при загрузке вернёт их в «Новый») ═══
+
+  // ═══ 2. Сценарий после разбора: строка на карточке и блок в карточке лида ═══
+  var STEPS = [['offer', 'PDF и предложение'], ['d2', 'день 2: первые шаги'], ['d5', 'день 5: кейс'], ['d10', 'день 10: последнее напоминание']];
+  function pzLine(l){
+    var pz = l && l.pz; if(!pz || typeof pz !== 'object') return '';
+    var steps = pz.steps || {}, sent = 0, nx = '';
+    STEPS.forEach(function(s){ if(steps[s[0]] && String(steps[s[0]]).indexOf('skipped') !== 0) sent++; if(s[0] === pz.next) nx = s[1]; });
+    if(pz.st === 'wait') return 'Сценарий: PDF и предложение уйдут ' + (pz.nextAt ? dmhm(pz.nextAt) : 'сейчас');
+    if(pz.st === 'active') return 'Сценарий: отправлено ' + sent + ' из 4, дальше ' + nx + (pz.nextAt ? ' ' + dm(pz.nextAt) : '');
+    if(pz.st === 'done') return 'Сценарий завершён: 4 из 4';
+    if(pz.st === 'stopped') return 'Сценарий остановлен: ' + (pz.why || '') + (pz.remindAt ? ', напомнить ' + dm(pz.remindAt) : '');
+    return '';
+  }
+  if(typeof crmCardHTML === 'function'){
+    var cc0 = crmCardHTML;
+    crmCardHTML = window.crmCardHTML = function(l){
+      var h = cc0.apply(this, arguments), t = pzLine(l);
+      if(!t) return h;
+      var i = h.lastIndexOf('</div>');
+      return h.slice(0, i) + '<div class="cx-ar r51s-pz" title="' + ea(t) + '">📨 ' + e(t.replace(/^Сценарий: /, '')) + '</div>' + h.slice(i);
+    };
+  }
+  function lsBox(){
+    var l = typeof lsLead === 'function' ? lsLead() : null;
+    var host = document.getElementById('r51sLs');
+    if(!host){ var f = document.getElementById('lsFields'); if(!f) return; host = document.createElement('div'); host.id = 'r51sLs'; f.parentNode.insertBefore(host, f.nextSibling); }
+    if(!l || md() !== 'admin'){ host.innerHTML = ''; return; }
+    var show = l.pz || ['meet', 'diag', 'decide', 'later'].indexOf(l.col) >= 0;
+    if(!show){ host.innerHTML = ''; return; }
+    var t = pzLine(l), pz = l.pz || {};
+    var cls = pz.st === 'active' || pz.st === 'done' ? 'on' : (pz.st === 'wait' ? 'wait' : 'off');
+    host.innerHTML = '<div class="r51s-box" id="r51sLsBox"><h4>После экспресс-разбора</h4>' +
+      '<div class="k">3 диагноза, 3 шага и цифры: лид получит PDF итогов и предложение клуба под свои диагнозы, напоминания на 2, 5 и 10 день. Всё уходит 10:00-20:00 по Алматы. Сценарий останавливается, когда лид ответит, оплатит или нажмёт «Не сейчас».</div>' +
+      (t ? '<div class="r51s-st ' + cls + '">📨 ' + e(t) + '</div>' : '') +
+      '<div class="r51s-acts"><button class="btn pf-b pf-p" type="button" onclick="r51s.form(\'' + ea(l.id) + '\')">' + (l.pz ? 'Итоги разбора' : 'Заполнить итоги разбора') + '</button>' +
+      (l.pz ? '<button class="btn pf-b" type="button" onclick="r51s.sumPdf(\'' + ea(l.id) + '\')">PDF итогов</button>' : '') +
+      ((pz.st === 'active' || pz.st === 'wait') ? '<button class="btn pf-b" type="button" onclick="r51s.stop(\'' + ea(l.id) + '\')">Остановить сценарий</button>' : '') + '</div></div>';
+  }
+  if(typeof lsFields === 'function'){
+    var lf0 = lsFields;
+    lsFields = window.lsFields = function(){ var r = lf0.apply(this, arguments); try{ lsBox(); }catch(x){} return r; };
+  }
+  var LIB = null;
+  function form(id){
+    var l = typeof leadById === 'function' ? leadById(id) : null;
+    var ov = modal('Итоги разбора' + (l && l.name ? ' · ' + l.name : ''), '<div class="k" style="font-size:12.5px;color:var(--pm)">Загружаю…</div>');
+    api('GET', '/sales/razbor/' + encodeURIComponent(id)).then(function(j){
+      if(!j || j.error){ msg((j && (j.message || j.error)) || 'Не загрузилось', 'err'); return; }
+      LIB = j.diagTitles || LIB || [];
+      var f = (j.sum && j.sum.form) || {}, dg = f.diag || [], st = f.steps || [], nm = f.numbers || [];
+      var today = new Date(); var dd = ('0' + today.getDate()).slice(-2) + '.' + ('0' + (today.getMonth() + 1)).slice(-2) + '.' + today.getFullYear();
+      var h = '<datalist id="r51sDx">' + (LIB || []).map(function(t){ return '<option value="' + ea(t) + '">'; }).join('') + '</datalist>' +
+        '<div class="r51s-g2"><label>Дата разбора<input class="inp" id="r51sDate" value="' + ea(f.date || dd) + '" placeholder="06.10.2026"></label><div></div></div>' +
+        '<label>Ситуация: что за бизнес и с чем пришёл<textarea class="inp" id="r51sSit" placeholder="2-4 предложения">' + e(f.situation || '') + '</textarea></label>' +
+        '<div class="r51s-sub">3 диагноза (из библиотеки BS или свой)</div>';
+      for(var i = 0; i < 3; i++){ var d = dg[i] || {};
+        h += '<div class="r51s-g3"><input class="inp" list="r51sDx" data-dx="' + i + '" value="' + ea(d.title || '') + '" placeholder="Диагноз ' + (i + 1) + '"><input class="inp" data-dw="' + i + '" value="' + ea(d.why || '') + '" placeholder="Как проявилось"></div>'; }
+      h += '<div class="r51s-sub">3 первых шага</div>';
+      for(i = 0; i < 3; i++) h += '<input class="inp" style="margin:4px 0" data-st="' + i + '" value="' + ea(st[i] || '') + '" placeholder="Шаг ' + (i + 1) + ': с глагола">';
+      h += '<div class="r51s-sub">Цифры, которые прозвучали</div>';
+      for(i = 0; i < 3; i++){ var n = nm[i] || {};
+        h += '<div class="r51s-g2"><input class="inp" data-nl="' + i + '" value="' + ea(n.label || '') + '" placeholder="Что: выручка в месяц"><input class="inp" data-nv="' + i + '" value="' + ea(n.value || '') + '" placeholder="Сколько: 5 000 000 ₸"></div>'; }
+      var started = !!(j.pz);
+      var foot = '<button class="btn pf-b" type="button" data-r51="close">Отмена</button>' +
+        '<button class="btn pf-b" type="button" id="r51sSave">Сохранить</button>' +
+        '<button class="btn pf-b pf-p" type="button" id="r51sSend">' + (started ? 'Сохранить и отправить заново' : 'Сохранить и отправить лиду') + '</button>';
+      ov = modal('Итоги разбора' + (j.lead && j.lead.name ? ' · ' + j.lead.name : ''), h + '<div class="k" style="font-size:12px;color:var(--pm);margin-top:10px">«Отправить»: PDF и предложение клуба уйдут лиду ' + (j.lead && j.lead.tgId ? 'в Telegram' : 'в очередь WhatsApp') + ' (10:00-20:00), затем напоминания на 2, 5 и 10 день.</div>', foot);
+      ov.querySelector('#r51sSave').onclick = function(){ save(id, false); };
+      ov.querySelector('#r51sSend').onclick = function(){ save(id, true); };
+    });
+  }
+  function save(id, send){
+    var ov = document.getElementById('r51sOv'); if(!ov) return;
+    var q = function(s){ return Array.prototype.map.call(ov.querySelectorAll(s), function(x){ return String(x.value || '').trim(); }); };
+    var dx = q('[data-dx]'), dw = q('[data-dw]'), stp = q('[data-st]'), nl = q('[data-nl]'), nv = q('[data-nv]');
+    var form = {date: ov.querySelector('#r51sDate').value.trim(), situation: ov.querySelector('#r51sSit').value.trim(), diag: [], steps: stp.filter(Boolean), numbers: []};
+    dx.forEach(function(t, i){ if(t) form.diag.push({title: t, why: dw[i] || ''}); });
+    nv.forEach(function(v, i){ if(v) form.numbers.push({label: nl[i] || '', value: v}); });
+    if(!form.diag.length || !form.steps.length){ msg('Нужны хотя бы один диагноз и один шаг', 'err'); return; }
+    ov.querySelectorAll('.r51s-f .btn').forEach(function(b){ b.disabled = true; });
+    msg(send ? 'Сохраняю и запускаю сценарий…' : 'Сохраняю…');
+    api('PUT', '/sales/razbor/' + encodeURIComponent(id), {form: form, send: !!send}).then(function(j){
+      ov.querySelectorAll('.r51s-f .btn').forEach(function(b){ b.disabled = false; });
+      if(!j || j.error){ msg((j && (j.message || j.error)) || 'Не сохранилось', 'err'); return; }
+      var l = typeof leadById === 'function' ? leadById(id) : null;
+      if(l && j.pz){ l.pz = j.pz; if(l.col === 'meet' || l.col === 'new' || l.col === 'work' || l.col === 'qual') l.col = 'diag'; }
+      close(); say(send ? 'Итоги сохранены, сценарий запущен: ' + (j.status || '') : 'Итоги сохранены');
+      try{ if(window.BSSync && BSSync.tick) BSSync.tick(); }catch(x){}
+      try{ lsBox(); if(document.getElementById('crmMain')) renderCrmMain(); }catch(x){}
+    });
+  }
+  function stop(id){
+    askConfirm('Остановить сценарий?', 'Лид больше не получит напоминаний после разбора', function(){
+      api('POST', '/sales/razbor/' + encodeURIComponent(id) + '/stop').then(function(j){
+        if(!j || j.error){ say('Не получилось: ' + ((j && j.error) || '')); return; }
+        var l = typeof leadById === 'function' ? leadById(id) : null; if(l && j.pz) l.pz = j.pz;
+        say('Сценарий остановлен'); try{ lsBox(); }catch(x){}
+        try{ if(window.BSSync && BSSync.tick) BSSync.tick(); }catch(x){}
+      });
+    }, 'Остановить');
+  }
+
+  // ═══ 3. Настройки → «Продажи клуба» ═══
+  var SET = null, SETBOX = null, TXK = 'offer';
+  function setBox(){
+    if(SETBOX) return SETBOX;
+    SETBOX = document.createElement('div'); SETBOX.className = 'r32-set r51s-box'; SETBOX.id = 'r51sSet';
+    SETBOX.innerHTML = '<h4>Продажи клуба: сценарии, продление, отчёт недели</h4><div class="k" id="r51sSetK">Загружаю…</div>';
+    SETBOX.addEventListener('click', setClick);
+    return SETBOX;
+  }
+  function setPaint(){
+    if(!SETBOX || !SET) return;
+    var s = SET.settings || {}, tx = SET.texts || [];
+    var cur = tx.find(function(t){ return t.key === TXK; }) || tx[0] || {key: 'offer', name: '', hint: '', default: ''};
+    SETBOX.innerHTML = '<h4>Продажи клуба: сценарии, продление, отчёт недели</h4>' +
+      '<div class="k">Цены идут в предложение после разбора, в итог периода и в кнопки продления. Ссылка Kaspi клуба отдельная от ссылки штрафов.' + (s.kaspiClub ? '' : ' <b style="color:#d98200">Ссылка Kaspi клуба не задана: резидент получит «команда пришлёт ссылку».</b>') + '</div>' +
+      '<div class="r51s-set"><label>Год, ₸<input class="inp" id="r51sYP" inputmode="numeric" value="' + ea(n0(s.yearPrice)) + '"></label>' +
+      '<label>3 месяца, ₸ (0: не предлагать)<input class="inp" id="r51sQP" inputmode="numeric" value="' + ea(n0(s.q3Price)) + '"></label>' +
+      '<label>Ссылка на оплату клуба (Kaspi)<input class="inp" id="r51sKL" value="' + ea(s.kaspiClub || '') + '" placeholder="https://pay.kaspi.kz/pay/…"></label>' +
+      '<label>Бонус за решение (пусто: без бонуса)<input class="inp" id="r51sBT" value="' + ea(s.bonusText || '') + '" placeholder="Первый месяц: разбор с командой в подарок"></label>' +
+      '<label>Бонус действует, дней<input class="inp" id="r51sBD" inputmode="numeric" value="' + ea(s.bonusDays || 0) + '"></label><div></div></div>' +
+      '<label class="r51s-sw"><input type="checkbox" id="r51sSeq"' + (s.seqOff ? '' : ' checked') + '>Сценарий после экспресс-разбора (PDF, предложение, напоминания 2, 5, 10 день)</label>' +
+      '<label class="r51s-sw"><input type="checkbox" id="r51sRep"' + (s.reportOff ? '' : ' checked') + '>Черновики итогов: за 7 дней до конца каждых 3 месяцев и годовщины</label>' +
+      '<label class="r51s-sw"><input type="checkbox" id="r51sWk"' + (s.weeklyOff ? '' : ' checked') + '>Отчёт недели владельцу в бот: понедельник, 10:05</label>' +
+      '<div class="r51s-sub">Тексты</div><div class="r51s-tx"><select class="inp" id="r51sTxK">' + tx.map(function(t){ return '<option value="' + ea(t.key) + '"' + (t.key === cur.key ? ' selected' : '') + '>' + e(t.name) + '</option>'; }).join('') + '</select>' +
+      '<textarea class="inp" id="r51sTx" data-k="' + ea(cur.key) + '">' + e((s.texts || {})[cur.key] || cur.default || '') + '</textarea>' +
+      '<div class="k">Подстановки: ' + e(cur.hint || '') + '. Пустые строки уходят сами, длинное тире заменяется дефисом.</div></div>' +
+      '<div class="r51s-acts"><button class="btn pf-b pf-p" type="button" data-r51s="save">Сохранить</button><button class="btn pf-b" type="button" data-r51s="def">Вернуть стандартный текст</button>' +
+      '<button class="btn pf-b" type="button" data-r51s="wk">Отчёт недели: показать</button><button class="btn pf-b" type="button" data-r51s="wks">Прислать мне в бот</button></div>' +
+      '<div class="r51s-msg" id="r51sSetMsg" role="status"></div><div id="r51sWkOut"></div>';
+    var sel = SETBOX.querySelector('#r51sTxK');
+    sel.onchange = function(){ keepText(); TXK = sel.value; setPaint(); };
+  }
+  function keepText(){
+    var ta = SETBOX && SETBOX.querySelector('#r51sTx'); if(!ta || !SET) return;
+    var s = SET.settings || (SET.settings = {}); s.texts = s.texts || {}; s.texts[ta.dataset.k] = ta.value;
+  }
+  function setMsg(t, cls){ var m = SETBOX && SETBOX.querySelector('#r51sSetMsg'); if(m){ m.textContent = t || ''; m.className = 'r51s-msg' + (cls ? ' ' + cls : ''); } }
+  function num(id){ var v = SETBOX.querySelector(id); return v ? (parseInt(String(v.value).replace(/\D/g, ''), 10) || 0) : 0; }
+  function setClick(ev){
+    var b = ev.target.closest && ev.target.closest('[data-r51s]'); if(!b) return;
+    var a = b.dataset.r51s;
+    if(a === 'def'){ var ta = SETBOX.querySelector('#r51sTx'); var t = (SET.texts || []).find(function(x){ return x.key === ta.dataset.k; }); if(t) ta.value = t.default; return; }
+    if(a === 'save'){
+      keepText();
+      var s = SET.settings || {};
+      var body = {yearPrice: num('#r51sYP'), q3Price: num('#r51sQP'), kaspiClub: SETBOX.querySelector('#r51sKL').value.trim(), bonusText: SETBOX.querySelector('#r51sBT').value.trim(),
+        bonusDays: num('#r51sBD'), seqOff: !SETBOX.querySelector('#r51sSeq').checked, reportOff: !SETBOX.querySelector('#r51sRep').checked, weeklyOff: !SETBOX.querySelector('#r51sWk').checked, texts: s.texts || {}};
+      b.disabled = true;
+      api('PUT', '/sales/settings', body).then(function(j){ b.disabled = false;
+        if(!j || j.error){ setMsg((j && (j.message || j.error)) || 'Не сохранилось', 'err'); return; }
+        SET = j; setPaint(); setMsg('Сохранено', 'ok'); });
+      return;
+    }
+    if(a === 'wk' || a === 'wks'){
+      b.disabled = true;
+      api('POST', '/sales/weekly', {send: a === 'wks'}).then(function(j){ b.disabled = false;
+        if(!j || j.error){ setMsg((j && (j.message || j.error)) || 'Не получилось', 'err'); return; }
+        var o = SETBOX.querySelector('#r51sWkOut'); if(o) o.innerHTML = '<div class="r51s-pre">' + e(j.text) + '</div>';
+        setMsg(a === 'wks' ? 'Отправлено в бот' : 'Так выглядит сообщение', 'ok'); });
+    }
+  }
+  function setLoad(){ api('GET', '/sales/settings').then(function(j){ if(j && !j.error){ SET = j; setPaint(); } else if(SETBOX){ var k = SETBOX.querySelector('#r51sSetK'); if(k) k.textContent = 'Не загрузилось: ' + ((j && j.error) || ''); } }); }
+  var obs = null;
+  function setAttach(){
+    if(md() !== 'admin') return;
+    var body = document.getElementById('r32SetBody'); if(!body) return;
+    var b = setBox(); if(b.parentNode !== body) body.appendChild(b);
+    if(!obs && window.MutationObserver){
+      obs = new MutationObserver(function(){ var bd = document.getElementById('r32SetBody'); if(bd && md() === 'admin' && SETBOX && SETBOX.parentNode !== bd) bd.appendChild(SETBOX); });
+      obs.observe(body, {childList: true});
+    }
+    if(!SET) setLoad();
+  }
+  if(typeof window.r32VoiceSettings === 'function'){
+    var vs0 = window.r32VoiceSettings;
+    window.r32VoiceSettings = function(){ var r = vs0.apply(this, arguments); try{ setAttach(); }catch(x){} return r; };
+  }
+
+  // ═══ 4. Маркетинг → «Кейсы» ═══
+  var CS = {items: null, ai: false, people: null, f: 'all', busy: false};
+  var STN = {draft: 'черновик', approved: 'утверждён', published: 'опубликован', hidden: 'снят'};
+  var MODEN = {anon: 'анонимно', name: 'с именем', no: 'нельзя'};
+  function casesLoad(){
+    api('GET', '/sales/cases').then(function(j){ if(j && !j.error){ CS.items = j.items || []; CS.ai = !!j.ai; casesPaint(); } });
+    api('GET', '/sales/consent').then(function(j){ if(j && !j.error){ CS.people = j.people || []; casesPaint(); } });
+  }
+  function renderCases(){
+    var el = pgSet('Маркетинг', 'Кейсы «было → стало» из замеров резидентов, только с их согласия');
+    el.innerHTML = '<div id="r51sCases"><div class="pf-empty">Загружаю кейсы…</div></div>';
+    casesLoad();
+  }
+  function caseCard(x){
+    var c = x.case || {}, ex = x.exports || {};
+    var mets = (c.metrics || []).map(function(m){ return '<li>' + e(m.label) + ': ' + e(fmtM(m.before, m.unit)) + ' → ' + e(fmtM(m.after, m.unit)) + '</li>'; }).join('');
+    var st = c.status || 'draft', noCons = x.consent === 'no';
+    return '<div class="r51s-case" data-id="' + ea(c.id) + '"><div class="t"><b>' + e(c.title) + '</b><span class="r51s-chip ' + st + '">' + e(STN[st] || st) + '</span></div>' +
+      '<div class="who">' + e(x.who || '') + ' · согласие: <b style="color:' + (noCons ? 'var(--pred)' : 'inherit') + '">' + e(MODEN[x.consent] || x.consent) + '</b>' + (c.ai ? ' · текст ИИ' : '') + '</div>' +
+      (mets ? '<ul>' + mets + '</ul>' : '') +
+      '<input class="inp" data-ct value="' + ea(c.title) + '" aria-label="Заголовок"><textarea class="inp" data-cs aria-label="История">' + e(c.story || '') + '</textarea>' +
+      '<div class="r51s-acts">' +
+        '<button class="btn pf-b" type="button" data-ca="save">Сохранить текст</button>' +
+        (st === 'draft' ? '<button class="btn pf-b" type="button" data-ca="approved">Утвердить</button>' : '') +
+        (st !== 'published' ? '<button class="btn pf-b pf-p" type="button" data-ca="published"' + (noCons ? ' disabled title="Нет согласия резидента"' : '') + '>Опубликовать</button>' : '<button class="btn pf-b" type="button" data-ca="hidden">Снять</button>') +
+        (st === 'hidden' || st === 'approved' ? '<button class="btn pf-b" type="button" data-ca="draft">В черновики</button>' : '') +
+        (CS.ai ? '<button class="btn pf-b" type="button" data-ca="ai">ИИ: переписать</button>' : '') +
+        '<button class="btn pf-b" type="button" data-ca="th">Threads</button><button class="btn pf-b" type="button" data-ca="car">Карусель</button><button class="btn pf-b" type="button" data-ca="site">Блок сайта</button>' +
+        '<button class="btn pf-b" type="button" data-ca="del">Удалить</button></div></div>';
+  }
+  function fmtM(v, u){ if(u === '₸') return tg(v); var s = (Math.round(Number(v) * 10) / 10).toString().replace('.', ','); return u ? s + ' ' + u : s; }
+  function casesPaint(){
+    var box = document.getElementById('r51sCases'); if(!box) return;
+    if(!CS.items){ return; }
+    var cnt = {all: CS.items.length, draft: 0, approved: 0, published: 0, hidden: 0};
+    CS.items.forEach(function(x){ cnt[(x.case || {}).status] = (cnt[(x.case || {}).status] || 0) + 1; });
+    var list = CS.items.filter(function(x){ return CS.f === 'all' || (x.case || {}).status === CS.f; });
+    var people = CS.people || [];
+    var yes = people.filter(function(p){ return p.mode === 'anon' || p.mode === 'name'; }).length;
+    box.innerHTML = '<div class="r51s-box"><h4>Как это работает</h4><div class="k">«Собрать черновики» берёт резидентов с согласием и цифрами в начале и сейчас (выручка, прибыль, часы собственника, индекс здоровья, закрытые диагнозы) и пишет кейс по шаблону. Утвердите, при необходимости поправьте текст и опубликуйте: кейс пойдёт в напоминание дня 5 после разбора и на открытую страницу «О клубе». Анонимный кейс: только ниша, город и цифры.</div>' +
+      '<div class="r51s-acts"><button class="btn pf-b pf-p" type="button" id="r51sGen">Собрать черновики</button><span class="k" style="align-self:center">Согласие дали ' + yes + ' из ' + people.filter(function(p){ return !p.former; }).length + '</span></div><div class="r51s-msg' + (CS.gm ? ' ' + CS.gm[1] : '') + '" id="r51sGenMsg">' + e(CS.gm ? CS.gm[0] : '') + '</div></div>' +
+      '<div class="cx-pipes" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px">' + ['all', 'draft', 'approved', 'published', 'hidden'].map(function(k){
+        return '<button class="btn pf-b' + (CS.f === k ? ' pf-p' : '') + '" type="button" data-cf="' + k + '" style="height:32px;font-size:12px">' + (k === 'all' ? 'Все' : STN[k]) + ' · ' + (cnt[k] || 0) + '</button>'; }).join('') + '</div>' +
+      (list.length ? '<div class="r51s-cases">' + list.map(caseCard).join('') + '</div>' : '<div class="pf-empty">Кейсов пока нет. Нужны согласие резидента и замеры в начале и сейчас</div>') +
+      '<div class="r51s-box"><h4>Согласие резидентов</h4><div class="k">По умолчанию «нельзя». Резидент меняет это сам в профиле (платформа и приложение). «Спросить в боте» пришлёт ему кнопки 10:00-20:00.</div>' +
+      '<table class="r51s-tbl"><tr><th>Резидент</th><th>Согласие</th><th class="hm">Когда</th><th></th></tr>' + people.map(function(p){
+        return '<tr><td>' + e(p.name) + (p.former ? ' <span class="k">(бывший)</span>' : '') + '</td><td><select class="inp" data-cm="' + ea(p.name) + '">' + ['no', 'anon', 'name'].map(function(m){ return '<option value="' + m + '"' + (p.mode === m ? ' selected' : '') + '>' + MODEN[m] + '</option>'; }).join('') + '</select></td>' +
+          '<td class="hm k">' + e(p.at ? dm(p.at) + ' · ' + (p.by || '') : (p.reqAt ? 'спросили ' + dm(p.reqAt) : '')) + '</td><td>' + (p.former ? '' : '<button class="btn pf-b" type="button" data-cr="' + ea(p.name) + '" style="height:30px;font-size:12px">Спросить в боте</button>') + '</td></tr>';
+      }).join('') + '</table></div>';
+  }
+  document.addEventListener('click', function(ev){
+    var t = ev.target; if(!t.closest) return;
+    var box = t.closest('#r51sCases'); if(!box) return;
+    var cf = t.closest('[data-cf]'); if(cf){ CS.f = cf.dataset.cf; casesPaint(); return; }
+    if(t.id === 'r51sGen'){ t.disabled = true; var gm = document.getElementById('r51sGenMsg'); if(gm) gm.textContent = 'Собираю…';
+      api('POST', '/sales/cases/generate').then(function(j){ t.disabled = false;
+        if(!j || j.error){ CS.gm = [(j && (j.message || j.error)) || 'Не получилось', 'err']; casesPaint(); return; }
+        var sk = (j.skipped || []).filter(function(x){ return x.why !== 'нет согласия'; });
+        CS.gm = ['Черновиков: ' + (j.made || 0) + (sk.length ? '. Мало данных: ' + sk.map(function(x){ return x.name; }).join(', ') : ''), 'ok'];
+        casesLoad(); });
+      return; }
+    var cr = t.closest('[data-cr]'); if(cr){ cr.disabled = true; api('POST', '/sales/consent/request', {name: cr.dataset.cr}).then(function(j){ cr.disabled = false; say(j && j.ok ? 'Бот спросит ' + j.when : 'Не получилось'); casesLoad(); }); return; }
+    var ca = t.closest('[data-ca]'); if(!ca) return;
+    var card = ca.closest('.r51s-case'), id = card.dataset.id, a = ca.dataset.ca;
+    var x = (CS.items || []).find(function(i){ return (i.case || {}).id === id; }) || {}, ex = x.exports || {};
+    if(a === 'th'){ copy(ex.threads || ''); return; }
+    if(a === 'car'){ copy((ex.carousel || []).map(function(s, i){ return 'Слайд ' + (i + 1) + '\n' + s; }).join('\n\n')); return; }
+    if(a === 'site'){ copy(ex.site || ''); return; }
+    var done = function(j){ ca.disabled = false; if(!j || j.error){ say((j && (j.message || j.error)) || 'Не получилось'); return; } CS.items = j.items || CS.items; casesPaint(); };
+    ca.disabled = true;
+    if(a === 'save'){ api('PUT', '/sales/cases/' + encodeURIComponent(id), {title: card.querySelector('[data-ct]').value, story: card.querySelector('[data-cs]').value}).then(function(j){ done(j); if(j && !j.error) say('Текст сохранён'); }); return; }
+    if(a === 'ai'){ say('ИИ переписывает…'); api('POST', '/sales/cases/' + encodeURIComponent(id) + '/ai').then(done); return; }
+    if(a === 'del'){ ca.disabled = false; askConfirm('Удалить кейс?', 'Черновик соберётся заново при следующей сборке, если есть согласие', function(){ api('DELETE', '/sales/cases/' + encodeURIComponent(id)).then(done); }); return; }
+    api('PUT', '/sales/cases/' + encodeURIComponent(id), {status: a}).then(function(j){ done(j); if(j && !j.error) say(a === 'published' ? 'Опубликован: в напоминании дня 5 и на странице «О клубе»' : 'Статус: ' + STN[a]); });
+  });
+  document.addEventListener('change', function(ev){
+    var s = ev.target.closest && ev.target.closest('[data-cm]'); if(!s) return;
+    api('PUT', '/sales/consent', {name: s.dataset.cm, mode: s.value}).then(function(j){ if(j && !j.error){ CS.people = j.people || CS.people; say('Согласие: ' + MODEN[s.value]); casesPaint(); } else say('Не сохранилось'); });
+  });
+  try{
+    if(typeof BLOCKS !== 'undefined' && BLOCKS.mkt && !BLOCKS.mkt.tabs.some(function(t){ return t.id === 'mCases'; })) BLOCKS.mkt.tabs.push({id: 'mCases', n: 'Кейсы'});
+    if(typeof BLOCKS !== 'undefined' && BLOCKS.rme && !BLOCKS.rme.tabs.some(function(t){ return t.id === 'rResults'; })) BLOCKS.rme.tabs.splice(1, 0, {id: 'rResults', n: 'Итоги и продление'});
+    var rs0 = window.renderStub;
+    window.renderStub = renderStub = function(s){
+      if(s === 'mCases') return renderCases();
+      if(s === 'rResults') return renderResults();
+      return rs0.apply(this, arguments);
+    };
+  }catch(x){}
+
+  // ═══ 5. Резидент: согласие, итоги, продление (профиль и «Итоги и продление») ═══
+  var ME = {d: null, at: 0};
+  // резидента сервер узнаёт по входу; команда в режиме «Резидент» смотрит резидента открытой доски
+  function meQ(){ var n = (typeof curBoard !== 'undefined' && curBoard && curBoard.info && curBoard.info.res) || ''; return n ? '?name=' + encodeURIComponent(n) : ''; }
+  function meHTML(d){
+    if(!d) return '<div class="pf-empty">Загружаю…</div>';
+    var r = d.renew || {}, p = r.pending;
+    var h = '<div class="r51s-box" id="r51sCons"><h4>Мои результаты в кейсах клуба</h4><div class="k">Можно ли показывать ваши цифры «было → стало» в кейсах клуба (соцсети, сайт)? Анонимно: только ниша, город и цифры. Поменять можно в любой момент.</div>' +
+      '<div class="r51s-mode">' + [['anon', 'Анонимно'], ['name', 'С именем'], ['no', 'Нельзя']].map(function(m){ return '<button type="button" data-mm="' + m[0] + '" class="' + (d.consent === m[0] ? 'on' : '') + '" aria-pressed="' + (d.consent === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div></div>';
+    h += '<div class="r51s-box" id="r51sRenew"><h4>Продление резидентства</h4><div class="k">' + (r.packEnd ? 'Пакет действует до ' + e(r.packEnd) + (r.daysLeft >= 0 ? ' (осталось ' + r.daysLeft + ' дн.)' : '') + '. ' : '') + 'Продлить в 1 клик: команда увидит запрос, пакет продлится сам после оплаты.</div>' +
+      (p ? '<div class="r51s-st wait">⏳ Ожидает оплату продления: ' + (p.months == 12 ? 'год' : '3 месяца') + ', ' + tg(p.amount) + '</div>' + (r.kaspi ? '<div class="r51s-acts"><a class="btn pf-b pf-p" href="' + ea(r.kaspi) + '" target="_blank" rel="noopener">Оплатить ' + tg(p.amount) + ' (Kaspi)</a></div>' : '<div class="k" style="margin-top:6px">Команда пришлёт ссылку на оплату.</div>') : '') +
+      '<div class="r51s-acts">' + (r.q3Price > 0 ? '<button class="btn pf-b' + (p ? '' : ' pf-p') + '" type="button" data-rn="3">Продлить на 3 месяца · ' + tg(r.q3Price) + '</button>' : '') +
+      '<button class="btn pf-b' + (p ? '' : ' pf-p') + '" type="button" data-rn="12">Продлить на год · ' + tg(r.yearPrice) + '</button></div></div>';
+    var reps = d.reports || [];
+    h += '<div class="r51s-box"><h4>Итоги периодов</h4>' + (reps.length ? reps.map(function(x){
+      return '<div class="r51s-rep"><span>' + (x.months == 12 ? 'Итог года' : 'Итог 3 месяцев') + ' · ' + e(x.from) + ' - ' + e(x.to) + '</span><span class="a"><button class="btn pf-b" type="button" data-rp="' + ea(x.id) + '" data-rpn="' + ea((x.months == 12 ? 'Итог года ' : 'Итог 3 месяцев ') + x.to) + '">PDF</button></span></div>'; }).join('')
+      : '<div class="k">Итог появится в конце каждых 3 месяцев и в годовщину: что изменилось в цифрах, задачи, дисциплина, план.</div>') + '</div>';
+    return h;
+  }
+  function meLoad(cb){
+    api('GET', '/sales/me' + meQ()).then(function(j){ if(j && !j.error){ ME.d = j; ME.at = Date.now(); } if(cb) cb(j); });
+  }
+  function mePaint(){ document.querySelectorAll('.r51s-me').forEach(function(el){ el.innerHTML = meHTML(ME.d); }); }
+  function renderResults(){
+    var el = pgSet('Итоги и продление', 'Итоги периодов, продление в 1 клик, согласие на кейсы');
+    el.innerHTML = '<div class="r51s-me">' + meHTML(ME.d) + '</div>';
+    meLoad(function(j){ if(!j || j.error){ el.innerHTML = '<div class="pf-empty">Не загрузилось: ' + e((j && j.error) || '') + '</div>'; return; } mePaint(); });
+  }
+  if(typeof renderRProfile === 'function'){
+    var rp0 = renderRProfile;
+    renderRProfile = window.renderRProfile = function(){
+      var r = rp0.apply(this, arguments);
+      try{ var b = document.getElementById('rpBody'); if(b && md() === 'res'){ var d = document.createElement('div'); d.className = 'r51s-me'; d.innerHTML = meHTML(ME.d); b.appendChild(d); meLoad(function(){ mePaint(); }); } }catch(x){}
+      return r;
+    };
+  }
+  document.addEventListener('click', function(ev){
+    var t = ev.target; if(!t.closest || !t.closest('.r51s-me')) return;
+    var mm = t.closest('[data-mm]');
+    if(mm){ api('PUT', '/sales/me/consent' + meQ(), {mode: mm.dataset.mm}).then(function(j){ if(j && !j.error){ ME.d = j; mePaint(); say('Сохранено: ' + MODEN[j.consent]); } else say('Не сохранилось'); }); return; }
+    var rn = t.closest('[data-rn]');
+    if(rn){ var m = +rn.dataset.rn, d = ME.d || {}, pr = m === 12 ? (d.renew || {}).yearPrice : (d.renew || {}).q3Price;
+      askConfirm('Продлить на ' + (m === 12 ? 'год' : '3 месяца') + '?', 'Стоимость ' + tg(pr) + '. Команда получит запрос, после оплаты пакет продлится сам', function(){
+        api('POST', '/sales/me/renew' + meQ(), {months: m}).then(function(j){ if(!j || j.error){ say((j && (j.message || j.error)) || 'Не получилось'); return; } ME.d = j; mePaint();
+          var k = j.request && j.request.kaspi; if(k){ say('Запрос отправлен. Оплата через Kaspi'); try{ window.open(k, '_blank', 'noopener'); }catch(x){} } else say('Запрос отправлен: команда пришлёт ссылку на оплату'); });
+      }, 'Продлить'); return; }
+    var rp = t.closest('[data-rp]'); if(rp){ pdf('/sales/me/reports/' + encodeURIComponent(rp.dataset.rp) + '/pdf' + meQ(), rp.dataset.rpn); }
+  });
+
+  // ═══ 6. Команда: карточка резидента → итоги, продление, согласие ═══
+  var REN = null;
+  function resBlock(name){
+    var host = document.getElementById('r51sRes'); if(!host) return;
+    Promise.all([api('GET', '/sales/reports?name=' + encodeURIComponent(name)), api('GET', '/sales/renewals'), api('GET', '/sales/consent')]).then(function(a){
+      var reps = (a[0] && a[0].items) || [], ren = ((a[1] && a[1].items) || []).find(function(x){ return x.name === name; }) || {}, cons = ((a[2] && a[2].people) || []).find(function(x){ return x.name === name; }) || {};
+      REN = a[1];
+      var p = ren.pending;
+      var h = '<div class="r51s-box"><h4>Итоги и продление</h4><div class="k">' + (ren.packEnd ? 'Пакет до ' + e(ren.packEnd.split('-').reverse().join('.')) + (ren.daysLeft != null ? ' (осталось ' + ren.daysLeft + ' дн.)' : '') + '. ' : '') +
+        'Согласие на кейсы: <b>' + e(MODEN[cons.mode || 'no']) + '</b>.</div>' +
+        (p ? '<div class="r51s-st wait">⏳ Ожидает оплату продления: ' + (p.months == 12 ? 'год' : '3 месяца') + ', ' + tg(p.amount) + '</div>' : '') +
+        '<div class="r51s-acts"><button class="btn pf-b" type="button" data-rr="3">Итог 3 месяцев</button><button class="btn pf-b" type="button" data-rr="12">Итог года</button>' +
+        (p ? '<button class="btn pf-b pf-p" type="button" data-rpaid="1">Оплата получена: продлить</button>' : '') +
+        '<button class="btn pf-b" type="button" data-rcons="1">Спросить согласие на кейс</button></div>' +
+        (reps.length ? '<div style="margin-top:10px">' + reps.map(function(r){
+          var st = r.status === 'sent' ? 'отправлен ' + dmhm(r.sentAt) : (r.status === 'queued' ? 'уйдёт в 10:00' : 'черновик' + (r.err ? ' · ' + r.err : ''));
+          return '<div class="r51s-rep"><span><b>' + (r.months == 12 ? 'Год' : '3 месяца') + '</b> · ' + e(r.from) + ' - ' + e(r.to) + ' · <span class="k">' + e(st) + '</span></span><span class="a">' +
+            '<button class="btn pf-b" type="button" data-rpdf="' + ea(r.id) + '" data-rpn="' + ea(name + ' ' + r.to) + '">PDF</button>' +
+            (r.status === 'draft' ? '<button class="btn pf-b" type="button" data-redit="' + ea(r.id) + '">План</button><button class="btn pf-b pf-p" type="button" data-rsend="' + ea(r.id) + '">Отправить</button><button class="btn pf-b" type="button" data-rdel="' + ea(r.id) + '">Удалить</button>' : '') +
+            '</span></div>'; }).join('') + '</div>' : '') + '</div>';
+      host.innerHTML = h;
+      host.dataset.name = name; host._reps = reps;
+    });
+  }
+  if(typeof openResident === 'function'){
+    var or0 = openResident;
+    openResident = window.openResident = function(i){
+      var r = or0.apply(this, arguments);
+      try{
+        var res = (typeof RESIDENTS !== 'undefined' && RESIDENTS) ? RESIDENTS[i] : null;
+        if(res && md() === 'admin' && (typeof bsIsTeam !== 'function' || bsIsTeam() || window.BSSync)){
+          var cb = document.getElementById('cardBody');
+          if(cb && !document.getElementById('r51sRes')){ var d = document.createElement('div'); d.id = 'r51sRes'; var pk = document.getElementById('resPack'); if(pk && pk.parentNode === cb) cb.insertBefore(d, pk.nextSibling); else cb.appendChild(d); }
+          resBlock(res.name);
+        }
+      }catch(x){}
+      return r;
+    };
+  }
+  document.addEventListener('click', function(ev){
+    var t = ev.target; if(!t.closest) return;
+    var host = t.closest('#r51sRes'); if(!host) return;
+    var name = host.dataset.name, b;
+    if((b = t.closest('[data-rr]'))){ b.disabled = true; say('Собираю итог…'); api('POST', '/sales/reports', {name: name, months: +b.dataset.rr}).then(function(j){ b.disabled = false; if(!j || j.error){ say((j && (j.message || j.error)) || 'Не получилось'); return; } say('Черновик готов: проверьте PDF и отправьте'); resBlock(name); }); return; }
+    if((b = t.closest('[data-rpdf]'))){ pdf('/sales/reports/' + encodeURIComponent(b.dataset.rpdf) + '/pdf', 'Итог ' + b.dataset.rpn); return; }
+    if((b = t.closest('[data-rsend]'))){ var id = b.dataset.rsend; askConfirm('Отправить итог резиденту?', 'PDF и кнопки продления уйдут в Telegram (10:00-20:00) и появятся в его профиле', function(){ api('POST', '/sales/reports/' + encodeURIComponent(id) + '/send').then(function(j){ if(!j || j.error){ say('Не получилось'); return; } say('Итог уйдёт ' + j.when); resBlock(name); }); }, 'Отправить'); return; }
+    if((b = t.closest('[data-rdel]'))){ var did = b.dataset.rdel; askConfirm('Удалить черновик итога?', '', function(){ api('DELETE', '/sales/reports/' + encodeURIComponent(did)).then(function(){ resBlock(name); }); }); return; }
+    if((b = t.closest('[data-redit]'))){ var rep = (host._reps || []).find(function(x){ return x.id === b.dataset.redit; }) || {};
+      var ov = modal('План на следующий период · ' + name, '<label>Комментарий трекера (на первой полосе плана)<textarea class="inp" id="r51sRN">' + e(rep.note || '') + '</textarea></label><label style="margin-top:8px">План: по пункту в строке<textarea class="inp" id="r51sRP" style="min-height:150px">' + e((rep.plan || []).join('\n')) + '</textarea></label>',
+        '<button class="btn pf-b" type="button" data-r51="close">Отмена</button><button class="btn pf-b pf-p" type="button" id="r51sRS">Сохранить</button>');
+      ov.querySelector('#r51sRS').onclick = function(){ api('PUT', '/sales/reports/' + encodeURIComponent(rep.id), {note: ov.querySelector('#r51sRN').value, plan: ov.querySelector('#r51sRP').value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean)}).then(function(j){ if(!j || j.error){ msg('Не сохранилось', 'err'); return; } close(); say('План сохранён'); resBlock(name); }); };
+      return; }
+    if((b = t.closest('[data-rpaid]'))){ askConfirm('Оплата продления получена?', 'Пакет продлится, резиденту придёт подтверждение', function(){ api('POST', '/sales/renewals/paid', {name: name}).then(function(j){ say(j && j.renewed ? 'Продлено' : ((j && (j.message || j.error)) || 'Нечего продлевать')); resBlock(name); }); }, 'Продлить'); return; }
+    if((b = t.closest('[data-rcons]'))){ api('POST', '/sales/consent/request', {name: name}).then(function(j){ say(j && j.ok ? 'Бот спросит ' + j.when : 'Не получилось'); }); }
+  });
+
+  window.r51s = {form: form, stop: stop, sumPdf: function(id){ var l = typeof leadById === 'function' ? leadById(id) : null; pdf('/sales/razbor/' + encodeURIComponent(id) + '/pdf', 'Итоги разбора ' + ((l && l.name) || '')); },
+    pzLine: pzLine, renderCases: renderCases, renderResults: renderResults, meHTML: meHTML, _cs: CS, _me: ME};
+})();
+</script>
+<!-- /R51s -->
 </body>
 </html>

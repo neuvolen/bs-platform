@@ -329,6 +329,39 @@ func servePublic(c *gin.Context, ctype string, p page) {
 	sendBytes(c, ctype, "public, max-age=3600", p.hash, p.plain, p.gz, p.br)
 }
 
+// PublicCase: a published resident case on /about (R51, handlers/http/sales_cases.go).
+type PublicCase struct {
+	Title   string
+	Who     string
+	Metrics []string
+	Story   string
+}
+
+var (
+	pubCasesMu sync.RWMutex
+	pubCases   []PublicCase
+)
+
+// PublicCases: the cases /about shows now.
+func PublicCases() []PublicCase {
+	pubCasesMu.RLock()
+	defer pubCasesMu.RUnlock()
+	return pubCases
+}
+
+// SetPublicCases replaces the cases and drops the cached /about.
+func SetPublicCases(list []PublicCase) {
+	pubCasesMu.Lock()
+	if len(list) > 12 {
+		list = list[:12]
+	}
+	pubCases = list
+	pubCasesMu.Unlock()
+	pubMu.Lock()
+	delete(pubPages, "about")
+	pubMu.Unlock()
+}
+
 // RegisterPublic mounts the open pages (called from Register).
 func RegisterPublic(r *gin.Engine) {
 	text := func(key, ctype string, make func() string) gin.HandlerFunc {
@@ -733,13 +766,18 @@ ul.l,ol.l{padding-left:22px}ul.l li,ol.l li{margin-top:8px}
 .st h3::before{content:counter(s) ". ";color:var(--mute)}
 .st em{display:block;margin-top:8px;font-style:normal;font-size:14.5px;color:var(--mute)}
 .box{padding:24px;border:1px solid var(--line);border-radius:18px;background:var(--card)}
+.cs{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cs article{padding:22px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
+.cs h3{font-size:17px}.cs .who{font-size:14px;color:var(--mute);margin-top:4px}
+.cs ul{list-style:none;margin-top:12px}.cs li{font-size:14.5px;padding:7px 0;border-top:1px solid var(--line)}.cs li:first-child{border-top:0}
+.cs p{font-size:14px;color:var(--soft);margin-top:10px}
 .note{font-size:13.5px;color:var(--mute);margin-top:10px}
 footer{padding:36px 0 48px;border-top:1px solid var(--line);font-size:14px;color:var(--mute)}
 footer p+p{margin-top:6px}
 @media(max-width:820px){.w{padding:0 16px}h1{font-size:36px}.lead{font-size:17px}h2{font-size:26px}
  .top nav{gap:12px;font-size:13px}.top img{height:28px}
  .facts{grid-template-columns:1fr}.facts dt{padding-bottom:0}.facts dd{border-top:0;padding-top:4px}
- ol.cy,.pr,.fd,.ct,.ix ul{grid-template-columns:1fr}.cta .b{width:100%;padding:0 16px}.org{grid-template-columns:1fr 1fr}.hero{padding:40px 0 28px}}`
+ ol.cy,.pr,.fd,.ct,.ix ul,.cs{grid-template-columns:1fr}.cta .b{width:100%;padding:0 16px}.org{grid-template-columns:1fr 1fr}.hero{padding:40px 0 28px}}`
 
 func pageHead(title, desc, canonical, ogType, ld string) string {
 	var b strings.Builder
@@ -818,6 +856,22 @@ func aboutHTML() string {
 		}
 		if ev.URL != "" {
 			b.WriteString(`<p><a href="` + hx(ev.URL) + `">Регистрация</a></p>`)
+		}
+		b.WriteString(`</div></div></section>` + "\n")
+	}
+
+	if cs := PublicCases(); len(cs) > 0 { // R51: published resident cases (with their consent)
+		b.WriteString(`<section id="cases"><div class="w"><h2>Кейсы резидентов: было → стало</h2><p class="mute" style="margin-bottom:18px">Цифры резидентов клуба, опубликованные с их согласия. Анонимные кейсы показывают только нишу, город и цифры.</p><div class="cs">`)
+		for _, c := range cs {
+			b.WriteString(`<article><h3>` + hx(c.Title) + `</h3><p class="who">` + hx(c.Who) + `</p><ul>`)
+			for _, m := range c.Metrics {
+				b.WriteString(`<li>` + hx(m) + `</li>`)
+			}
+			b.WriteString(`</ul>`)
+			if c.Story != "" {
+				b.WriteString(`<p>` + hx(c.Story) + `</p>`)
+			}
+			b.WriteString(`</article>`)
 		}
 		b.WriteString(`</div></div></section>` + "\n")
 	}

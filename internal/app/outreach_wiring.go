@@ -35,6 +35,7 @@ func WireOutreach(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team
 	if pm != nil && pm.AI != nil {
 		pm.AI.WAResident = o.HandleResidentWA // the call summary
 	}
+	outreachRef = o // R51: sales_wiring.go (WhatsApp for leads without Telegram)
 	if d.PlatformRepo != nil {
 		o.Start(context.Background())
 	}

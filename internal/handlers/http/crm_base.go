@@ -117,7 +117,7 @@ type BaseInput struct {
 var baseSheets = []string{club.SheetLeads, club.SheetDiagRequests, club.SheetDiagnostics, club.SheetAcceptsLog, club.SheetLMHistory}
 
 var sheetStatusCol = map[string]string{"новый": "new", "в работе": "work", "квалифицирован": "qual", "записан": "meet", "записан на разбор": "meet",
-	"диагностика проведена": "diag", "разбор проведён": "diag", "разбор проведен": "diag", "резидент": "won", "отказ": "lost"}
+	"диагностика проведена": "diag", "разбор проведён": "diag", "разбор проведен": "diag", "решение": "decide", "отложено": "later", "резидент": "won", "отказ": "lost"}
 
 func baseCell(r []string, i int) string {
 	if i < 0 || i >= len(r) {

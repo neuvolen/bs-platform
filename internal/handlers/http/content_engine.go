@@ -1507,7 +1507,7 @@ func countContent(d *contentDoc, leads []any) {
 		}
 		hit.Stats.Leads++
 		col := fmt.Sprint(l["col"])
-		if col == "meet" || col == "diag" || col == "won" || (l["razborSlot"] != nil && fmt.Sprint(l["razborSlot"]) != "") {
+		if col == "meet" || col == "diag" || col == "decide" || col == "later" || col == "won" || (l["razborSlot"] != nil && fmt.Sprint(l["razborSlot"]) != "") {
 			hit.Stats.Razbor++
 		}
 		if col == "won" {

@@ -27,6 +27,7 @@ func WireSysCheck(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team
 			return len(all) - len(web.TourTextsUnvoiced()), len(all)
 		},
 	}
+	SysCheckRef = s // R51: the weekly report calls this check (sales_wiring.go)
 	if pm != nil && pm.AI != nil {
 		s.AI, s.Premium, s.Recs = pm.AI.AI, pm.AI.Premium, pm.AI
 	}

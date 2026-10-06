@@ -675,6 +675,9 @@ func (f *LeadFunnel) RemindOnce(ctx context.Context) int {
 				addLog(lead, now, "Разбор прошёл ("+whenRu(j.s.Start)+"), карточка переведена в «Диагностика»")
 				return true
 			})
+			if f.AfterRazbor != nil { // R51: the team fills the итоги, the lead's sequence starts
+				f.AfterRazbor(ctx, tg, name, whenRu(j.s.Start))
+			}
 		}
 	}
 	return sent

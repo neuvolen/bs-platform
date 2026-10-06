@@ -240,7 +240,7 @@ func buildInsights(docs map[string]any, boards []map[string]any, now time.Time) 
 		}
 	}
 	if len(leads) > 0 {
-		cols := []struct{ id, n string }{{"new", "Новый"}, {"work", "В работе"}, {"qual", "Квалифицирован"}, {"meet", "Записан на разбор"}, {"diag", "Разбор проведён"}, {"won", "Резидент"}}
+		cols := []struct{ id, n string }{{"new", "Новый"}, {"work", "В работе"}, {"qual", "Квалифицирован"}, {"meet", "Записан на разбор"}, {"diag", "Разбор проведён"}, {"decide", "Решение"}, {"won", "Резидент"}}
 		cnt := map[string]int{}
 		for _, l := range leads {
 			cnt[iStr(l["col"])]++
@@ -249,7 +249,7 @@ func buildInsights(docs map[string]any, boards []map[string]any, now time.Time) 
 		for _, c := range cols {
 			steps = append(steps, []any{c.n, cnt[c.id]})
 		}
-		reached := cnt["meet"] + cnt["diag"] + cnt["won"]
+		reached := cnt["meet"] + cnt["diag"] + cnt["decide"] + cnt["later"] + cnt["won"]
 		take := fmt.Sprintf("До разбора дошли %d из %d лидов (%d%%), резидентами стали %d.", reached, len(leads), pct(float64(reached), float64(len(leads))), cnt["won"])
 		tone := ""
 		if pct(float64(reached), float64(len(leads))) < 10 {

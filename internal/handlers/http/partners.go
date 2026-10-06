@@ -310,7 +310,7 @@ func AccruePartnerPayouts(pdoc, crm map[string]any, now time.Time) []map[string]
 		if col == "won" {
 			add("club", PartnerClubReward(pdoc, p))
 		}
-		if razbor > 0 && (col == "diag" || col == "won" || l["razborPaid"] == true) {
+		if razbor > 0 && (col == "diag" || col == "decide" || col == "later" || col == "won" || l["razborPaid"] == true) {
 			add("razbor", razbor)
 		}
 	}

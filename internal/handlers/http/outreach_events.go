@@ -1083,7 +1083,7 @@ func (o *Outreach) Campaign(c *gin.Context) {
 
 func cleanAudience(raw json.RawMessage) (json.RawMessage, bool) {
 	a := parseAudience(raw)
-	ok := map[string]bool{"new": true, "work": true, "qual": true, "meet": true, "diag": true, "won": true, "lost": true}
+	ok := map[string]bool{"new": true, "work": true, "qual": true, "meet": true, "diag": true, "decide": true, "later": true, "won": true, "lost": true}
 	var crm []string
 	for _, s := range a.CRM {
 		if ok[s] {

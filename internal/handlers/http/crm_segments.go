@@ -229,7 +229,7 @@ func SegmentOf(l map[string]any, src string, ppl SegPeople, now time.Time) strin
 	}
 	col := pStr(l, "col")
 	warm := tgID > 0 || pStr(l, "botReplyAt") != "" || pStr(l, "startAt") != "" || l["qz"] != nil ||
-		col == "work" || col == "qual" || col == "meet" || col == "diag" || col == "won" || segLastContact(l, now)
+		col == "work" || col == "qual" || col == "meet" || col == "diag" || col == "decide" || col == "later" || col == "won" || segLastContact(l, now)
 	if !warm {
 		b, _ := json.Marshal(l["log"])
 		low := strings.ToLower(string(b))

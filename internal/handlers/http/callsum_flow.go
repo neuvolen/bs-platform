@@ -700,6 +700,13 @@ func (h *PlatformAI) publishCall(ctx context.Context, j *pg.AIJob, meta map[stri
 		h.callSumSendTG(ctx, j, meta, now)
 	}
 	card := h.callSumSave(ctx, j, meta, false)
+	if first && h.OnCallPublished != nil { // R51: a lead's разбор: the sequence after it
+		res, sum := h.residentOfJob(ctx, j, meta), copyMap(csM(meta["summary"]))
+		if d := csS(meta["date"]); d != "" && sum != nil && sum["date"] == nil {
+			sum["date"] = d
+		}
+		go h.OnCallPublished(context.WithoutCancel(ctx), j.ID, res, sum)
+	}
 	return card, csM(st["tg"])
 }
 
