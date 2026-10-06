@@ -278,4 +278,5 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	r.HEAD("/voice/:file", serveVoice)
 	r.GET("/voice/login/:file", serveLoginVoice) // login_voice.go: the login demo voice (R40c)
 	r.HEAD("/voice/login/:file", serveLoginVoice)
+	RegisterPublic(r) // R49: robots, sitemap, llms.txt, /about, /library (public_site.go)
 }

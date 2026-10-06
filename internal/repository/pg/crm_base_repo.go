@@ -94,3 +94,29 @@ func (r *PlatformRepo) ClubPeople(ctx context.Context) (map[int64]bool, map[stri
 	}
 	return ids, names, rows.Err()
 }
+
+// ResidentPhones: R47: the residents' WhatsApp phones (resident_channels), digits.
+func (r *PlatformRepo) ResidentPhones(ctx context.Context) (map[string]bool, error) {
+	out := map[string]bool{}
+	rows, err := r.db.Pool.Query(ctx, `SELECT phone FROM resident_channels WHERE phone <> ''`)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return out, err
+		}
+		d := strings.Map(func(c rune) rune {
+			if c >= '0' && c <= '9' {
+				return c
+			}
+			return -1
+		}, p)
+		if len(d) >= 10 {
+			out[d] = true
+		}
+	}
+	return out, rows.Err()
+}

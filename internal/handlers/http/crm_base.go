@@ -74,6 +74,11 @@ func CrmPipeOf(l map[string]any, pipes []CrmPipe) string {
 		return ""
 	}
 	src, text := crmPipeText(l)
+	// R47: an imported base stays in «База» whatever its file is called
+	// («Telegram контакты» is not the Telegram channel's pipeline)
+	if strings.HasPrefix(src, "база:") || (pStr(l, "base") != "" && src == "") {
+		return pipes[len(pipes)-1].ID
+	}
 	for _, p := range pipes {
 		for _, t := range p.Any {
 			t = strings.ToLower(strings.TrimSpace(t))

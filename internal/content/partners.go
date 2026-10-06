@@ -15,3 +15,11 @@ var PartnersSeed []byte
 //
 //go:embed crm_pipes.json
 var CrmPipes []byte
+
+// CrmSegs: R47: the source rules of the CRM segments (crm_segments.go): the
+// first rule with a token found in the lead's source column, file name,
+// source or utm names the source. The team edits them on the platform
+// (bs_crm.segRules); the platform keeps the same list.
+//
+//go:embed crm_segs.json
+var CrmSegs []byte

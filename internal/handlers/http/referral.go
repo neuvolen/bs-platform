@@ -125,8 +125,10 @@ func (f *LeadFunnel) handleRefStart(ctx context.Context, st bot.StartUpdate, inv
 	}
 	if err := f.sendWelcome(ctx, st.ChatID, st.FirstName, ""); err != nil {
 		log.Printf("funnel: welcome %d: %v", st.ChatID, err)
+		f.replyFail(ctx, st.ChatID, err.Error())
 		return false
 	}
+	f.replyOK(ctx, st.ChatID, "приветствие (реферальная ссылка)") // R47: the card shows the reply
 	if !isNew {
 		return true // already a lead: the first source stays
 	}

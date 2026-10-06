@@ -18,7 +18,7 @@ import (
 // does and stops doing the same work. The sheet can still take everything
 // back in an emergency (an override).
 const (
-	// FeatureReportFeedback: 🔥 on a report, 👍 on a video note, and the
+	// FeatureReportFeedback: 🔥 on a report, 👍 on a video note or a photo, and the
 	// private notes about a short report, a report in the wrong topic or a
 	// report after midnight. The sheet still keeps «Лог отчётов».
 	FeatureReportFeedback = "report_feedback"
@@ -46,6 +46,7 @@ const (
 	shortNoticeEvery  = 4 * time.Hour // as the script: once in 4 hours per person
 	wrongNoticeEvery  = 6 * time.Hour
 	reactionWarnEvery = 24 * time.Hour
+	albumEvery        = 24 * time.Hour
 )
 
 type featureSet struct {
@@ -175,9 +176,12 @@ func (s *Service) reportedToday(ctx context.Context, m *GroupMessage) bool {
 
 // feedback answers a group message the way the script used to, only at once.
 func (s *Service) feedback(ctx context.Context, m *GroupMessage, d Decision) {
-	if m.Media {
+	if m.Media { // R47: video notes, videos and photos alike; an album gets one 👍 (on its first photo)
+		if m.Album != "" && !s.once(ctx, fmt.Sprintf("album:%d:%s", m.ChatID, m.Album), albumEvery) {
+			return
+		}
 		if err := s.react(ctx, m.ChatID, m.MessageID, "👍"); err != nil {
-			log.Printf("bot feedback: video reaction: %v", err)
+			log.Printf("bot feedback: media reaction: %v", err)
 		}
 		return
 	}

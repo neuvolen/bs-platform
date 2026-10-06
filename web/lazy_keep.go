@@ -26,6 +26,7 @@ var lazyKeep = map[string]bool{
 	"*:setMode": true, "*:setStatus": true, "*:setupDrag": true, "*:startSync": true, "*:strip": true,
 	"*:subDrag": true, "*:tabDrag": true, "*:tick": true, "*:trackData": true, "*:ui": true,
 	"*:viewSettle": true, "*:warmTour": true, "*:watch": true,
+	"r46Script:r46LeadTeaser": true, // R46: the lead home's «Бизнес-идеи» block
 }
 
 func lazyKeepFn(key, name string) bool { return lazyKeep["*:"+name] || lazyKeep[key+":"+name] }

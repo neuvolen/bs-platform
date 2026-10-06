@@ -357,6 +357,7 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 		g.Funnel = f
 		f.Photo, f.Doc = botSvc.SendPhotoKB, botSvc.SendDocumentKB
 		f.Edit, f.Meta = botSvc.EditMessageKB, pg.NewBotRepo(d.DB) // R40b: the in-chat checklist, the autoreply health
+		f.RecordDialog()                                           // R47: every bot message to a lead goes to its dialog (CRM card «Бот»)
 		if os.Getenv("LEAD_FUNNEL") != "off" {
 			botSvc.SetStartHook(f.StartHook(d.PlatformRepo, g.Admins)) // R40b: WithReferrals + the safety net's «handled»
 			botSvc.SetCallbackHook(f.HandleCallback)

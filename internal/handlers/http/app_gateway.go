@@ -170,6 +170,8 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.GET("/api/v1/app/checklists", appGzip, m.g.Guides)
 	r.GET("/api/v1/app/guides", appGzip, m.g.Guides)
 	r.GET("/api/v1/app/guide/:id", appGzip, m.g.Guide)
+	r.GET("/api/v1/app/ideas", m.g.AppIdeas) // R46: ideas.go
+	r.POST("/api/v1/app/idea", m.g.AppIdea)
 	r.POST("/api/v1/app/guide/:id/send", m.g.SendGuide)
 	r.GET("/api/v1/public/guide/:id", m.g.PublicGuidePDF)
 	r.POST("/api/v1/app/ckprogress", m.g.CkProgress)
@@ -180,7 +182,7 @@ func (m *AppGatewayModule) Register(r *gin.Engine) {
 	r.GET("/api/v1/app/avatar/:id", m.g.Avatar)
 	r.GET("/api/v1/app/referral", appGzip, m.g.Referral)
 	r.GET("/api/v1/app/slots", appGzip, m.g.Slots)
-	r.GET("/api/v1/app/nav", appGzip, m.g.Nav) // app_nav.go
+	r.GET("/api/v1/app/nav", appGzip, m.g.Nav)          // app_nav.go
 	r.GET("/api/v1/app/team/doc", appGzip, m.g.TeamDoc) // app_team_doc.go
 	r.PUT("/api/v1/app/team/doc", m.g.TeamDoc)
 	r.POST("/api/v1/app/book", m.g.Book)

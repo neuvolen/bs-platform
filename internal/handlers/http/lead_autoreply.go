@@ -320,6 +320,7 @@ func (f *LeadFunnel) NoteInbound(ctx context.Context, in bot.Inbound) {
 	if err != nil {
 		log.Printf("funnel: inbox %d: %v", in.ChatID, err)
 	}
+	f.noteDialogAt(ctx, in.ChatID, in.Date, "in", inboundDialogText(in), nil) // R47
 }
 
 type inboxItem struct {

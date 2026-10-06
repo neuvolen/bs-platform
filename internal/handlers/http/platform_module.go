@@ -93,7 +93,15 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 		l.POST("/diag", m.lead.Diag)
 		l.POST("/book", m.lead.Book)
 		l.POST("/request", m.lead.Request)
+		l.POST("/idea", m.lead.Idea) // R46: ideas.go
 	}
+
+	// R46: бизнес-идеи (ideas.go): каталог открыт и лиду (верх воронки), и команде, и резидентам
+	ig := r.Group("/api/v1/platform")
+	ig.Use(middleware.AuthJWTAllowLead(m.secret))
+	ig.Use(middleware.RequireRole("lead", "admin", "moderator", "resident"))
+	ig.GET("/ideas", Ideas)
+	go WarmIdeas(false)
 
 	g := r.Group("/api/v1/platform")
 	g.Use(middleware.AuthJWT(m.secret))
@@ -136,6 +144,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/ai/recs", m.AI.RecsNow)
 	g.POST("/ai/recs/:id", m.AI.RecAction)
 	g.POST("/ai/marketing", m.AI.Marketing)
+	g.POST("/ai/forecast", m.AI.Forecast)    // forecast_ai.go: «Учёт» → «Прогноз» → «Что если…» с ИИ (R48)
 	g.GET("/insights", m.AI.Insights)        // r32_insights.go: «Идеи и заметки» → «Аналитика»
 	g.POST("/ai/gallup", m.AI.Gallup)        // platform_gallup.go: 34 talents from a Gallup report
 	g.POST("/gallup/pdf", GallupPDF)         // platform_gallup_pdf.go: the analysis as a PDF (R29)

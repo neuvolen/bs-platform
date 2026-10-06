@@ -1,0 +1,333 @@
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@graph": [
+  {
+   "@type": "WebSite",
+   "@id": "https://bxclub.kz/#website",
+   "url": "https://bxclub.kz/",
+   "name": "Business Surgery",
+   "inLanguage": "ru",
+   "publisher": {
+    "@id": "https://app.bxclub.kz/about#org"
+   }
+  },
+  {
+   "@id": "https://app.bxclub.kz/about#org",
+   "@type": [
+    "Organization",
+    "ProfessionalService"
+   ],
+   "address": {
+    "@type": "PostalAddress",
+    "addressCountry": "KZ",
+    "addressLocality": "Алматы"
+   },
+   "alternateName": [
+    "BS",
+    "BS Club",
+    "Business Surgery Club",
+    "Бизнес-клуб Business Surgery"
+   ],
+   "areaServed": [
+    {
+     "@type": "City",
+     "name": "Алматы"
+    },
+    {
+     "@type": "Country",
+     "name": "Казахстан"
+    }
+   ],
+   "contactPoint": {
+    "@type": "ContactPoint",
+    "availableLanguage": [
+     "ru"
+    ],
+    "contactType": "customer service",
+    "telephone": "+77024035036",
+    "url": "https://wa.me/77024035036"
+   },
+   "currenciesAccepted": "KZT",
+   "description": "Business Surgery (BS): клуб бизнес-трекинга в Алматы для собственников малого и среднего бизнеса. Каждые 10 дней два основателя клуба разбирают бизнес резидента: ставят диагноз по 7 органам бизнеса, выбирают стратегию на цикл и составляют план задач. Между разборами резидент каждый день отчитывается о выполнении.",
+   "founder": [
+    {
+     "@id": "https://app.bxclub.kz/about#bereke"
+    },
+    {
+     "@id": "https://app.bxclub.kz/about#rustam"
+    }
+   ],
+   "hasOfferCatalog": {
+    "@type": "OfferCatalog",
+    "itemListElement": [
+     {
+      "@id": "https://app.bxclub.kz/about#express",
+      "@type": "Offer",
+      "availability": "https://schema.org/InStock",
+      "description": "Встреча на 1 час с обоими основателями клуба: диагноз, главная причина проблемы и первые шаги. Точка входа в клуб.",
+      "itemOffered": {
+       "@type": "Service",
+       "areaServed": {
+        "@type": "City",
+        "name": "Алматы"
+       },
+       "name": "Экспресс-разбор бизнеса",
+       "provider": {
+        "@id": "https://app.bxclub.kz/about#org"
+       },
+       "serviceType": "Бизнес-трекинг"
+      },
+      "name": "Экспресс-разбор бизнеса",
+      "price": "50000",
+      "priceCurrency": "KZT",
+      "seller": {
+       "@id": "https://app.bxclub.kz/about#org"
+      },
+      "url": "https://app.bxclub.kz/about#prices"
+     },
+     {
+      "@id": "https://app.bxclub.kz/about#res3",
+      "@type": "Offer",
+      "availability": "https://schema.org/InStock",
+      "description": "Разбор каждые 10 дней, план задач на цикл, ежедневная отчётность, группа из 5 резидентов, доска резидента на платформе.",
+      "itemOffered": {
+       "@type": "Service",
+       "areaServed": {
+        "@type": "City",
+        "name": "Алматы"
+       },
+       "name": "Резидентство на 3 месяца",
+       "provider": {
+        "@id": "https://app.bxclub.kz/about#org"
+       },
+       "serviceType": "Бизнес-трекинг"
+      },
+      "name": "Резидентство на 3 месяца",
+      "price": "500000",
+      "priceCurrency": "KZT",
+      "seller": {
+       "@id": "https://app.bxclub.kz/about#org"
+      },
+      "url": "https://app.bxclub.kz/about#prices"
+     },
+     {
+      "@id": "https://app.bxclub.kz/about#res12",
+      "@type": "Offer",
+      "availability": "https://schema.org/InStock",
+      "description": "Тот же формат резидентства на год.",
+      "itemOffered": {
+       "@type": "Service",
+       "areaServed": {
+        "@type": "City",
+        "name": "Алматы"
+       },
+       "name": "Резидентство на 12 месяцев",
+       "provider": {
+        "@id": "https://app.bxclub.kz/about#org"
+       },
+       "serviceType": "Бизнес-трекинг"
+      },
+      "name": "Резидентство на 12 месяцев",
+      "price": "1500000",
+      "priceCurrency": "KZT",
+      "seller": {
+       "@id": "https://app.bxclub.kz/about#org"
+      },
+      "url": "https://app.bxclub.kz/about#prices"
+     }
+    ],
+    "name": "Программы Business Surgery"
+   },
+   "image": "https://app.bxclub.kz/site/og.png",
+   "knowsAbout": [
+    "бизнес-трекинг",
+    "диагностика бизнеса",
+    "управленческий учёт",
+    "система продаж",
+    "найм и команда",
+    "стратегия малого бизнеса"
+   ],
+   "logo": {
+    "@type": "ImageObject",
+    "height": 512,
+    "url": "https://app.bxclub.kz/site/logo.png",
+    "width": 512
+   },
+   "name": "Business Surgery",
+   "priceRange": "от 50 000 ₸",
+   "sameAs": [
+    "https://bxclub.kz",
+    "https://www.instagram.com/business.surgery/",
+    "https://www.threads.net/@business.surgery",
+    "https://www.youtube.com/@Businessurgery",
+    "https://t.me/bsurgery_kz",
+    "https://t.me/bsurgery_bot"
+   ],
+   "slogan": "Точная работа с бизнесом на уровне его ДНК",
+   "telephone": "+77024035036",
+   "url": "https://bxclub.kz"
+  },
+  {
+   "@id": "https://bxclub.kz/#faq",
+   "@type": "FAQPage",
+   "inLanguage": "ru",
+   "mainEntity": [
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Business Surgery (BS): клуб бизнес-трекинга в Алматы для собственников малого и среднего бизнеса. Каждые 10 дней основатели клуба разбирают бизнес резидента: ставят диагноз, выбирают стратегию на цикл и составляют план задач. Между разборами резидент каждый день отчитывается о выполнении."
+     },
+     "name": "Что такое Business Surgery?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "В клубе нет уроков и общей программы. Резидент работает над задачами своего бизнеса: получает диагноз, план на 10 дней и проверку результата на следующем разборе. Ежедневный отчёт и штраф 10 000 ₸ за пропуск держат темп внедрения."
+     },
+     "name": "Чем клуб отличается от курса или бизнес-школы?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Окружение в клубе есть: резиденты объединены в группы по 5 человек. Основа работы при этом трекинг: разбор каждые 10 дней, план задач и ежедневная отчётность."
+     },
+     "name": "Чем BS отличается от нетворкинг-клуба?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Собственникам действующего бизнеса, которые упёрлись в потолок: бизнес держится на владельце, прибыль годами на одном уровне, команда не принимает решений сама, знания из курсов не внедряются. Основная аудитория клуба: собственники с чистой прибылью от 2 до 20 млн ₸ в месяц."
+     },
+     "name": "Кому подходит клуб?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Тем, кто ищет курс с уроками или разовую консультацию без внедрения, и тем, у кого нет нескольких минут в день на отчёт о выполнении задач."
+     },
+     "name": "Кому клуб не подойдёт?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Экспресс-разбор: 50 000 ₸. Резидентство на 3 месяца: 500 000 ₸. Резидентство на 12 месяцев: 1 500 000 ₸. Актуальные условия уточняйте при записи."
+     },
+     "name": "Сколько стоит участие?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Встреча длится 1 час, на ней присутствуют оба основателя клуба. Вы рассказываете о бизнесе и цифрах, основатели определяют, какой орган бизнеса болит, в чём причина и с чего начать. После разбора вы сами решаете, идти ли в клуб."
+     },
+     "name": "Что происходит на экспресс-разборе?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Цикл начинается с разбора: диагноз, стратегия на 10 дней и план задач. Дальше резидент каждый день отправляет короткий отчёт в Telegram-группу, за пропущенный отчёт штраф 10 000 ₸. Через 10 дней следующий разбор: что сделано, что изменилось в цифрах, какой план дальше."
+     },
+     "name": "Как устроен 10-дневный цикл?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Метод клуба рассматривает бизнес как живой организм из семи органов: стратегия, маркетинг, продажи, команда, финансы, процессы и аналитика. На разборе находят самый слабый орган и причину его проблем, с них и начинается план."
+     },
+     "name": "Что значит «7 органов бизнеса»?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Основатели клуба Береке Ерниязов и Рустам Кабден. На каждом разборе присутствуют оба."
+     },
+     "name": "Кто ведёт разборы?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Клуб базируется в Алматы. Ежедневная отчётность идёт в Telegram, задачи и прогресс резидента собраны на платформе app.bxclub.kz и в Telegram-приложении. Формат участия из другого города уточняйте при записи."
+     },
+     "name": "Где проходят встречи и можно ли участвовать из другого города?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Да. В Telegram-боте @bsurgery_bot можно бесплатно получить 99 чек-листов и пройти диагностику бизнеса. На app.bxclub.kz/library открыта библиотека диагнозов и инструментов клуба."
+     },
+     "name": "Есть ли бесплатные материалы?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "По данным клуба, основатели провели более 700 разборов бизнеса. В клубе около 20 резидентов."
+     },
+     "name": "Сколько разборов провёл клуб?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Нет. Клуб даёт диагноз, план и ежедневный контроль. Результат зависит от того, насколько последовательно собственник выполняет план."
+     },
+     "name": "Гарантирует ли клуб рост прибыли?"
+    },
+    {
+     "@type": "Question",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Напишите в WhatsApp +7 702 403 50 36 или в Telegram-бот @bsurgery_bot. Первый шаг всегда один: экспресс-разбор."
+     },
+     "name": "Как записаться?"
+    }
+   ],
+   "url": "https://bxclub.kz/"
+  },
+  {
+   "@id": "https://app.bxclub.kz/about#bereke",
+   "@type": "Person",
+   "alternateName": "Bereke Yerniyazov",
+   "description": "Предприниматель, ментор и инвестор. Больше 10 лет в бизнесе, опыт в 20+ нишах.",
+   "jobTitle": "Сооснователь Business Surgery",
+   "knowsAbout": [
+    "бизнес-трекинг",
+    "управление малым бизнесом",
+    "стратегия"
+   ],
+   "name": "Береке Ерниязов",
+   "worksFor": {
+    "@id": "https://app.bxclub.kz/about#org"
+   }
+  },
+  {
+   "@id": "https://app.bxclub.kz/about#rustam",
+   "@type": "Person",
+   "alternateName": "Rustam Kabden",
+   "description": "Бизнес-трекер, выпускник акселераторов Seedstars и SmartCity.",
+   "jobTitle": "Сооснователь Business Surgery, бизнес-трекер",
+   "knowsAbout": [
+    "бизнес-трекинг",
+    "управление малым бизнесом",
+    "стратегия"
+   ],
+   "name": "Рустам Кабден",
+   "worksFor": {
+    "@id": "https://app.bxclub.kz/about#org"
+   }
+  }
+ ]
+}
+</script>

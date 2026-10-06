@@ -52,6 +52,8 @@ type LeadFunnel struct {
 	Edit func(ctx context.Context, chatID, msgID int64, text string, kb map[string]any) error
 	Meta autoMeta
 	hmu  sync.Mutex
+	// R47 (lead_dialog.go): the bot's messages to leads go to the dialog
+	dlgOn bool
 }
 
 func NewLeadFunnel(docs funnelDocs, send func(ctx context.Context, chatID int64, text string, kb map[string]any) error, admins []int64) *LeadFunnel {
@@ -322,6 +324,7 @@ var lmGuide = map[string]string{"sales": "g015", "unit": "g078", "delegate": "g0
 
 // HandleCallback answers the buttons of the script's old lead-magnet menu.
 func (f *LeadFunnel) HandleCallback(ctx context.Context, cb bot.CallbackUpdate) bool {
+	f.noteCallback(ctx, cb)                         // R47: the press goes to the lead's dialog
 	if strings.HasPrefix(cb.Data, leadPainPrefix) { // R32e: lead_pain.go
 		return f.painPick(ctx, cb)
 	}

@@ -405,6 +405,7 @@ func (p *Partners) Start(ctx context.Context) {
 				log.Printf("crm base import: %v", err)
 			}
 			cancel()
+			go p.segLoop(ctx) // R47: the base's segments, at once and for new leads
 		}
 		t := time.NewTicker(partnerEvery)
 		defer t.Stop()
@@ -471,13 +472,18 @@ func (f *LeadFunnel) handlePartnerStart(ctx context.Context, st bot.StartUpdate,
 	}
 	if err := f.sendWelcome(ctx, st.ChatID, st.FirstName, ""); err != nil {
 		log.Printf("funnel: welcome %d: %v", st.ChatID, err)
+		f.replyFail(ctx, st.ChatID, err.Error())
 		return false
 	}
+	what := "приветствие (ссылка партнёра)"
 	if isNew {
 		if err := f.sendPainAsk(ctx, st.ChatID); err != nil {
 			log.Printf("funnel: pain ask %d: %v", st.ChatID, err)
+		} else {
+			what = "приветствие и выбор чек-листа (ссылка партнёра)"
 		}
 	}
+	f.replyOK(ctx, st.ChatID, what) // R47: the card shows the reply
 	return true
 }
 
@@ -525,7 +531,9 @@ func (p *Partners) Register(r *gin.Engine, g *gin.RouterGroup) {
 	r.GET("/p/:code", p.Redirect)
 	r.GET("/r", p.Redirect)
 	g.GET("/partners/links", p.Links)
-	g.POST("/crm/base-import", p.BaseImport) // crm_base.go
+	g.POST("/crm/base-import", p.BaseImport)   // crm_base.go
+	g.POST("/crm/segment", p.Segment)          // R47: crm_segments.go
+	g.POST("/crm/tilda-import", p.TildaImport) // R47: crm_tilda_import.go
 }
 
 // sortPartners: by priority, then score (for logs and tests).

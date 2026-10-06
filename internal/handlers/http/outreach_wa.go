@@ -242,7 +242,7 @@ func almatyHour(t time.Time) (int, int) {
 
 var waKindName = map[string]string{
 	"meeting": "напоминание о встрече", "report": "напоминание об отчёте", "fine": "штраф", "notice": "уведомление",
-	"summary": "саммари разбора", "broadcast": "рассылка", "event": "мероприятие",
+	"summary": "саммари разбора", "broadcast": "рассылка", "event": "мероприятие", "lead": "лид из базы",
 }
 
 // notifyWA: one Telegram note to the owner about new queued messages: a

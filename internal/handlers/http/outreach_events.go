@@ -496,6 +496,8 @@ type bcAudience struct {
 	Residents   bool     `json:"residents"`
 	Subscribers bool     `json:"subscribers"`
 	CRM         []string `json:"crm"` // CRM stages: new, work, qual, meet, diag, won, lost
+	// R47: a segment of the CRM (outreach_segments.go): exactly these leads (bs_crm ids)
+	Leads []string `json:"leads,omitempty"`
 }
 
 func parseAudience(raw json.RawMessage) bcAudience {
@@ -569,17 +571,21 @@ func (o *Outreach) targets(ctx context.Context, a bcAudience) ([]pg.BcTarget, bc
 		stages[s] = true
 	}
 	var leads []any
-	if o.docs != nil && (a.All || len(stages) > 0 || a.Subscribers) {
+	pick := map[string]bool{} // R47: the segment's leads
+	for _, id := range a.Leads {
+		pick[id] = true
+	}
+	if o.docs != nil && (a.All || len(stages) > 0 || a.Subscribers || len(pick) > 0) {
 		if d, err := o.docs.GetDoc(ctx, "club", "bs_crm"); err == nil && d != nil && !d.Deleted {
 			var crm map[string]any
 			_ = json.Unmarshal([]byte(d.Value), &crm)
 			leads, _ = crm["leads"].([]any)
 		}
 	}
-	if a.All || len(stages) > 0 {
+	if a.All || len(stages) > 0 || len(pick) > 0 {
 		for _, l := range leads {
 			m, _ := l.(map[string]any)
-			if m == nil || (!a.All && !stages[fmt.Sprint(m["col"])]) {
+			if m == nil || (!a.All && !stages[fmt.Sprint(m["col"])] && !pick[pStr(m, "id")]) {
 				continue
 			}
 			name, _ := m["name"].(string)
@@ -859,7 +865,7 @@ func (o *Outreach) Event(c *gin.Context) {
 	cs, _ := o.repo.Campaigns(ctx)
 	var camps []gin.H
 	for _, x := range cs {
-		if x.EventID == e.ID {
+		if x.EventID == e.ID && !strings.HasPrefix(x.ID, segCampaignPrefix) { // R47: a segment's invitation lives in the CRM
 			camps = append(camps, o.campaignView(ctx, x, false))
 		}
 	}
@@ -1085,8 +1091,11 @@ func cleanAudience(raw json.RawMessage) (json.RawMessage, bool) {
 		}
 	}
 	a.CRM = crm
+	if len(a.Leads) > 20000 {
+		a.Leads = a.Leads[:20000]
+	}
 	b, _ := json.Marshal(a)
-	return b, a.All || a.Residents || a.Subscribers || len(a.CRM) > 0
+	return b, a.All || a.Residents || a.Subscribers || len(a.CRM) > 0 || len(a.Leads) > 0
 }
 
 // PutCampaign: PUT /outreach/campaigns/:id {text, audience}: a draft only.
@@ -1103,6 +1112,13 @@ func (o *Outreach) PutCampaign(c *gin.Context) {
 		return
 	}
 	aud, _ := cleanAudience(in.Audience)
+	// R47: a segment's broadcast keeps its leads even when an editor that does
+	// not know them saves the text (the audience never widens by accident)
+	if cur, _ := o.repo.CampaignGet(c.Request.Context(), c.Param("id")); cur != nil {
+		if old := parseAudience(cur.Audience); len(old.Leads) > 0 && len(parseAudience(aud).Leads) == 0 {
+			aud, _ = cleanAudience(cur.Audience)
+		}
+	}
 	ok, err := o.repo.CampaignEdit(c.Request.Context(), c.Param("id"), strings.TrimRight(in.Text, " \n"), aud, platformUser(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "store_failed"})
@@ -1244,6 +1260,7 @@ func (o *Outreach) Register(r *gin.Engine, g *gin.RouterGroup) {
 	g.POST("/outreach/campaigns/:id/preview", o.Preview)
 	g.POST("/outreach/campaigns/:id/test", o.TestSend)
 	g.POST("/outreach/campaigns/:id/send", o.SendCampaign)
+	g.POST("/outreach/segments/act", o.SegmentAct) // R47: outreach_segments.go
 }
 
 // OutreachModule mounts the routes behind the platform's login.

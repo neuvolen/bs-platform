@@ -169,15 +169,15 @@ func TestPlatformLoginLead(t *testing.T) {
 var routeParam = regexp.MustCompile(`[:*][A-Za-z_]+`)
 
 // Every route of the platform and the club that needs a login refuses a
-// lead's token; the lead home is the only thing it opens.
+// lead's token; the lead home (and the business ideas, R46) is the only thing it opens.
 func TestLeadDeniedEverywhere(t *testing.T) {
 	le := newLeadEnv(t)
 	lead := le.token(t, 777001, "lead")
 	checked, denied := 0, 0
 	for _, rt := range le.r.Routes() {
 		path := routeParam.ReplaceAllString(rt.Path, "x")
-		if strings.HasPrefix(rt.Path, "/api/v1/platform/lead/") {
-			continue
+		if strings.HasPrefix(rt.Path, "/api/v1/platform/lead/") || rt.Path == "/api/v1/platform/ideas" {
+			continue // R46: бизнес-идеи открыты лиду намеренно (r46_ideas_test.go)
 		}
 		anon := le.call(rt.Method, path, "", nil).Code
 		if anon != http.StatusUnauthorized && anon != http.StatusForbidden {
@@ -224,7 +224,7 @@ func TestAllowLeadOnlyForLeadHome(t *testing.T) {
 			continue
 		}
 		b, _ := os.ReadFile(f)
-		if n := strings.Count(string(b), "AuthJWTAllowLead("); n > 0 && (f != "platform_module.go" || n != 1) {
+		if n := strings.Count(string(b), "AuthJWTAllowLead("); n > 0 && (f != "platform_module.go" || n != 2) { // the lead home and R46 «Бизнес-идеи»
 			t.Errorf("%s uses AuthJWTAllowLead %d times", f, n)
 		}
 	}

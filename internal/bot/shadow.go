@@ -46,7 +46,8 @@ type GroupMessage struct {
 	LastName  string
 	Username  string
 	Text      string // trimmed
-	Media     bool   // video note or video: never a report
+	Media     bool   // video note, video, photo (R47): never a report, gets 👍
+	Album     string // media_group_id: an album of photos gets one 👍 (R47)
 	ReplyTo   int64  // message answered; in a forum topic the topic's first message is not a reply
 }
 
@@ -80,6 +81,11 @@ func ReadGroupMessage(body []byte) (*GroupMessage, bool) {
 			} `json:"reply_to_message"`
 			VideoNote json.RawMessage `json:"video_note"`
 			Video     json.RawMessage `json:"video"`
+			Photo     json.RawMessage `json:"photo"`
+			Document  *struct {
+				Mime string `json:"mime_type"`
+			} `json:"document"`
+			Album string `json:"media_group_id"`
 		} `json:"message"`
 	}
 	if json.Unmarshal(body, &u) != nil || u.Message == nil || u.Message.From == nil {
@@ -93,8 +99,10 @@ func ReadGroupMessage(body []byte) (*GroupMessage, bool) {
 		UpdateID: u.UpdateID, MessageID: m.MessageID, ChatID: m.Chat.ID,
 		Sent:   time.Unix(m.Date, 0).In(club.Almaty),
 		FromID: m.From.ID, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username,
-		Text:  strings.Trim(m.Text, " \t\n\r\v\f \ufeff  　"),
-		Media: len(m.VideoNote) > 0 || len(m.Video) > 0,
+		Text: strings.Trim(m.Text, " \t\n\r\v\f \ufeff  　"),
+		Media: len(m.VideoNote) > 0 || len(m.Video) > 0 || len(m.Photo) > 0 ||
+			(m.Document != nil && strings.HasPrefix(m.Document.Mime, "image/")), // R47: a photo sent as a file too
+		Album: m.Album,
 	}
 	if m.Thread != nil {
 		g.Thread = strconv.FormatInt(*m.Thread, 10)
