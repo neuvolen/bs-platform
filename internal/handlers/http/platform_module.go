@@ -167,4 +167,5 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	if m.Partners != nil {
 		m.Partners.Register(r, g) // R38b: /p/<code>, /r?ref=, /partners/links, /crm/base-import
 	}
+	RegisterVideo(r, g, m) // R54: Маркетинг → SMM → «Видео» (platform_video.go)
 }

@@ -195,17 +195,11 @@ func (a *LocalASR) prepare(ctx context.Context) (asrPaths, error) {
 		return p, fmt.Errorf("папка распознавания %s: %v", a.Dir, err)
 	}
 	// ffmpeg: the image's own, else a static build
-	if f, err := exec.LookPath("ffmpeg"); err == nil {
-		p.ffmpeg = f
-	} else {
-		p.ffmpeg = filepath.Join(a.Dir, "ffmpeg")
-		if !fileOK(p.ffmpeg) {
-			a.setState("загружается")
-			if err := a.fetchGz(ctx, a.FFmpegURL, p.ffmpeg); err != nil {
-				return p, fmt.Errorf("загрузка ffmpeg: %v", err)
-			}
-		}
+	f, err := a.ffmpegPath(ctx)
+	if err != nil {
+		return p, err
 	}
+	p.ffmpeg = f
 	// sherpa-onnx tools
 	sh := filepath.Join(a.Dir, "sherpa")
 	if p.bin = findVADBin(sh); p.bin == "" {
@@ -264,6 +258,31 @@ func (a *LocalASR) prepare(ctx context.Context) (asrPaths, error) {
 		}
 	}
 	return p, nil
+}
+
+// FFmpeg: the image's ffmpeg, else the static build in ASR_DIR (downloaded
+// once). The Reels editor (R54, internal/video) uses the same binary, so the
+// download happens once for both.
+func (a *LocalASR) FFmpeg(ctx context.Context) (string, error) {
+	a.prep.Lock()
+	defer a.prep.Unlock()
+	if err := os.MkdirAll(a.Dir, 0o755); err != nil {
+		return "", fmt.Errorf("папка распознавания %s: %v", a.Dir, err)
+	}
+	return a.ffmpegPath(ctx)
+}
+
+func (a *LocalASR) ffmpegPath(ctx context.Context) (string, error) {
+	if f, err := exec.LookPath("ffmpeg"); err == nil {
+		return f, nil
+	}
+	f := filepath.Join(a.Dir, "ffmpeg")
+	if !fileOK(f) {
+		if err := a.fetchGz(ctx, a.FFmpegURL, f); err != nil {
+			return "", fmt.Errorf("загрузка ffmpeg: %v", err)
+		}
+	}
+	return f, nil
 }
 
 func fileOK(p string) bool {
@@ -536,6 +555,70 @@ func (a *LocalASR) Transcribe(ctx context.Context, audio []byte, mime string) (s
 		log.Printf("asr: piece %d/%d done in %s", i+1, len(parts), time.Since(t0).Round(time.Second))
 	}
 	return strings.Join(all, "\n"), nil
+}
+
+// ASRSegment: one phrase with its time in the recording, in seconds.
+type ASRSegment struct {
+	Start, End float64
+	Text       string
+}
+
+// ParseASRTimed: the phrases with their times («12.345 -- 15.678: текст»).
+func ParseASRTimed(out string) []ASRSegment {
+	var segs []ASRSegment
+	for _, l := range strings.Split(out, "\n") {
+		if m := asrLineRe.FindStringSubmatch(l); m != nil {
+			t := strings.TrimSpace(m[3])
+			if t == "" {
+				continue
+			}
+			s, _ := strconv.ParseFloat(m[1], 64)
+			e, _ := strconv.ParseFloat(m[2], 64)
+			if e < s {
+				e = s
+			}
+			segs = append(segs, ASRSegment{Start: s, End: e, Text: t})
+		}
+	}
+	return segs
+}
+
+// TranscribeTimed: a short 16 kHz mono WAV (the Reels editor, R54) → phrases
+// with times. Whisper in sherpa-onnx gives no word times, so the caller spreads
+// a phrase's words over its time itself.
+func (a *LocalASR) TranscribeTimed(ctx context.Context, wav string) ([]ASRSegment, error) {
+	a.run.Lock()
+	defer a.run.Unlock()
+	p, err := a.Prepare(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("распознавание на сервере не готово: %v", err)
+	}
+	args := []string{
+		"--silero-vad-model=" + p.vad,
+		"--whisper-encoder=" + p.encoder,
+		"--whisper-decoder=" + p.decoder,
+		"--whisper-language=" + a.Lang,
+		"--whisper-task=transcribe",
+		"--tokens=" + p.tokens,
+		"--num-threads=" + strconv.Itoa(a.Threads),
+	}
+	args = append(append(args, a.ExtraArgs...), wav)
+	name := p.bin
+	if nice, err := exec.LookPath("nice"); err == nil {
+		args = append([]string{"-n", "10", p.bin}, args...)
+		name = nice
+	}
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+p.lib+":"+os.Getenv("LD_LIBRARY_PATH"))
+	var buf bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &buf, &buf
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, fmt.Errorf("распознавание на сервере не удалось: %s", tail(buf.String(), err))
+	}
+	return ParseASRTimed(buf.String()), nil
 }
 
 func audioExt(mime string) string {

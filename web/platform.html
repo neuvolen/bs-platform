@@ -36700,5 +36700,312 @@ function r46LeadTeaser(){
 })();
 </script>
 <!-- /R53 -->
+<!-- R54: Маркетинг → SMM → «Видео»: монтаж Reels на сервере (platform_video.go, internal/video) -->
+<style id="r54Style">
+.r54-tabs{display:inline-flex;gap:4px;margin:0 0 14px;padding:3px;border:1px solid var(--pb);border-radius:10px;background:var(--pc)}
+.r54-tabs button{height:32px;padding:0 14px;border-radius:8px;border:0;background:none;color:var(--pm);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.r54-tabs button.on{background:var(--pon);color:var(--pontx)}
+.r54{display:flex;flex-direction:column;gap:14px;max-width:1100px}
+.r54-st{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--pm);font-weight:600}
+.r54-st b{color:var(--ptx)}
+.r54-dot{width:8px;height:8px;border-radius:50%;background:var(--pm);display:inline-block}
+.r54-dot.ok{background:var(--ptx)}
+.r54-warn{border:1px dashed var(--ptx);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.45;color:var(--ptx);background:var(--pc)}
+.r54-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px}
+.r54-card{background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:14px;min-width:0}
+.r54-h{font-size:13.5px;font-weight:800;color:var(--ptx);margin:0 0 4px;letter-spacing:-.1px}
+.r54-sub{font-size:12px;color:var(--pm);line-height:1.45;margin:0 0 10px}
+.r54-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px dashed var(--pb);border-radius:10px;padding:18px 12px;text-align:center;cursor:pointer;color:var(--pm);font-size:12.5px;font-weight:600}
+.r54-drop:hover,.r54-drop.over{border-color:var(--ptx);color:var(--ptx)}
+.r54-drop b{font-size:14px;color:var(--ptx)}
+.r54-files{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.r54-f{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid var(--pb);border-radius:8px;padding:7px 9px}
+.r54-f i{font-style:normal;font-size:11px;font-weight:800;color:var(--pm);text-align:center}
+.r54-fn{font-size:12.5px;font-weight:700;color:var(--ptx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r54-fm{font-size:11px;color:var(--pm);font-weight:600;margin-top:2px}
+.r54-fm.err{color:var(--pred)}
+.r54-bar{height:4px;border-radius:3px;background:var(--pb);overflow:hidden;margin-top:5px}
+.r54-bar span{display:block;height:100%;background:var(--ptx);width:0;transition:width .3s}
+.r54-fa{display:flex;gap:4px}
+.r54-fa button,.r54-b{height:30px;padding:0 11px;border-radius:8px;border:1px solid var(--pb);background:var(--pc);color:var(--ptx);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.r54-fa button{height:26px;width:26px;padding:0;justify-content:center}
+.r54-fa button:hover,.r54-b:hover{border-color:var(--ptx)}
+.r54-b.p{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r54-b[disabled]{opacity:.45;cursor:default}
+.r54-tpl{display:flex;flex-direction:column;gap:6px}
+.r54-t{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--pb);border-radius:10px;padding:9px 11px;cursor:pointer}
+.r54-t.on{border-color:var(--ptx);box-shadow:inset 0 0 0 1px var(--ptx)}
+.r54-t input{margin:3px 0 0;accent-color:var(--ptx)}
+.r54-t b{display:block;font-size:13px;color:var(--ptx)}
+.r54-t span{display:block;font-size:11.5px;color:var(--pm);line-height:1.4;margin-top:2px}
+.r54-tg{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 2px;font-size:12.5px;font-weight:700;color:var(--ptx)}
+.r54-tg label{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.r54-tg input{accent-color:var(--ptx)}
+.r54-in{display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.r54-in label{font-size:12px;font-weight:700;color:var(--pm)}
+.r54-in input{height:34px;border-radius:8px;border:1px solid var(--pb);background:var(--ph);color:var(--ptx);font:inherit;font-size:13px;padding:0 10px;width:100%;box-sizing:border-box}
+.r54-in small{font-size:11px;color:var(--pm)}
+.r54-go{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.r54-go .r54-b.p{height:38px;padding:0 18px;font-size:13.5px}
+.r54-go span{font-size:12px;color:var(--pm);font-weight:600}
+.r54-jobs{display:flex;flex-direction:column;gap:10px}
+.r54-j{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:12px}
+.r54-j.nov{grid-template-columns:minmax(0,1fr)}
+.r54-v{width:200px;aspect-ratio:9/16;border-radius:10px;background:#000;overflow:hidden}
+.r54-v video{width:100%;height:100%;display:block;object-fit:cover;background:#000}
+.r54-jt{font-size:13.5px;font-weight:800;color:var(--ptx);margin:0 0 3px}
+.r54-jm{font-size:12px;color:var(--pm);font-weight:600;line-height:1.5}
+.r54-jm.err{color:var(--pred)}
+.r54-ja{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.r54-tx{font-size:12px;line-height:1.45;color:var(--ptx);margin-top:8px;max-height:84px;overflow:auto;border-left:2px solid var(--pb);padding-left:8px}
+.r54-none{font-size:12.5px;color:var(--pm)}
+@media (max-width:820px){
+  .r54-grid{grid-template-columns:minmax(0,1fr)}
+  .r54-j{grid-template-columns:minmax(0,1fr)}
+  .r54-v{width:min(260px,100%);margin:0 auto}
+}
+</style>
+<script id="r54Script">
+(function(){
+  'use strict';
+  var CH = 8 << 20;
+  var V = {tab:'pub', st:null, files:[], music:null, tpl:'talk', cap:null, cut:null, punch:null, hook:'', cta:'', poll:null, busy:false, err:''};
+  try{ var sv = JSON.parse(localStorage.getItem('r54_v') || 'null'); if(sv){ if(sv.tab) V.tab = sv.tab; if(sv.tpl) V.tpl = sv.tpl; if(typeof sv.cta === 'string') V.cta = sv.cta; } }catch(e){}
+  function keep(){ try{ localStorage.setItem('r54_v', JSON.stringify({tab:V.tab, tpl:V.tpl, cta:V.cta})); }catch(e){} }
+  function planned(){ try{ return JSON.parse(localStorage.getItem('r54_plan') || '{}') || {}; }catch(e){ return {}; } }
+  function api(m, p, b, h){
+    if(!window.BSSync || !BSSync.api) return Promise.resolve({_s:0, error:'Видео собирается на сервере платформы: войдите через Telegram'});
+    return BSSync.api(m, p, b, h).then(function(r){
+      return r.text().then(function(t){ var j = {}; try{ j = t ? JSON.parse(t) : {}; }catch(e){ j = {error:'Сервер ответил ' + r.status}; } if(!j || typeof j !== 'object') j = {}; j._s = r.status; if(!r.ok && !j.error) j.error = 'Сервер ответил ' + r.status; return j; });
+    }, function(){ return {_s:0, error:'Нет связи с сервером'}; });
+  }
+  function mb(n){ return (n / 1048576).toFixed(n < 10485760 ? 1 : 0).replace('.', ',') + ' МБ'; }
+  function sec(s){ s = Math.round(s || 0); return s >= 60 ? Math.floor(s / 60) + ' мин' + (s % 60 ? ' ' + (s % 60) + ' с' : '') : s + ' с'; }
+  function tpl(){ var ts = (V.st && V.st.templates) || []; for(var i = 0; i < ts.length; i++){ if(ts[i].ID === V.tpl) return ts[i]; } return ts[0] || null; }
+  function on(k, def){ return V[k] == null ? !!def : V[k]; }
+
+  // ── вкладки SMM: «Публикации» и «Видео» ──
+  function tabs(){
+    return '<div class="r54-tabs" role="tablist"><button class="' + (V.tab !== 'video' ? 'on' : '') + '" onclick="r54Tab(\'pub\')">Публикации</button>' +
+      '<button class="' + (V.tab === 'video' ? 'on' : '') + '" onclick="r54Tab(\'video\')" id="r54TabV">Видео</button></div>';
+  }
+  var base = window.renderMSmm;
+  if(typeof base !== 'function') return;
+  window.renderMSmm = function(){
+    base.apply(this, arguments);
+    var smm = document.querySelector('.smm'); if(!smm) return;
+    smm.insertAdjacentHTML('beforebegin', tabs());
+    if(V.tab === 'video'){
+      smm.innerHTML = '<div class="r54" id="r54"><div class="r54-none">Загружаем...</div></div>';
+      load();
+    } else stopPoll();
+  };
+  window.r54Tab = function(t){ V.tab = t; keep(); window.renderMSmm(); };
+
+  function load(){
+    return api('GET', '/video').then(function(j){
+      if(j.error){ V.err = j.error; V.st = V.st || null; } else { V.err = ''; V.st = j; }
+      paint();
+      var live = V.st && (V.st.jobs || []).some(function(x){ return x.status === 'queued' || x.status === 'running'; });
+      var prep = V.st && V.st.ffmpeg && V.st.ffmpeg.state === 'preparing';
+      if(live || prep) startPoll(); else stopPoll();
+    });
+  }
+  function startPoll(){ if(V.poll) return; V.poll = setInterval(function(){ if(!document.getElementById('r54')){ stopPoll(); return; } if(document.hidden) return; api('GET', '/video').then(function(j){ if(j.error) return; V.st = j; paintJobs(); paintStatus(); var live = (j.jobs || []).some(function(x){ return x.status === 'queued' || x.status === 'running'; }); if(!live && !(j.ffmpeg && j.ffmpeg.state === 'preparing')) stopPoll(); }); }, 2000); }
+  function stopPoll(){ if(V.poll){ clearInterval(V.poll); V.poll = null; } }
+
+  function statusHTML(){
+    var s = V.st; if(!s) return '';
+    var ff = s.ffmpeg || {}, asr = s.asr || {}, L = s.limits || {};
+    var ffTxt = ff.state === 'ready' ? 'ffmpeg готов' + (ff.source === 'static' ? ' (скачан сервером)' : '') : ff.state === 'error' ? 'ffmpeg: ошибка' : ff.state === 'preparing' ? 'ffmpeg готовится' : 'ffmpeg подготовится при первой сборке';
+    var asrTxt = asr.on ? 'субтитры: Whisper ' + esc(asr.model || '') + ' на сервере' + (asr.state && asr.state !== 'готов' ? ' (' + esc(String(asr.state).slice(0, 80)) + ')' : '') : 'субтитры выключены (ASR_LOCAL=0)';
+    var h = '<div class="r54-st"><span class="r54-dot' + (ff.state === 'ready' ? ' ok' : '') + '"></span><b>' + ffTxt + '</b><span>·</span><span>' + asrTxt + '</span><span>·</span><span>свободно на диске ' + (s.freeMB >= 0 ? (s.freeMB / 1024).toFixed(1).replace('.', ',') + ' ГБ' : 'неизвестно') + '</span></div>';
+    if(ff.state === 'error') h += '<div class="r54-warn"><b>Монтаж недоступен:</b> ' + esc(ff.error || '') + '. Добавьте ffmpeg в образ одной переменной Railway: <b>RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg</b>, затем деплой.</div>';
+    if(!s.persistent) h += '<div class="r54-warn">Файлы лежат во временной папке сервера и пропадают при деплое. Ролики до ' + (L.keptMB || 80) + ' МБ дополнительно хранятся в базе, их ссылки в плане SMM не пропадут. Чтобы хранить всё, подключите к сервису том Railway на /data.</div>';
+    return h;
+  }
+  function paintStatus(){ var e = document.getElementById('r54St'); if(e) e.innerHTML = statusHTML(); }
+
+  function fileRow(f, i, n){
+    var pct = f.size ? Math.round(f.got / f.size * 100) : 0;
+    var meta = f.err ? '<div class="r54-fm err">' + esc(f.err) + '</div>' : '<div class="r54-fm">' + mb(f.size) + (f.id && f.got === f.size ? ' · загружен' : ' · ' + pct + '%') + '</div>';
+    var acts = f.kind === 'clip' ? (i > 0 ? '<button title="Выше" onclick="r54Mv(' + i + ',-1)">↑</button>' : '') + (i < n - 1 ? '<button title="Ниже" onclick="r54Mv(' + i + ',1)">↓</button>' : '') : '';
+    acts += '<button title="Убрать" onclick="r54Rm(\'' + f.kind + '\',' + i + ')">×</button>';
+    return '<div class="r54-f" data-k="' + escA(f.key) + '"><i>' + (f.kind === 'clip' ? i + 1 : '♪') + '</i><div style="min-width:0"><div class="r54-fn">' + esc(f.name) + '</div>' + meta +
+      '<div class="r54-bar"><span style="width:' + pct + '%"></span></div></div><div class="r54-fa">' + acts + '</div></div>';
+  }
+  function paintFiles(){
+    var e = document.getElementById('r54Files'); if(e) e.innerHTML = V.files.map(function(f, i){ return fileRow(f, i, V.files.length); }).join('');
+    var m = document.getElementById('r54Mus'); if(m) m.innerHTML = V.music ? fileRow(V.music, 0, 1) : '';
+    var g = document.getElementById('r54GoBtn'), hint = document.getElementById('r54GoH');
+    var ready = V.files.length && V.files.every(function(f){ return f.id && f.got === f.size && !f.err; }) && (!V.music || (V.music.id && V.music.got === V.music.size));
+    var ffBad = V.st && V.st.ffmpeg && V.st.ffmpeg.state === 'error';
+    if(g) g.disabled = !ready || V.busy || ffBad;
+    if(hint) hint.textContent = !V.files.length ? 'Добавьте клипы' : !ready ? 'Ждём загрузку файлов' : ffBad ? 'ffmpeg недоступен' : 'Сборка идёт на сервере, страницу можно закрыть';
+  }
+  function upd(f){
+    var row = document.querySelector('.r54-f[data-k="' + f.key + '"]'); if(!row){ paintFiles(); return; }
+    var pct = f.size ? Math.round(f.got / f.size * 100) : 0;
+    var b = row.querySelector('.r54-bar span'); if(b) b.style.width = pct + '%';
+    var m = row.querySelector('.r54-fm'); if(m){ m.className = 'r54-fm' + (f.err ? ' err' : ''); m.textContent = f.err || (mb(f.size) + (f.id && f.got === f.size ? ' · загружен' : ' · ' + pct + '%')); }
+    if(f.got === f.size || f.err) paintFiles();
+  }
+
+  function paint(){
+    var root = document.getElementById('r54'); if(!root) return;
+    if(!V.st){ root.innerHTML = '<div class="r54-warn">' + esc(V.err || 'Сервер не ответил') + '</div>'; return; }
+    var L = V.st.limits || {}, t = tpl() || {};
+    var tplH = (V.st.templates || []).map(function(x){
+      return '<label class="r54-t' + (x.ID === V.tpl ? ' on' : '') + '"><input type="radio" name="r54tpl" ' + (x.ID === V.tpl ? 'checked' : '') + ' onchange="r54Tpl(\'' + escA(x.ID) + '\')"><div><b>' + esc(x.Name) + '</b><span>' + esc(x.Desc) + '</span></div></label>';
+    }).join('');
+    root.innerHTML = '<div id="r54St">' + statusHTML() + '</div>' +
+      '<div class="r54-grid"><div class="r54-card"><div class="r54-h">1. Клипы</div><div class="r54-sub">Говорящая голова, б-ролл, вертикальные и горизонтальные. До ' + (L.fileMB || 500) + ' МБ на файл, до ' + (L.clips || 10) + ' клипов и ' + sec(L.inputSec || 180) + ' в сумме. Порядок клипов = порядок в ролике.</div>' +
+      '<label class="r54-drop" id="r54Drop"><b>Выбрать видео</b>или перетащить сюда<input type="file" accept="video/*" multiple hidden onchange="r54Pick(this.files,\'clip\');this.value=\'\'"></label>' +
+      '<div class="r54-files" id="r54Files"></div>' +
+      '<div class="r54-in"><label>Музыка (по желанию)</label><div class="r54-sub" style="margin:0">Трек тише голоса на 10 дБ и сам приглушается, когда вы говорите.</div>' +
+      '<label class="r54-b" style="align-self:flex-start">Выбрать трек<input type="file" accept="audio/*" hidden onchange="r54Pick(this.files,\'music\');this.value=\'\'"></label><div class="r54-files" id="r54Mus"></div></div></div>' +
+      '<div class="r54-card"><div class="r54-h">2. Шаблон Reels</div><div class="r54-sub">Кадр 1080×1920, текст в безопасных зонах (250 px сверху, 350 px снизу), громкость -14 LUFS, H.264.</div><div class="r54-tpl">' + tplH + '</div>' +
+      '<div class="r54-tg"><label><input type="checkbox" ' + (on('cap', t.Captions) ? 'checked' : '') + ' onchange="r54Opt(\'cap\',this.checked)">Субтитры</label>' +
+      '<label><input type="checkbox" ' + (on('cut', t.Cut) ? 'checked' : '') + ' onchange="r54Opt(\'cut\',this.checked)">Вырезать паузы</label>' +
+      '<label><input type="checkbox" ' + (on('punch', t.Punch) ? 'checked' : '') + ' onchange="r54Opt(\'punch\',this.checked)">Наезды камеры</label></div>' +
+      '<div class="r54-in"><label for="r54Hook">Хук: текст на первые 1,5 секунды</label><input id="r54Hook" maxlength="70" placeholder="Почему прибыль не растёт?" value="' + escA(V.hook) + '" oninput="r54Set(\'hook\',this.value)"><small>До 70 знаков. Пусто: без карточки</small></div>' +
+      '<div class="r54-in"><label for="r54Cta">Концовка с призывом</label><input id="r54Cta" maxlength="80" placeholder="' + escA(V.st.cta || '') + '" value="' + escA(V.cta) + '" oninput="r54Set(\'cta\',this.value)"><small>Чёрная карточка с логотипом, 2,5 секунды</small></div>' +
+      '<div class="r54-go"><button class="r54-b p" id="r54GoBtn" onclick="r54Go()" disabled>Собрать Reels</button><span id="r54GoH"></span></div></div></div>' +
+      '<div><div class="pf-lbl" style="margin:4px 0 8px">Готовые ролики</div><div class="r54-jobs" id="r54Jobs"></div></div>';
+    paintFiles(); paintJobs();
+    var d = document.getElementById('r54Drop');
+    if(d){
+      d.addEventListener('dragover', function(e){ e.preventDefault(); d.classList.add('over'); });
+      d.addEventListener('dragleave', function(){ d.classList.remove('over'); });
+      d.addEventListener('drop', function(e){ e.preventDefault(); d.classList.remove('over'); r54Pick(e.dataTransfer.files, 'clip'); });
+    }
+  }
+
+  function jobHTML(j){
+    var st = j.status, name = (j.opts && j.opts.hook) || (j.names || []).join(', ') || 'Reels';
+    var when = j.created ? new Date(j.created).toLocaleString('ru', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : '';
+    var meta, acts = '', vid = '';
+    if(st === 'done'){
+      var pl = planned()[j.id];
+      meta = sec(j.dur) + ' · ' + mb(j.size || 0) + (j.cut > 0.3 ? ' · вырезано пауз ' + sec(j.cut) : '') + (j.words ? ' · слов в субтитрах ' + j.words : '') + ' · ' + esc(j.templateName || '') + ' · ' + when;
+      vid = '<div class="r54-v"><video controls playsinline preload="metadata" src="' + escA(j.video) + '"' + (j.cover ? ' poster="' + escA(j.cover) + '"' : '') + '></video></div>';
+      acts = '<a class="r54-b p" href="' + escA(j.video + '?dl=1&name=reels-' + String(j.id).slice(0, 6)) + '" download>Скачать MP4</a>' +
+        (j.cover ? '<a class="r54-b" href="' + escA(j.cover + '?dl=1&name=cover-' + String(j.id).slice(0, 6)) + '" download>Обложка PNG</a>' : '') +
+        (pl ? '<button class="r54-b" onclick="r54Open(\'' + escA(pl) + '\')">В плане ✓</button>' : '<button class="r54-b" onclick="r54Plan(\'' + escA(j.id) + '\')">В план SMM</button>') +
+        '<button class="r54-b" onclick="r54Del(\'' + escA(j.id) + '\')">Удалить</button>';
+      if(!j.kept) meta += '<br>Ролик хранится только на диске сервера, до деплоя: скачайте его';
+    } else if(st === 'failed'){
+      meta = '<span class="r54-jm err">' + esc(j.error || 'Ошибка') + '</span>';
+      acts = '<button class="r54-b" onclick="r54Retry(\'' + escA(j.id) + '\')">Собрать заново</button><button class="r54-b" onclick="r54Del(\'' + escA(j.id) + '\')">Удалить</button>';
+    } else {
+      meta = (st === 'queued' ? 'В очереди: сервер собирает по одному ролику' : esc(j.stage || 'Сборка') + ' · ' + (j.pct || 0) + '%') + ' · ' + when;
+      acts = '<button class="r54-b" onclick="r54Del(\'' + escA(j.id) + '\')">Остановить</button>';
+    }
+    var notes = (j.notes || []).map(function(n){ return '<br>' + esc(n); }).join('');
+    return '<div class="r54-j' + (vid ? '' : ' nov') + '" data-id="' + escA(j.id) + '">' + vid + '<div style="min-width:0"><div class="r54-jt">' + esc(name) + '</div><div class="r54-jm">' + meta + notes + '</div>' +
+      (st === 'running' || st === 'queued' ? '<div class="r54-bar"><span style="width:' + (j.pct || 0) + '%"></span></div>' : '') +
+      (j.text ? '<div class="r54-tx">' + esc(j.text) + '</div>' : '') + '<div class="r54-ja">' + acts + '</div></div></div>';
+  }
+  function sigOf(j){ return j.id + ':' + j.status + ':' + (j.status === 'done' ? (planned()[j.id] || '') : (j.pct || 0) + (j.stage || '')); }
+  function paintJobs(){
+    var e = document.getElementById('r54Jobs'); if(!e || !V.st) return;
+    var js = V.st.jobs || [];
+    if(!js.length){ e.innerHTML = '<div class="r54-none">Роликов пока нет. Добавьте клипы, выберите шаблон и нажмите «Собрать Reels»: 20 секунд ролика собираются за 1-3 минуты.</div>'; return; }
+    var cur = Array.prototype.slice.call(e.querySelectorAll(':scope > .r54-j'));
+    function mk(j){ var t = document.createElement('div'); t.innerHTML = jobHTML(j); var n = t.firstChild; n.dataset.sig = sigOf(j); return n; }
+    // тот же список: меняем только изменившиеся карточки, плеер готовых не сбрасывается
+    if(cur.length === js.length && cur.every(function(n, i){ return n.dataset.id === js[i].id; })){
+      js.forEach(function(j, i){ if(cur[i].dataset.sig !== sigOf(j)) e.replaceChild(mk(j), cur[i]); });
+      return;
+    }
+    e.innerHTML = ''; js.forEach(function(j){ e.appendChild(mk(j)); });
+  }
+
+  // ── загрузка кусками по 8 МБ, с повтором ──
+  var seq = 0;
+  window.r54Pick = function(list, kind){
+    var fs = Array.prototype.slice.call(list || []);
+    if(kind === 'clip') fs = fs.filter(function(f){ return /^video\//.test(f.type) || /\.(mp4|mov|m4v|webm|mkv|avi)$/i.test(f.name); });
+    if(!fs.length){ toast(kind === 'clip' ? 'Это не видео' : 'Выберите аудиофайл'); return; }
+    var L = (V.st && V.st.limits) || {};
+    if(kind === 'music') fs = fs.slice(0, 1);
+    fs.forEach(function(file){
+      if(kind === 'clip' && V.files.length >= (L.clips || 10)){ toast('Не больше ' + (L.clips || 10) + ' клипов'); return; }
+      var f = {key:'f' + (++seq), kind:kind, name:file.name, size:file.size, got:0, id:'', err:'', file:file};
+      if(file.size > (L.fileMB || 500) * 1048576) f.err = 'Больше ' + (L.fileMB || 500) + ' МБ: сожмите или обрежьте';
+      if(kind === 'clip') V.files.push(f); else { if(V.music && V.music.id) api('DELETE', '/video/uploads/' + V.music.id); V.music = f; }
+      paintFiles();
+      if(!f.err) send(f);
+    });
+  };
+  function send(f){
+    api('POST', '/video/uploads', {name:f.name, kind:f.kind, size:f.size}).then(function(j){
+      if(j.error || !j.id){ f.err = j.error || 'Сервер не принял файл'; upd(f); return; }
+      f.id = j.id; part(f, 0);
+    });
+  }
+  function part(f, tries){
+    if(f.gone) return;
+    if(f.got >= f.size){ upd(f); return; }
+    var blob = f.file.slice(f.got, Math.min(f.size, f.got + CH));
+    api('PUT', '/video/uploads/' + f.id + '?off=' + f.got, blob, {'Content-Type':'application/octet-stream'}).then(function(j){
+      if(j._s === 409 && typeof j.got === 'number'){ f.got = j.got; upd(f); part(f, tries); return; }
+      if(j.error || typeof j.got !== 'number'){
+        if(tries < 4 && (j._s === 0 || j._s >= 500)){ setTimeout(function(){ part(f, tries + 1); }, 1500 * (tries + 1)); return; }
+        f.err = j.error || 'Загрузка прервалась'; upd(f); return;
+      }
+      f.got = j.got; upd(f); part(f, 0);
+    });
+  }
+  window.r54Mv = function(i, d){ var j = i + d; if(j < 0 || j >= V.files.length) return; var x = V.files[i]; V.files[i] = V.files[j]; V.files[j] = x; paintFiles(); };
+  window.r54Rm = function(kind, i){
+    var f = kind === 'clip' ? V.files[i] : V.music; if(!f) return;
+    f.gone = true; if(f.id) api('DELETE', '/video/uploads/' + f.id);
+    if(kind === 'clip') V.files.splice(i, 1); else V.music = null;
+    paintFiles();
+  };
+  window.r54Tpl = function(id){ V.tpl = id; V.cap = V.cut = V.punch = null; keep(); paint(); };
+  window.r54Opt = function(k, v){ V[k] = v; };
+  window.r54Set = function(k, v){ V[k] = v; if(k === 'cta') keep(); };
+  window.r54Go = function(){
+    var t = tpl() || {};
+    var body = {clips:V.files.map(function(f){ return f.id; }), music:V.music ? V.music.id : '',
+      opts:{template:V.tpl, hook:V.hook.trim(), cta:V.cta.trim(), captions:on('cap', t.Captions), cut:on('cut', t.Cut), punch:on('punch', t.Punch)}};
+    V.busy = true; paintFiles();
+    api('POST', '/video/jobs', body).then(function(j){
+      V.busy = false;
+      if(j.error){ toast(j.error); paintFiles(); return; }
+      toast('Собираем Reels: прогресс ниже');
+      V.files = []; V.music = null; V.hook = '';
+      load();
+    });
+  };
+  window.r54Retry = function(id){ api('POST', '/video/jobs/' + id + '/retry').then(function(j){ if(j.error) toast(j.error); load(); }); };
+  window.r54Del = function(id){
+    var j = ((V.st && V.st.jobs) || []).find(function(x){ return x.id === id; });
+    var live = j && (j.status === 'running' || j.status === 'queued');
+    var card = document.querySelector('.r54-j[data-id="' + id + '"] .r54-ja'); if(!card) return;
+    if(card.dataset.ask !== '1'){ card.dataset.ask = '1'; card.insertAdjacentHTML('beforeend', '<span class="r54-jm" style="align-self:center">' + (live ? 'Остановить сборку?' : 'Удалить ролик?') + '</span><button class="r54-b p" onclick="r54DelYes(\'' + escA(id) + '\')">Да</button>'); return; }
+  };
+  window.r54DelYes = function(id){ api('DELETE', '/video/jobs/' + id).then(function(){ load(); }); };
+  window.r54Open = function(itemId){ if(typeof czOpenItem === 'function') czOpenItem(itemId); };
+  // «В план SMM»: Reels в Instagram на завтра, со ссылкой на ролик и обложку
+  window.r54Plan = function(id){
+    var j = ((V.st && V.st.jobs) || []).find(function(x){ return x.id === id; }); if(!j || !j.video) return;
+    if(typeof czC !== 'function'){ toast('План SMM не загрузился'); return; }
+    var c = czC(), day = czAddDays(czToday(), 1), tm = (c.settings.channels.instagram && c.settings.channels.instagram.time) || '19:00';
+    var hook = (j.opts && j.opts.hook) || '';
+    var cap = (hook ? hook + '\n\n' : '') + (j.text || '') + '\n\n' + ((j.opts && j.opts.cta) || (V.st && V.st.cta) || '');
+    cap = cap.replace(/\n{3,}/g, '\n\n').trim().slice(0, 2200);
+    var it = {id:'rv' + Date.now().toString(36), kind:'reels', channel:'instagram', status:'planned', at:czIso(day, tm), title:hook || 'Reels', hook:hook,
+      caption:cap, text:cap, video:location.origin + j.video, cover:j.cover ? location.origin + j.cover : '', beats:[], source:'video', videoJob:j.id,
+      createdAt:new Date().toISOString(), by:czWho()};
+    czNormItem(it); c.queue.push(it); czLog(it, 'planned', ''); saveContent(); czPush();
+    var p = planned(); p[j.id] = it.id; try{ localStorage.setItem('r54_plan', JSON.stringify(p)); }catch(e){}
+    paintJobs(); toast('Reels в плане: Instagram, ' + czDayName(day) + ', ' + tm);
+  };
+})();
+</script>
+<!-- /R54 -->
 </body>
 </html>

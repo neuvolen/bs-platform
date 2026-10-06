@@ -33,6 +33,12 @@ var logoWhite []byte
 //go:embed assets/logo_black.png
 var logoBlack []byte
 
+// FontHeavy: Manrope ExtraBold (TTF), the captions of the Reels editor (R54, internal/video).
+func FontHeavy() []byte { return fontHeavy }
+
+// LogoWhite: the white logo (PNG 420×200) for the Reels outro (R54).
+func LogoWhite() []byte { return logoWhite }
+
 // Footer is printed on every page.
 const Footer = "© Business Surgery · bxclub.kz · инструмент из библиотеки клуба"
 
