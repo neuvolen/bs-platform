@@ -486,7 +486,7 @@ func (h *PlatformAI) recsTick(ctx context.Context, now time.Time) time.Time {
 	}
 	if err != nil {
 		tries := h.noteRecsRun(c, now, err, time.Time{})
-		next := recsNext(now, true, tries)
+		next := recsNext(now, true, tries, h.AI.Answering() != "")
 		h.noteRecsNext(c, next)
 		log.Printf("ai recs: %v (attempt %d, next %s)", err, tries, next.In(almaty).Format("02.01 15:04"))
 		return next

@@ -80,7 +80,7 @@ func freeProvider(name string) bool {
 func envClean(names ...string) string {
 	for _, n := range names {
 		if v := strings.TrimSpace(os.Getenv(n)); v != "" {
-			k, _ := CleanKey(v)
+			k := cleanAPIKey(v) // R51: also «NAME=key» and anything after a space
 			if k != "" {
 				return k
 			}
@@ -341,6 +341,9 @@ type ProviderState struct {
 	Free   bool   `json:"free"`
 	Active bool   `json:"active,omitempty"`
 	Env    string `json:"env"` // the variable that holds the key (a name only)
+	// Problem: why the provider is not used, in Russian (R51: «badkey»)
+	Problem string `json:"problem,omitempty"`
+	Action  string `json:"action,omitempty"` // what the owner does about it
 	// legacy fields read by older pages
 	Daily   bool `json:"daily,omitempty"`
 	Billing bool `json:"billing,omitempty"`
@@ -387,6 +390,10 @@ func (c *Client) state(name string) ProviderState {
 	}
 	if c.providerKey(name) == "" {
 		p.State = "none"
+		return p
+	}
+	if ke := c.keyClosed(name); ke != nil && name != "claude" { // R51: the key was refused
+		p.State, p.Problem, p.Action = "badkey", ke.Problem(), ke.Action()
 		return p
 	}
 	if q := c.quotaClosed(name); q != nil {
@@ -531,7 +538,7 @@ func SearchUnavailable(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, ErrNoSearch) || errors.Is(err, ErrNoKey) || IsQuota(err) {
+	if errors.Is(err, ErrNoSearch) || errors.Is(err, ErrNoKey) || IsQuota(err) || IsKeyRejected(err) {
 		return true
 	}
 	var se *SearchError

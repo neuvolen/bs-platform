@@ -97,19 +97,22 @@ func TestR36SystemCheck(t *testing.T) {
 	// no Claude key, no leads yet
 	r := s.Run(ctx)
 	txt := r.Text()
-	for _, want := range []string{"🩺 Проверка системы", "❌ ИИ Claude: ключа нет", "⚪ Заявки Tilda: заявок ещё не было · сегодня 0",
-		"✅ Голос: встроенные записи, готово 33 из 33 фраз", "✅ Webhook Telegram: у сервера", "⚪ Экспорт в таблицу: выключен",
-		"✅ Версия: abcdef1, сборка 04.10.2026 11:00", "✅ База данных: отвечает", "Проверено 04.10 14:35"} {
+	for _, want := range []string{"🩺 Проверка системы", "❌ ИИ: никто не отвечает", "→ Добавьте бесплатный GEMINI_API_KEY", "⚪ Заявки Tilda: заявок ещё не было · сегодня 0",
+		"✅ Голос: встроенные записи, готово 33 из 33 фраз", "✅ Webhook Telegram: у сервера",
+		"✅ Версия: abcdef1, сборка 04.10.2026 11:00", "✅ База данных: отвечает", "Проверено 04.10 14:35", "/status подробно"} {
 		if !strings.Contains(txt, want) {
 			t.Errorf("no %q in\n%s", want, txt)
 		}
+	}
+	if strings.Contains(txt, "Экспорт") { // R51: only while it is on
+		t.Errorf("export line while off:\n%s", txt)
 	}
 	if strings.Contains(txt, "\u2014") {
 		t.Error("em dash in the check")
 	}
 	// the first deploy: everything is new: one message
 	got, err := s.NotifyDeploy(ctx)
-	if err != nil || len(sent) != 1 || !strings.Contains(got, "Сервер обновлён (версия abcdef1") || !strings.Contains(got, "❌ ИИ Claude не подключён") {
+	if err != nil || len(sent) != 1 || !strings.Contains(got, "Сервер обновлён (версия abcdef1") || !strings.Contains(got, "❌ ИИ: не подключён: нет ни одного ключа\n    → Добавьте") {
 		t.Fatalf("first deploy: %v %q", err, got)
 	}
 	// the same deploy again (a restart): nothing more
@@ -131,54 +134,63 @@ func TestR36SystemCheck(t *testing.T) {
 	}
 	commit = "bbbbbbb000000000"
 	got, err = s.NotifyDeploy(ctx)
-	if err != nil || len(sent) != 2 {
+	// R51: everything got better: no problem to act on, no message
+	if err != nil || len(sent) != 1 || got != "" {
 		t.Fatalf("second deploy: %v %q", err, got)
 	}
-	if !strings.Contains(got, "✅ ИИ Claude подключён и отвечает (claude-sonnet-5)") || !strings.Contains(got, "✅ Заявки с Tilda приходят напрямую на сервер") {
-		t.Fatalf("changes: %q", got)
-	}
-	// unchanged lines are not repeated
-	for _, no := range []string{"Webhook", "Экспорт", "База данных", "Голос"} {
-		if strings.Contains(got, no) {
-			t.Errorf("%s did not change but is in %q", no, got)
-		}
-	}
 	line := s.Run(ctx).Items[0]
-	if line.State != "ok" || line.Text != "отвечает, модель claude-sonnet-5, ключ из настроек платформы" {
-		t.Fatalf("claude line: %+v", line)
+	if line.Key != "ai" || line.State != "ok" || !strings.HasPrefix(line.Text, "отвечает Claude") ||
+		!strings.Contains(line.Detail, "Claude: модель claude-sonnet-5, ключ из настроек платформы") {
+		t.Fatalf("ai line: %+v", line)
 	}
-	if tline := s.Run(ctx).Items[1]; tline.Text != "последняя 04.10 13:35, напрямую с сайта · сегодня 2" {
+	if tline := s.Run(ctx).Items[2]; tline.Text != "последняя 04.10 13:35, напрямую с сайта · сегодня 2" {
 		t.Fatalf("tilda line: %+v", tline)
+	}
+	if full := s.Run(ctx).TextFull(); !strings.Contains(full, "    · Claude: модель claude-sonnet-5") || strings.Contains(full, "/status подробно") {
+		t.Fatalf("full:\n%s", full)
 	}
 
 	// a deploy where nothing changed: no message, the result is still kept
 	commit = "ccccccc000000000"
-	if got, _ := s.NotifyDeploy(ctx); got != "" || len(sent) != 2 {
+	if got, _ := s.NotifyDeploy(ctx); got != "" || len(sent) != 1 {
 		t.Fatalf("nothing changed, sent %q", got)
 	}
-	// the webhook is lost: it fails, so it is sent; and again next deploy while failing
+	// the webhook is lost: the server takes it back itself, nothing for the owner to do
 	owned = false
 	commit = "ddddddd000000000"
-	got, _ = s.NotifyDeploy(ctx)
-	if len(sent) != 3 || !strings.Contains(got, "❌ Webhook Telegram не у сервера") {
+	if got, _ = s.NotifyDeploy(ctx); got != "" || len(sent) != 1 {
 		t.Fatalf("webhook: %q", got)
 	}
+	if !strings.Contains(s.Run(ctx).Text(), "❌ Webhook Telegram: Telegram шлёт сообщения не серверу") {
+		t.Fatal("webhook not in /status")
+	}
+	// the database fails: one problem, one action
+	owned = true
+	dbErr := errors.New("down")
+	s.DB = func(context.Context) error { return dbErr }
 	commit = "eeeeeee000000000"
 	got, _ = s.NotifyDeploy(ctx)
-	if len(sent) != 4 || !strings.Contains(got, "❌ Webhook Telegram: Telegram шлёт сообщения не серверу") {
-		t.Fatalf("still failing: %q", got)
+	if len(sent) != 2 || !strings.Contains(got, "❌ База данных: база данных не отвечает\n    → Откройте Railway") || strings.Contains(got, "ИИ") {
+		t.Fatalf("db: %q", got)
+	}
+	// still failing next deploy: already told, not repeated
+	commit = "eeeeeee000000001"
+	if got, _ = s.NotifyDeploy(ctx); got != "" || len(sent) != 2 {
+		t.Fatalf("repeated: %q", got)
 	}
 	// the bot is down: nothing kept, the next run of this deploy tries again
-	owned = true
+	keys.Set("")
 	commit = "fffffff000000000"
 	sendErr = errors.New("telegram down")
 	if _, err := s.NotifyDeploy(ctx); err == nil {
 		t.Fatal("send error not reported")
 	}
 	sendErr = nil
-	if got, _ := s.NotifyDeploy(ctx); len(sent) != 5 || !strings.Contains(got, "✅ Бот Telegram работает через сервер") {
+	if got, _ := s.NotifyDeploy(ctx); len(sent) != 3 || !strings.Contains(got, "❌ ИИ: не подключён") {
 		t.Fatalf("retry after a failed send: %q", got)
 	}
+	keys.Set(key)
+	s.DB = func(context.Context) error { return nil }
 
 	// the settings' button: admin only, the same lines as JSON
 	gin.SetMode(gin.TestMode)
@@ -199,7 +211,7 @@ func TestR36SystemCheck(t *testing.T) {
 			Text  string      `json:"text"`
 		}
 		_ = json.Unmarshal(w.Body.Bytes(), &j)
-		if w.Code != 200 || len(j.Items) < 9 || j.Items[0].Key != "claude" || j.Items[7].Key != "search" || j.Items[8].Key != "airecs" || j.Items[0].State != "ok" || !strings.HasPrefix(j.Text, "🩺") {
+		if w.Code != 200 || len(j.Items) < 7 || j.Items[0].Key != "ai" || j.Items[1].Key != "airecs" || j.Items[0].State != "ok" || !strings.HasPrefix(j.Text, "🩺") {
 			t.Fatalf("http: %d %s", w.Code, w.Body.String())
 		}
 		if strings.Contains(w.Body.String(), key) || strings.Contains(w.Body.String(), "SYSCHECK") {

@@ -29,6 +29,30 @@ func TestR39RecsNext(t *testing.T) {
 	if n := recsNext(now, false, 0); n.In(almaty).Format("02.01 15:04") != "06.10 07:00" {
 		t.Fatal(n)
 	}
+	// R51, prod 06.10: 5 failures in the night while every provider rested;
+	// at 14:45 a provider answers: the 6th failure is tried again in an hour
+	day := time.Date(2026, 10, 6, 14, 45, 0, 0, almaty)
+	if n := recsNext(day, true, 6, true); !n.Equal(day.Add(time.Hour)) {
+		t.Fatal("no retry within the day while a provider answers:", n)
+	}
+	if n := recsNext(day, true, 6, false); n.In(almaty).Format("02.01 15:04") != "07.10 07:00" {
+		t.Fatal(n)
+	}
+	if n := recsNext(day, true, aiRecsMaxTries, true); n.In(almaty).Format("02.01 15:04") != "07.10 07:00" {
+		t.Fatal(n)
+	}
+}
+
+func TestR51RecsReason(t *testing.T) {
+	for in, want := range map[string]string{
+		"Ключ Gemini не принят: создайте новый ключ…":            "ключ ИИ не принят",
+		"ИИ ответил ошибкой 400: API key not valid. Please pass": "ключ ИИ не принят",
+		ai.AllPausedMessage: "ИИ был на паузе (лимиты или баланс)",
+	} {
+		if got := recsReason(in); got != want {
+			t.Errorf("%q: %q", in, got)
+		}
+	}
 }
 
 // Prod 05.10.2026: the search failed and the day's run was lost until the
@@ -67,7 +91,9 @@ func TestR39RecsTickRetryAndStatus(t *testing.T) {
 		t.Fatalf("retry at %s", next)
 	}
 	it := h.RecsStatus(ctx, now.Add(time.Minute))
-	if it.State != "fail" || !strings.Contains(it.Text, "Capabilities") || !strings.Contains(it.Text, "следующая попытка 05.10 16:26") || !strings.Contains(it.Text, "ещё не было") {
+	// R51: a warning (a retry is coming), the reason once, the next attempt today
+	if it.State != "warn" || strings.Count(it.Text, "Capabilities") != 1 || !strings.Contains(it.Text, "следующая попытка в 16:26") ||
+		!strings.Contains(it.Text, "ещё не было") || strings.Contains(it.Text, "ответ Anthropic") || !strings.Contains(it.Detail, "05.10 15:26") {
 		t.Fatalf("status: %+v", it)
 	}
 	d, _ := repo.GetDoc(ctx, "club", aiRecsKey)

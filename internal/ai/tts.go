@@ -47,7 +47,8 @@ var ttsVerRe = regexp.MustCompile(`gemini-(\d+(?:\.\d+)?)`)
 // newestTTS: the newest "tts" model the key can call; flash before pro at
 // the same version (faster), a stable model before a preview.
 func (c *Client) newestTTS(ctx context.Context, skip string) string {
-	r, _ := http.NewRequest("GET", c.GeminiBase+"/v1beta/models?pageSize=1000&key="+c.Gemini, nil)
+	r, _ := http.NewRequest("GET", c.GeminiBase+"/v1beta/models?pageSize=1000", nil)
+	r = c.gemAuth(r)
 	b, err := c.do(ctx, r)
 	if err != nil {
 		return ""
@@ -130,10 +131,10 @@ func (c *Client) Speak(ctx context.Context, text, voice, style string) ([]byte, 
 	model := c.TTSModel(ctx)
 	rl := 0
 	for try := 0; ; try++ {
-		url := fmt.Sprintf("%s/v1beta/models/%s:generateContent?key=%s", c.GeminiBase, model, c.Gemini)
+		url := fmt.Sprintf("%s/v1beta/models/%s:generateContent", c.GeminiBase, model)
 		// One call that hangs does not hold the server's only TTS slot.
 		actx, cancel := context.WithTimeout(ctx, TTSAttemptTimeout)
-		b, err := c.do(actx, jsonReq("POST", url, body))
+		b, err := c.do(actx, c.gemAuth(jsonReq("POST", url, body)))
 		cancel()
 		if err == nil {
 			return speechWAV(b)

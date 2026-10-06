@@ -329,7 +329,7 @@ func (s *Service) private(ctx context.Context, body []byte) {
 			"Ежедневные задачи:\n\nОтчёт за день:\n\nПлан на завтра:\n\n❌ Штраф за пропуск: 10 000 тг")
 		return
 	case "/status":
-		if admin && s.systemStatus(ctx, m.ChatID) { // R36: the team gets the system check
+		if admin && s.systemStatus(ctx, m.ChatID, statusFull(m.Text)) { // R36: the team gets the system check (R51: «/status подробно»)
 			return
 		}
 		_ = s.SendMessage(ctx, m.ChatID, s.statusText(ctx, m.FromID))

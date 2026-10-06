@@ -2,7 +2,9 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/ai"
@@ -51,9 +53,20 @@ func (h *PlatformAI) noteRecsRun(ctx context.Context, now time.Time, err error, 
 	return tries
 }
 
+// aiRecsMaxTries: R51: while a provider answers, a failed day is tried
+// again every aiRecsRetry until 21:00, at most this many runs a day.
+const aiRecsMaxTries = 12
+
 // recsNext: when the loop runs again after a run at now (failed: retry).
-func recsNext(now time.Time, failed bool, tries int) time.Time {
-	if failed && tries < aiRecsTries {
+// R51: answering says a provider answers now: then the retry comes within
+// the day even after aiRecsTries failures (they were spent while every
+// provider rested: prod 06.10, attempt 6 went to the next morning).
+func recsNext(now time.Time, failed bool, tries int, answering ...bool) time.Time {
+	limit := aiRecsTries
+	if len(answering) > 0 && answering[0] {
+		limit = aiRecsMaxTries
+	}
+	if failed && tries < limit {
 		next := now.Add(aiRecsRetry)
 		if next.In(almaty).Hour() < aiRecsLastHour && next.In(almaty).Day() == now.In(almaty).Day() {
 			return next
@@ -99,18 +112,22 @@ func (h *PlatformAI) RecsStatus(ctx context.Context, now time.Time) CheckItem {
 	today := now.In(almaty).Format("2006-01-02")
 	run, _ := doc["run"].(map[string]any)
 	if run != nil && run["ok"] == false && recStr(run, "error") != "" && last != today {
-		at, _ := time.Parse(time.RFC3339, recStr(run, "at"))
-		msg := "ошибка: " + recStr(run, "error")
-		if !at.IsZero() {
-			msg += " (" + at.In(almaty).Format("02.01 15:04")
-			if nx, e := time.Parse(time.RFC3339, recStr(run, "next")); e == nil {
-				msg += ", следующая попытка " + nx.In(almaty).Format("02.01 15:04")
+		// R51: the reason once, in words, and when it is tried again; a
+		// retry is coming, so a warning, not ❌ (the AI line says what to fix)
+		msg := "сегодня ещё не найдены: " + recsReason(recStr(run, "error"))
+		if nx, e := time.Parse(time.RFC3339, recStr(run, "next")); e == nil && nx.After(now) {
+			if nx.In(almaty).Format("2006-01-02") == today {
+				msg += ", следующая попытка в " + nx.In(almaty).Format("15:04")
+			} else {
+				msg += ", следующая попытка завтра в " + nx.In(almaty).Format("15:04")
 			}
-			msg += ")"
 		}
-		it.State, it.Sig = "fail", "err"
+		it.State, it.Sig = "warn", "err"
 		it.Text = msg + " · " + it.Text
-		it.Note = "❌ Рекомендации ИИ не находятся: " + recStr(run, "error")
+		it.Note = "⚠️ Рекомендации ИИ не находятся: " + recStr(run, "error")
+		if at, e := time.Parse(time.RFC3339, recStr(run, "at")); e == nil {
+			it.Detail = "Последняя попытка " + at.In(almaty).Format("02.01 15:04") + ": " + recStr(run, "error")
+		}
 		return it
 	}
 	if last != today && now.In(almaty).Hour() >= aiRecsHour+1 {
@@ -135,7 +152,10 @@ func (h *PlatformAI) noteRecsNext(ctx context.Context, next time.Time) {
 	})
 }
 
-// search: «Поиск в интернете: работает / ошибка (причина)», a tiny live search.
+// search: «Поиск в интернете: работает / ошибка (причина)», a tiny live
+// search. R51: Problem is the human reason once, Action what to do (only
+// when the owner can do something: a refused key; a used-up free limit
+// comes back by itself), Detail the API's answer for /status подробно.
 func (s *SysCheck) search(ctx context.Context) CheckItem {
 	it := CheckItem{Key: "search", Title: "Поиск в интернете"}
 	if s.AI == nil || len(s.AI.SearchModels()) == 0 {
@@ -145,23 +165,58 @@ func (s *SysCheck) search(ctx context.Context) CheckItem {
 	c, cancel := context.WithTimeout(ctx, 40*time.Second)
 	defer cancel()
 	si, err := s.AI.SearchPing(c)
+	var ke *ai.KeyError
+	if errors.As(err, &ke) {
+		it.State, it.Sig = "fail", "badkey-"+ke.Service
+		it.Problem, it.Action = ke.Problem(), ke.Action()
+		it.Text = "не работает: " + ke.Problem()
+		it.Note = "❌ Поиск в интернете не работает: " + ke.Problem()
+		it.Detail = "Поиск: " + ke.Problem() + searchHTTP(err)
+		return it
+	}
 	if err != nil && ai.SearchUnavailable(err) {
 		// R42: events keep the feed, AI recs go without search
 		it.State, it.Sig = "warn", "nosearch"
-		it.Text = "недоступен (" + ai.SearchMessage(err) + "): лента мероприятий остаётся прежней, рекомендации ИИ делаются без поиска"
+		it.Problem = "временно недоступен, " + searchWhy(err)
+		it.Text = it.Problem + ": мероприятия не обновляются, рекомендации ИИ делаются без поиска"
 		it.Note = "⚠️ Поиск в интернете недоступен: мероприятия не обновляются, рекомендации ИИ делаются без поиска"
+		it.Detail = "Поиск: " + ai.SearchMessage(err) + searchHTTP(err)
 		return it
 	}
 	if err != nil {
 		msg := ai.SearchMessage(err)
-		it.State, it.Text, it.Sig = "fail", "ошибка ("+msg+")", "err"
+		it.State, it.Text, it.Sig = "warn", "ошибка ("+msg+")", "err"
+		it.Problem = "ошибка, повторю позже"
 		it.Note = "❌ Поиск в интернете не работает: " + msg
+		it.Detail = "Поиск: " + msg + searchHTTP(err)
 		return it
 	}
 	it.State, it.Sig = "ok", "ok"
 	it.Text = "работает (" + si.Model + ", " + si.Tool + ")"
 	it.Note = "✅ Поиск в интернете работает: мероприятия и рекомендации ИИ снова находятся"
+	it.Detail = "Поиск: " + si.Model + ", " + si.Tool
 	return it
+}
+
+// searchWhy: the short reason a search is unavailable.
+func searchWhy(err error) string {
+	var qe *ai.QuotaError
+	if errors.As(err, &qe) && strings.HasPrefix(qe.Service, "gemini") {
+		return "бесплатный лимит поиска на сегодня исчерпан, восстановится сам"
+	}
+	if ai.IsQuota(err) {
+		return "у Claude нет баланса, а бесплатный поиск сейчас не отвечает"
+	}
+	return "повторю позже"
+}
+
+// searchHTTP: the API's status and message (no keys inside) for the details.
+func searchHTTP(err error) string {
+	var he *ai.HTTPError
+	if errors.As(err, &he) {
+		return fmt.Sprintf(" (ответ API %d: %s)", he.Status, ai.ShortAPIMessage(he.Body))
+	}
+	return ""
 }
 
 func (s *SysCheck) recs(ctx context.Context) CheckItem {
@@ -169,4 +224,27 @@ func (s *SysCheck) recs(ctx context.Context) CheckItem {
 		return CheckItem{Key: "airecs", Title: "Рекомендации ИИ", State: "off", Text: "нет данных"}
 	}
 	return s.Recs.RecsStatus(ctx, s.now())
+}
+
+// recsReason: the stored error in a few words (the AI line has the details
+// and the action).
+func recsReason(e string) string {
+	low := strings.ToLower(e)
+	switch {
+	case strings.Contains(low, "ключ") && strings.Contains(low, "не принят"), strings.Contains(low, "api key not valid"):
+		return "ключ ИИ не принят"
+	case strings.Contains(low, "баланс") || strings.Contains(low, "лимит") || strings.Contains(low, "на паузе"):
+		return "ИИ был на паузе (лимиты или баланс)"
+	case strings.Contains(low, "нет ключа"):
+		return "нет ключа ИИ"
+	case strings.Contains(low, "долго") || strings.Contains(low, "deadline") || strings.Contains(low, "timeout"):
+		return "ИИ отвечал слишком долго"
+	}
+	if i := strings.Index(e, " (ответ "); i > 0 { // the API's own words: /status подробно
+		e = e[:i]
+	}
+	if r := []rune(e); len(r) > 160 {
+		return string(r[:160]) + "…"
+	}
+	return e
 }

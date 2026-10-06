@@ -354,6 +354,7 @@ func TestR42ProviderErrors(t *testing.T) {
 		t.Fatalf("until: %s", st.Until)
 	}
 	// Groq's per-minute 429 with retry-after: held 30 s, not a day
+	c.ClearBadKey("groq") // R51: a refused key rests; here the key is fixed
 	f.groqStatus, f.groqBody = 429, `{"error":{"message":"Rate limit reached for model on requests per minute (RPM): Limit 30, Used 30","type":"requests","code":"rate_limit_exceeded"}}`
 	_, _ = c.Text(context.Background(), "s", "p")
 	q := c.quotaClosed("groq")

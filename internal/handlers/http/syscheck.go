@@ -52,6 +52,13 @@ type CheckItem struct {
 	Sig string `json:"-"`
 	// Note: the sentence the owner gets when this line changed.
 	Note string `json:"-"`
+	// R51: Problem: a real problem in a few words; Action: the one plain
+	// thing the owner does about it. Only lines with an Action go into the
+	// message after a deploy. Detail: what /status подробно adds (provider
+	// lines, the API's own answer); never in the short report.
+	Problem string `json:"problem,omitempty"`
+	Action  string `json:"action,omitempty"`
+	Detail  string `json:"detail,omitempty"`
 }
 
 // CheckResult: the whole check.
@@ -71,14 +78,31 @@ func (r CheckResult) Failing() []CheckItem {
 	return out
 }
 
-// Text: the check as the bot sends it.
-func (r CheckResult) Text() string {
+// Text: the check as the bot sends it (/status): one line per part, the
+// owner's action under a problem, no raw API answers.
+func (r CheckResult) Text() string { return r.text(false) }
+
+// TextFull: /status подробно: every line with its details.
+func (r CheckResult) TextFull() string { return r.text(true) }
+
+func (r CheckResult) text(full bool) string {
 	var b strings.Builder
 	b.WriteString("🩺 Проверка системы\n")
 	for _, it := range r.Items {
 		b.WriteString("\n" + stateMark(it.State) + " " + it.Title + ": " + it.Text)
+		if it.Action != "" && (it.State == "fail" || it.State == "warn") {
+			b.WriteString("\n    → " + it.Action)
+		}
+		if full && it.Detail != "" {
+			for _, l := range strings.Split(it.Detail, "\n") {
+				b.WriteString("\n    · " + l)
+			}
+		}
 	}
 	b.WriteString("\n\nПроверено " + r.At.In(club.Almaty).Format("02.01 15:04"))
+	if !full {
+		b.WriteString(" · подробно: /status подробно")
+	}
 	return b.String()
 }
 
@@ -142,7 +166,7 @@ func (s *SysCheck) Run(ctx context.Context) CheckResult {
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	r := CheckResult{At: s.now(), Version: versionText(s.build())}
-	items := make([]CheckItem, 10)
+	items := make([]CheckItem, 7)
 	var wg sync.WaitGroup
 	par := func(i int, f func() CheckItem) {
 		wg.Add(1)
@@ -156,20 +180,22 @@ func (s *SysCheck) Run(ctx context.Context) CheckResult {
 			items[i] = f()
 		}()
 	}
-	par(0, func() CheckItem { return s.claude(ctx) })
-	par(1, func() CheckItem { return s.tilda(ctx) })
-	par(2, func() CheckItem { return s.voice(ctx) })
-	par(3, func() CheckItem { return s.webhook(ctx) })
-	par(4, func() CheckItem { return s.export(ctx) })
-	par(5, func() CheckItem {
-		return CheckItem{Key: "version", Title: "Версия", State: "ok", Text: r.Version}
-	})
-	par(6, func() CheckItem { return s.db(ctx) })
-	par(7, func() CheckItem { return s.search(ctx) })
-	par(8, func() CheckItem { return s.recs(ctx) })
-	par(9, func() CheckItem { return s.chain(ctx) })
-	wg.Wait() // R39: 7 «Поиск в интернете», 8 «Рекомендации ИИ»; R42: 9 «ИИ: кто отвечает»
-	r.Items = items
+	// R51: one «ИИ» block (who answers, Claude, the web search) instead of three lines
+	par(0, func() CheckItem { return s.aiBlock(ctx) })
+	par(1, func() CheckItem { return s.recs(ctx) })
+	par(2, func() CheckItem { return s.tilda(ctx) })
+	par(3, func() CheckItem { return s.voice(ctx) })
+	par(4, func() CheckItem { return s.webhook(ctx) })
+	par(5, func() CheckItem { return s.db(ctx) })
+	par(6, func() CheckItem { return s.export(ctx) })
+	wg.Wait()
+	for _, it := range items {
+		if it.Key == "export" && it.State == "off" {
+			continue // R51: the export line only while it is on
+		}
+		r.Items = append(r.Items, it)
+	}
+	r.Items = append(r.Items, CheckItem{Key: "version", Title: "Версия", State: "ok", Text: r.Version})
 	r.Items = append(r.Items, s.autoreply(ctx)) // R40b: lead_autoreply.go
 	if s.Threads != nil {                       // R43: «Threads: ручной режим, сегодня опубликовано X из 4»
 		it := CheckItem{Key: "threads", Title: "Threads"}
@@ -263,6 +289,8 @@ func (s *SysCheck) claude(ctx context.Context) CheckItem {
 			return it
 		}
 		it.Note = "❌ ИИ Claude не подключён: нет ключа (Настройки платформы → «Ключ Claude» или ANTHROPIC_API_KEY в Railway и Deploy)"
+		it.Problem = "не подключён: нет ни одного ключа"
+		it.Action = "Добавьте бесплатный GEMINI_API_KEY (aistudio.google.com/api-keys) в Railway или ключ Claude: Настройки платформы → «Ключ Claude»"
 		return it
 	}
 	src := keySourceFull(s.AI)
@@ -283,15 +311,24 @@ func (s *SysCheck) claude(ctx context.Context) CheckItem {
 		}
 		it.State, it.Text, it.Sig = "fail", "ошибка: "+msg+" ("+src+")", sig
 		it.Note = "❌ ИИ Claude не отвечает: " + msg
-		// R42: a free provider answers instead: not a failure of the platform
+		it.Detail = "Claude: " + msg + " (" + src + ")"
+		it.Problem = "не отвечает: Claude " + claudeShort(err)
+		it.Action = "Пополните баланс Claude (console.anthropic.com → Plans & Billing) или добавьте бесплатный GEMINI_API_KEY в Railway"
+		if s.AI.Gemini != "" || s.AI.Groq != "" || s.AI.OpenRouter != "" {
+			it.Action = "Пополните баланс Claude (console.anthropic.com → Plans & Billing) или подождите: бесплатные лимиты восстановятся сами"
+		}
+		if !ai.IsQuota(err) {
+			it.Action = "Проверьте ключ Claude: Настройки платформы → «Ключ Claude» или ANTHROPIC_API_KEY в Railway"
+		}
+		// R42/R51: a free provider answers instead: an info line, not a problem
 		if alt := firstOther(s.AI, "claude"); alt != "" {
-			it.State = "warn"
-			it.Text += "; вместо него отвечает " + ai.ProviderLabel(alt)
-			it.Note = "⚠️ ИИ Claude не отвечает (" + msg + "), ИИ работает через " + ai.ProviderLabel(alt)
+			it.State, it.Note, it.Problem, it.Action = "off", "", "", ""
+			it.Text = "Claude " + claudeShort(err) + ": не используется, отвечает " + ai.ProviderLabel(alt)
 		}
 		return it
 	}
 	it.State, it.Text, it.Sig = "ok", "отвечает, модель "+model+", "+src, "ok"
+	it.Detail = "Claude: модель " + model + ", " + src
 	it.Note = "✅ ИИ Claude подключён и отвечает (" + model + ")"
 	return it
 }
@@ -327,6 +364,8 @@ func (s *SysCheck) tilda(ctx context.Context) CheckItem {
 			it.State = "warn"
 			it.Sig += "|rej"
 			it.Note = "⚠️ Tilda обращается к серверу, но заявка отклонена: " + in.Last.Reason
+			it.Problem = "заявки с сайта отклоняются: " + in.Last.Reason
+			it.Action = "Сверьте адрес вебхука в Tilda с Настройками платформы → «Заявки с сайта»"
 		}
 	}
 	if in.At.IsZero() {
@@ -343,6 +382,8 @@ func (s *SysCheck) tilda(ctx context.Context) CheckItem {
 		it.State, it.Sig = "warn", "script"
 		it.Text = "последняя " + when + ", через скрипт таблицы · " + today + try
 		it.Note = "⚠️ Заявки с Tilda идут через скрипт таблицы: поставьте в Tilda вебхук сервера (Настройки → «Заявки с сайта»)"
+		it.Problem = "заявки с сайта идут через скрипт таблицы"
+		it.Action = "Поставьте в Tilda вебхук сервера: Настройки платформы → «Заявки с сайта»"
 		rejNote()
 		return it
 	}
@@ -448,6 +489,8 @@ func (s *SysCheck) voice(ctx context.Context) CheckItem {
 		it.Text += " · ElevenLabs не подключён: " + st.EnvError
 		it.Sig += "|env"
 		it.Note = "⚠️ Голос ElevenLabs: " + st.EnvError
+		it.Problem = "ElevenLabs не подключён: " + st.EnvError
+		it.Action = "Проверьте ELEVENLABS_API_KEY в переменных Railway"
 	}
 	return it
 }
@@ -519,6 +562,7 @@ func (s *SysCheck) db(ctx context.Context) CheckItem {
 	t0 := time.Now()
 	if err := s.DB(c); err != nil {
 		it.State, it.Text, it.Sig, it.Note = "fail", "не отвечает", "fail", "❌ База данных не отвечает"
+		it.Problem, it.Action = "база данных не отвечает", "Откройте Railway: сервис Postgres должен быть запущен (Restart, если остановлен)"
 		return it
 	}
 	it.State, it.Text, it.Sig = "ok", fmt.Sprintf("отвечает (%d мс)", time.Since(t0).Milliseconds()), "ok"
@@ -552,31 +596,30 @@ func sigs(r CheckResult) map[string]string {
 	return m
 }
 
-// DeployNote: the message after this deploy, "" when nothing changed and
-// nothing fails. prev is the last kept {key: sig} (nil: the first check).
+// DeployNote: the message after this deploy, "" when there is nothing to
+// do. R51: only real problems the owner can act on (a line with an Action),
+// each with its one plain action; a problem already reported at the last
+// deploy (the same Sig) is not repeated. Changes for the better and info
+// lines are not sent: /status shows them. prev is the last kept {key: sig}.
 func DeployNote(r CheckResult, prev map[string]string) string {
 	var lines []string
-	seen := map[string]bool{}
 	for _, it := range r.Items {
-		if it.Sig == "" || prev[it.Key] == it.Sig {
+		if it.Action == "" || (it.State != "fail" && it.State != "warn") {
 			continue
 		}
-		seen[it.Key] = true
-		n := it.Note
-		if n == "" {
-			n = stateMark(it.State) + " " + it.Title + ": " + it.Text
+		if it.Sig != "" && prev[it.Key] == it.Sig {
+			continue
 		}
-		lines = append(lines, n)
-	}
-	for _, it := range r.Failing() {
-		if !seen[it.Key] {
-			lines = append(lines, "❌ "+it.Title+": "+it.Text)
+		p := it.Problem
+		if p == "" {
+			p = it.Text
 		}
+		lines = append(lines, stateMark(it.State)+" "+it.Title+": "+p+"\n    → "+it.Action)
 	}
 	if len(lines) == 0 {
 		return ""
 	}
-	return "🩺 Сервер обновлён (версия " + r.Version + ")\n\n" + strings.Join(lines, "\n") + "\n\nПолная проверка: /status"
+	return "🩺 Сервер обновлён (версия " + r.Version + "). Нужно ваше действие:\n\n" + strings.Join(lines, "\n\n") + "\n\nПодробно: /status подробно"
 }
 
 // deployID: one deploy (the commit; else the build time).

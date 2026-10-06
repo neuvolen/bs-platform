@@ -139,8 +139,8 @@ func (c *Client) switchGeminiModel(ctx context.Context, he *HTTPError) bool {
 var verRe = regexp.MustCompile(`gemini-(\d+(?:\.\d+)?)`)
 
 func (c *Client) newestFlash(ctx context.Context, cur string) string {
-	r, _ := http.NewRequest("GET", c.GeminiBase+"/v1beta/models?pageSize=1000&key="+c.Gemini, nil)
-	b, err := c.do(ctx, r)
+	r, _ := http.NewRequest("GET", c.GeminiBase+"/v1beta/models?pageSize=1000", nil)
+	b, err := c.do(ctx, c.gemAuth(r))
 	if err != nil {
 		return ""
 	}
@@ -204,12 +204,18 @@ func (c *Client) geminiCall(ctx context.Context, method string, body any) ([]byt
 // its own quota ("gemini-lite": Google counts per model) and on any refusal
 // the main model answers instead.
 func (c *Client) geminiCallModel(ctx context.Context, model, method string, body any) ([]byte, error) {
+	if ke := c.keyClosed("gemini"); ke != nil {
+		return nil, ke
+	}
 	if model != "" && model != c.geminiModel() {
 		if c.quotaClosed("gemini-lite") == nil {
-			url := fmt.Sprintf("%s/v1beta/models/%s:%s?key=%s", c.GeminiBase, model, method, c.Gemini)
-			b, err := c.do(ctx, jsonReq("POST", url, body))
+			url := fmt.Sprintf("%s/v1beta/models/%s:%s", c.GeminiBase, model, method)
+			b, err := c.do(ctx, c.gemAuth(jsonReq("POST", url, body)))
 			if err == nil {
 				return b, nil
+			}
+			if ke := c.noteBadKey("gemini", err); ke != nil {
+				return nil, ke
 			}
 			c.noteQuota("gemini-lite", err)
 			if ctx.Err() != nil {
@@ -224,10 +230,13 @@ func (c *Client) geminiCallModel(ctx context.Context, model, method string, body
 		return nil, q
 	}
 	for try := 0; ; try++ {
-		url := fmt.Sprintf("%s/v1beta/models/%s:%s?key=%s", c.GeminiBase, c.geminiModel(), method, c.Gemini)
-		b, err := c.do(ctx, jsonReq("POST", url, body))
+		url := fmt.Sprintf("%s/v1beta/models/%s:%s", c.GeminiBase, c.geminiModel(), method)
+		b, err := c.do(ctx, c.gemAuth(jsonReq("POST", url, body)))
 		if q := c.noteQuota("gemini", err); q != nil {
 			return nil, q
+		}
+		if ke := c.noteBadKey("gemini", err); ke != nil {
+			return nil, ke
 		}
 		if err == nil || try > 0 {
 			return b, err
@@ -405,6 +414,10 @@ func UserMessage(err error) string {
 	if IsQuota(err) {
 		return quotaText(err)
 	}
+	var ke *KeyError
+	if errors.As(err, &ke) {
+		return ke.Error()
+	}
 	if errors.Is(err, ErrNoKey) {
 		return ErrNoKey.Error()
 	}
@@ -499,6 +512,8 @@ func (c *Client) chain(ctx context.Context, system, prompt string, asJSON bool) 
 		var err error
 		if q := c.quotaClosed(m); q != nil {
 			err = q
+		} else if ke := c.keyClosed(m); ke != nil && m != "claude" { // R51: a refused key is not asked again at once
+			err = ke
 		} else if berr := c.spend(m); berr != nil {
 			err = berr
 		} else {
@@ -517,6 +532,11 @@ func (c *Client) chain(ctx context.Context, system, prompt string, asJSON bool) 
 		if err == nil {
 			c.noteAnswered(m, models)
 			return ans, nil
+		}
+		if m != "claude" && !IsKeyRejected(err) {
+			if ke := c.noteBadKey(m, err); ke != nil {
+				err = ke
+			}
 		}
 		var qe *QuotaError
 		if errors.As(err, &qe) {
@@ -626,6 +646,14 @@ func (c *Client) do(ctx context.Context, req *http.Request) ([]byte, error) {
 	return b, nil
 }
 
+// gemAuth: the Gemini key goes in the x-goog-api-key header, as Google's
+// docs show for every key type (the AI Studio auth keys «AQ.…» included),
+// never in the URL: no escaping trouble and no key in a logged URL.
+func (c *Client) gemAuth(r *http.Request) *http.Request {
+	r.Header.Set("x-goog-api-key", c.Gemini)
+	return r
+}
+
 func jsonReq(method, url string, body any) *http.Request {
 	b, _ := json.Marshal(body)
 	r, _ := http.NewRequest(method, url, bytes.NewReader(b))
@@ -686,7 +714,7 @@ func (c *Client) geminiMedia(ctx context.Context, data []byte, mime string) (map
 	if len(data) < 14<<20 {
 		return map[string]any{"inline_data": map[string]any{"mime_type": mime, "data": base64.StdEncoding.EncodeToString(data)}}, nil
 	}
-	start := jsonReq("POST", c.GeminiBase+"/upload/v1beta/files?key="+c.Gemini, map[string]any{"file": map[string]any{"display_name": "call"}})
+	start := c.gemAuth(jsonReq("POST", c.GeminiBase+"/upload/v1beta/files", map[string]any{"file": map[string]any{"display_name": "call"}}))
 	start.Header.Set("X-Goog-Upload-Protocol", "resumable")
 	start.Header.Set("X-Goog-Upload-Command", "start")
 	start.Header.Set("X-Goog-Upload-Header-Content-Length", fmt.Sprint(len(data)))
@@ -719,8 +747,8 @@ func (c *Client) geminiMedia(ctx context.Context, data []byte, mime string) (map
 			return nil, ctx.Err()
 		case <-time.After(3 * time.Second):
 		}
-		g, _ := http.NewRequest("GET", c.GeminiBase+"/v1beta/"+f.File.Name+"?key="+c.Gemini, nil)
-		if b2, err := c.do(ctx, g); err == nil {
+		g, _ := http.NewRequest("GET", c.GeminiBase+"/v1beta/"+f.File.Name, nil)
+		if b2, err := c.do(ctx, c.gemAuth(g)); err == nil {
 			_ = json.Unmarshal(b2, &f.File)
 		}
 	}
@@ -819,6 +847,8 @@ func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
 		var err error
 		if q := c.quotaClosed(m); q != nil {
 			err = q
+		} else if ke := c.keyClosed(m); ke != nil && m != "claude" {
+			err = ke
 		} else {
 			switch m {
 			case "gemini":

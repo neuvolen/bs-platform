@@ -36,7 +36,12 @@ func WireSysCheck(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team
 	if botSvc != nil && botSvc.Enabled() {
 		s.Send = botSvc.SendMessage
 		s.Webhook = botSvc.WebhookOwned
-		botSvc.SetSystemCheck(func(ctx context.Context) string { return s.Run(ctx).Text() })
+		botSvc.SetSystemCheck(func(ctx context.Context) string {
+			if bot.WantFullStatus(ctx) { // R51: «/status подробно»
+				return s.Run(ctx).TextFull()
+			}
+			return s.Run(ctx).Text()
+		})
 		s.NoQuiet = os.Getenv("SYSCHECK_QUIET") == "off"
 		delay := SysCheckDelay
 		if d, err := time.ParseDuration(os.Getenv("SYSCHECK_DELAY")); err == nil && d >= 0 {

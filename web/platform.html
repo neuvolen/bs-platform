@@ -28127,6 +28127,7 @@ function aiProvLine(p){
   var t = (p.label || p.name) + ': ';
   if(p.state === 'none') return t + 'нет ключа';
   if(p.state === 'off') return t + 'выключен';
+  if(p.state === 'badkey') return t + 'ключ не принят' + (p.action ? '. ' + p.action : ''); // R51
   if(p.state === 'billing') t += 'нет баланса';
   else if(p.state === 'quota' || p.state === 'budget') t += aiUntil(p.until) ? 'лимит до ' + aiUntil(p.until) : 'лимит на сегодня исчерпан';
   else t += 'работает';
