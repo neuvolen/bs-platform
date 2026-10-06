@@ -126,6 +126,11 @@ func TestR51RefusedKeyRestsAndIsShown(t *testing.T) {
 	if m := UserMessage(err); strings.Contains(m, "API key not valid") || !strings.Contains(m, "GEMINI_API_KEY") {
 		t.Fatal(m)
 	}
+	// a whole old-format key refused: says so
+	c2 := &Client{Gemini: "AIzaSyA-1234567890123456789012345678901", GeminiModel: "gemini-3.8-flash", GeminiBase: srv.URL, HTTP: srv.Client()}
+	if _, err := c2.Text(context.Background(), "s", "p"); !strings.Contains(UserMessage(err), "старого формата AIza") {
+		t.Fatal(UserMessage(err))
+	}
 	// the owner replaces the key (a restart): the rest is over
 	c.Gemini = f.key
 	c.ClearBadKey("gemini")

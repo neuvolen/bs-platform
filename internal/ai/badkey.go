@@ -109,6 +109,12 @@ func (c *Client) noteBadKey(service string, err error) *KeyError {
 	ke := &KeyError{Service: service, Status: he.Status, Err: err}
 	if service == "gemini" {
 		ke.Hint = geminiShapeHint(c.Gemini)
+		if ke.Hint == "" && strings.HasPrefix(c.Gemini, "AIza") {
+			// prod 06.10.2026: a whole AIza… key, refused: Google moves the
+			// Gemini API to auth keys (AQ.…, made in AI Studio) and rejects
+			// the old standard keys
+			ke.Hint = "это ключ старого формата AIza…: Google их больше не принимает, нужен новый ключ AQ.… из AI Studio"
+		}
 	}
 	b := c.bk()
 	b.mu.Lock()
