@@ -9255,7 +9255,7 @@ function renderSummary(){
   if(!curBoard) curBoard = {};
   var S = curBoard.summary || {};
   var F = [['rev','Оборот'],['profit','Чистая прибыль'],['margin','Маржа, %'],
-           ['deposit','Депозит'],['check','Средний чек'],['conv','Конверсия, %'],['team','Команда']];
+           ['deposit','Депозит'],['check','Средний чек'],['conv','Конверсия, %'],['team','Команда'],['hours','Часы собственника в неделю']];
   el.innerHTML =
     '<div class="tbl"><div class="tr th"><div class="tc tc-n">Показатель</div>' +
       '<div class="tc">Значение</div><div class="tc">Прошлый цикл</div><div class="tc">Изменение</div></div>' +
@@ -14859,13 +14859,14 @@ var PT_FIELDS = [
   ['owner','Доход собственника'], ['opex','Операционные расходы'], ['mkt','Расходы на маркетинг'],
   ['leads','Заявок в месяц'], ['crIn','Конверсия входящих, %'], ['sales','Продаж в месяц'],
   ['check','Средний чек'], ['ltv','LTV клиента'], ['cac','Стоимость привлечения'],
-  ['team','Сотрудников'], ['fot','ФОТ в месяц'], ['revPer','Выручка на сотрудника']
+  ['team','Сотрудников'], ['fot','ФОТ в месяц'], ['revPer','Выручка на сотрудника'],
+  ['hours','Часы собственника в неделю'] // R51s: кейсы и итог периода считают «было → стало»
 ];
 var editPtId = null;
 var PT_GROUPS = [
   {n:'Финансы', f:['rev','margin','profit','owner','opex','mkt']},
   {n:'Продажи', f:['leads','crIn','sales','check','ltv','cac']},
-  {n:'Команда', f:['team','fot','revPer']}
+  {n:'Команда', f:['team','fot','revPer','hours']}
 ];
 function openPoint(id){
   editPtId = id;
