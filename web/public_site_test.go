@@ -145,6 +145,9 @@ func TestLlmsTxt(t *testing.T) {
 			t.Errorf("llms.txt lacks %q", want)
 		}
 	}
+	if !strings.Contains(s, "Адрес: Алматы, проспект Достык, 44, Dostyk Hub") || !strings.Contains(s, "1 500 000 ₸") {
+		t.Error("llms.txt lacks the address or the annual price")
+	}
 	noEmDash(t, "llms.txt", s)
 	full := get(t, r, "/llms-full.txt").Body.String()
 	for _, f := range bsProfile.FAQ {
@@ -195,6 +198,16 @@ func TestAboutPage(t *testing.T) {
 	}
 	if o["name"] != "Business Surgery" {
 		t.Errorf("name %v", o["name"])
+	}
+	// R50: the club's address (Dostyk Hub, Dostyk avenue 44) everywhere
+	if a, _ := o["address"].(map[string]any); a == nil || a["@type"] != "PostalAddress" || a["streetAddress"] != "пр. Достык, 44" || a["addressLocality"] != "Алматы" || a["addressCountry"] != "KZ" {
+		t.Errorf("address %v", o["address"])
+	}
+	if l, _ := o["location"].(map[string]any); l == nil || l["name"] != "Dostyk Hub" {
+		t.Errorf("location %v", o["location"])
+	}
+	if !strings.Contains(body, "проспект Достык, 44, Dostyk Hub") || strings.Contains(body, "1 250 000") {
+		t.Error("/about lacks the address or shows the old annual price")
 	}
 	cat := o["hasOfferCatalog"].(map[string]any)["itemListElement"].([]any)
 	if len(cat) != len(bsProfile.Offers) {

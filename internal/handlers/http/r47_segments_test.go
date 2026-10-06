@@ -160,7 +160,9 @@ func TestR47TildaImport(t *testing.T) {
 		t.Fatalf("leads %d", len(ls))
 	}
 	a := ls[1].(map[string]any)
-	if a["id"] != "site5550001" || a["source"] != "Сайт (Tilda): Заявка на разбор" || a["date"] != "03.11.2025" || a["phone"] == "" ||
+	// R50: one person = one card from the latest request, both in the history
+	if a["id"] != "site5550003" || a["source"] != "Сайт (Tilda): Заявка на разбор" || a["date"] != "01.03.2026" || a["phone"] != "+77011234567" ||
+		a["tildaN"] != 2 || !strings.Contains(pStr(a, "note"), "Ещё раз") || len(asList(a["log"])) != 3 ||
 		a["email"] != "aidar@mail.kz" || a["funnel"] != "site" || !strings.Contains(pStr(a, "note"), "Хочу на разбор") ||
 		a["utm"].(map[string]any)["utm_source"] != "ig" || strings.Contains(pStr(a, "note"), "x=1") {
 		t.Fatalf("lead %v", a)

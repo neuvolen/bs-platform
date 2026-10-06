@@ -68,8 +68,12 @@ type bsFAQ struct{ Q, A string }
 
 type bsOrgan struct{ Name, What string }
 
+// bsAddress: the club's address (Dostyk Hub coworking, Dostyk avenue 44, Almaty).
+const bsAddress = "Алматы, проспект Достык, 44, Dostyk Hub"
+
 var bsProfile = struct {
 	Name, Short, Slogan, Lead, City, Country   string
+	Venue, Street, Address                     string // where the club meets (schema.org PostalAddress)
 	MainSite, Bot, BotHandle, Channel, WAPhone string
 	WALink, Instagram, Threads, YouTube        string
 	Alt                                        []string
@@ -86,6 +90,9 @@ var bsProfile = struct {
 	Lead:      "Business Surgery (BS): клуб бизнес-трекинга в Алматы для собственников малого и среднего бизнеса. Каждые 10 дней два основателя клуба разбирают бизнес резидента: ставят диагноз по 7 органам бизнеса, выбирают стратегию на цикл и составляют план задач. Между разборами резидент каждый день отчитывается о выполнении.",
 	City:      "Алматы",
 	Country:   "Казахстан",
+	Venue:     "Dostyk Hub",
+	Street:    "пр. Достык, 44",
+	Address:   bsAddress,
 	MainSite:  "https://bxclub.kz",
 	Bot:       "https://t.me/bsurgery_bot",
 	BotHandle: "@bsurgery_bot",
@@ -123,6 +130,7 @@ var bsProfile = struct {
 	Facts: [][2]string{
 		{"Что это", "Клуб бизнес-трекинга для собственников малого и среднего бизнеса"},
 		{"Город", "Алматы, Казахстан"},
+		{"Адрес", bsAddress},
 		{"Формат", "Разбор каждые 10 дней, ежедневная отчётность, группы по 5 резидентов"},
 		{"Метод", "Бизнес как живой организм: диагноз по 7 органам бизнеса"},
 		{"Основатели", "Береке Ерниязов и Рустам Кабден, оба на каждом разборе"},
@@ -141,7 +149,7 @@ var bsProfile = struct {
 		{"Как устроен 10-дневный цикл?", "Цикл начинается с разбора: диагноз, стратегия на 10 дней и план задач. Дальше резидент каждый день отправляет короткий отчёт в Telegram-группу, за пропущенный отчёт штраф 10 000 ₸. Через 10 дней следующий разбор: что сделано, что изменилось в цифрах, какой план дальше."},
 		{"Что значит «7 органов бизнеса»?", "Метод клуба рассматривает бизнес как живой организм из семи органов: стратегия, маркетинг, продажи, команда, финансы, процессы и аналитика. На разборе находят самый слабый орган и причину его проблем, с них и начинается план."},
 		{"Кто ведёт разборы?", "Основатели клуба Береке Ерниязов и Рустам Кабден. На каждом разборе присутствуют оба."},
-		{"Где проходят встречи и можно ли участвовать из другого города?", "Клуб базируется в Алматы. Ежедневная отчётность идёт в Telegram, задачи и прогресс резидента собраны на платформе app.bxclub.kz и в Telegram-приложении. Формат участия из другого города уточняйте при записи."},
+		{"Где проходят встречи и можно ли участвовать из другого города?", "Клуб базируется в Алматы, встречи проходят по адресу: проспект Достык, 44, Dostyk Hub. Ежедневная отчётность идёт в Telegram, задачи и прогресс резидента собраны на платформе app.bxclub.kz и в Telegram-приложении. Формат участия из другого города уточняйте при записи."},
 		{"Есть ли бесплатные материалы?", "Да. В Telegram-боте @bsurgery_bot можно бесплатно получить 99 чек-листов и пройти диагностику бизнеса. На app.bxclub.kz/library открыта библиотека диагнозов и инструментов клуба."},
 		{"Сколько разборов провёл клуб?", "По данным клуба, основатели провели более 700 разборов бизнеса. В клубе около 20 резидентов."},
 		{"Гарантирует ли клуб рост прибыли?", "Нет. Клуб даёт диагноз, план и ежедневный контроль. Результат зависит от того, насколько последовательно собственник выполняет план."},
@@ -573,7 +581,8 @@ func orgNode() obj {
 		"name": p.Name, "alternateName": p.Alt, "url": p.MainSite,
 		"logo":  obj{"@type": "ImageObject", "url": SiteURL + "/site/logo.png", "width": 512, "height": 512},
 		"image": SiteURL + "/site/og.png", "slogan": p.Slogan, "description": p.Lead,
-		"address":    obj{"@type": "PostalAddress", "addressLocality": "Алматы", "addressCountry": "KZ"},
+		"address":    postalAddress(),
+		"location":   obj{"@type": "Place", "name": p.Venue, "address": postalAddress()},
 		"areaServed": []any{obj{"@type": "City", "name": "Алматы"}, obj{"@type": "Country", "name": "Казахстан"}},
 		"telephone":  "+77024035036",
 		"contactPoint": obj{"@type": "ContactPoint", "telephone": "+77024035036", "contactType": "customer service",
@@ -585,6 +594,11 @@ func orgNode() obj {
 		"currenciesAccepted": "KZT",
 		"hasOfferCatalog":    obj{"@type": "OfferCatalog", "name": "Программы Business Surgery", "itemListElement": offers},
 	}
+}
+
+// postalAddress: the club's address for JSON-LD.
+func postalAddress() obj {
+	return obj{"@type": "PostalAddress", "streetAddress": bsProfile.Street, "addressLocality": bsProfile.City, "addressCountry": "KZ"}
 }
 
 func offerNode(o bsOffer) obj {
@@ -748,7 +762,7 @@ func pageHead(title, desc, canonical, ogType, ld string) string {
 
 func pageFoot() string {
 	p := bsProfile
-	return `<footer><div class="w"><p><b style="color:#fff">Business Surgery</b> · клуб бизнес-трекинга · Алматы, Казахстан</p>` +
+	return `<footer><div class="w"><p><b style="color:#fff">Business Surgery</b> · клуб бизнес-трекинга · ` + hx(p.Address) + `</p>` +
 		`<p>WhatsApp <a href="` + p.WALink + `">` + p.WAPhone + `</a> · Telegram <a href="` + p.Bot + `">` + p.BotHandle + `</a> · <a href="` + p.MainSite + `">bxclub.kz</a> · <a href="/about">О клубе</a> · <a href="/library">Библиотека</a> · <a href="/llms.txt">llms.txt</a></p>` +
 		`<p>Обновлено ` + siteUpdated + `</p></div></footer>` + "\n</body>\n</html>\n"
 }
@@ -843,7 +857,7 @@ func aboutHTML() string {
 	} {
 		b.WriteString(`<a href="` + hx(c[2]) + `"><span>` + hx(c[0]) + `</span>` + hx(c[1]) + `</a>`)
 	}
-	b.WriteString(`</div><p class="note">Город: Алматы, Казахстан.</p></div></section>` + "\n</main>\n")
+	b.WriteString(`</div><p class="note">Адрес: ` + hx(bsProfile.Address) + `, Казахстан.</p></div></section>` + "\n</main>\n")
 	b.WriteString(pageFoot())
 	return b.String()
 }

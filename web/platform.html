@@ -17521,7 +17521,9 @@ function lsFields(){
     f('Имя', 'name', l.name, 'Как зовут') + f('Телефон', 'phone', l.phone, '+7 700 000 00 00', 'tel') +
     '<label class="lf"><span>Источник</span><select class="inp" id="lfSource" onchange="leadSet(\'source\',this.value)">' +
       '<option value="">Не указан</option>' + srcs.map(function(s){ return '<option' + (src === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
+    (l.phoneFlag ? '<div class="lf lf-w" style="font-size:12px;color:#d98200;font-weight:700">⚠ Телефон: ' + esc(l.phoneFlag) + (l.phoneRaw ? ' · в заявке: ' + esc(l.phoneRaw) : '') + '</div>' : '') +
     f('Ниша', 'niche', l.niche, 'Чем занимается') +
+    (l.goal || l.imp === 'tilda' ? f('Цель', 'goal', l.goal || '', 'Что хочет получить') : '') +
     f('Сумма сделки, ₸', 'sum', money(l.sum), '0') +
     '<label class="lf"><span>Этап</span><select class="inp" id="lfCol" onchange="moveLead(LS.id,this.value)">' +
       CRM_COLS.map(function(c){ return '<option value="' + c.id + '"' + (l.col === c.id ? ' selected' : '') + '>' + esc(c.n) + '</option>'; }).join('') + '</select></label>' +
@@ -35468,8 +35470,13 @@ function r46LeadTeaser(){
 .r47-msg.err{color:var(--pred)}
 .r47-rule{margin-bottom:10px}
 .r47-rule input.inp{margin-bottom:4px}
-.r47-tl .imp-kpi{grid-template-columns:repeat(5,minmax(0,1fr))}
+.r47-tl .imp-kpi{grid-template-columns:repeat(4,minmax(0,1fr))}
 .r47-forms{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.r50-ft td{vertical-align:middle}.r50-ft input.inp{min-width:180px;padding:6px 9px;font-size:12.5px}.r50-ft .id{font-size:11px;color:var(--pl);white-space:nowrap}
+.r50-ft .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.r50-seg span.hot{border-color:#FF4D4D;color:#FF4D4D}.r50-seg span.mut{color:var(--pl)}
+.r50-det{margin-top:10px;border:1px solid var(--pi);border-radius:12px;padding:8px 12px}.r50-det summary{cursor:pointer;font-size:12.5px;font-weight:800}
+.r50-det .imp-tw{margin-top:8px;border:0}.imp-st.flag{color:#d98200;border-color:#d98200}.imp-st.tar{color:#FF4D4D;border-color:#FF4D4D}
 .r47-forms span{font-size:12px;font-weight:700;padding:4px 9px;border-radius:8px;border:1px solid var(--pi)}
 .r47-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;padding:5px 10px;border-radius:8px;background:color-mix(in srgb,var(--fc-in,#3a9) 16%,transparent);color:var(--fc-in,#3a9);margin-bottom:10px}
 @media (max-width:900px){.r47-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.r47-tl .imp-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -35580,6 +35587,7 @@ function r46LeadTeaser(){
 
   // ═══ 2. Сегменты базы (сервер пишет seg, segSrc, segFile, segForm) ═══
   var SEGS = [
+    {id:'tariff', n:'Хотели купить тариф (сайт)', d:'Начали покупку тарифа на сайте', r:'Были в шаге от оплаты. Позвоните или напишите в WhatsApp сегодня: спросите, что остановило, и предложите разбор.'},
     {id:'warm', n:'Тёплые', d:'Были в боте, на разборе или в работе', r:'Уже знают BS. Позовите на бизнес-завтрак или лично на разбор: это самая быстрая конверсия.'},
     {id:'site', n:'Сайт (Tilda)', d:'Оставляли заявку на сайте', r:'Сами оставили заявку. Напомните о себе в WhatsApp и позовите на завтрак тех, кто писал боту.'},
     {id:'phone', n:'Без Telegram', d:'Только телефон', r:'Бот им не напишет. Очередь WhatsApp: один клик открывает чат с готовым текстом, отправляете вы.'},
@@ -35636,7 +35644,7 @@ function r46LeadTeaser(){
     var card = function(s){
       var ls = segLeads(s.id, src), n = ls.length, tg = withTg(ls).length, ph = withPhone(ls).filter(function(l){ return !Number(l.tgId); }).length, b = [];
       var btn = function(act, label, p){ return '<button type="button" class="btn pf-b' + (p ? ' pf-p' : '') + '" data-r47act="' + act + '" data-seg="' + s.id + '">' + label + '</button>'; };
-      if(s.id === 'warm' || s.id === 'site'){ if(tg) b.push(btn('breakfast', '☕ На бизнес-завтрак · ' + n0(tg), true)); if(tg) b.push(btn('tg', 'Telegram-рассылка')); if(ph) b.push(btn('wa', '📲 WhatsApp · ' + n0(ph), !tg)); }
+      if(s.id === 'warm' || s.id === 'site' || s.id === 'tariff'){ if(tg) b.push(btn('breakfast', '☕ На бизнес-завтрак · ' + n0(tg), true)); if(tg) b.push(btn('tg', 'Telegram-рассылка')); if(ph) b.push(btn('wa', '📲 WhatsApp · ' + n0(ph), !tg)); }
       if(s.id === 'phone' && ph) b.push(btn('wa', '📲 WhatsApp: очередь · ' + n0(ph), true));
       if(s.id === 'cold') b.push(btn('copy', '📋 Текст с чек-листом', true));
       if((s.id === 'resident' || s.id === 'none') && n) b.push(btn('drop', 'Убрать из «Новый»'));
@@ -35644,7 +35652,7 @@ function r46LeadTeaser(){
       return '<div class="r47-c' + (n ? '' : ' z') + '"><div class="t"><b>' + e(s.n) + '</b><em>' + n0(n) + '</em></div><p>' + e(s.r) + '</p><div class="a">' + b.join('') + '</div></div>';
     };
     return '<div class="r47-todo" id="r47Todo"><div class="h"><b>Что делать с базой' + (src ? ': ' + e(src) : '') + '</b><span class="r47-info" style="margin:0">Ничего не уходит само: вы видите текст, число получателей и отправляете сами. Чек-листы: ' + e(CHECK) + '</span></div>' +
-      '<div class="r47-grid">' + SEGS.map(card).join('') + '</div></div>';
+      '<div class="r47-grid">' + SEGS.filter(function(s){ return s.id !== 'tariff' || segLeads('tariff', src).length; }).map(card).join('') + '</div></div>';
   }
   // канбан: сегмент и файл фильтруют лидов на время отрисовки (воронка R38b фильтрует дальше)
   if(typeof renderCrmMain === 'function'){
@@ -35807,7 +35815,7 @@ function r46LeadTeaser(){
   }
   function tlPreview(){
     TL.st = 'load'; tlPaint();
-    api('POST', '/crm/tilda-import', {rows: TL.rows, file: TL.file, dry: true}).then(function(j){
+    api('POST', '/crm/tilda-import', {rows: TL.rows, file: TL.file, dry: true, forms: TL.forms || {}}).then(function(j){
       if(!TL) return;
       if(!j || j.error){ TL.st = 'err'; TL.err = (j && (j.message || j.error)) || 'Сервер не ответил'; } else { TL.st = 'ok'; TL.rep = j; }
       tlPaint();
@@ -35821,31 +35829,57 @@ function r46LeadTeaser(){
     Array.prototype.forEach.call(b.children, function(ch){ if(ch !== box) ch.style.display = 'none'; });
     if(TL.st === 'load'){ box.innerHTML = '<div class="imp-load"><span class="spin"></span>Узнал экспорт заявок Tilda, считаю новые и дубли…</div>'; return; }
     if(TL.st === 'err'){ box.innerHTML = '<div class="imp-warn">' + e(TL.err) + '</div><div class="imp-acts"><button class="btn pf-b" onclick="r47TlPlain()">Загрузить как обычную базу</button></div>'; return; }
-    var r = TL.rep || {}, forms = r.forms || {}, fk = Object.keys(forms).sort(function(a, c){ return forms[c] - forms[a]; });
-    var st = {'new':'новая', dup:'уже в CRM', dupFile:'повтор в файле', skip:'нет контакта', deleted:'удалён командой'};
+    var r = TL.rep || {}, fl = r.formList || [], segs = r.segs || {};
+    var st = {'new':'новый', dup:'уже в CRM', dupFile:'повтор в файле', skip:'нет контакта', deleted:'удалён командой'};
+    var SG = ['Хотели купить тариф (сайт)', 'Заявки с сайта', 'Тестовые'];
+    var ea = function(v){ return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    var tbl = function(head, rows){ return '<div class="imp-tw"><table class="imp-t"><thead><tr>' + head.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>'; };
     box.innerHTML = '<div class="r47-badge">Tilda: экспорт заявок распознан' + (r.from ? ' · заявки ' + e(r.from) + ' – ' + e(r.to) : '') + '</div>' +
-      '<div class="imp-kpi"><div><span>Заявок</span><b>' + n0(r.rows || 0) + '</b></div><div class="ok"><span>Новых лидов</span><b id="r47TlNew">' + n0(r.fresh || 0) + '</b></div>' +
-      '<div><span>Уже в CRM</span><b>' + n0(r.dup || 0) + '</b></div><div><span>Повторы в файле</span><b>' + n0(r.dupFile || 0) + '</b></div>' +
-      '<div' + (r.skip ? ' class="bad"' : '') + '><span>Без контактов</span><b>' + n0(r.skip || 0) + '</b></div></div>' +
-      (fk.length ? '<div class="pf-lbl" style="margin:14px 0 4px">Формы сайта</div><div class="r47-forms">' + fk.map(function(k){ return '<span>' + e(k) + ' · ' + n0(forms[k]) + '</span>'; }).join('') + '</div>' : '') +
-      '<div class="k" style="font-size:12.5px;color:var(--pm);line-height:1.5">Источник новых: «Сайт (Tilda): форма», дата заявки сохранится. ' + (r.updated ? n0(r.updated) + ' карточек уже в CRM отметятся как заявка с сайта, их этап и источник не меняются.' : '') + '</div>' +
-      '<div class="pf-lbl" style="margin:14px 0 8px">Первые 10 заявок</div><div class="imp-tw"><table class="imp-t"><thead><tr><th></th><th>Имя</th><th>Телефон</th><th>Email</th><th>Форма</th><th>Дата</th></tr></thead><tbody>' +
-      (r.sample || []).map(function(x){ return '<tr class="' + e(x.st) + '"><td><span class="imp-st ' + (x.st === 'new' ? 'new' : x.st === 'skip' ? 'skip' : 'dup') + '">' + e(st[x.st] || x.st) + '</span></td><td>' + e(x.name) + '</td><td>' + e(x.phone) + '</td><td>' + e(x.email) + '</td><td>' + e(x.form) + '</td><td>' + e(x.date) + '</td></tr>'; }).join('') +
-      '</tbody></table></div>' +
+      '<div class="imp-kpi"><div><span>Заявок в файле</span><b>' + n0(r.rows || 0) + '</b></div><div class="ok"><span>Новых лидов</span><b id="r47TlNew">' + n0(r.fresh || 0) + '</b></div>' +
+      '<div><span>Уже в CRM</span><b>' + n0(r.dup || 0) + '</b></div><div><span>Повторы объединены</span><b>' + n0(r.dupFile || 0) + '</b></div>' +
+      '<div><span>Тестовые</span><b id="r50Tests">' + n0(r.tests || 0) + '</b></div>' +
+      '<div' + (r.flagged ? ' class="bad"' : '') + '><span>Номер с пометкой</span><b>' + n0(r.flagged || 0) + '</b></div>' +
+      '<div' + (r.skip ? ' class="bad"' : '') + '><span>Без контактов</span><b>' + n0(r.skip || 0) + '</b></div>' +
+      '<div><span>Удалены ранее</span><b>' + n0(r.deleted || 0) + '</b></div></div>' +
+      '<div class="pf-lbl" style="margin:14px 0 4px">Сегменты</div><div class="r47-forms r50-seg" id="r50Segs">' + SG.map(function(k){ return segs[k] ? '<span class="' + (k === SG[0] ? 'hot' : k === SG[2] ? 'mut' : '') + '">' + (k === SG[0] ? '🔥 ' : '') + e(k) + ' · ' + n0(segs[k]) + (k === SG[2] ? ' заявок, не импортируются' : '') + '</span>' : ''; }).join('') + '</div>' +
+      (fl.length ? '<div class="pf-lbl" style="margin:14px 0 6px">Формы сайта · имена можно поправить</div>' +
+        tbl(['Форма', 'Номер в Tilda', 'Заявок', 'Тестовых', 'Людей'], fl.map(function(f){
+          return '<tr><td><input class="inp" data-r50form="' + ea(f.id) + '" value="' + ea(f.name || '') + '" placeholder="Название формы"></td><td class="id">' + e(f.id) + '</td><td class="n">' + n0(f.rows || 0) + '</td><td class="n">' + n0(f.tests || 0) + '</td><td class="n">' + n0(f.leads || 0) + '</td></tr>';
+        })).replace('class="imp-t"', 'class="imp-t r50-ft" id="r50Forms"') +
+        '<div class="imp-acts" style="margin-top:8px"><button class="btn pf-b" onclick="r50FormsApply()">Применить имена</button><span class="k" style="font-size:12px;color:var(--pm)">Источник лида: «Сайт (Tilda): имя формы». Имена запомнятся для следующих выгрузок</span></div>'
+        : (Object.keys(r.forms || {}).length ? '<div class="pf-lbl" style="margin:14px 0 4px">Формы сайта</div><div class="r47-forms">' + Object.keys(r.forms).sort(function(a, c){ return r.forms[c] - r.forms[a]; }).map(function(k){ return '<span>' + e(k) + ' · ' + n0(r.forms[k]) + '</span>'; }).join('') + '</div>' : '')) +
+      '<div class="k" style="font-size:12.5px;color:var(--pm);line-height:1.5;margin-top:10px">Один человек = одна карточка: берётся последняя заявка, даты и ответы всех заявок уходят в историю карточки. «Ваш бизнес» → ниша, Input → цель, ответы квиза → заметка. Покупка тарифа (1-ый тариф, договор оферты) → сегмент «Хотели купить тариф (сайт)», 🔥 высокий приоритет. ' + (r.updated ? n0(r.updated) + ' карточек уже в CRM отметятся как заявка с сайта, их этап и источник не меняются.' : '') + '</div>' +
+      '<div class="pf-lbl" style="margin:14px 0 8px">Последние заявки по людям</div>' +
+      tbl(['', 'Имя', 'Телефон', 'Форма', 'Сегмент', 'Заявок', 'Последняя'], (r.sample || []).map(function(x){
+        return '<tr class="' + e(x.st) + '"><td><span class="imp-st ' + (x.st === 'new' ? 'new' : x.st === 'skip' ? 'skip' : 'dup') + '">' + e(st[x.st] || x.st) + '</span></td><td>' + e(x.name) + '</td><td>' + e(x.phone) + (x.flag ? ' <span class="imp-st flag" title="' + ea(x.flag) + '">⚠ номер</span>' : '') + '</td><td>' + e(x.form) + '</td><td>' + (x.seg === SG[0] ? '<span class="imp-st tar">тариф</span>' : 'сайт') + '</td><td class="n">' + e(x.n || '1') + '</td><td>' + e(x.date) + '</td></tr>';
+      })) +
+      ((r.flagList || []).length ? '<details class="r50-det" id="r50Flags"><summary>Номер с пометкой · ' + n0(r.flagged || 0) + ' (лиды импортируются, номер проверьте)</summary>' +
+        tbl(['Имя', 'В заявке', 'Пометка', 'Форма', 'Дата'], r.flagList.map(function(x){ return '<tr><td>' + e(x.name) + '</td><td>' + e(x.phone) + '</td><td>' + e(x.flag) + '</td><td>' + e(x.form) + '</td><td>' + e(x.date) + '</td></tr>'; })) + '</details>' : '') +
+      ((r.testList || []).length ? '<details class="r50-det" id="r50TestList"><summary>Тестовые · ' + n0(r.tests || 0) + ' (не станут лидами)</summary>' +
+        tbl(['Имя', 'Телефон', 'Форма', 'Дата', 'Почему'], r.testList.map(function(x){ return '<tr><td>' + e(x.name) + '</td><td>' + e(x.phone) + '</td><td>' + e(x.form) + '</td><td>' + e(x.date) + '</td><td>' + e(x.why) + '</td></tr>'; })) + '</details>' : '') +
       '<div class="imp-acts end"><span class="cx-pr" onclick="r47TlPlain()">Загрузить как обычную базу</span><button class="btn pf-b" onclick="impClose()">Отмена</button>' +
-      '<button class="btn pf-b pf-p" id="r47TlGo" onclick="r47TlGo()"' + ((r.fresh || r.updated) ? '' : ' disabled') + '>' + (r.fresh ? 'Импортировать ' + n0(r.fresh) + ' заявок Tilda' : (r.updated ? 'Отметить ' + n0(r.updated) + ' как заявки сайта' : 'Нечего импортировать')) + '</button></div>';
+      '<button class="btn pf-b pf-p" id="r47TlGo" onclick="r47TlGo()"' + ((r.fresh || r.updated) ? '' : ' disabled') + '>' + (r.fresh ? 'Импортировать ' + n0(r.fresh) + ' лидов из Tilda' : (r.updated ? 'Отметить ' + n0(r.updated) + ' как заявки сайта' : 'Нечего импортировать')) + '</button></div>';
   }
+  // имена форм: правка в таблице, пересчёт просмотра; при импорте запоминаются в CRM
+  function r50FormsRead(){
+    if(!TL) return;
+    var m = TL.forms || {};
+    document.querySelectorAll('#r47Tl [data-r50form]').forEach(function(i){ var v = String(i.value || '').trim(); if(v) m[i.dataset.r50form] = v.slice(0, 120); });
+    TL.forms = m;
+  }
+  window.r50FormsApply = function(){ r50FormsRead(); tlPreview(); };
   window.r47TlPlain = function(){ TL = null; var t = document.getElementById('r47Tl'); if(t) t.remove(); var b = document.getElementById('impBody'); if(b) Array.prototype.forEach.call(b.children, function(ch){ ch.style.display = ''; }); };
   window.r47TlGo = function(){
     if(!TL) return;
+    r50FormsRead();
     var btn = document.getElementById('r47TlGo'); if(btn){ btn.disabled = true; btn.textContent = 'Импортирую…'; }
-    api('POST', '/crm/tilda-import', {rows: TL.rows, file: TL.file, dry: false}).then(function(j){
+    api('POST', '/crm/tilda-import', {rows: TL.rows, file: TL.file, dry: false, forms: TL.forms || {}}).then(function(j){
       if(!j || j.error){ say((j && (j.message || j.error)) || 'Не импортировалось'); if(btn){ btn.disabled = false; btn.textContent = 'Повторить'; } return; }
       impClose();
       try{ if(window.BSSync && BSSync.tick) BSSync.tick(); }catch(x){}
-      V.seg = 'site'; V.src = ''; keep();
+      V.seg = (j.segs && j.segs['Хотели купить тариф (сайт)']) ? 'tariff' : 'site'; V.src = ''; keep();
       if(typeof CRMV !== 'undefined'){ CRMV.view = 'board'; CRMV.lim = {}; }
-      say('Tilda: новых лидов ' + n0(j.fresh) + (j.updated ? ', отмечено ' + n0(j.updated) : '') + ', уже были ' + n0(j.dup));
+      say('Tilda: новых лидов ' + n0(j.fresh) + (j.updated ? ', отмечено ' + n0(j.updated) : '') + ', уже были ' + n0(j.dup) + (j.tests ? ', тестовых пропущено ' + n0(j.tests) : ''));
       setTimeout(function(){ if(typeof section !== 'undefined' && section === 'leads') renderLeads(); else if(typeof goSection === 'function') goSection('leads'); }, 1200);
     });
   };

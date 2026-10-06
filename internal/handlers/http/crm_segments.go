@@ -25,7 +25,7 @@ import (
 //
 //   - seg: что с человеком делать (одно значение на лида, по порядку):
 //     resident (дубль резидента: тот же Telegram id, телефон или полное имя),
-//     site (заявка с сайта Tilda), warm (был в боте, на разборе, в работе,
+//     tariff (R50: хотел купить тариф на сайте), site (заявка с сайта Tilda), warm (был в боте, на разборе, в работе,
 //     недавний контакт), phone (только телефон, без Telegram), cold (есть
 //     @ник, в боте не был), none (нет контактов);
 //   - segSrc: источник по правилам (content/crm_segs.json, команда правит их
@@ -42,12 +42,13 @@ import (
 const (
 	SegResident = "resident"
 	SegSite     = "site"
+	SegTariff   = "tariff" // R50: wanted to buy a tariff on the site (intent=tariff)
 	SegWarm     = "warm"
 	SegPhone    = "phone"
 	SegCold     = "cold"
 	SegNone     = "none"
 	segNoSrc    = "без источника"
-	segVersion  = 1
+	segVersion  = 2
 	segWarmDays = 180
 )
 
@@ -220,6 +221,9 @@ func SegmentOf(l map[string]any, src string, ppl SegPeople, now time.Time) strin
 			return SegResident
 		}
 	}
+	if pStr(l, "intent") == "tariff" && pStr(l, "col") != "won" {
+		return SegTariff
+	}
 	if segIsSite(l, src) {
 		return SegSite
 	}
@@ -273,7 +277,7 @@ func SegmentCRM(crm map[string]any, ppl SegPeople, now time.Time) SegReport {
 		src := SegSource(l, rules)
 		seg := SegmentOf(l, src, ppl, now)
 		file, form := segFile(l), ""
-		if seg == SegSite || src == "Сайт (Tilda)" {
+		if seg == SegSite || seg == SegTariff || src == "Сайт (Tilda)" {
 			form = segForm(l)
 		}
 		set := func(k, v string) {

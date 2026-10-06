@@ -3,14 +3,14 @@
  "@context": "https://schema.org",
  "@graph": [
   {
-   "@type": "WebSite",
    "@id": "https://bxclub.kz/#website",
-   "url": "https://bxclub.kz/",
-   "name": "Business Surgery",
+   "@type": "WebSite",
    "inLanguage": "ru",
+   "name": "Business Surgery",
    "publisher": {
     "@id": "https://app.bxclub.kz/about#org"
-   }
+   },
+   "url": "https://bxclub.kz/"
   },
   {
    "@id": "https://app.bxclub.kz/about#org",
@@ -21,7 +21,8 @@
    "address": {
     "@type": "PostalAddress",
     "addressCountry": "KZ",
-    "addressLocality": "Алматы"
+    "addressLocality": "Алматы",
+    "streetAddress": "пр. Достык, 44"
    },
    "alternateName": [
     "BS",
@@ -148,6 +149,16 @@
     "найм и команда",
     "стратегия малого бизнеса"
    ],
+   "location": {
+    "@type": "Place",
+    "address": {
+     "@type": "PostalAddress",
+     "addressCountry": "KZ",
+     "addressLocality": "Алматы",
+     "streetAddress": "пр. Достык, 44"
+    },
+    "name": "Dostyk Hub"
+   },
    "logo": {
     "@type": "ImageObject",
     "height": 512,
@@ -257,7 +268,7 @@
      "@type": "Question",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Клуб базируется в Алматы. Ежедневная отчётность идёт в Telegram, задачи и прогресс резидента собраны на платформе app.bxclub.kz и в Telegram-приложении. Формат участия из другого города уточняйте при записи."
+      "text": "Клуб базируется в Алматы, встречи проходят по адресу: проспект Достык, 44, Dostyk Hub. Ежедневная отчётность идёт в Telegram, задачи и прогресс резидента собраны на платформе app.bxclub.kz и в Telegram-приложении. Формат участия из другого города уточняйте при записи."
      },
      "name": "Где проходят встречи и можно ли участвовать из другого города?"
     },
