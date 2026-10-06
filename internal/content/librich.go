@@ -28,7 +28,8 @@ type RichTemplate struct {
 	Blocks []RichBlock `json:"blocks"`
 }
 
-// RichBlock: fields | table | checklist | scale | note.
+// RichBlock: fields | table | checklist | scale | note | grid (R52: a 2×2
+// matrix, Items the four cells, Fields their hints, Lines per cell).
 type RichBlock struct {
 	Type      string     `json:"type"`
 	Title     string     `json:"title"`

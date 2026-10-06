@@ -326,6 +326,7 @@ func cachedPage(key string, make func() string) page {
 func servePublic(c *gin.Context, ctype string, p page) {
 	h := c.Writer.Header()
 	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	h.Set("Content-Security-Policy", "upgrade-insecure-requests") // R52: as the platform page
 	sendBytes(c, ctype, "public, max-age=3600", p.hash, p.plain, p.gz, p.br)
 }
 

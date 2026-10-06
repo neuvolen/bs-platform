@@ -29,6 +29,8 @@ var lazyKeep = map[string]bool{
 	"r46Script:r46LeadTeaser": true, // R46: the lead home's «Бизнес-идеи» block
 	// R52: the tab strip keeps its scroll, and the board signs edited cards (who, when) as it draws
 	"r52Script:keepStrip": true, "r52Script:edBadge": true, "r52Script:when": true,
+	// R52: the https guard in <head> runs before anything is fetched
+	"r52Https:up": true, "r52Https:pic": true, "r52Https:set": true, "r52Https:hook": true, "r52Https:attr": true, "r52Https:html": true,
 }
 
 func lazyKeepFn(key, name string) bool { return lazyKeep["*:"+name] || lazyKeep[key+":"+name] }

@@ -370,7 +370,97 @@ func (d *doc) block(b content.RichBlock) {
 		d.scale(b)
 	case "note":
 		d.note(b)
+	case "grid":
+		d.grid(b)
 	}
+}
+
+// grid: a 2×2 matrix to fill by hand (R52, SWOT): Items are the four cell
+// titles (row by row), Fields their hints, Lines the ruled lines of a cell.
+// Above the columns «помогает / мешает», at the left «внутри / снаружи»
+// (Columns and Rows[0] give other captions).
+func (d *doc) grid(b content.RichBlock) {
+	p := d.p
+	n := b.Lines
+	if n <= 0 {
+		n = 7
+	}
+	if n > 12 {
+		n = 12
+	}
+	items := append([]string{}, b.Items...)
+	for len(items) < 4 {
+		items = append(items, "")
+	}
+	cols := []string{"ПОМОГАЕТ ЦЕЛИ", "МЕШАЕТ ЦЕЛИ"}
+	if len(b.Columns) == 2 {
+		cols = []string{strings.ToUpper(b.Columns[0]), strings.ToUpper(b.Columns[1])}
+	}
+	rows := []string{"ВНУТРИ КОМПАНИИ", "СНАРУЖИ: РЫНОК"}
+	if len(b.Rows) > 0 && len(b.Rows[0]) == 2 {
+		rows = []string{strings.ToUpper(b.Rows[0][0]), strings.ToUpper(b.Rows[0][1])}
+	}
+	const side, gap, lh = 7.0, 4.0, 6.8
+	w := (cW - side - gap) / 2
+	headH := func(i int) float64 {
+		d.font("x", 10.5)
+		h := float64(len(d.lines(items[i], w-10)))*4.8 + 4
+		if i < len(b.Fields) && strings.TrimSpace(b.Fields[i]) != "" {
+			d.font("r", 7.4)
+			h += float64(len(d.lines(b.Fields[i], w-10)))*3.4 + 1.5
+		}
+		return h + 2
+	}
+	rowH := func(r int) float64 { return maxf(headH(2*r), headH(2*r+1)) + float64(n)*lh + 3 }
+	total := 6 + rowH(0) + gap + rowH(1)
+	d.head(b.Title, total)
+	y := p.GetY()
+	d.font("s", 6.8)
+	d.color(cMute)
+	for k, c := range cols {
+		p.SetXY(mL+side+float64(k)*(w+gap), y)
+		p.CellFormat(w, 3.5, c, "", 0, "C", false, 0, "")
+	}
+	y += 6
+	for r := 0; r < 2; r++ {
+		h := rowH(r)
+		// the row's caption, turned along the left edge
+		d.font("s", 6.8)
+		d.color(cMute)
+		cx, cy := mL+3.4, y+h/2
+		p.TransformBegin()
+		p.TransformRotate(90, cx, cy)
+		p.Text(cx-p.GetStringWidth(rows[r])/2, cy+1.2, rows[r]) // Text: absolute place (a negative SetX counts from the right)
+		p.TransformEnd()
+		for k := 0; k < 2; k++ {
+			i := 2*r + k
+			x := mL + side + float64(k)*(w+gap)
+			d.draw(cInk, 0.35)
+			p.RoundedRect(x, y, w, h, 2, "1234", "D")
+			d.font("x", 10.5)
+			d.color(cInk)
+			yy := d.text(x+5, y+4, w-10, 4.8, items[i], "L")
+			if i < len(b.Fields) && strings.TrimSpace(b.Fields[i]) != "" {
+				d.font("r", 7.4)
+				d.color(cMute)
+				d.text(x+5, yy+0.5, w-10, 3.4, b.Fields[i], "L")
+			}
+			ly := y + headH(i) + 2
+			if hh := y + maxf(headH(2*r), headH(2*r+1)) + 2; hh > ly {
+				ly = hh
+			}
+			d.draw(cLine, 0.25)
+			for l := 0; l < n; l++ {
+				ly += lh
+				if ly > y+h-1.5 {
+					break
+				}
+				p.Line(x+5, ly, x+w-5, ly)
+			}
+		}
+		y += h + gap
+	}
+	p.SetY(y + 2)
 }
 
 func (d *doc) fields(b content.RichBlock) {

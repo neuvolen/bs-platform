@@ -272,6 +272,7 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	// R45: the page's own files (build.go): /a/<name>.<hash>.<ext>, cached for a year
 	r.GET("/a/:file", func(c *gin.Context) { serveAsset(c, secret, sessionCookie) })
 	r.HEAD("/a/:file", func(c *gin.Context) { serveAsset(c, secret, sessionCookie) })
+	r.GET("/img", func(c *gin.Context) { serveImg(c, secret, sessionCookie) }) // R52: http:// pictures over https (imgproxy.go)
 	r.GET("/voice/:file", serveVoice) // voice.go: the tour's recorded phrases
 	r.GET("/promo/:file", servePromo) // promo.go: screens for the login page (R38a)
 	r.HEAD("/promo/:file", servePromo)

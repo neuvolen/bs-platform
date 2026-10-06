@@ -487,7 +487,8 @@ func (s *ClubSales) meView(ctx context.Context, name string) gin.H {
 			renew["daysLeft"] = int(end.Sub(dayOf(s.now())).Hours() / 24)
 		}
 	}
-	return gin.H{"name": name, "consent": s.ConsentOf(ctx, name), "reports": reps, "renew": renew}
+	md, chosen := consentMode(s.consents(ctx)[normName(name)])
+	return gin.H{"name": name, "consent": md, "consentChosen": chosen, "reports": reps, "renew": renew}
 }
 
 // Me: GET /sales/me.
@@ -496,7 +497,13 @@ func (s *ClubSales) Me(c *gin.Context) {
 	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, s.meView(c.Request.Context(), name))
+	out := s.meView(c.Request.Context(), name)
+	if isResident(c) { // R52: the resident sees the line about the default once (the team's view-as does not count)
+		if n := s.consentNotice(c.Request.Context(), name); n != "" {
+			out["consentNote"] = n
+		}
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // PutMyConsent: PUT /sales/me/consent {mode}.
@@ -594,7 +601,11 @@ func (s *ClubSales) AppMe(c *gin.Context, g *AppGateway) {
 	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, s.meView(c.Request.Context(), name))
+	out := s.meView(c.Request.Context(), name)
+	if n := s.consentNotice(c.Request.Context(), name); n != "" {
+		out["consentNote"] = n // R52
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 type appSalesReq struct {

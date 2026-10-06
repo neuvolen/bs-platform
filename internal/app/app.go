@@ -238,6 +238,9 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) *htt
 		// R40d: the login demo is read with the same voice, a bit faster
 		web.LoginVoiceOverlay = m.AI.Premium.LoginOverlay
 		m.AI.Premium.SetLoginTexts(web.LoginLines)
+		// R52: the tour's phrases are known only now: the map of a voice that
+		// was ready before this start is looked for again (Load ran without them)
+		m.AI.Premium.Kick()
 	}
 	return m
 }

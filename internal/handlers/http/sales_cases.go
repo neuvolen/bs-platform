@@ -22,7 +22,12 @@ import (
 // согласия)».
 //
 // Согласие (club doc bs_case_consent = {people: {<normName>: {name, mode,
-// at, by, reqAt, reqSent}}}): mode anon | name | no, по умолчанию «нельзя».
+// at, by, reqAt, reqSent, noticeAt}}}): mode anon | name | no. R52: по
+// умолчанию «можно анонимно» («Согласие резидент даёт в своём профиле...
+// По умолчанию «нельзя»: сделай, чтобы было сразу можно»). Выбор считается
+// сделанным, только когда его записал setConsent (есть at): запись запроса
+// через бота (раньше с mode «no») выбором не считается. Резидент один раз
+// видит в профиле строку об этом (noticeAt), без сообщений в бот.
 // Резидент меняет его в профиле (платформа и приложение), команда может
 // попросить его через бота: кнопки «Анонимно», «С именем», «Нельзя» (cs:).
 //
@@ -43,6 +48,21 @@ const (
 
 var consentModes = map[string]string{"anon": "анонимно", "name": "с именем", "no": "нельзя"}
 
+// consentDefault: the mode of a resident who never chose (R52).
+const consentDefault = "anon"
+
+// consentNoticeDays: how long the profile shows the line about the default.
+const consentNoticeDays = 7
+
+// consentMode: the resident's mode and whether they (or the team on their
+// word) chose it; a record without "at" is a bot request, not a choice.
+func consentMode(m map[string]any) (string, bool) {
+	if md := sStr(m, "mode"); consentModes[md] != "" && sStr(m, "at") != "" {
+		return md, true
+	}
+	return consentDefault, false
+}
+
 // ── согласие ──
 
 func (s *ClubSales) consents(ctx context.Context) map[string]map[string]any {
@@ -55,14 +75,48 @@ func (s *ClubSales) consents(ctx context.Context) map[string]map[string]any {
 	return out
 }
 
-// ConsentOf: the resident's mode ("no" by default).
+// ConsentOf: the resident's mode («анонимно» by default, R52).
 func (s *ClubSales) ConsentOf(ctx context.Context, name string) string {
-	if m := s.consents(ctx)[normName(name)]; m != nil {
-		if md := sStr(m, "mode"); consentModes[md] != "" {
-			return md
-		}
+	md, _ := consentMode(s.consents(ctx)[normName(name)])
+	return md
+}
+
+// consentNotice: the one line the resident's profile shows about the default
+// (from the first time they open it, for consentNoticeDays); "" after a choice.
+func (s *ClubSales) consentNotice(ctx context.Context, name string) string {
+	k := normName(name)
+	if k == "" {
+		return ""
 	}
-	return "no"
+	m := s.consents(ctx)[k]
+	if _, chosen := consentMode(m); chosen {
+		return ""
+	}
+	now := s.now()
+	if at, err := time.Parse(time.RFC3339, sStr(m, "noticeAt")); err == nil {
+		if now.Sub(at) > consentNoticeDays*24*time.Hour {
+			return ""
+		}
+	} else {
+		_ = s.mutate(ctx, "club", consentDoc, func(doc map[string]any) bool {
+			people := sMap(doc, "people")
+			if people == nil {
+				people = map[string]any{}
+			}
+			x, _ := people[k].(map[string]any)
+			if x == nil {
+				x = map[string]any{"name": strings.TrimSpace(name)}
+			}
+			if sStr(x, "noticeAt") != "" {
+				return false
+			}
+			x["noticeAt"] = rfc(now)
+			people[k] = x
+			doc["people"] = people
+			return true
+		})
+	}
+	return "Теперь по умолчанию ваши цифры «было → стало» могут попасть в кейсы клуба анонимно: только ниша, город и цифры, без имени. Можно выбрать «С именем» или «Нельзя»."
 }
 
 func (s *ClubSales) setConsent(ctx context.Context, name, mode, by string) error {
@@ -113,17 +167,15 @@ func (s *ClubSales) ConsentList(c *gin.Context) {
 				k := normName(r.Name)
 				seen[k] = true
 				m := all[k]
-				md := sStr(m, "mode")
-				if consentModes[md] == "" {
-					md = "no"
-				}
-				out = append(out, gin.H{"name": r.Name, "mode": md, "at": sStr(m, "at"), "by": sStr(m, "by"), "reqAt": sStr(m, "reqAt"), "reqSent": m["reqSent"] == true, "tg": r.TgID != 0})
+				md, chosen := consentMode(m)
+				out = append(out, gin.H{"name": r.Name, "mode": md, "chosen": chosen, "at": sStr(m, "at"), "by": sStr(m, "by"), "reqAt": sStr(m, "reqAt"), "reqSent": m["reqSent"] == true, "tg": r.TgID != 0})
 			}
 		}
 	}
 	for k, m := range all {
 		if !seen[k] {
-			out = append(out, gin.H{"name": sStr(m, "name"), "mode": sStr(m, "mode"), "at": sStr(m, "at"), "by": sStr(m, "by"), "former": true})
+			md, chosen := consentMode(m)
+			out = append(out, gin.H{"name": sStr(m, "name"), "mode": md, "chosen": chosen, "at": sStr(m, "at"), "by": sStr(m, "by"), "former": true})
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return fmt.Sprint(out[i]["name"]) < fmt.Sprint(out[j]["name"]) })
@@ -166,7 +218,7 @@ func (s *ClubSales) RequestConsent(c *gin.Context) {
 		k := normName(r.Name)
 		m, _ := people[k].(map[string]any)
 		if m == nil {
-			m = map[string]any{"name": strings.TrimSpace(r.Name), "mode": "no"}
+			m = map[string]any{"name": strings.TrimSpace(r.Name)} // R52: a request is not a choice
 		}
 		m["reqAt"], m["reqSent"] = rfc(now), false
 		people[k] = m
@@ -455,10 +507,7 @@ func (s *ClubSales) Cases(c *gin.Context) {
 	cons := s.consents(ctx)
 	out := []gin.H{}
 	for _, x := range s.cases(ctx) {
-		md := sStr(cons[normName(x.Resident)], "mode")
-		if consentModes[md] == "" {
-			md = "no"
-		}
+		md, _ := consentMode(cons[normName(x.Resident)])
 		out = append(out, s.caseView(x, md))
 	}
 	c.JSON(http.StatusOK, gin.H{"items": out, "ai": s.AI != nil})
@@ -489,9 +538,9 @@ func (s *ClubSales) Generate(ctx context.Context, by string) (int, []gin.H, erro
 	var drafts []*salesCase
 	skipped := []gin.H{}
 	for _, r := range activeResidents(list) {
-		md := sStr(cons[normName(r.Name)], "mode")
+		md, _ := consentMode(cons[normName(r.Name)])
 		if md != "anon" && md != "name" {
-			skipped = append(skipped, gin.H{"name": r.Name, "why": "нет согласия"})
+			skipped = append(skipped, gin.H{"name": r.Name, "why": "резидент запретил"})
 			continue
 		}
 		from := now.AddDate(-3, 0, 0)
@@ -708,7 +757,7 @@ func (s *ClubSales) published(ctx context.Context) []gin.H {
 	cons := s.consents(ctx)
 	var out []gin.H
 	for _, x := range s.cases(ctx) {
-		md := sStr(cons[normName(x.Resident)], "mode")
+		md, _ := consentMode(cons[normName(x.Resident)])
 		if x.Status != "published" || (md != "anon" && md != "name") {
 			continue
 		}

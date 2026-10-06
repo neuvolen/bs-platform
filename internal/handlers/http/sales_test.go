@@ -553,8 +553,12 @@ func TestSalesConsentAndCases(t *testing.T) {
 	e.club.tg = map[string]int64{"Айдана Ким": 801, "Болат Нуров": 802, "Вера Ли": 803}
 	e.club.boards = []pg.PlatformBoard{residentBoard(t, "Айдана Ким", j1, now), residentBoard(t, "Болат Нуров", j1, now), residentBoard(t, "Вера Ли", j1, now)}
 
-	if m := e.s.ConsentOf(ctx, "Айдана Ким"); m != "no" {
+	// R52: by default «можно анонимно»; an explicit choice stays as it is
+	if m := e.s.ConsentOf(ctx, "Айдана Ким"); m != "anon" {
 		t.Fatalf("default consent %s", m)
+	}
+	if err := e.s.setConsent(ctx, "Вера Ли", "no", "резидент в боте"); err != nil {
+		t.Fatal(err)
 	}
 	// the team asks through the bot at night: it goes at 10:00
 	e.at(alm(2026, 10, 6, 21, 0))
@@ -563,6 +567,9 @@ func TestSalesConsentAndCases(t *testing.T) {
 	c.Request = httptest.NewRequest("POST", "/", strings.NewReader(`{"name":"Айдана Ким"}`))
 	e.s.RequestConsent(c)
 	time.Sleep(50 * time.Millisecond)
+	if md, chosen := consentMode(e.s.consents(ctx)[normName("Айдана Ким")]); md != "anon" || chosen {
+		t.Fatalf("a bot request is not a choice: %s %v", md, chosen)
+	}
 	e.s.ConsentTick(ctx)
 	if len(e.tg.to(801)) != 0 {
 		t.Fatal("consent at night")
@@ -577,7 +584,7 @@ func TestSalesConsentAndCases(t *testing.T) {
 	if len(e.tg.to(801)) != 0 {
 		t.Fatal("asked twice")
 	}
-	// Айдана: anonymously (bot), Болат: with name (profile), Вера: no
+	// Айдана: anonymously (bot), Болат: with name (profile), Вера: no (her own choice before R52 stays)
 	if _, ok := e.s.ConsentCallback(ctx, bot.CallbackUpdate{ChatID: 801, FromID: 801, Data: "cs:anon"}); !ok {
 		t.Fatal("cs not handled")
 	}
@@ -987,14 +994,24 @@ func TestSalesHTTP(t *testing.T) {
 	if _, out, _ := do("GET", "/t/seq", ""); !strings.Contains(fmt.Sprint(out["seq"]), "tg901") {
 		t.Fatalf("seq %v", out)
 	}
-	if code, out, _ := do("GET", "/r/me", ""); code != 200 || out["consent"] != "no" || out["name"] != "Айдана Ким" {
+	// R52: never chose: «анонимно» and one line about it in the profile, a week from the first look
+	if code, out, _ := do("GET", "/r/me", ""); code != 200 || out["consent"] != "anon" || out["consentChosen"] != false || out["name"] != "Айдана Ким" ||
+		!strings.Contains(fmt.Sprint(out["consentNote"]), "анонимно") {
 		t.Fatalf("me %d %v", code, out)
+	}
+	noLong(t, "consent note", fmt.Sprint(e.s.consentNotice(context.Background(), "Айдана Ким")))
+	e.at(e.clock().Add(8 * 24 * time.Hour))
+	if _, out, _ := do("GET", "/r/me", ""); out["consentNote"] != nil || out["consent"] != "anon" {
+		t.Fatalf("the line stays after a week: %v", out)
 	}
 	if code, _, _ := do("GET", "/o/me", ""); code != 403 {
 		t.Fatalf("stranger %d", code)
 	}
-	if code, out, _ := do("PUT", "/r/me/consent", `{"mode":"anon"}`); code != 200 || out["consent"] != "anon" {
+	if code, out, _ := do("PUT", "/r/me/consent", `{"mode":"anon"}`); code != 200 || out["consent"] != "anon" || out["consentChosen"] != true {
 		t.Fatalf("consent %d %v", code, out)
+	}
+	if _, out, _ := do("GET", "/r/me", ""); out["consentNote"] != nil {
+		t.Fatalf("a chosen consent still shows the line: %v", out)
 	}
 	if code, out, _ := do("POST", "/r/me/renew", `{"months":3}`); code != 200 || fmt.Sprint(sMap(out, "request")["status"]) != "Ожидает оплату продления" {
 		t.Fatalf("renew %d %v", code, out)

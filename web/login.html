@@ -4,6 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Платформа Business Surgery</title>
+<script id="r52Https">
+// R52: «Не защищено» при действительном сертификате: адрес http из данных (картинка, звук, рамка, форма).
+// Адрес меняется на https до запроса, картинка с хоста без https идёт через сервер (/img?u=). Плюс заголовок CSP upgrade-insecure-requests
+(function(){
+  var PX = 0, LOC = /^http:\/\/(localhost|127\.|\[::1\])/i, HT = /^\s*http:\/\//i, W = window;
+  function up(u){ var s = String(u == null ? '' : u); return HT.test(s) && !LOC.test(s.trim()) ? 'https://' + s.trim().slice(7) : u; }
+  function pic(u){ var s = String(u == null ? '' : u).trim(); if(!HT.test(s) || LOC.test(s)) return u; return PX ? '/img?u=' + encodeURIComponent(s) : 'https://' + s.slice(7); }
+  function set(u){ return String(u == null ? '' : u).replace(/(^|,\s*)(http:\/\/[^\s,]+)/gi, function(m, a, x){ return a + pic(x); }); }
+  function hook(C, p, f){ try{ var d = C && Object.getOwnPropertyDescriptor(C.prototype, p); if(!d || !d.set) return; Object.defineProperty(C.prototype, p, {configurable: true, enumerable: d.enumerable, get: d.get, set: function(v){ d.set.call(this, f(v)); }}); }catch(e){} }
+  hook(W.HTMLImageElement, 'src', pic); hook(W.HTMLImageElement, 'srcset', set); hook(W.HTMLSourceElement, 'srcset', set); hook(W.HTMLSourceElement, 'src', up);
+  hook(W.HTMLMediaElement, 'src', up); hook(W.HTMLVideoElement, 'poster', pic); hook(W.HTMLIFrameElement, 'src', up); hook(W.HTMLScriptElement, 'src', up);
+  hook(W.HTMLLinkElement, 'href', up); hook(W.HTMLFormElement, 'action', up); hook(W.HTMLEmbedElement, 'src', up); hook(W.HTMLObjectElement, 'data', up);
+  var AT = {src: 1, srcset: 1, poster: 1, action: 1, formaction: 1, data: 1, href: 1};
+  function attr(el, n, v){ n = String(n).toLowerCase(); if(!AT[n] || !HT.test(String(v))) return v; var t = el.tagName; if(n === 'href' && t !== 'LINK') return v; if(n === 'data' && t !== 'OBJECT') return v; return t === 'IMG' || n === 'poster' ? (n === 'srcset' ? set(v) : pic(v)) : up(v); }
+  try{ var sa = Element.prototype.setAttribute; Element.prototype.setAttribute = function(n, v){ return sa.call(this, n, attr(this, n, v)); }; }catch(e){}
+  // разметка: картинки с адресом http через сервер, остальные адреса и url() на https
+  function html(s){
+    if(typeof s !== 'string' || !/http:\/\//i.test(s)) return s;
+    s = s.replace(/<img\b[^>]*>/gi, function(t){ return t.replace(/(\s(?:src|srcset)\s*=\s*["']?)(http:\/\/[^"'\s>]+)/gi, function(m, a, u){ return a + (LOC.test(u) ? u : pic(u.replace(/&amp;/g, '&')).replace(/&/g, '&amp;')); }); });
+    return s.replace(/(\s(?:src|srcset|poster|action|formaction|data)\s*=\s*["']?)http:\/\/(?!localhost|127\.)/gi, '$1https://').replace(/(url\(\s*["']?)http:\/\/(?!localhost|127\.)/gi, '$1https://');
+  }
+  hook(W.Element, 'innerHTML', html); hook(W.Element, 'outerHTML', html); hook(W.ShadowRoot, 'innerHTML', html);
+  try{ var ia = Element.prototype.insertAdjacentHTML; Element.prototype.insertAdjacentHTML = function(p, s){ return ia.call(this, p, html(s)); }; }catch(e){}
+  try{ var f0 = W.fetch; if(f0) W.fetch = function(u, o){ return f0.call(this, typeof u === 'string' ? up(u) : u, o); }; }catch(e){}
+  try{ var xo = XMLHttpRequest.prototype.open; XMLHttpRequest.prototype.open = function(m, u){ var a = [].slice.call(arguments); a[1] = up(u); return xo.apply(this, a); }; }catch(e){}
+  try{ var A0 = W.Audio; if(A0){ var A1 = function(u){ return arguments.length ? new A0(up(u)) : new A0(); }; A1.prototype = A0.prototype; W.Audio = A1; } }catch(e){}
+  document.addEventListener('submit', function(e){ var f = e.target; try{ if(f && f.getAttribute && HT.test(f.getAttribute('action') || '')) f.setAttribute('action', f.getAttribute('action')); }catch(x){} }, true);
+  W.bsHttps = {up: up, pic: pic, html: html};
+})();
+</script>
 <meta name="description" content="Платформа клуба Business Surgery: разборы каждые 10 дней, задачи, отчёты, пятёрки и финансы. Вход для резидентов и команды через Telegram.">
 <!--ICONS-->
 <meta name="theme-color" content="#050505">

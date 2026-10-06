@@ -134,6 +134,9 @@ type PremiumVoice struct {
 	loginTexts func() []string
 	login      loginJob
 	loginOver  atomic.Pointer[loginOverlay]
+	// R52: when the tour's map was last looked for (Overlay finds a map the
+	// start missed: the tour texts are wired after Load)
+	overlayTry atomic.Int64
 }
 
 // NewPremiumVoice: the ElevenLabs client reads ELEVENLABS_API_KEY, else the saved key.
@@ -429,7 +432,13 @@ func (p *PremiumVoice) refreshOverlay(ctx context.Context) {
 		p.overlay.Store(nil)
 		return
 	}
-	m, n, err := p.have(ctx, c.Active, p.texts())
+	texts := p.texts()
+	if len(texts) == 0 {
+		// R52: the tour's phrases are not wired yet (Load runs before
+		// app.go sets TourTexts): keep the last map, look again later
+		return
+	}
+	m, n, err := p.have(ctx, c.Active, texts)
 	if err != nil {
 		return // keep the last map
 	}
@@ -451,7 +460,22 @@ func (p *PremiumVoice) refreshOverlay(ctx context.Context) {
 func (p *PremiumVoice) Overlay() (string, map[string]string) {
 	o := p.overlay.Load()
 	if o == nil {
-		return "", nil
+		// R52: the server started with the voice ready, but the map was
+		// looked for before the tour's phrases were known: the login demo
+		// spoke with ElevenLabs, the tour kept the built-in files. Look
+		// again, at most every 20 s (a page request costs one query then).
+		if c := p.config(); c.Active.ID != "" && p.repo != nil {
+			now := time.Now().UnixNano()
+			if last := p.overlayTry.Load(); now-last > int64(20*time.Second) && p.overlayTry.CompareAndSwap(last, now) {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				p.refreshOverlay(ctx)
+				cancel()
+				o = p.overlay.Load()
+			}
+		}
+		if o == nil {
+			return "", nil
+		}
 	}
 	return o.ver, o.m
 }
@@ -524,6 +548,9 @@ func (p *PremiumVoice) Start(ctx context.Context) {
 		defer t.Stop()
 		for {
 			p.applyEnvVoice(ctx)
+			if p.overlay.Load() == nil {
+				p.refreshOverlay(ctx) // R52: the voice was ready before this start
+			}
 			p.maybeRunAuto(ctx) // R39: no new try right after a quota or plan stop
 			p.maybeRunLogin(ctx) // R40d: the login demo after the tour
 			select {
@@ -553,6 +580,8 @@ func (p *PremiumVoice) maybeRun(ctx context.Context) {
 	if _, n, err := p.have(ctx, v, texts); err == nil && n == len(texts) {
 		if c.Active.ID != v.ID {
 			p.finish(ctx, v)
+		} else if o := p.overlay.Load(); o == nil || len(o.m) < n {
+			p.refreshOverlay(ctx) // R52: ready before this start: the page plays it too
 		}
 		return
 	}

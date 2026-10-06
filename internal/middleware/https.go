@@ -13,6 +13,10 @@ import (
 // bxclub.kz itself lives on Tilda and must not be forced to HTTPS by this app.
 const HSTSValue = "max-age=31536000"
 
+// CSPValue: the policy on every answer (R52). Only the upgrade: the pages
+// load their scripts from the CDNs they need, so nothing else is restricted.
+const CSPValue = "upgrade-insecure-requests"
+
 // HTTPS keeps the platform on https:// only.
 //
 // Railway ends TLS at its proxy and passes the original scheme in
@@ -41,6 +45,12 @@ func HTTPS() gin.HandlerFunc {
 		if (proto == "https" || c.Request.TLS != nil) && hostMatches(host, hosts) {
 			c.Header("Strict-Transport-Security", HSTSValue)
 		}
+		// R52: every answer (the platform and login pages, the open pages
+		// /about and /library, error pages, files opened in a tab) asks the
+		// browser to fetch any http:// resource over https: no «Не защищено»
+		// from a picture or form address that came with the data. A handler
+		// with its own policy sets the header again.
+		c.Header("Content-Security-Policy", CSPValue)
 		c.Next()
 	}
 }

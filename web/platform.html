@@ -4,6 +4,36 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Business Surgery</title>
+<script id="r52Https">
+// R52: «Не защищено» при действительном сертификате: адрес http из данных (картинка, звук, рамка, форма).
+// Адрес меняется на https до запроса, картинка с хоста без https идёт через сервер (/img?u=). Плюс заголовок CSP upgrade-insecure-requests
+(function(){
+  var PX = 1, LOC = /^http:\/\/(localhost|127\.|\[::1\])/i, HT = /^\s*http:\/\//i, W = window;
+  function up(u){ var s = String(u == null ? '' : u); return HT.test(s) && !LOC.test(s.trim()) ? 'https://' + s.trim().slice(7) : u; }
+  function pic(u){ var s = String(u == null ? '' : u).trim(); if(!HT.test(s) || LOC.test(s)) return u; return PX ? '/img?u=' + encodeURIComponent(s) : 'https://' + s.slice(7); }
+  function set(u){ return String(u == null ? '' : u).replace(/(^|,\s*)(http:\/\/[^\s,]+)/gi, function(m, a, x){ return a + pic(x); }); }
+  function hook(C, p, f){ try{ var d = C && Object.getOwnPropertyDescriptor(C.prototype, p); if(!d || !d.set) return; Object.defineProperty(C.prototype, p, {configurable: true, enumerable: d.enumerable, get: d.get, set: function(v){ d.set.call(this, f(v)); }}); }catch(e){} }
+  hook(W.HTMLImageElement, 'src', pic); hook(W.HTMLImageElement, 'srcset', set); hook(W.HTMLSourceElement, 'srcset', set); hook(W.HTMLSourceElement, 'src', up);
+  hook(W.HTMLMediaElement, 'src', up); hook(W.HTMLVideoElement, 'poster', pic); hook(W.HTMLIFrameElement, 'src', up); hook(W.HTMLScriptElement, 'src', up);
+  hook(W.HTMLLinkElement, 'href', up); hook(W.HTMLFormElement, 'action', up); hook(W.HTMLEmbedElement, 'src', up); hook(W.HTMLObjectElement, 'data', up);
+  var AT = {src: 1, srcset: 1, poster: 1, action: 1, formaction: 1, data: 1, href: 1};
+  function attr(el, n, v){ n = String(n).toLowerCase(); if(!AT[n] || !HT.test(String(v))) return v; var t = el.tagName; if(n === 'href' && t !== 'LINK') return v; if(n === 'data' && t !== 'OBJECT') return v; return t === 'IMG' || n === 'poster' ? (n === 'srcset' ? set(v) : pic(v)) : up(v); }
+  try{ var sa = Element.prototype.setAttribute; Element.prototype.setAttribute = function(n, v){ return sa.call(this, n, attr(this, n, v)); }; }catch(e){}
+  // разметка: картинки с адресом http через сервер, остальные адреса и url() на https
+  function html(s){
+    if(typeof s !== 'string' || !/http:\/\//i.test(s)) return s;
+    s = s.replace(/<img\b[^>]*>/gi, function(t){ return t.replace(/(\s(?:src|srcset)\s*=\s*["']?)(http:\/\/[^"'\s>]+)/gi, function(m, a, u){ return a + (LOC.test(u) ? u : pic(u.replace(/&amp;/g, '&')).replace(/&/g, '&amp;')); }); });
+    return s.replace(/(\s(?:src|srcset|poster|action|formaction|data)\s*=\s*["']?)http:\/\/(?!localhost|127\.)/gi, '$1https://').replace(/(url\(\s*["']?)http:\/\/(?!localhost|127\.)/gi, '$1https://');
+  }
+  hook(W.Element, 'innerHTML', html); hook(W.Element, 'outerHTML', html); hook(W.ShadowRoot, 'innerHTML', html);
+  try{ var ia = Element.prototype.insertAdjacentHTML; Element.prototype.insertAdjacentHTML = function(p, s){ return ia.call(this, p, html(s)); }; }catch(e){}
+  try{ var f0 = W.fetch; if(f0) W.fetch = function(u, o){ return f0.call(this, typeof u === 'string' ? up(u) : u, o); }; }catch(e){}
+  try{ var xo = XMLHttpRequest.prototype.open; XMLHttpRequest.prototype.open = function(m, u){ var a = [].slice.call(arguments); a[1] = up(u); return xo.apply(this, a); }; }catch(e){}
+  try{ var A0 = W.Audio; if(A0){ var A1 = function(u){ return arguments.length ? new A0(up(u)) : new A0(); }; A1.prototype = A0.prototype; W.Audio = A1; } }catch(e){}
+  document.addEventListener('submit', function(e){ var f = e.target; try{ if(f && f.getAttribute && HT.test(f.getAttribute('action') || '')) f.setAttribute('action', f.getAttribute('action')); }catch(x){} }, true);
+  W.bsHttps = {up: up, pic: pic, html: html};
+})();
+</script>
 <link rel="icon" type="image/png" sizes="64x64" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAF20lEQVR42u1bzUtUXxh+zrlf4yRoI4LUoo2SRm4q0BZRYJAubCdCEUKtxoXhKsUWvz+g/oFAKd30YQtbOG1cBCEKUgsTiSBCCIJyTHCuc+6ce85vdQ4zos6915hxnHnhMM713uN9nvN+POe9V4IQFo/HJSrAXNclQc8lJwV0VDLoSQYfBAM5qcCDegOtFvAHYaPVAv4gjBRVbrSaVn8/rDQK+Ewmg0wmg+3tbWQyGQwNDQEATNOsOBJqIVD1BFRT7O8XBjUPqBFQ5RapbnHOCz4JITBNM1QZFEJACFGZBCig6tPzPHDONSGB3Y9SSCkhZfnyMIlSBcbGxgq+nz17FgCKAiGEgHOOjY0NfPjwAZ8+fdLHy0UC+Rdl8N27d+jp6Ql93czMDEZHR8EYK5snRAoBx3EAAIZhwPd9MMbAGIMQApTSQK5PKcW9e/dg2zbu37+vw6EiqoAC7LouGGOwLAuO46Curg6O4xQdlmWBUgrOOQYHB9Hd3R2YvGPhAf39/Tp2hRDY2trCx48f9bFi2b+zsxONjY3a7fv7+7G0tARKackrQyQCXr58WfB9eHgYL168CHz93Nwcbt68CSEECCFoaWkJlESPDQG+72sdoEqh0gKHlUK1wntdvZxlMBIBhmHoG8//uVgmL3fNr0nhGgE1AmoE1AioEVAj4Og6YD+BE6QhooSQlBKcc/i+D845pJQwTROGYRSV0vmaQs1VcgKklAU3urOzE6ohYtt2AWFKQYZtqOSTWtJ+wMbGBhKJBIQQMAwDs7OzWF5ehmVZgZTghQsXEIvF9HHXdbG+vq5VZTHiGWNYXV3F4uLi0UmIx+My7EilUlJKKTnnMordvXu3YL5Hjx5FmmdpaUlevXpVxuNxWV9fL6NgiZQEnz59qvcBuVwu8Mhms8jlcrBtG7Zto76+HrZtg1KKXC6H3d3dwHMJIdDV1YVUKoW2trbIuSASAYuLixgeHobv+7AsK/CIxWKwLAue58HzPOzs7MDzPD1PXV1d4LkopfA8Dw0NDZiYmIhMgBk1609PT+PLly8YGhrC5cuX0dTUFKgZYpomzpw5g4sXL8JxHDDGcPr0afz8+RO5XK5oHlAtuebmZpimCSEErl+/jkQigXQ6Xbqm6N7E4zhOUQLUNW/fvsWNGzfAGIPjOHj9+jWSyaTuMR62Deeco7u7G/Pz8wXJ8dq1a/j8+XPpdIBqbBBCdGM0bEMl/3s2mw1EgDo3k8nA933996P2E48khPI9IIiAUR6gngOooUAfBj7/98vLy2hvb9d6gnOOzc3N8inBMG0tKSW2t7c1aYQQJBIJdHR0wDTNoiSoOdLpNH79+nXk+yalfD9Ardb4+DgeP35c0FMMk8UJIXBdF9++fcPz58/x7NmzyGKopASom2xra8PKyop+GBIk8x9mk5OTGBkZiXStYVnWf6UiQIH98+cPtra20Nvbq5OX2tiEGeoJ85UrV/Djxw+srq4ebwIUCZRSrKys4OvXr2htbUVzc7OuKGGGIk9KiXPnzmFqaup4h0B+OTMMA57nwbZtnD9/HolEIlAeUFqgr68PDx8+hO/7MAwD2WwWTU1N5asCYcz3fZ3tPc+L5Lp7H8lHfUexpASo+j8wMIDW1lYwxhCLxbC2tob379/rZ43FKonv+zh16pQmUr13UDEEJJNJdHV16eOzs7OYm5sLNIfneQCA3d1dHUoqNCqCAAD4/v07Ll26pLfGLS0tuHPnDmzbLuoBarXb29uRSqV0eQ0ioI6NEEomk3jy5EmBEAprCwsLuH379tG1SZh/MPoXyY8QglevXuH379+aECGEjmfVGzxoqBeyGGMwDAO2bReEQhhzXZeUtC2uenrpdBoPHjzA379/YZomKKUahGqWHjTUOWoXmD9K1hE66g6SUoqFhQXcunULb968webmZvneEstvjqKKTIU+3XugmsCXJQSOm9GDmKmG1d/XA04yCfthOxTsSUmMhy0qjXrhSQBf1AMq1SPCLNz/5cEwCQ/rSmkAAAAASUVORK5CYII=">
 <link rel="apple-touch-icon" href="data:image/png;base64,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">
 <meta name="theme-color" content="#0a0a0a">
@@ -14283,7 +14313,7 @@ var CURE = {
   'Продаю только я': ['Скрипт продаж','Описание роли'],
   'Все решения через собственника': ['Оргструктура','Описание роли'],
   'Нет системы найма': ['Система найма','Описание роли'],
-  'Нет стратегии': ['Декомпозиция цели','Матрица приоритетов'],
+  'Нет стратегии': ['Декомпозиция цели','Матрица приоритетов','SWOT-анализ'],
   'Клиенты только по сарафану': ['Портрет клиента','Учёт источников'],
   'Всё держится на людях, а не на правилах': ['Регламент процесса','Карта процессов'],
   'Решения принимаются на ощущениях': ['Панель показателей','Еженедельный обзор']
@@ -25886,6 +25916,14 @@ body.light .lb2-paper{box-shadow:0 18px 40px rgba(0,0,0,.12),0 0 0 1px rgba(0,0,
 .lb2-pp-ss{display:flex;gap:4px;flex-shrink:0}
 .lb2-pp-sn{font-style:normal;width:17px;height:17px;border-radius:50%;border:1px solid #C8C8C8;font-size:8px;color:#777;display:flex;align-items:center;justify-content:center}
 .lb2-pp-nl{height:22px;border-bottom:1px solid #C8C8C8}
+/* R52: матрица 2×2 (SWOT) в превью шаблона */
+.lb2-pp-gw{display:grid;grid-template-columns:18px 1fr 1fr;gap:8px;align-items:stretch}
+.lb2-pp-gc{font:800 9px 'Manrope',sans-serif;letter-spacing:.8px;color:#777;text-align:center;text-transform:uppercase}
+.lb2-pp-gr{writing-mode:vertical-rl;transform:rotate(180deg);font:800 9px 'Manrope',sans-serif;letter-spacing:.8px;color:#777;text-align:center;text-transform:uppercase}
+.lb2-pp-gq{border:1.5px solid #141414;border-radius:8px;padding:9px 11px;min-height:120px;min-width:0}
+.lb2-pp-gq b{display:block;font:800 13px 'Manrope',sans-serif;color:#141414}
+.lb2-pp-gq em{display:block;font-style:normal;font-size:11px;line-height:1.35;color:#777;margin:3px 0 4px}
+.lb2-pp-gq i{display:block;height:20px;border-bottom:1px solid #C8C8C8}
 .lb2-pp-m{margin-top:18px;border:1.5px solid #0C0C0C;padding:10px 14px}
 .lb2-pp-mb{display:block;font-size:8px;letter-spacing:1px;color:#777;font-weight:800;margin-bottom:5px}
 .lb2-pp-mi{font-size:10.5px;line-height:1.5;padding-left:12px;position:relative}
@@ -26342,6 +26380,13 @@ function lib2Paper(v, r){
       return head + '<div class="lb2-pp-sc">' + (b.items || []).map(function(x){ return '<div class="lb2-pp-si">' + gdE(x) + '<span class="lb2-pp-ss">' + nums + '</span></div>'; }).join('') + '</div>';
     }
     if(b.type === 'note') return head + '<div class="lb2-pp-n">' + new Array(Math.min(b.lines || 4, 6) + 1).join('<div class="lb2-pp-nl"></div>') + '</div>';
+    if(b.type === 'grid'){ // R52: матрица 2×2, как в PDF
+      var gi = b.items || [], gf = b.fields || [], gc = (b.columns && b.columns.length === 2) ? b.columns : ['Помогает цели', 'Мешает цели'],
+        gr = (b.rows && b.rows[0] && b.rows[0].length === 2) ? b.rows[0] : ['Внутри компании', 'Снаружи: рынок'], gl = new Array(Math.min(b.lines || 7, 5) + 1).join('<i></i>');
+      var q = function(i){ return '<div class="lb2-pp-gq"><b>' + gdE(gi[i] || '') + '</b>' + (gf[i] ? '<em>' + gdE(gf[i]) + '</em>' : '') + gl + '</div>'; };
+      return head + '<div class="lb2-pp-gw"><span></span><div class="lb2-pp-gc">' + gdE(gc[0]) + '</div><div class="lb2-pp-gc">' + gdE(gc[1]) + '</div>' +
+        '<div class="lb2-pp-gr">' + gdE(gr[0]) + '</div>' + q(0) + q(1) + '<div class="lb2-pp-gr">' + gdE(gr[1]) + '</div>' + q(2) + q(3) + '</div>';
+    }
     return '';
   }).join('');
   var open = !!LIB2.exp['tpl:' + r.id];
@@ -36209,9 +36254,9 @@ function r46LeadTeaser(){
       '<div class="cx-pipes" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px">' + ['all', 'draft', 'approved', 'published', 'hidden'].map(function(k){
         return '<button class="btn pf-b' + (CS.f === k ? ' pf-p' : '') + '" type="button" data-cf="' + k + '" style="height:32px;font-size:12px">' + (k === 'all' ? 'Все' : STN[k]) + ' · ' + (cnt[k] || 0) + '</button>'; }).join('') + '</div>' +
       (list.length ? '<div class="r51s-cases">' + list.map(caseCard).join('') + '</div>' : '<div class="pf-empty">Кейсов пока нет. Нужны согласие резидента и замеры в начале и сейчас</div>') +
-      '<div class="r51s-box"><h4>Согласие резидентов</h4><div class="k">По умолчанию «нельзя». Резидент меняет это сам в профиле (платформа и приложение). «Спросить в боте» пришлёт ему кнопки 10:00-20:00.</div>' +
+      '<div class="r51s-box"><h4>Согласие резидентов</h4><div class="k">По умолчанию «анонимно»: только ниша, город и цифры. Резидент меняет это сам в профиле (платформа и приложение), его выбор не перезаписывается. «Спросить в боте» пришлёт ему кнопки 10:00-20:00.</div>' +
       '<table class="r51s-tbl"><tr><th>Резидент</th><th>Согласие</th><th class="hm">Когда</th><th></th></tr>' + people.map(function(p){
-        return '<tr><td>' + e(p.name) + (p.former ? ' <span class="k">(бывший)</span>' : '') + '</td><td><select class="inp" data-cm="' + ea(p.name) + '">' + ['no', 'anon', 'name'].map(function(m){ return '<option value="' + m + '"' + (p.mode === m ? ' selected' : '') + '>' + MODEN[m] + '</option>'; }).join('') + '</select></td>' +
+        return '<tr><td>' + e(p.name) + (p.former ? ' <span class="k">(бывший)</span>' : '') + '</td><td><select class="inp" data-cm="' + ea(p.name) + '">' + ['anon', 'name', 'no'].map(function(m){ return '<option value="' + m + '"' + (p.mode === m ? ' selected' : '') + '>' + MODEN[m] + (m === 'anon' && !p.chosen ? ' (по умолчанию)' : '') + '</option>'; }).join('') + '</select></td>' +
           '<td class="hm k">' + e(p.at ? dm(p.at) + ' · ' + (p.by || '') : (p.reqAt ? 'спросили ' + dm(p.reqAt) : '')) + '</td><td>' + (p.former ? '' : '<button class="btn pf-b" type="button" data-cr="' + ea(p.name) + '" style="height:30px;font-size:12px">Спросить в боте</button>') + '</td></tr>';
       }).join('') + '</table></div>';
   }
@@ -36262,7 +36307,7 @@ function r46LeadTeaser(){
   function meHTML(d){
     if(!d) return '<div class="pf-empty">Загружаю…</div>';
     var r = d.renew || {}, p = r.pending;
-    var h = '<div class="r51s-box" id="r51sCons"><h4>Мои результаты в кейсах клуба</h4><div class="k">Можно ли показывать ваши цифры «было → стало» в кейсах клуба (соцсети, сайт)? Анонимно: только ниша, город и цифры. Поменять можно в любой момент.</div>' +
+    var h = '<div class="r51s-box" id="r51sCons"><h4>Мои результаты в кейсах клуба</h4><div class="k">Можно ли показывать ваши цифры «было → стало» в кейсах клуба (соцсети, сайт)? Анонимно: только ниша, город и цифры. Поменять можно в любой момент.</div>' + (d.consentNote ? '<div class="r51s-st" id="r52cNote">' + e(d.consentNote) + '</div>' : '') +
       '<div class="r51s-mode">' + [['anon', 'Анонимно'], ['name', 'С именем'], ['no', 'Нельзя']].map(function(m){ return '<button type="button" data-mm="' + m[0] + '" class="' + (d.consent === m[0] ? 'on' : '') + '" aria-pressed="' + (d.consent === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div></div>';
     h += '<div class="r51s-box" id="r51sRenew"><h4>Продление резидентства</h4><div class="k">' + (r.packEnd ? 'Пакет действует до ' + e(r.packEnd) + (r.daysLeft >= 0 ? ' (осталось ' + r.daysLeft + ' дн.)' : '') + '. ' : '') + 'Продлить в 1 клик: команда увидит запрос, пакет продлится сам после оплаты.</div>' +
       (p ? '<div class="r51s-st wait">⏳ Ожидает оплату продления: ' + (p.months == 12 ? 'год' : '3 месяца') + ', ' + tg(p.amount) + '</div>' + (r.kaspi ? '<div class="r51s-acts"><a class="btn pf-b pf-p" href="' + ea(r.kaspi) + '" target="_blank" rel="noopener">Оплатить ' + tg(p.amount) + ' (Kaspi)</a></div>' : '<div class="k" style="margin-top:6px">Команда пришлёт ссылку на оплату.</div>') : '') +
@@ -36313,7 +36358,7 @@ function r46LeadTeaser(){
       REN = a[1];
       var p = ren.pending;
       var h = '<div class="r51s-box"><h4>Итоги и продление</h4><div class="k">' + (ren.packEnd ? 'Пакет до ' + e(ren.packEnd.split('-').reverse().join('.')) + (ren.daysLeft != null ? ' (осталось ' + ren.daysLeft + ' дн.)' : '') + '. ' : '') +
-        'Согласие на кейсы: <b>' + e(MODEN[cons.mode || 'no']) + '</b>.</div>' +
+        'Согласие на кейсы: <b>' + e(MODEN[cons.mode || 'anon']) + '</b>' + (cons.chosen ? '' : ' (по умолчанию)') + '.</div>' +
         (p ? '<div class="r51s-st wait">⏳ Ожидает оплату продления: ' + (p.months == 12 ? 'год' : '3 месяца') + ', ' + tg(p.amount) + '</div>' : '') +
         '<div class="r51s-acts"><button class="btn pf-b" type="button" data-rr="3">Итог 3 месяцев</button><button class="btn pf-b" type="button" data-rr="12">Итог года</button>' +
         (p ? '<button class="btn pf-b pf-p" type="button" data-rpaid="1">Оплата получена: продлить</button>' : '') +
@@ -36683,6 +36728,267 @@ function r46LeadTeaser(){
 })();
 </script>
 <!-- /R53 -->
+<!-- R52g: Gallup нового человека на разборе. «Проводил разбор нового человека, не смог нормально проанализировать Gallup:
+     я увидел, куда загружать, а результата анализа теперь нет». Причины: в панели «Замеры» → Gallup загрузка только
+     прикрепляла имя файла (разбора там не было); у новой несохранённой доски файл «читался» без конца (доски ещё нет);
+     когда темы не нашлись по словарю и ИИ не ответил (502), экран оставался пустым. Теперь: доска сохраняется сама,
+     панель разбирает отчёт на месте (PDF, текст, вставка, ручная отметка для скриншота), детерминированный разбор
+     показывается сразу, причина отказа ИИ видна, «Дополнить анализ ИИ позже» запускается сам, когда ИИ заработает -->
+<style id="r52gStyle">
+.r52g{display:flex;flex-direction:column;gap:12px}
+.r52g-drop{border:2px dashed var(--gl);border-radius:14px;padding:18px 14px;text-align:center;cursor:pointer;color:var(--gm);font-size:13px;line-height:1.45}
+.r52g-drop:hover,.r52g-drop.over{border-color:var(--gm)}
+.r52g-drop b{display:block;color:var(--gi);font-size:14px;margin-bottom:2px}
+.r52g-drop.ok{border-style:solid;border-color:var(--gi)}
+.r52g-drop.err{border-style:solid;border-color:#FF6B6F}
+.r52g-acts{display:flex;gap:6px;flex-wrap:wrap}
+.r52g-acts button{height:32px;padding:0 12px;border-radius:9px;border:1px solid var(--gl);background:none;color:var(--gi);font:700 12.5px 'Manrope',sans-serif;cursor:pointer}
+.r52g-acts button.p{background:var(--gi);color:var(--gc);border-color:var(--gi)}
+.r52g-ta{width:100%;min-height:110px;border-radius:10px;border:1px solid var(--gl);background:var(--gc2);color:var(--gi);font:13px/1.45 'Manrope',sans-serif;padding:10px}
+.r52g-st{border:1px solid var(--gl);border-radius:12px;padding:11px 13px;font-size:13px;line-height:1.5;color:var(--gm)}
+.r52g-st b{color:var(--gi)}
+.r52g-st.warn{border-color:rgba(255,184,77,.55)}
+.r52g-st.err{border-color:rgba(255,107,111,.6)}
+.r52g-st .r52g-acts{margin-top:8px}
+.r52g-top{display:flex;flex-direction:column;gap:4px}
+.r52g-t{display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:center;font-size:13px;padding:5px 0;border-bottom:1px solid var(--gl)}
+.r52g-t i{font-style:normal;font-weight:800;color:var(--gs);text-align:right}
+.r52g-t b{font-weight:800}
+.r52g-t span{font-size:11.5px;color:var(--gm)}
+.r52g-dm{display:grid;grid-template-columns:120px 1fr 34px;gap:8px;align-items:center;font-size:12px;color:var(--gm)}
+.r52g-dm s{display:block;height:7px;border-radius:4px;background:var(--gl);overflow:hidden;text-decoration:none}
+.r52g-dm s u{display:block;height:100%;background:var(--gi)}
+.r52g-dm em{font-style:normal;font-weight:800;color:var(--gi);text-align:right}
+.r52g-port p{margin:6px 0 0;font-size:13.5px;line-height:1.55;color:var(--gi)}
+.r52g-pk{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.r52g-pkc{width:min(760px,100%);max-height:92vh;overflow:auto;border-radius:18px;padding:20px}
+.r52g-pkg{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.r52g-pkg button{border:1px solid var(--gl);background:none;color:var(--gi);border-radius:9px;padding:6px 10px;font:700 12.5px 'Manrope',sans-serif;cursor:pointer}
+.r52g-pkg button.on{background:var(--gi);color:var(--gc)}
+.r52g-pkg button b{margin-right:5px;opacity:.6}
+@media(max-width:640px){.r52g-dm{grid-template-columns:96px 1fr 30px}}
+</style>
+<script id="r52gScript">
+(function(){
+  var G = window.G16; if(!G) return;
+  var ST = window.R52G = {err: {}, busy: {}, why: '', aiOk: null, at: 0, pick: null};
+  function E(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function say(t){ try{ toast(t); }catch(e){} }
+  function DB(){ try{ return GALLUP_DB; }catch(e){ return {}; } }
+  function id(){ return G.boardId(); }
+  // Новый человек: доска ещё не сохранена, Gallup некуда положить. Сохраняем сами
+  function ensureBoard(){
+    if(id()) return true;
+    try{ if(typeof saveBoard === 'function') saveBoard(); }catch(e){}
+    return !!id();
+  }
+  function txtKey(){ return 'bs_gallup_txt'; }
+  function keepText(t){ try{ var a = JSON.parse(localStorage.getItem(txtKey()) || '{}'); a[id()] = String(t).slice(0, 60000); localStorage.setItem(txtKey(), JSON.stringify(a)); }catch(e){} }
+  function textOf(bid){ try{ return (JSON.parse(localStorage.getItem(txtKey()) || '{}'))[bid] || ''; }catch(e){ return ''; } }
+  function dropText(bid){ try{ var a = JSON.parse(localStorage.getItem(txtKey()) || '{}'); delete a[bid]; localStorage.setItem(txtKey(), JSON.stringify(a)); }catch(e){} }
+  function repaint(){
+    try{ G.rerender(); }catch(e){}
+    try{ if(typeof curTest !== 'undefined' && curTest === 'gallup' && document.getElementById('r52gPanel')) renderTests(); }catch(e){}
+  }
+  var AIMSG = {no_ai: 'ИИ не подключён на сервере', ai_failed: 'ИИ не ответил', ai_parse: 'ИИ ответил не по форме', empty: 'в тексте почти нет слов'};
+  // Разбор ИИ по тексту отчёта, с причиной отказа (R16 молча прятал её)
+  function askAI(text, bid){
+    if(!text || text.length < 40) return;
+    if(!G.online()){ ST.err[bid] = 'нет связи с сервером'; markWant(bid); repaint(); return; }
+    G.GAI.busy[bid] = 1; delete ST.err[bid]; repaint();
+    Promise.resolve().then(function(){ return BSSync.api('POST', '/ai/gallup', {text: text.slice(0, 90000)}); }).then(function(r){
+      return r ? r.json().catch(function(){ return {}; }).then(function(j){ return {ok: r.ok, st: r.status, j: j || {}}; }) : {ok: false, st: 0, j: {}};
+    }).then(function(x){
+      delete G.GAI.busy[bid];
+      if(!x.ok || !x.j.talents || !x.j.talents.length) throw new Error(x.j.detail || AIMSG[x.j.error] || ('сервер ответил ' + x.st));
+      var cur = curBoard && curBoard.id === bid ? G.savedGallup() : null; if(!cur) return;
+      var D = DB(), keys = x.j.talents.map(function(t){ return t.key; }).filter(function(k){ return D[k]; });
+      var g = Object.assign({}, cur, {ai: {talents: x.j.talents, summary: x.j.summary || {}, complete: !!x.j.complete, at: new Date().toISOString(), v: x.j.v || 1, deep: x.j.deep || null}});
+      if(keys.length >= (cur.themes || []).length) g.themes = keys;
+      delete g.aiWant; G.storeGallup(g); dropText(bid); delete ST.err[bid];
+      say('ИИ разобрал ' + keys.length + ' талантов'); repaint();
+    }).catch(function(e){
+      delete G.GAI.busy[bid]; ST.err[bid] = (e && e.message) || 'ИИ не ответил'; markWant(bid); repaint();
+    });
+  }
+  function markWant(bid){
+    var g = curBoard && curBoard.id === bid ? G.savedGallup() : null;
+    if(g && !g.aiWant){ G.storeGallup(Object.assign({}, g, {aiWant: 1})); }
+  }
+  window.r52gRetry = function(){ var bid = id(), g = G.savedGallup() || {}; if(!bid) return;
+    if((g.themes || []).length >= 5){ try{ window.G29.tried[bid] = 1; }catch(e){} window.g29Upgrade(); } else if(textOf(bid)) askAI(textOf(bid), bid); else say('Загрузите отчёт ещё раз'); };
+  window.r52gLater = function(on){ var g = G.savedGallup(); if(!g) return; var x = Object.assign({}, g); if(on) x.aiWant = 1; else delete x.aiWant; G.storeGallup(x); say(on ? 'Дополню разбор ИИ сам, когда ИИ заработает' : 'Ок, без ИИ'); repaint(); };
+
+  // Отчёт: темы по словарю сразу (детерминированный разбор на экране), ИИ дополняет
+  function finish(raw, show, stay){
+    var text = String(raw || '');
+    if(text.indexOf('/Type') >= 0 || text.indexOf('endobj') >= 0){
+      var parts = [], m, re = /\(((?:[^()\\]|\\.)*)\)/g;
+      while((m = re.exec(text)) !== null) parts.push(m[1]);
+      if(parts.length > 20) text = parts.join(' ');
+    }
+    text = text.replace(/\\(\d{3}|.)/g, ' ');
+    if(!ensureBoard()){ show('✕', 'Не получилось сохранить доску', 'Сохраните разбор кнопкой «Сохранить» и загрузите отчёт ещё раз', 'err'); return; }
+    var bid = id(), hits = parseGallupText(text), D = DB();
+    if(!hits.length){
+      if(text.replace(/\s+/g, ' ').length > 200){
+        keepText(text);
+        G.storeGallup({date: new Date().toISOString(), themes: [], aiWant: 1});
+        show('◐', 'Темы по словарю не нашлись: отчёт читает ИИ', 'Если ИИ недоступен, отметьте таланты вручную', '');
+        askAI(text, bid);
+      } else show('✕', 'Тем в файле не нашёл', 'Проверьте, что это отчёт CliftonStrengths, или отметьте таланты вручную', 'err');
+      repaint(); return;
+    }
+    var g = {date: new Date().toISOString(), themes: hits.map(function(h){ return h.k; }).slice(0, 34)};
+    G.storeGallup(g); keepText(text);
+    show('✓', 'Нашёл тем: ' + g.themes.length, E(hits.slice(0, 5).map(function(h){ return (D[h.k] || {}).n; }).join(' · ')), 'ok');
+    askAI(text, bid);
+    say('Разобрано тем: ' + g.themes.length);
+    if(!stay) setTimeout(function(){ try{ goSection('rGallup'); }catch(e){} }, 300); else repaint();
+  }
+  window.finishGallup = function(raw, show){ finish(raw, show || function(){}, false); };
+
+  function shower(dz){
+    return function(ic, t, d, cls){ if(!dz) return; dz.className = 'r52g-drop' + (cls ? ' ' + cls : '') + (dz.id === 'galDrop' ? ' gal-drop' : '');
+      dz.innerHTML = (dz.id === 'galDrop' ? '<div class="gd-ic">' + ic + '</div><div class="gd-t">' + t + '</div>' + (d ? '<div class="gd-d">' + d + '</div>' : '') : '<b>' + ic + ' ' + t + '</b>' + (d || '')); };
+  }
+  function read(f, dz, stay){
+    var show = shower(dz), name = (f.name || '').toLowerCase();
+    show('…', 'Читаю ' + E(f.name), '');
+    if(/^image\//.test(f.type || '') || /\.(png|jpe?g|webp|heic)$/.test(name)){
+      show('◐', 'Скриншот: отметьте таланты по порядку', 'Текст с картинки не читается. Откроется список 34 тем', '');
+      if(ensureBoard()) openPicker(stay); return;
+    }
+    var pdf = /pdf/.test(f.type || '') || /\.pdf$/.test(name), rd = new FileReader();
+    rd.onerror = function(){ show('✕', 'Не удалось открыть файл', '', 'err'); };
+    rd.onload = function(){
+      if(pdf) extractPdfText(new Uint8Array(rd.result)).then(function(t){ finish(t, show, stay); }).catch(function(){ show('✕', 'Не смог разобрать PDF', 'Вставьте текст отчёта или отметьте таланты вручную', 'err'); });
+      else finish(String(rd.result), show, stay);
+    };
+    if(pdf) rd.readAsArrayBuffer(f); else rd.readAsText(f);
+  }
+  window.readGallupFileObj = function(f){ read(f, document.getElementById('galDrop'), false); };
+  window.r52gFile = function(inp){ var f = inp.files && inp.files[0]; inp.value = ''; if(f) read(f, document.getElementById('r52gDrop'), true); };
+  window.r52gPaste = function(){
+    var t = document.getElementById('r52gTa'); if(!t || t.value.trim().length < 20){ say('Вставьте текст отчёта Gallup'); return; }
+    finish(t.value, shower(document.getElementById('r52gDrop')), true);
+  };
+
+  // Ручная отметка: 34 темы, клик по порядку мест (скриншот, другой язык отчёта)
+  function openPicker(stay){
+    var D = DB(), ks = Object.keys(D).sort(function(a, b){ return String(G.RU[a] || '').localeCompare(String(G.RU[b] || ''), 'ru'); });
+    var cur = G.savedGallup(); ST.pick = ((cur && cur.themes) || []).slice();
+    var ov = document.createElement('div'); ov.className = 'r52g-pk'; ov.id = 'r52gPk';
+    function paint(){
+      ov.innerHTML = '<div class="r52g-pkc g16 g16-card" role="dialog" aria-label="Таланты по порядку"><div class="g16-kick">GALLUP · ВРУЧНУЮ</div>' +
+        '<div style="font-size:19px;font-weight:800;margin:6px 0 4px">Отметьте таланты по порядку мест</div><div style="font-size:13px;color:var(--gm)">Первый клик: место 1. Повторный клик убирает тему. Нужно хотя бы 5, лучше 10 или все 34. Отмечено: <b>' + ST.pick.length + '</b></div>' +
+        '<div class="r52g-pkg">' + ks.map(function(k){ var r = ST.pick.indexOf(k); return '<button type="button" data-k="' + k + '" class="' + (r >= 0 ? 'on' : '') + '">' + (r >= 0 ? '<b>' + (r + 1) + '</b>' : '') + E(G.RU[k] || D[k].ru) + ' <span style="opacity:.55">' + E(D[k].n) + '</span></button>'; }).join('') + '</div>' +
+        '<div class="r52g-acts"><button type="button" class="p" data-a="ok"' + (ST.pick.length < 5 ? ' disabled style="opacity:.5"' : '') + '>Готово</button><button type="button" data-a="clr">Сбросить</button><button type="button" data-a="x">Отмена</button></div></div>';
+    }
+    ov.addEventListener('click', function(e){
+      var b = e.target.closest('button'); if(e.target === ov){ ov.remove(); return; } if(!b) return;
+      if(b.dataset.k){ var i = ST.pick.indexOf(b.dataset.k); if(i >= 0) ST.pick.splice(i, 1); else ST.pick.push(b.dataset.k); paint(); return; }
+      if(b.dataset.a === 'x'){ ov.remove(); return; }
+      if(b.dataset.a === 'clr'){ ST.pick = []; paint(); return; }
+      if(b.dataset.a === 'ok' && ST.pick.length >= 5){
+        if(!ensureBoard()) return;
+        G.storeGallup({date: new Date().toISOString(), themes: ST.pick.slice(0, 34), manual: 1, aiWant: 1});
+        ov.remove(); say('Таланты сохранены: ' + ST.pick.length);
+        if(!stay) try{ goSection('rGallup'); }catch(x){} repaint();
+      }
+    });
+    paint(); document.body.appendChild(ov);
+  }
+  window.r52gPick = function(stay){ if(!ensureBoard()){ say('Сначала сохраните доску'); return; } openPicker(!!stay); };
+
+  // Портрет по правилам: описания топ-5 из базы платформы (без ИИ)
+  function portrait(T){
+    var top = T.slice(0, 5); if(!top.length) return '';
+    return '<div class="r52g-port"><div class="g16-lbl" style="margin:0">Портрет по талантам (без ИИ)</div>' + top.map(function(t){
+      return '<p><b>' + t.rank + '. ' + E(t.ru) + '.</b> ' + E(String(t.essence || '').replace(/\s*[\u2014\u2013]\s*/g, ' - ')) + (t.business ? ' В бизнесе: ' + E(String(t.business).replace(/\s*[\u2014\u2013]\s*/g, ' - ')) : '') + '</p>'; }).join('') + '</div>';
+  }
+  function aiLine(g, bid){
+    var deep = g && g.ai && g.ai.deep, T = G.talentList(g || {});
+    if(G.GAI.busy[bid] || (window.G29 && G29.busy[bid])) return '<div class="r52g-st"><b>ИИ дополняет разбор.</b> Базовый разбор по правилам уже на экране.</div>';
+    if(deep) return '';
+    var why = ST.err[bid] || ST.why || '';
+    if(!T.length){
+      if(!g || !(g.aiWant || ST.err[bid])) return '';
+      return '<div class="r52g-st err"><b>Отчёт не разобран автоматически.</b> ' + E(why ? 'Причина: ' + why + '. ' : '') + 'Отметьте таланты вручную по порядку из отчёта: разбор появится сразу, ИИ дополнит его позже сам.' +
+        '<div class="r52g-acts"><button type="button" class="p" onclick="r52gPick(' + (document.getElementById('r52gPanel') ? 1 : 0) + ')">Отметить таланты вручную</button><button type="button" onclick="r52gRetry()">Повторить ИИ</button></div></div>';
+    }
+    if(g.aiWant) return '<div class="r52g-st warn"><b>Базовый разбор готов по правилам.</b> ' + (why ? 'ИИ сейчас недоступен: ' + E(why) + '. ' : '') + 'Дополню анализ ИИ сам, как только ИИ заработает.' +
+      '<div class="r52g-acts"><button type="button" onclick="r52gRetry()">Дополнить сейчас</button><button type="button" onclick="r52gLater(0)">Не дополнять</button></div></div>';
+    if(ST.err[bid] || (window.G29 && G29.err[bid])) return '<div class="r52g-st warn"><b>Базовый разбор готов по правилам.</b> ' + (why ? 'ИИ: ' + E(why) + '. ' : '') +
+      '<div class="r52g-acts"><button type="button" class="p" onclick="r52gLater(1)">Дополнить анализ ИИ позже</button><button type="button" onclick="r52gRetry()">Повторить сейчас</button></div></div>';
+    return '';
+  }
+  // Полный экран Gallup: статус ИИ и портрет по правилам поверх разбора R29
+  var prevRes = window.renderGallupResult;
+  window.renderGallupResult = function(g){
+    var h = prevRes.apply(this, arguments), bid = id(), T = G.talentList(g || {}), line = aiLine(g, bid);
+    var add = line + (T.length && !(g.ai && g.ai.deep) ? '<div class="g16-card" style="margin-top:14px">' + portrait(T) + '</div>' : '');
+    if(!h) return line ? '<div class="g16">' + line + '</div>' : '';
+    var i = h.indexOf('</section>');
+    return add ? (i > 0 ? h.slice(0, i + 10) + '<div style="margin-top:14px">' + add + '</div>' + h.slice(i + 10) : add + h) : h;
+  };
+
+  // Панель «Замеры» → Gallup на доске: загрузка с разбором, а не только имя файла
+  function domBars(T){
+    var top = T.slice(0, 10), cnt = {}; top.forEach(function(t){ cnt[t.dom] = (cnt[t.dom] || 0) + 1; });
+    return G.DOMS.map(function(d){ var v = cnt[d.k] || 0; return '<div class="r52g-dm"><span>' + E(d.ru) + '</span><s><u style="width:' + (v * 10) + '%"></u></s><em>' + v + '</em></div>'; }).join('');
+  }
+  function panel(){
+    var g = G.savedGallup(), bid = id(), T = G.talentList(g || {}), note = (curBoard && curBoard.tests && curBoard.tests.gallup && curBoard.tests.gallup.note) || '';
+    var adm = typeof MODE === 'undefined' || MODE === 'admin';
+    var h = '<div class="g16 r52g" id="r52gPanel">';
+    if(adm) h += '<div class="r52g-drop" id="r52gDrop" onclick="document.getElementById(\'r52gFile\').click()"><b>↑ ' + (T.length ? 'Загрузить отчёт заново' : 'Загрузить отчёт Gallup') + '</b>PDF, текст или скриншот. Разбор появится здесь же, доска сохранится сама</div>' +
+      '<input type="file" id="r52gFile" accept=".pdf,.txt,.html,.csv,image/*" style="display:none" onchange="r52gFile(this)">' +
+      '<div class="r52g-acts"><button type="button" onclick="var t=document.getElementById(\'r52gTx\');t.style.display=t.style.display===\'none\'?\'block\':\'none\'">Вставить текст отчёта</button><button type="button" onclick="r52gPick(1)">Отметить таланты вручную</button></div>' +
+      '<div id="r52gTx" style="display:none"><textarea class="r52g-ta" id="r52gTa" placeholder="Скопируйте текст из отчёта CliftonStrengths и вставьте сюда"></textarea><div class="r52g-acts" style="margin-top:6px"><button type="button" class="p" onclick="r52gPaste()">Разобрать</button></div></div>';
+    h += aiLine(g, bid);
+    if(T.length){
+      h += '<div class="g16-lbl" style="margin:6px 0 0">Топ-10 · ' + T.length + ' тем в профиле</div><div class="r52g-top">' + T.slice(0, 10).map(function(t){ return '<div class="r52g-t"><i>' + t.rank + '</i><b>' + E(t.ru) + '</b><span>' + E(t.domRu) + '</span></div>'; }).join('') + '</div>' +
+        '<div class="g16-lbl" style="margin:8px 0 0">Баланс доменов в топ-10</div>' + domBars(T) + portrait(T) +
+        '<div class="r52g-acts"><button type="button" class="p" onclick="goSection(\'rGallup\')">Открыть полный разбор</button><button type="button" onclick="g29Pdf()">Скачать PDF</button></div>';
+    } else if(G.GAI.busy[bid]) h += '<div class="r52g-st"><b>ИИ читает отчёт.</b> Обычно 1-2 минуты.</div>';
+    h += '<div class="g16-lbl" style="margin:8px 0 0">Выводы трекера</div><textarea class="r52g-ta" style="min-height:80px" placeholder="Как использовать сильные стороны" oninput="setTestNote(this.value)"' + (adm ? '' : ' disabled') + '>' + E(note) + '</textarea></div>';
+    return h;
+  }
+  if(typeof renderTests === 'function'){
+    var rt0 = renderTests;
+    renderTests = window.renderTests = function(){
+      var r = rt0.apply(this, arguments);
+      try{ if(curTest === 'gallup'){ var b = document.getElementById('testBody'); if(b) b.innerHTML = panel(); } }catch(e){}
+      return r;
+    };
+  }
+
+  // «Дополнить анализ ИИ позже»: раз в 3 минуты, пока страница открыта, смотрим, ответит ли ИИ
+  function tick(){
+    try{
+      var g = G.savedGallup(), bid = id();
+      if(!g || !g.aiWant || !G.online() || G.GAI.busy[bid] || (window.G29 && G29.busy[bid])) return;
+      if(g.ai && g.ai.deep){ var x = Object.assign({}, g); delete x.aiWant; G.storeGallup(x); repaint(); return; }
+      BSSync.api('GET', '/ai/status').then(function(r){ return r && r.ok ? r.json() : null; }).then(function(s){
+        if(!s) return;
+        ST.aiOk = !!(s.text && !s.paused); ST.why = ST.aiOk ? '' : (s.message || (s.text ? '' : 'ни один ИИ не подключён'));
+        if(!ST.aiOk){ repaint(); return; }
+        var t = (g.themes || []).length;
+        if(t >= 5){ try{ G29.tried[bid] = 1; }catch(e){} window.g29Upgrade(); }
+        else if(textOf(bid)) askAI(textOf(bid), bid);
+      }).catch(function(){});
+    }catch(e){}
+  }
+  setInterval(tick, 180000);
+  setTimeout(tick, 20000);
+  // разбор R29 закончился: флаг «дополнить позже» снимается
+  var up0 = window.g29Upgrade;
+  if(up0) window.g29Upgrade = function(){ var r = up0.apply(this, arguments); setTimeout(function wait(n){ var bid = id(), g = G.savedGallup(); if(!g) return; if(window.G29 && G29.busy[bid] && n < 400) return setTimeout(function(){ wait(n + 1); }, 1500);
+    if(g.ai && g.ai.deep && g.aiWant){ var x = Object.assign({}, g); delete x.aiWant; G.storeGallup(x); repaint(); } else if(window.G29 && G29.err[bid]){ markWant(bid); repaint(); } }, 1500, 0); return r; };
+})();
+</script>
+<!-- /R52g -->
 <!-- R54: Маркетинг → SMM → «Видео»: монтаж Reels на сервере (platform_video.go, internal/video) -->
 <style id="r54Style">
 .r54-tabs{display:inline-flex;gap:4px;margin:0 0 14px;padding:3px;border:1px solid var(--pb);border-radius:10px;background:var(--pc)}
