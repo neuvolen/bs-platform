@@ -1,0 +1,26 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {
+  "stability": 0.42,
+  "similarity": 0.8,
+  "style": 0.25,
+  "speed": 1.12,
+  "speaker_boost": true
+ },
+ "context": true,
+ "lines": [
+  {
+   "id": "b07",
+   "text": "Около семисот двадцати тысяч. Двенадцать процентов."
+  },
+  {
+   "id": "b08",
+   "text": "С чашки за тысячу двести остаётся около ста сорока пяти тенге."
+  },
+  {
+   "id": "b09",
+   "text": "А при ста шестидесяти чашках в день вы работаете в ноль."
+  }
+ ]
+}
