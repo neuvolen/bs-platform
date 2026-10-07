@@ -1,69 +1,69 @@
 {
  "job": "reach_r01",
- "job_sha256": "9dd96bc8f99d2cf2df5602d8f3c6eff1234d6576d4dd7af69aa27e2b7b4c28a0",
- "run_id": "37611150210",
- "jobs_sha": "7e926516423bf985cdedcb8cb4f1f1500ffefeef",
+ "job_sha256": "391659ab8ddc72110449352ba871b9712a562c63572a6a498a4832703a96ed44",
+ "run_id": "37611269773",
+ "jobs_sha": "8504a5255ff0840c91b3480aa3c17ab12243e537",
  "ok": true,
  "lines": [
   {
    "id": "b01",
    "chars": 52,
    "words": 8,
-   "duration": 3.437
+   "duration": 2.415
   },
   {
    "id": "b02",
    "chars": 28,
    "words": 5,
-   "duration": 2.322
+   "duration": 1.579
   },
   {
    "id": "b03",
    "chars": 32,
    "words": 5,
-   "duration": 2.276
+   "duration": 2.415
   },
   {
    "id": "b04",
    "chars": 33,
    "words": 5,
-   "duration": 2.879
+   "duration": 2.415
   },
   {
    "id": "b05",
    "chars": 75,
    "words": 9,
-   "duration": 5.48
+   "duration": 3.947
   },
   {
    "id": "b06",
    "chars": 46,
    "words": 7,
-   "duration": 2.554
+   "duration": 2.74
   },
   {
    "id": "b07",
    "chars": 51,
    "words": 6,
-   "duration": 4.319
+   "duration": 3.529
   },
   {
    "id": "b08",
    "chars": 50,
    "words": 8,
-   "duration": 3.529
+   "duration": 3.158
   },
   {
    "id": "b09",
    "chars": 51,
    "words": 11,
-   "duration": 3.947
+   "duration": 3.204
   },
   {
    "id": "b10",
    "chars": 47,
    "words": 6,
-   "duration": 3.483
+   "duration": 2.322
   }
  ],
  "chars": 465,
@@ -74,6 +74,6 @@
   "similarity_boost": 0.8,
   "style": 0.25,
   "use_speaker_boost": true,
-  "speed": 1.05
+  "speed": 1.12
  }
 }
