@@ -1,0 +1,118 @@
+{
+ "id": "b07",
+ "text": "А эн-дэ-эс?",
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.42,
+  "similarity_boost": 0.8,
+  "style": 0.25,
+  "use_speaker_boost": true,
+  "speed": 1.12
+ },
+ "duration": 1.579,
+ "words": [
+  {
+   "word": "А",
+   "start": 0.0,
+   "end": 0.151,
+   "char_start": 0,
+   "clean": "А"
+  },
+  {
+   "word": "эн-дэ-эс?",
+   "start": 0.255,
+   "end": 1.579,
+   "char_start": 2,
+   "clean": "эн-дэ-эс"
+  }
+ ],
+ "alignment": {
+  "characters": [
+   "А",
+   " ",
+   "э",
+   "н",
+   "-",
+   "д",
+   "э",
+   "-",
+   "э",
+   "с",
+   "?"
+  ],
+  "character_start_times_seconds": [
+   0.0,
+   0.151,
+   0.255,
+   0.36,
+   0.406,
+   0.453,
+   0.499,
+   0.65,
+   0.755,
+   0.906,
+   1.01
+  ],
+  "character_end_times_seconds": [
+   0.151,
+   0.255,
+   0.36,
+   0.406,
+   0.453,
+   0.499,
+   0.65,
+   0.755,
+   0.906,
+   1.01,
+   1.579
+  ]
+ },
+ "normalized_alignment": {
+  "characters": [
+   " ",
+   "А",
+   " ",
+   "э",
+   "н",
+   "-",
+   "д",
+   "э",
+   "-",
+   "э",
+   "с",
+   "?",
+   " "
+  ],
+  "character_start_times_seconds": [
+   0.0,
+   0.046,
+   0.151,
+   0.255,
+   0.36,
+   0.406,
+   0.453,
+   0.499,
+   0.65,
+   0.755,
+   0.906,
+   1.01,
+   1.149
+  ],
+  "character_end_times_seconds": [
+   0.046,
+   0.151,
+   0.255,
+   0.36,
+   0.406,
+   0.453,
+   0.499,
+   0.65,
+   0.755,
+   0.906,
+   1.01,
+   1.149,
+   1.579
+  ]
+ }
+}
