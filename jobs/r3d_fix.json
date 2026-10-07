@@ -1,0 +1,33 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {
+  "stability": 0.42,
+  "similarity": 0.8,
+  "style": 0.35,
+  "speed": 1.0,
+  "speaker_boost": true
+ },
+ "context": false,
+ "lines": [
+  {
+   "id": "f05",
+   "text": "Пятую часть зарплаты кладём в копилку: сто двадцать две тысячи."
+  },
+  {
+   "id": "f08",
+   "text": "Квартира дорожает быстрее, чем растёт копилка."
+  },
+  {
+   "id": "q07",
+   "text": "Цены выросли быстрее: примерно на десять процентов.",
+   "settings": {
+    "stability": 0.38,
+    "similarity": 0.8,
+    "style": 0.45,
+    "speed": 1.08,
+    "speaker_boost": true
+   }
+  }
+ ]
+}
