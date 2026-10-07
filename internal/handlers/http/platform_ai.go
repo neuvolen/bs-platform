@@ -78,6 +78,9 @@ type PlatformAI struct {
 func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {
 	if c == nil {
 		c = ai.FromEnv()
+		// R56: ~60 s after the start, one tiny request to each Gemini model
+		// logs what Google says about the key's quota
+		c.StartGeminiSelfTest()
 	}
 	h := &PlatformAI{repo: repo, AI: c, Run: func(f func()) { go f() }}
 	// R32c: a long quota pause reaches the owner via the bot, once a day

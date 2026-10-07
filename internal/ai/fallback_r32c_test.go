@@ -149,11 +149,11 @@ func TestR32cNoFallbackCleanMessage(t *testing.T) {
 	SearchBackoff = []time.Duration{time.Millisecond, time.Millisecond}
 	for i := 0; i < 4; i++ {
 		_, err := c.Search(context.Background(), "recs")
-		if err == nil || err.Error() != GeminiQuotaMessage || UserMessage(err) != GeminiQuotaMessage || FriendlyError(err) != GeminiQuotaMessage {
+		if err == nil || err.Error() != GeminiNoFreeMessage || UserMessage(err) != GeminiNoFreeMessage || FriendlyError(err) != GeminiNoFreeMessage {
 			t.Fatalf("message: %v", err)
 		}
 		_, err = c.JSON(context.Background(), "s", "p")
-		if err == nil || strings.Contains(err.Error(), "{") || UserMessage(err) != GeminiQuotaMessage {
+		if err == nil || strings.Contains(err.Error(), "{") || UserMessage(err) != GeminiNoFreeMessage {
 			t.Fatalf("json: %v", err)
 		}
 	}

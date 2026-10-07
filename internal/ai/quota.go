@@ -52,6 +52,12 @@ const QuotaMessage = "Закончился баланс Claude: пополнит
 // GeminiQuotaMessage: Gemini's free quota (R42: the free fallback).
 const GeminiQuotaMessage = "Закончился бесплатный лимит Gemini на сегодня. Он восстановится сам в полночь по времени Google (днём по Алматы)"
 
+// GeminiNoFreeMessage (R56): Google refused with «check your plan and
+// billing» and named no per-minute or per-day limit (or a limit of 0): the
+// key's Google project has no free tier for the model, or its prepaid
+// balance is used up. It does not come back by itself.
+const GeminiNoFreeMessage = "У проекта Google нет бесплатного лимита Gemini для этого ключа (или закончился его баланс). Откройте aistudio.google.com → Usage and limits / Billing. Gemini на паузе на несколько часов"
+
 // AllPausedMessage: no provider can answer (R42: every free limit is used up).
 const AllPausedMessage = "ИИ временно на паузе: у Claude нет баланса, а бесплатные лимиты на сегодня закончились. Лимиты восстановятся сами"
 
@@ -73,12 +79,20 @@ func quotaMessage(service string) string {
 func quotaText(err error) string {
 	var qe *QuotaError
 	if errors.As(err, &qe) {
-		return quotaMessage(qe.Service)
+		return qe.Error()
 	}
 	if q, ok := ParseQuota(err); ok {
-		return quotaMessage(q.Service)
+		return q.message()
 	}
 	return QuotaMessage
+}
+
+// message: the sentence for what Google (or Anthropic) said.
+func (q QuotaInfo) message() string {
+	if q.Billing && q.Service == "gemini" {
+		return GeminiNoFreeMessage
+	}
+	return quotaMessage(q.Service)
 }
 
 // QuotaError: the service's quota is used up until Until.
@@ -91,7 +105,12 @@ type QuotaError struct {
 	Err     error // Google's answer, when this call got it
 }
 
-func (e *QuotaError) Error() string { return quotaMessage(e.Service) }
+func (e *QuotaError) Error() string {
+	if e.Billing && (e.Service == "gemini" || e.Service == "gemini-lite") {
+		return GeminiNoFreeMessage
+	}
+	return quotaMessage(e.Service)
+}
 
 // When: «до 05.10 13:01 по Алматы», for the ops line.
 func (e *QuotaError) When() string {
@@ -134,6 +153,26 @@ type QuotaInfo struct {
 	Daily   bool
 	Billing bool          // no time window named: the balance or the plan (R32c)
 	Retry   time.Duration // RetryInfo.retryDelay, 0 when absent
+	Minute  bool          // R56: a per-minute (or per-second) limit: back in a minute
+	NoFree  bool          // R56: a limit of 0: the tier has no quota for the model at all
+	// R56: what Google named, for the logs: the first violated quota id, its
+	// value and the model it is counted for ("" when Google named none).
+	QuotaID, QuotaValue, Model string
+}
+
+// Kind: «per-minute», «per-day», «no free tier», «billing» or «rate limit».
+func (q QuotaInfo) Kind() string {
+	switch {
+	case q.NoFree:
+		return "no free tier"
+	case q.Billing:
+		return "billing"
+	case q.Daily:
+		return "per-day"
+	case q.Minute:
+		return "per-minute"
+	}
+	return "rate limit"
 }
 
 // ParseQuota reads a quota refusal: Claude's «credit balance is too low»
@@ -159,13 +198,16 @@ func ParseQuota(err error) (QuotaInfo, bool) {
 				Type       string `json:"@type"`
 				RetryDelay string `json:"retryDelay"`
 				Violations []struct {
-					QuotaID string `json:"quotaId"`
+					QuotaID    string `json:"quotaId"`
+					QuotaValue string `json:"quotaValue"`
+					Dimensions struct {
+						Model string `json:"model"`
+					} `json:"quotaDimensions"`
 				} `json:"violations"`
 			} `json:"details"`
 		} `json:"error"`
 	}
 	_ = json.Unmarshal([]byte(he.Body), &body)
-	minute := false
 	for _, d := range body.Error.Details {
 		if d.RetryDelay != "" {
 			if v, e := time.ParseDuration(d.RetryDelay); e == nil {
@@ -174,20 +216,49 @@ func ParseQuota(err error) (QuotaInfo, bool) {
 		}
 		for _, v := range d.Violations {
 			id := strings.ToLower(v.QuotaID)
+			// R56: the first violation names the limit; a zero one wins (it never comes back)
+			if q.QuotaID == "" || (strings.TrimSpace(v.QuotaValue) == "0" && q.QuotaValue != "0") {
+				q.QuotaID, q.QuotaValue, q.Model = v.QuotaID, strings.TrimSpace(v.QuotaValue), v.Dimensions.Model
+			}
+			if strings.TrimSpace(v.QuotaValue) == "0" {
+				q.NoFree = true
+			}
 			if strings.Contains(id, "perday") {
 				q.Daily = true
 			}
 			if strings.Contains(id, "perminute") || strings.Contains(id, "persecond") {
-				minute = true
+				q.Minute = true
 			}
+		}
+	}
+	// the plain-text form: «Quota exceeded for metric: …, limit: 0, model: …»
+	for _, m := range quotaMetricRe.FindAllStringSubmatch(he.Body, -1) {
+		if q.QuotaID == "" {
+			q.QuotaID, q.QuotaValue, q.Model = strings.TrimPrefix(m[1], "generativelanguage.googleapis.com/"), m[2], m[3]
+		}
+		if m[2] == "0" {
+			q.NoFree = true
+		}
+		ml := strings.ToLower(m[1])
+		if strings.Contains(ml, "per_day") || strings.Contains(ml, "perday") {
+			q.Daily = true
+		}
+		if strings.Contains(ml, "per_minute") || strings.Contains(ml, "perminute") {
+			q.Minute = true
 		}
 	}
 	if strings.Contains(low, "perday") || strings.Contains(low, "per day") || strings.Contains(low, "daily") {
 		q.Daily = true
 	}
 	quota := strings.Contains(low, "quota") || strings.Contains(low, "resource_exhausted") || strings.Contains(low, "billing")
-	if quota && !q.Daily && !minute && (strings.Contains(low, "billing") || strings.Contains(low, "exceeded your current quota") ||
-		strings.Contains(low, "prepay") || strings.Contains(low, "credit")) {
+	switch {
+	case q.NoFree:
+		// R56: a limit of 0 does not come back at midnight or in a minute
+		q.Daily, q.Minute, q.Billing = false, false, true
+	case q.Daily:
+		q.Minute = false
+	case !q.Minute && quota && (strings.Contains(low, "billing") || strings.Contains(low, "exceeded your current quota") ||
+		strings.Contains(low, "prepay") || strings.Contains(low, "credit")):
 		q.Billing = true
 	}
 	return q, quota
@@ -257,7 +328,19 @@ func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 				msg += " [" + d + "]"
 			}
 		}
-		log.Printf("ai: %s paused until %s (%s): %s", service, until.UTC().Format(time.RFC3339), kind, msg)
+		if service == "gemini" || service == "gemini-lite" {
+			// R56: one compact line with what Google named (quota id, value, model, retry)
+			line := c.quotaLine(service, q)
+			if he != nil {
+				line += " details=" + detailTypes(he.Body)
+				if q.QuotaID == "" {
+					line += ": " + apiMessage(he.Body)
+				}
+			}
+			log.Printf("ai: %s paused until %s (%s): %s", service, until.UTC().Format(time.RFC3339), kind, line)
+		} else {
+			log.Printf("ai: %s paused until %s (%s): %s", service, until.UTC().Format(time.RFC3339), kind, msg)
+		}
 	}
 	// The owner hears about a long pause once (OnQuota dedupes by day); a
 	// per-minute limit is not worth a message.
@@ -265,6 +348,58 @@ func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 		go c.OnQuota(qe)
 	}
 	return qe
+}
+
+// quotaLine (R56): «429 model=gemini-3.8-flash quotaId=… value=0 retry=31s
+// kind=per-minute» for the logs; when Google named no limit, its own
+// message (no key is ever in it).
+func (c *Client) quotaLine(service string, q QuotaInfo) string {
+	model := q.Model
+	if model == "" {
+		model = c.geminiModel()
+		if service == "gemini-lite" {
+			model = c.GeminiLightModel
+		}
+	}
+	id, val := q.QuotaID, q.QuotaValue
+	if id == "" {
+		id = "none"
+	}
+	if val == "" {
+		val = "?"
+	}
+	retry := "none"
+	if q.Retry > 0 {
+		retry = q.Retry.String()
+	}
+	return fmt.Sprintf("429 model=%s quotaId=%s value=%s retry=%s kind=%s", model, id, val, retry, q.Kind())
+}
+
+// detailTypes: the kinds of error.details Google sent («QuotaFailure,RetryInfo»;
+// «none» when it sent none): with none, Google named no limit at all.
+func detailTypes(body string) string {
+	var b struct {
+		Error struct {
+			Details []struct {
+				Type string `json:"@type"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal([]byte(body), &b)
+	var out []string
+	for _, d := range b.Error.Details {
+		t := d.Type
+		if i := strings.LastIndex(t, "."); i >= 0 {
+			t = t[i+1:]
+		}
+		if t != "" {
+			out = append(out, t)
+		}
+	}
+	if len(out) == 0 {
+		return "none"
+	}
+	return strings.Join(out, ",")
 }
 
 // quotaClosed: the service may not be called now.

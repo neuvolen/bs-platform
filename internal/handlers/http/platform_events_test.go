@@ -105,7 +105,8 @@ func TestEventsRefreshInBackground(t *testing.T) {
 	if s["busy"] == true {
 		s = wait()
 	}
-	if e, _ := s["error"].(string); !strings.Contains(e, "перегружен") || !strings.Contains(s["detail"].(string), "503") || calls.Load() != 2 {
+	if e, _ := s["error"].(string); !strings.Contains(e, "перегружен") || !strings.Contains(s["detail"].(string), "503") || calls.Load() != 6 {
+		// R56: each of the 2 search attempts asks a 503 three times (ai.Gemini503Backoff)
 		t.Fatalf("overloaded: %v calls=%d", s, calls.Load())
 	}
 	// Nothing found: the old feed is kept.

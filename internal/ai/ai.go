@@ -210,8 +210,7 @@ func (c *Client) geminiCallModel(ctx context.Context, model, method string, body
 	}
 	if model != "" && model != c.geminiModel() {
 		if c.quotaClosed("gemini-lite") == nil {
-			url := fmt.Sprintf("%s/v1beta/models/%s:%s", c.GeminiBase, model, method)
-			b, err := c.do(ctx, c.gemAuth(jsonReq("POST", url, body)))
+			b, err := c.gemPost(ctx, model, method, body)
 			if err == nil {
 				return b, nil
 			}
@@ -233,17 +232,30 @@ func (c *Client) geminiCallModel(ctx context.Context, model, method string, body
 		}
 		return nil, q
 	}
+	waited := false
 	for try := 0; ; try++ {
-		url := fmt.Sprintf("%s/v1beta/models/%s:%s", c.GeminiBase, c.geminiModel(), method)
-		b, err := c.do(ctx, c.gemAuth(jsonReq("POST", url, body)))
+		b, err := c.gemPost(ctx, c.geminiModel(), method, body)
 		if q := c.noteQuota("gemini", err); q != nil {
 			if b, ok := c.geminiLiteInstead(ctx, model, method, body); ok {
 				return b, nil
+			}
+			// R56: a per-minute limit: wait it out once, then ask again
+			if !waited && waitMinute(ctx, q) {
+				waited = true
+				c.SetQuotaUntil("gemini", time.Time{})
+				continue
 			}
 			return nil, q
 		}
 		if ke := c.noteBadKey("gemini", err); ke != nil {
 			return nil, ke
+		}
+		// R56: still «high demand» after the retries: the light model, no pause
+		if err != nil && overloaded(err) && ctx.Err() == nil {
+			if b, ok := c.geminiLiteInstead(ctx, model, method, body); ok {
+				return b, nil
+			}
+			return nil, err
 		}
 		if err == nil || try > 0 {
 			return b, err
@@ -278,11 +290,10 @@ func (c *Client) geminiLiteInstead(ctx context.Context, tried, method string, bo
 	if lite == "" || lite == c.geminiModel() || tried == lite || c.quotaClosed("gemini-lite") != nil || ctx.Err() != nil {
 		return nil, false
 	}
-	url := fmt.Sprintf("%s/v1beta/models/%s:%s", c.GeminiBase, lite, method)
-	b, err := c.do(ctx, c.gemAuth(jsonReq("POST", url, body)))
+	b, err := c.gemPost(ctx, lite, method, body)
 	if err == nil {
 		c.liteOnce.Do(func() {
-			log.Printf("ai: gemini %s is closed by its quota; %s answers instead", c.geminiModel(), lite)
+			log.Printf("ai: gemini %s is closed (quota) or overloaded; %s answers instead", c.geminiModel(), lite)
 		})
 		return b, true
 	}

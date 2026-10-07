@@ -82,7 +82,7 @@ func TestSearchRetriesOverloadAndExplainsErrors(t *testing.T) {
 	mode = "quota"
 	n.Store(0)
 	_, err = c.FindEvents(context.Background(), 21, time.Now())
-	if err == nil || FriendlyError(err) != GeminiQuotaMessage || n.Load() != 1 {
+	if err == nil || FriendlyError(err) != GeminiNoFreeMessage || n.Load() != 1 {
 		t.Fatalf("quota: %v / %s calls=%d", err, FriendlyError(err), n.Load())
 	}
 	// R32d: the quota is not asked again until it is back

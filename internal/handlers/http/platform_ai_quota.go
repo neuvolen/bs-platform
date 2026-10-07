@@ -63,6 +63,10 @@ func quotaAlertText(c *ai.Client, q *ai.QuotaError) string {
 	if q.Service == "tts" {
 		svc = "озвучки"
 	}
+	if q.Service == "gemini" && q.Billing {
+		// R56: Google named no per-minute or per-day limit (or a limit of 0)
+		return "⚠️ " + ai.GeminiNoFreeMessage + ".\nGemini снова попробует " + strings.TrimPrefix(q.When(), "до ")
+	}
 	if q.Service == "gemini" {
 		if c != nil && c.HasClaude() {
 			return "⚠️ Закончилась квота Gemini (" + q.When() + "). Тексты и поиск идут через Claude, как обычно"
