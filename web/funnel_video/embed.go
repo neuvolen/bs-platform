@@ -12,7 +12,10 @@
 //     in videos.json: {file, title, topic, step, caption}. At the next start
 //     the server copies it into Postgres (platform_files) once, with that
 //     step; later changes in the platform win (the file is not copied again,
-//     and a video deleted in the platform is not brought back).
+//     and a video deleted in the platform is not brought back). A new
+//     version of a shipped video gets a new file name and "replaces":
+//     "<old file>": it takes the old one's step and on/off state and the
+//     old one is switched off (a team upload is never replaced).
 //
 // Steps (handlers/http/funnel_video.go, fvSteps): start (soon after /start,
 // when the 99 checklists were given), d1, d3, d7, d10, d14 (with the

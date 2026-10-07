@@ -229,11 +229,17 @@ type fvManifest struct {
 		W       int    `json:"w"`
 		H       int    `json:"h"`
 		Dur     int    `json:"dur"`
+		// Replaces: the file name of an older repo video this one takes over
+		// (its step and its on/off state; the old one is switched off).
+		Replaces string `json:"replaces"`
 	} `json:"videos"`
 }
 
 // Seed copies the shipped videos in once (fsys: web/funnel_video). A video
-// without a line in videos.json comes in switched off, without a step.
+// without a line in videos.json comes in switched off, without a step. A line
+// with "replaces": "<old file>" makes the video a new version of that shipped
+// one: it takes the old seed's step and on/off state and the old seed is
+// switched off (a team upload is never replaced this way).
 func (v *FunnelVideos) Seed(ctx context.Context, fsys fs.FS) (int, error) {
 	if v == nil || fsys == nil {
 		return 0, nil
@@ -268,8 +274,10 @@ func (v *FunnelVideos) Seed(ctx context.Context, fsys fs.FS) (int, error) {
 		}
 		it := &fvItem{ID: newFVID(), Title: strings.TrimSuffix(name, path.Ext(name)), Name: name, Size: int64(len(data)),
 			Source: "seed:" + name, CreatedAt: v.now().UTC().Format(time.RFC3339), By: "repo"}
+		replaces := ""
 		for _, m := range man.Videos {
 			if m.File == name {
+				replaces = m.Replaces
 				it.Title, it.Topic, it.Caption, it.W, it.H, it.Dur = m.Title, m.Topic, noLongDash(m.Caption), m.W, m.H, m.Dur
 				if fvStepBy(m.Step) != nil {
 					it.Step, it.On = m.Step, true
@@ -288,7 +296,18 @@ func (v *FunnelVideos) Seed(ctx context.Context, fsys fs.FS) (int, error) {
 					return false
 				}
 			}
-			if it.On { // a step already taken by the team's video: this one waits switched off
+			var old *fvItem
+			if replaces != "" && replaces != name {
+				for _, x := range l.Videos {
+					if x.Source == "seed:"+replaces { // only a repo seed, never a team upload
+						old = x
+					}
+				}
+			}
+			if old != nil { // a new version of a shipped video: same step, same on/off; the old one goes off
+				it.Step, it.On = old.Step, old.On
+				old.On = false
+			} else if it.On { // a step already taken by the team's video: this one waits switched off
 				for _, x := range l.Videos {
 					if x.On && x.Step == it.Step {
 						it.On = false
