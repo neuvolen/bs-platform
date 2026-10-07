@@ -1,8 +1,8 @@
 {
- "at": "2026-10-07T18:58:46Z",
+ "at": "2026-10-07T18:59:31Z",
  "subscription_error": [
   401,
-  "{\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission user_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"0b737abc46ba36de91762fefaf341c41\"}}"
+  "{\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission user_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"96ff3a8fed427dfcc5beb2c436cd3246\"}}"
  ],
  "platform_target": {
   "voice_id": "ogi2DyUAKJb7CEdqqvlU",
@@ -12,8 +12,8 @@
  },
  "tier": "paid (inferred: library voice reads; tier unknown, key lacks user_read)",
  "warnings": [
-  "GET /v1/voices 401 {\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission voices_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"af4a83b5dac0648091762fefaf341cbb\"}}",
-  "GET /v1/shared-voices via server 401 {\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission voices_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"220dd79ad60be99c91762fefaf34117c\"}}",
+  "GET /v1/voices 401 {\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission voices_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"60ea1ff8d01adfdec5beb2c436cd365f\"}}",
+  "GET /v1/shared-voices via server 401 {\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission voices_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"7a75042813ce479fc5beb2c436cd31b8\"}}",
   "keyless library search: HTTP Error 401: Unauthorized"
  ],
  "stanislav": {
