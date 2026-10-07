@@ -1,0 +1,39 @@
+{
+ "job": "test-ru-v4",
+ "job_sha256": "c145364957ca00efe1e72ed5539cbe7285463babad97f0c51f5fa3fdbe81bd88",
+ "run_id": "37610501970",
+ "jobs_sha": "69cc9238ea6fceb371cf90335fbe899eaaefa335",
+ "ok": true,
+ "lines": [
+  {
+   "id": "l01",
+   "chars": 37,
+   "words": 6,
+   "duration": 3.52
+  },
+  {
+   "id": "l02",
+   "chars": 52,
+   "words": 8,
+   "duration": 3.36
+  },
+  {
+   "id": "l03",
+   "chars": 36,
+   "words": 4,
+   "duration": 2.64
+  }
+ ],
+ "chars": 125,
+ "voice_name": "Stanislav",
+ "voice_resolved": "known library id (library search unavailable)",
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_v4",
+ "voice_settings": {
+  "stability": 0.45,
+  "similarity_boost": 0.8,
+  "style": 0.2,
+  "use_speaker_boost": true,
+  "speed": 1.04
+ }
+}
