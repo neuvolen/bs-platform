@@ -137,6 +137,8 @@ type PremiumVoice struct {
 	// R52: when the tour's map was last looked for (Overlay finds a map the
 	// start missed: the tour texts are wired after Load)
 	overlayTry atomic.Int64
+	// R57: the start probes the chosen voice at once (recheckTarget)
+	probeNow atomic.Bool
 }
 
 // NewPremiumVoice: the ElevenLabs client reads ELEVENLABS_API_KEY, else the saved key.
@@ -543,6 +545,7 @@ func (p *PremiumVoice) Start(ctx context.Context) {
 	if p.repo == nil {
 		return
 	}
+	p.probeNow.Store(true)
 	go func() {
 		t := time.NewTicker(PremiumRetryEvery)
 		defer t.Stop()

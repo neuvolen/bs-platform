@@ -170,6 +170,8 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/tts/manifest", m.AI.TTSManifest) // platform_tts_static.go: phrase → file, state
 	g.POST("/tts/voice", m.AI.TTSSetVoice)
 	m.AI.Premium.Register(pub, g) // R36: «Голос ElevenLabs» (platform_voice_premium.go)
+	// R57: the video voiceovers of GitHub Actions (OIDC), with the same key (voicepipe.go)
+	pub.POST("/voicepipe/eleven", NewVoicePipe(m.AI.Premium.key).Eleven)
 	g.GET("/guide/:id", m.AI.GuideForPlatform)
 	g.GET("/library/rich", LibraryRich)               // library_rich.go
 	g.GET("/library/template/:file", LibraryTemplate) // <id>.pdf

@@ -120,7 +120,10 @@ func (p *PremiumVoice) recheckTarget(ctx context.Context) bool {
 	if !c.fallbackOn() {
 		return false
 	}
-	if t, err := time.Parse(time.RFC3339, c.Fallback.Checked); err == nil && time.Since(t) < premiumProbeEvery {
+	// R57: the first pass after a start probes at once (a plan bought while
+	// the server ran is seen at the next deploy or restart, not an hour later)
+	forced := p.probeNow.Swap(false)
+	if t, err := time.Parse(time.RFC3339, c.Fallback.Checked); !forced && err == nil && time.Since(t) < premiumProbeEvery {
 		return false
 	}
 	cctx, cancel := context.WithTimeout(ctx, 40*time.Second)
@@ -134,6 +137,9 @@ func (p *PremiumVoice) recheckTarget(ctx context.Context) bool {
 		if isPaidPlanVoice(err) {
 			c.Fallback.Checked = time.Now().UTC().Format(time.RFC3339)
 			_ = p.saveCfg(ctx, c)
+		}
+		if forced {
+			log.Printf("tts premium: start probe: %s still not readable (%v): %s stands in", c.Voice.Name, err, c.Fallback.Voice.Name)
 		}
 		return false
 	}
