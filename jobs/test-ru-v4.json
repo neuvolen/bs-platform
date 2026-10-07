@@ -1,0 +1,26 @@
+{
+ "voice_query": "Stanislav",
+ "model": "eleven_v4",
+ "settings": {
+  "stability": 0.45,
+  "similarity": 0.8,
+  "style": 0.2,
+  "speed": 1.04,
+  "speaker_boost": true
+ },
+ "context": false,
+ "lines": [
+  {
+   "id": "l01",
+   "text": "Выручка растёт, а денег нет. Знакомо?"
+  },
+  {
+   "id": "l02",
+   "text": "Сколько на самом деле зарабатывает кофейня в Алматы?"
+  },
+  {
+   "id": "l03",
+   "text": "Подписывайтесь, разберём ваш бизнес."
+  }
+ ]
+}

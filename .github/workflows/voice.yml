@@ -1,0 +1,60 @@
+# BS voicepipe: ElevenLabs voiceovers with word timestamps.
+# Runs only for the voice-jobs branch (push) or by hand; never on main.
+# No ElevenLabs key here: the job gets a GitHub OIDC token (audience
+# bs-voicepipe) and the platform server (POST /api/v1/platform/voicepipe/eleven)
+# forwards allowlisted calls with its own key. Outputs go to branch voice-assets.
+name: voice
+on:
+  push:
+    branches: [voice-jobs]
+    paths: ["jobs/**", ".github/voice/**", ".github/workflows/voice.yml"]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Re-render every job even if unchanged"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: voice
+  cancel-in-progress: false
+
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: voice-jobs
+          path: jobs-src
+      - name: Checkout voice-assets (or start it)
+        run: |
+          set -e
+          if git ls-remote --exit-code --heads "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" voice-assets >/dev/null; then
+            git clone -q --depth 1 --branch voice-assets "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" assets
+          else
+            mkdir assets && cd assets && git init -q -b voice-assets && git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          fi
+      - name: Render
+        env:
+          VOICEPIPE_URL: https://app.bxclub.kz/api/v1/platform/voicepipe/eleven
+          FORCE: ${{ github.event.inputs.force || 'false' }}
+          JOBS_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: python3 jobs-src/.github/voice/tts.py jobs-src/jobs assets/out
+      - name: Commit outputs to voice-assets
+        if: always()
+        run: |
+          cd assets
+          git config user.name "bs-voicepipe"
+          git config user.email "voicepipe@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -q -m "voice: run ${{ github.run_id }} for ${{ github.sha }}"
+          for i in 1 2 3; do git push -q origin HEAD:voice-assets && exit 0; git pull -q --rebase origin voice-assets || true; done
+          exit 1
