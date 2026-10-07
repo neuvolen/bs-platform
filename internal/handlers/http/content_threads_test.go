@@ -215,11 +215,15 @@ func (f *thFakeAI) call(_ context.Context, system, prompt string) (string, error
 	return "Вот посты:\n```json\n" + string(b) + "\n```", nil
 }
 
+// thReachPct: the classic Threads tests run without the reach rubrics (R58
+// has its own tests in content_threads_reach_test.go).
+var thReachPct any = 0
+
 // thDoc: bs_content with Threads 16 a day (or n) and the classic channels off.
 func thDoc(t *testing.T, docs *cntDocs, perDay int) {
 	t.Helper()
 	b, _ := json.Marshal(map[string]any{"settings": map[string]any{
-		"channels": map[string]any{"threads": map[string]any{"on": true, "time": "10:00", "perDay": perDay},
+		"channels": map[string]any{"threads": map[string]any{"on": true, "time": "10:00", "perDay": perDay, "reachPct": thReachPct},
 			"telegram": map[string]any{"on": false}, "instagram": map[string]any{"on": false}},
 		"days": []int{1, 2, 3, 4, 5, 6, 7}, "approval": "auto", "previewHour": 9, "rev": 2}, "queue": []any{}})
 	cur := 0

@@ -641,7 +641,7 @@ func pickSeeds(pool []*threadsSeed, formats []string, mem *threadsMemory, key, p
 			kinds[k] = true
 		}
 		var best *threadsSeed
-		var bestScore [4]int
+		var bestScore [5]int
 		for _, s := range pool {
 			if !kinds[s.Kind] || dayRoot[s.Root] || (thPersonal[s.Organ] && personal > 0) {
 				continue
@@ -657,7 +657,12 @@ func pickSeeds(pool []*threadsSeed, formats []string, mem *threadsMemory, key, p
 			if t, ok := mem.root[s.Root]; ok {
 				recent = 1 + int(t.Unix()/86400)
 			}
-			sc := [4]int{same, dayOrgan[s.Organ]*100 + mem.organ[s.Organ], recent, hashN(key+s.ID, 1_000_000)}
+			// a reach rubric takes its own topics first (R58), then the library
+			own := 0
+			if IsThreadsReach(fid) && s.Kind != f.Kinds[0] {
+				own = 1
+			}
+			sc := [5]int{own, same, dayOrgan[s.Organ]*100 + mem.organ[s.Organ], recent, hashN(key+s.ID, 1_000_000)}
 			if best == nil || lessScore(sc, bestScore) {
 				best, bestScore = s, sc
 			}
@@ -676,7 +681,7 @@ func pickSeeds(pool []*threadsSeed, formats []string, mem *threadsMemory, key, p
 	return out
 }
 
-func lessScore(a, b [4]int) bool {
+func lessScore(a, b [5]int) bool {
 	for i := range a {
 		if a[i] != b[i] {
 			return a[i] < b[i]
@@ -857,6 +862,7 @@ const threadsSystem = `Ты пишешь посты для Threads от имен
 10. Имена, бизнесы и города только из материала. Не выдумывай клиентов и истории.
 11. Не начинай так же, как уже вышедшие посты из списка.
 12. Посты одного дня должны звучать по-разному: разные зачины, разный ритм, разная длина.
+13. Формат с пометкой «Охват» пишется для широкой аудитории Алматы, не только для собственников: понятно человеку без бизнеса, первая строка цепляет любопытством (цифра, вопрос, спор), в конце вопрос или вывод, которым хочется поделиться. Допущения расчёта называй прямо («допустим», «по модели»). Не называй выручку или прибыль реальных компаний и брендов.
 
 Ответ: только JSON {"posts":[{"n":1,"text":"...","parts":[]}]}. parts заполняй только для серии: продолжения первого поста, 2-3 штуки, каждое до 400 знаков.`
 
@@ -1003,7 +1009,7 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	key := contentDay(day)
 	res := &ThreadsBuild{Day: key, PerDay: n}
 	slots := threadsSlots(day, n, from, to)
-	formats := threadsDayFormats(n, key)
+	formats, ctas := threadsDayPlan(n, key, st.threadsReach())
 	if st.manual {
 		// by hand: posts at 09:30, 12:30, 16:30, 19:30 (jittered), no series (a reply chain needs the API)
 		slots = threadsManualSlots(day, n)
@@ -1013,7 +1019,6 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 			}
 		}
 	}
-	ctas := threadsCTASlots(n, formats)
 
 	removable := func(it *contentItem) bool {
 		at, ok := parseContentAt(it.At)
@@ -1071,7 +1076,7 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	for k, i := range free {
 		fs[k] = formats[i]
 	}
-	seeds := pickSeeds(threadsSeedPool(), fs, mem, key, prevOrgan)
+	seeds := pickSeeds(append(append([]*threadsSeed(nil), threadsSeedPool()...), threadsReachSeeds()...), fs, mem, key, prevOrgan)
 	for k, i := range free {
 		f := threadsFormatByID[formats[i]]
 		plan[k] = threadsSlotPlan{At: slots[i], Format: formats[i], Length: f.Length[(i/len(threadsFormats)+hashN(key+strconv.Itoa(i), 7))%len(f.Length)], CTA: ctas[i], Seed: seeds[k]}

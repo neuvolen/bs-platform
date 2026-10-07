@@ -21929,6 +21929,10 @@ var CT_BOT = '@bsurgery_bot';
 // ── Данные ──
 // R28: Threads через пользу, пачка постов на день (сервер собирает её в 06:30, content_threads.go)
 var CT_FMT = {tip:'Совет', checklist:'Чек-лист', numbers:'Цифры', myth:'Миф', question:'Вопрос', 'case':'Кейс', symptom:'Симптом', series:'Серия', library:'Библиотека'};
+// R58: охватные рубрики Threads (content_threads_reach.go): доля постов дня для охвата, по умолчанию 65%, 0: без них
+Object.assign(CT_FMT, {r_earn:'Охват: сколько зарабатывает', r_closing:'Охват: почему закрываются', r_myth:'Охват: миф о деньгах', r_hire:'Охват: найм', r_compare:'Охват: сравнение', r_debate:'Охват: спорный вопрос'});
+function czThReach(){ var v = czC().settings.channels.threads.reachPct; var n = parseInt(v, 10); if(v === undefined || v === null || isNaN(n)) return 65; return Math.max(0, Math.min(80, n)); }
+function czSetThReach(v){ var n = Math.max(0, Math.min(80, parseInt(v, 10) || 0)); czC().settings.channels.threads.reachPct = n; czSetSave('Threads: охват ' + n + '% постов'); czSetPaint(); }
 function czThN(){ var n = parseInt(czC().settings.channels.threads.perDay, 10); if(isNaN(n) || n < 1) n = 16; return Math.min(25, n); }
 // R43: ручной Threads (нет THREADS_TOKEN): сервер пишет bs_content.threadsMode, бот присылает владельцу 4 поста в день
 function czThManual(){ var m = czC().threadsMode; return !!(m && m.manual); }
@@ -22309,6 +22313,7 @@ function czSetPaint(){
     row('threads', 'Threads', '<div class="cz-pd"><span>Постов в день</span><input class="inp" type="number" min="1" max="25" id="czThN" value="' + czThN() + '" onchange="czSetThN(this.value)"><span>' +
       (czThN() > 1 ? 'с 08:00 до 22:00, у каждого поста своё время' : 'один пост во время слева') + '</span></div>',
       czThN() > 1 ? 'Пачка дня собирается в 06:30: польза из библиотеки (шаг, ошибка, метрика, расчёт в ₸), примерно каждый 4-й пост со ссылкой на 99 чек-листов. Править и пропускать можно в календаре' : 'Посты до 500 знаков, ссылка на чек-лист в конце') +
+    '<div class="cz-pd" id="czThReachRow"><span>Охват, % постов Threads</span><input class="inp" type="number" min="0" max="80" step="5" id="czThReach" value="' + czThReach() + '" onchange="czSetThReach(this.value)"><span>Пирамида: охватные рубрики (сколько зарабатывает, мифы о деньгах, найм, сравнения, спорный вопрос) без ссылки; ссылка на 99 чек-листов только в остальных постах. 0: прежний план</span></div>' +
     row('telegram', 'Telegram-канал', '<input class="inp cz-chat" id="czChat" placeholder="Канал: @bsurgery или -100…" value="' + escA(s.channels.telegram.chat || '') + '" oninput="czSetChat(this.value)">', '') +
     row('instagram', 'Instagram', '', 'Карусели и Reels публикуются вручную: скачайте слайды и подпись. Включённый канал публикует через сервер') +
     '<div class="dh">ДНИ ПУБЛИКАЦИЙ</div><div class="cz-days" id="czDays">' + [1, 2, 3, 4, 5, 6, 7].map(function(d){

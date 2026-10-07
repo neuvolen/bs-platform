@@ -72,6 +72,9 @@ type contentChan struct {
 	// ManualPerDay: posts a day in the manual mode (no THREADS_TOKEN): the
 	// bot sends each one to the owner (content_threads_manual.go), 0: 4.
 	ManualPerDay int `json:"manualPerDay,omitempty"`
+	// ReachPct: Threads only, % of the day's posts written for reach
+	// (content_threads_reach.go): unset 65, 0 the classic plan, at most 80.
+	ReachPct *int `json:"reachPct,omitempty"`
 }
 
 type contentSettings struct {
