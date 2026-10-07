@@ -324,3 +324,32 @@ func TestR56SearchQuotaClosesOnlySearch(t *testing.T) {
 		t.Fatal("owner told about the search")
 	}
 }
+
+// Prod 08:14: the main model held requests until the caller's deadline. A
+// request is cut after AI_GEMINI_TIMEOUT and the light model answers.
+func TestR56HangCutLiteAnswers(t *testing.T) {
+	t.Setenv("AI_GEMINI_TIMEOUT", "0.2")
+	f := &r56Fake{reply: func(m string, n int) (int, string) {
+		if m == "gemini-3.8-flash" {
+			time.Sleep(time.Second)
+		}
+		return 200, r56OK
+	}}
+	c := r56Client(f.server(t), "gemini-3.5-flash-lite")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	b, err := c.geminiCall(ctx, "generateContent", map[string]any{})
+	if err != nil || !strings.Contains(string(b), "ок") || time.Since(start) > 900*time.Millisecond {
+		t.Fatalf("%s %v in %s", b, err, time.Since(start))
+	}
+	if f.n("gemini-3.8-flash") != 1 || c.Paused() {
+		t.Fatalf("calls %v paused %v", f.calls, c.Paused())
+	}
+	GeminiSelfTestTimeout = 200 * time.Millisecond
+	defer func() { GeminiSelfTestTimeout = 40 * time.Second }()
+	lines := c.GeminiSelfTest(context.Background())
+	if !strings.HasPrefix(lines[0], "gemini selftest gemini-3.8-flash: 504 ") || lines[1] != "gemini selftest gemini-3.5-flash-lite: ok" {
+		t.Fatalf("lines %q", lines)
+	}
+}

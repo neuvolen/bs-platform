@@ -141,9 +141,22 @@ func overloaded(err error) bool {
 	return he.Status == 503 || he.Status == 500 || he.Status == 502 || he.Status == 504
 }
 
+// GeminiCallTimeout: how long one Gemini request may hang (AI_GEMINI_TIMEOUT
+// seconds, 100 by default). Prod 08:14 07.10.2026: under «high demand» the
+// main model held requests until the caller's deadline, leaving no time for
+// the light model; a request cut here counts as overloaded (504) and the
+// light model answers.
+func GeminiCallTimeout() time.Duration {
+	return time.Duration(envNum("AI_GEMINI_TIMEOUT", 100) * float64(time.Second))
+}
+
 // gemPost: one generateContent of a model through the throttle; a 503 is
 // asked again (Gemini503Backoff), never paused.
 func (c *Client) gemPost(ctx context.Context, model, method string, body any) ([]byte, error) {
+	return c.gemPostTimeout(ctx, model, method, body, GeminiCallTimeout())
+}
+
+func (c *Client) gemPostTimeout(ctx context.Context, model, method string, body any, limit time.Duration) ([]byte, error) {
 	url := fmt.Sprintf("%s/v1beta/models/%s:%s", c.GeminiBase, model, method)
 	for try := 0; ; try++ {
 		var release func()
@@ -154,13 +167,26 @@ func (c *Client) gemPost(ctx context.Context, model, method string, body any) ([
 			}
 			release = r
 		}
-		b, err := c.do(ctx, c.gemAuth(jsonReq("POST", url, body)))
+		actx, cancel := ctx, context.CancelFunc(func() {})
+		if limit > 0 {
+			actx, cancel = context.WithTimeout(ctx, limit)
+		}
+		b, err := c.do(actx, c.gemAuth(jsonReq("POST", url, body)))
+		cut := err != nil && actx.Err() != nil && ctx.Err() == nil
+		cancel()
 		if release != nil {
 			release()
+		}
+		if cut {
+			log.Printf("ai: gemini %s did not answer in %s (cut, counted as overloaded)", model, limit)
+			return nil, &HTTPError{Status: 504, Body: fmt.Sprintf(`{"error":{"code":504,"message":"Gemini %s не ответил за %s","status":"DEADLINE_EXCEEDED"}}`, model, limit)}
 		}
 		if err == nil || !overloaded(err) || try >= len(Gemini503Backoff) || ctx.Err() != nil {
 			return b, err
 		}
+		var he *HTTPError
+		errors.As(err, &he)
+		log.Printf("ai: gemini %s %d (%s), asking again in %s", model, he.Status, apiMessage(he.Body), Gemini503Backoff[try])
 		t := time.NewTimer(Gemini503Backoff[try])
 		select {
 		case <-ctx.Done():
@@ -196,6 +222,9 @@ func waitMinute(ctx context.Context, q *QuotaError) bool {
 		return true
 	}
 }
+
+// GeminiSelfTestTimeout: one self-test request at most.
+var GeminiSelfTestTimeout = 40 * time.Second
 
 // GeminiSelfTestDelay: how long after the start the self-test runs.
 var GeminiSelfTestDelay = 60 * time.Second
@@ -236,7 +265,7 @@ func (c *Client) GeminiSelfTest(ctx context.Context) []string {
 		if i > 0 {
 			svc = "gemini-lite"
 		}
-		_, err := c.gemPost(ctx, m, "generateContent", body)
+		_, err := c.gemPostTimeout(ctx, m, "generateContent", body, GeminiSelfTestTimeout)
 		line := "gemini selftest " + m + ": "
 		var he *HTTPError
 		switch {
