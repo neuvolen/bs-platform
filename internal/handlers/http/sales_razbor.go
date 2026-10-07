@@ -804,7 +804,13 @@ func (s *ClubSales) sendStep(ctx context.Context, cfg SalesCfg, l map[string]any
 			}
 		}
 	}
-	return s.sendLead(ctx, tg, text, pzKB(id))
+	if err := s.sendLead(ctx, tg, text, pzKB(id)); err != nil {
+		return err
+	}
+	if step == "offer" && s.F != nil { // R55: the step «offer» of the funnel's video library
+		s.F.sendStepVideo(ctx, tg, "offer", leadFirst(l))
+	}
+	return nil
 }
 
 // ── кнопки лида ──

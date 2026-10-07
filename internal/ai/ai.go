@@ -57,8 +57,9 @@ type Client struct {
 	// ASR: speech to text on the server (asr_local.go); nil: off.
 	ASR *LocalASR
 
-	modelMu sync.Mutex // GeminiModel may be switched when Google retires a model
-	quota   quotaState // services whose quota is used up (quota.go)
+	modelMu  sync.Mutex // GeminiModel may be switched when Google retires a model
+	liteOnce sync.Once  // R55: one log line when the light model stands in
+	quota    quotaState // services whose quota is used up (quota.go)
 
 	// TextOrder: the order Text, JSON and Search ask the models in
 	// (AI_TEXT_ORDER; default gemini, claude, openai).
@@ -227,12 +228,18 @@ func (c *Client) geminiCallModel(ctx context.Context, model, method string, body
 		}
 	}
 	if q := c.quotaClosed("gemini"); q != nil {
+		if b, ok := c.geminiLiteInstead(ctx, model, method, body); ok {
+			return b, nil
+		}
 		return nil, q
 	}
 	for try := 0; ; try++ {
 		url := fmt.Sprintf("%s/v1beta/models/%s:%s", c.GeminiBase, c.geminiModel(), method)
 		b, err := c.do(ctx, c.gemAuth(jsonReq("POST", url, body)))
 		if q := c.noteQuota("gemini", err); q != nil {
+			if b, ok := c.geminiLiteInstead(ctx, model, method, body); ok {
+				return b, nil
+			}
 			return nil, q
 		}
 		if ke := c.noteBadKey("gemini", err); ke != nil {
@@ -246,6 +253,43 @@ func (c *Client) geminiCallModel(ctx context.Context, model, method string, body
 			return b, err
 		}
 	}
+}
+
+// provQuota: quotaClosed, except that Gemini stays open while its main
+// model rests and the light model can stand in (R55, geminiLiteInstead).
+func (c *Client) provQuota(name string) *QuotaError {
+	q := c.quotaClosed(name)
+	if q == nil || name != "gemini" {
+		return q
+	}
+	if lite := strings.TrimSpace(c.GeminiLightModel); lite != "" && lite != c.geminiModel() && c.quotaClosed("gemini-lite") == nil {
+		return nil
+	}
+	return q
+}
+
+// geminiLiteInstead (R55): the main model's quota is closed (a new key
+// whose free tier gives that model «limit: 0», or its daily limit is used
+// up), but Google counts quota per model: the light model answers instead
+// of the whole of Gemini resting for hours. ok false: it did not answer
+// (no light model, it was the one that failed, or its quota is closed too).
+func (c *Client) geminiLiteInstead(ctx context.Context, tried, method string, body any) ([]byte, bool) {
+	lite := strings.TrimSpace(c.GeminiLightModel)
+	if lite == "" || lite == c.geminiModel() || tried == lite || c.quotaClosed("gemini-lite") != nil || ctx.Err() != nil {
+		return nil, false
+	}
+	url := fmt.Sprintf("%s/v1beta/models/%s:%s", c.GeminiBase, lite, method)
+	b, err := c.do(ctx, c.gemAuth(jsonReq("POST", url, body)))
+	if err == nil {
+		c.liteOnce.Do(func() {
+			log.Printf("ai: gemini %s is closed by its quota; %s answers instead", c.geminiModel(), lite)
+		})
+		return b, true
+	}
+	if c.noteBadKey("gemini", err) == nil {
+		c.noteQuota("gemini-lite", err)
+	}
+	return nil, false
 }
 
 func FromEnv() *Client {
@@ -510,7 +554,7 @@ func (c *Client) chain(ctx context.Context, system, prompt string, asJSON bool) 
 	for _, m := range models {
 		var ans string
 		var err error
-		if q := c.quotaClosed(m); q != nil {
+		if q := c.provQuota(m); q != nil {
 			err = q
 		} else if ke := c.keyClosed(m); ke != nil && m != "claude" { // R51: a refused key is not asked again at once
 			err = ke
@@ -617,7 +661,7 @@ func (c *Client) Transcribe(ctx context.Context, audio []byte, mime string) (str
 }
 
 func (c *Client) geminiTranscribe(ctx context.Context, audio []byte, mime string) (string, error) {
-	if q := c.quotaClosed("gemini"); q != nil {
+	if q := c.provQuota("gemini"); q != nil {
 		return "", q
 	}
 	part, err := c.geminiMedia(ctx, audio, mime)

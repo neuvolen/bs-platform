@@ -80,6 +80,9 @@ type SalesCfg struct {
 	Texts     map[string]string `json:"texts"`
 	UpdatedAt string            `json:"updatedAt,omitempty"`
 	UpdatedBy string            `json:"updatedBy,omitempty"`
+	// KaspiSeeded (R55): when the server put the owner's Kaspi link into an
+	// empty KaspiClub (once: a link the team clears later stays cleared).
+	KaspiSeeded string `json:"kaspiSeeded,omitempty"`
 }
 
 const (
@@ -374,10 +377,16 @@ type SalesModule struct {
 	S      *ClubSales
 	G      *AppGateway
 	Secret []byte
+	// FV (R55): the funnel's video library (funnel_video.go); nil: none.
+	FV *FunnelVideos
 }
 
 func (m *SalesModule) Register(r *gin.Engine) {
 	s := m.S
+	if m.FV != nil {
+		r.GET("/api/v1/public/fv/:name", m.FV.PublicFile)
+		r.HEAD("/api/v1/public/fv/:name", m.FV.PublicFile)
+	}
 	r.GET("/api/v1/public/sales/:kind/:id/:sig", s.PublicPDF)
 	r.HEAD("/api/v1/public/sales/:kind/:id/:sig", s.PublicPDF)
 	if m.G != nil {
@@ -405,6 +414,15 @@ func (m *SalesModule) Register(r *gin.Engine) {
 	})
 	t.GET("/settings", s.GetSettings)
 	t.PUT("/settings", s.PutSettings)
+	if m.FV != nil { // R55: «Видео в воронке»
+		t.GET("/funnel/videos", m.FV.List)
+		t.POST("/funnel/videos", m.FV.Upload)
+		t.PUT("/funnel/videos/:id", m.FV.Put)
+		t.DELETE("/funnel/videos/:id", m.FV.Delete)
+	}
+	if s.F != nil {
+		t.GET("/funnel/stats", s.F.StatsHTTP)
+	}
 	t.GET("/razbor/:lead", s.GetRazbor)
 	t.PUT("/razbor/:lead", s.PutRazbor)
 	t.GET("/razbor/:lead/pdf", s.RazborPDF)
@@ -449,10 +467,8 @@ func (s *ClubSales) PutSettings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_link", "message": "Ссылка Kaspi должна начинаться с https://"})
 		return
 	}
-	if in.KaspiClub != "" && in.KaspiClub == bot.KaspiLink {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "fines_link", "message": "Это ссылка для штрафов. Для оплаты клуба нужна отдельная ссылка Kaspi"})
-		return
-	}
+	// R55: the owner pays everything through one Kaspi link (the fines' one
+	// too), so it is accepted here as well.
 	texts := map[string]string{}
 	for _, t := range salesTextNames {
 		v := strings.TrimSpace(noLongDash(in.Texts[t.Key]))
@@ -468,6 +484,9 @@ func (s *ClubSales) PutSettings(c *gin.Context) {
 	in.UpdatedBy = platformUser(c)
 	ctx := c.Request.Context()
 	err := s.mutate(ctx, "server", salesSettingsKey, func(doc map[string]any) bool {
+		if v, _ := doc["kaspiSeeded"].(string); v != "" {
+			in.KaspiSeeded = v
+		}
 		b, _ := json.Marshal(in)
 		for k := range doc {
 			delete(doc, k)
@@ -484,8 +503,40 @@ func (s *ClubSales) PutSettings(c *gin.Context) {
 
 // ── фон ──
 
+// SeedKaspi (R55): the owner's Kaspi link (bot.KaspiLink, an open-amount
+// link: the payer types the sum) goes into an empty «Ссылка на оплату
+// клуба» once. A link the team set is never touched; one the team cleared
+// after the seed stays cleared.
+func (s *ClubSales) SeedKaspi(ctx context.Context) (bool, error) {
+	seeded := false
+	err := s.mutate(ctx, "server", salesSettingsKey, func(doc map[string]any) bool {
+		seeded = false
+		if k, _ := doc["kaspiClub"].(string); strings.TrimSpace(k) != "" {
+			return false
+		}
+		if v, _ := doc["kaspiSeeded"].(string); v != "" {
+			return false
+		}
+		if len(doc) == 0 {
+			b, _ := json.Marshal(defaultSalesCfg())
+			_ = json.Unmarshal(b, &doc)
+		}
+		doc["kaspiClub"] = bot.KaspiLink
+		doc["kaspiSeeded"] = s.now().UTC().Format(time.RFC3339)
+		seeded = true
+		return true
+	})
+	if seeded {
+		log.Printf("sales: Kaspi link of the club set to the owner's link (it was empty)")
+	}
+	return seeded, err
+}
+
 // Loop runs the flows every few minutes.
 func (s *ClubSales) Loop(ctx context.Context) {
+	if _, err := s.SeedKaspi(ctx); err != nil {
+		log.Printf("sales: seed Kaspi: %v", err)
+	}
 	t := time.NewTicker(salesTick)
 	defer t.Stop()
 	for {

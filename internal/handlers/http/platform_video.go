@@ -41,6 +41,7 @@ import (
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/ai"
+	"github.com/bnursik/business_surgery_backend/internal/datadir"
 	"github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/bnursik/business_surgery_backend/internal/tplpdf"
 	"github.com/bnursik/business_surgery_backend/internal/video"
@@ -65,14 +66,16 @@ func videoDir() string {
 	if d := strings.TrimSpace(os.Getenv("VIDEO_DIR")); d != "" {
 		return d
 	}
-	if st, err := os.Stat("/data"); err == nil && st.IsDir() {
-		if f, err := os.CreateTemp("/data", ".w"); err == nil {
-			f.Close()
-			os.Remove(f.Name())
-			return "/data/bs-video"
-		}
+	return datadir.Path("bs-video") // R55: the Railway volume bs-data at /data (or BS_DATA_DIR)
+}
+
+// videoMaxBytes (R55): the cap of the video folder, VIDEO_MAX_MB (2500 by
+// default: the 5 GB volume also holds the Whisper model, about 0.6 GB).
+func videoMaxBytes() int64 {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("VIDEO_MAX_MB"))); err == nil && n > 0 {
+		return int64(n) << 20
 	}
-	return filepath.Join(os.TempDir(), "bs-video")
+	return 2500 << 20
 }
 
 // NewPlatformVideo: nil when the folder cannot be made (the page says so).
@@ -82,6 +85,9 @@ func NewPlatformVideo(repo *pg.PlatformRepo, asr *ai.LocalASR, secret []byte) *P
 		log.Printf("video: folder %s: %v", videoDir(), err)
 		return nil
 	}
+	m.MaxBytes = videoMaxBytes()
+	log.Printf("data: video folder %s (persistent %v, writable %v, cap %d MB, used %d MB, disk free %d MB)",
+		m.Dir, datadir.Persistent(m.Dir), datadir.Writable(m.Dir), m.MaxBytes>>20, m.Used()>>20, m.Free()>>20)
 	if n, err := strconv.Atoi(os.Getenv("VIDEO_TIMEOUT")); err == nil && n > 0 {
 		m.Timeout = time.Duration(n) * time.Minute
 	}
@@ -254,12 +260,12 @@ func (v *PlatformVideo) Status(c *gin.Context) {
 	for _, j := range v.M.Jobs() {
 		jobs = append(jobs, v.view(j))
 	}
-	persistent := strings.HasPrefix(v.M.Dir, "/data/")
+	persistent := datadir.Persistent(v.M.Dir)
 	c.JSON(http.StatusOK, gin.H{
 		"ffmpeg": ff, "asr": asr, "templates": video.Templates, "cta": video.DefaultCTA, "jobs": jobs,
 		"limits": gin.H{"fileMB": video.MaxUpload >> 20, "chunkMB": 8, "inputSec": int(v.M.MaxIn), "clips": video.MaxClips,
 			"timeoutMin": int(v.M.Timeout.Minutes()), "keep": video.KeepJobs, "uploadHours": int(video.UploadMaxAge.Hours()), "keptMB": platformFileMax >> 20},
-		"persistent": persistent, "freeMB": v.M.Free() >> 20,
+		"persistent": persistent, "freeMB": v.M.Free() >> 20, "usedMB": v.M.Used() >> 20, "capMB": v.M.MaxBytes >> 20,
 	})
 }
 

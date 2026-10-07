@@ -103,6 +103,55 @@ func (o *Outreach) seedEvents(ctx context.Context) {
 	}
 }
 
+// SeedEventPayLinks (R55): an open paid event without a payment link gets
+// the owner's Kaspi link (bot.KaspiLink) once; the marker in the server doc
+// bs_paylink_seed keeps a link the team cleared afterwards cleared.
+func (o *Outreach) SeedEventPayLinks(ctx context.Context) int {
+	if o.repo == nil || o.docs == nil {
+		return 0
+	}
+	evs, err := o.repo.Events(ctx)
+	if err != nil {
+		log.Printf("outreach: pay links: %v", err)
+		return 0
+	}
+	marks := map[string]any{}
+	base := 0
+	if d, err := o.docs.GetDoc(ctx, "server", payLinkSeedDoc); err == nil && d != nil {
+		base = d.Version
+		if !d.Deleted {
+			_ = json.Unmarshal([]byte(d.Value), &marks)
+		}
+	}
+	if marks == nil {
+		marks = map[string]any{}
+	}
+	n := 0
+	now := o.now()
+	for _, e := range evs {
+		if e.Price <= 0 || e.Status != "open" || strings.TrimSpace(e.PayLink) != "" || !e.StartsAt.After(now) || marks[e.ID] != nil {
+			continue
+		}
+		e.PayLink = bot.KaspiLink
+		if err := o.repo.EventPut(ctx, e); err != nil {
+			log.Printf("outreach: pay link %s: %v", e.ID, err)
+			continue
+		}
+		marks[e.ID] = now.UTC().Format(time.RFC3339)
+		n++
+		log.Printf("outreach: event %s: Kaspi pay link set (it was empty)", e.ID)
+	}
+	if n > 0 {
+		b, _ := json.Marshal(marks)
+		if _, err := o.docs.PutDoc(ctx, "server", payLinkSeedDoc, base, string(b), false, "server:outreach"); err != nil {
+			log.Printf("outreach: pay link marks: %v", err)
+		}
+	}
+	return n
+}
+
+const payLinkSeedDoc = "bs_paylink_seed"
+
 // ── the event in words ──
 
 var ruWeekdays = []string{"Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"}
@@ -118,7 +167,11 @@ func evPay(e pg.ClubEvent) string {
 		return "💳 Участие бесплатное"
 	}
 	if strings.HasPrefix(e.PayLink, "https://") {
-		return s + ", оплатить можно по ссылке: " + e.PayLink
+		s += ", оплатить можно по ссылке: " + e.PayLink
+		if isKaspiOpen(e.PayLink) { // R55: the link opens Kaspi without a sum
+			s += " (в Kaspi введите сумму " + bot.Money(e.Price) + " ₸)"
+		}
+		return s
 	}
 	return s + ": оплата на месте или по ссылке, которую пришлём"
 }
@@ -756,6 +809,7 @@ func (o *Outreach) Start(ctx context.Context) {
 	go func() {
 		c, cancel := context.WithTimeout(ctx, 30*time.Second)
 		o.seedEvents(c)
+		o.SeedEventPayLinks(c)
 		if err := o.repo.SendsOrphaned(c); err != nil {
 			log.Printf("outreach: orphaned sends: %v", err)
 		}

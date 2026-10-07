@@ -761,7 +761,7 @@ func (s *ClubSales) RenewCallback(ctx context.Context, cb bot.CallbackUpdate) (s
 	text := fmt.Sprintf("Продление на %s: %s.", map[int]string{3: "3 месяца", 12: "год"}[months], tenge(anyInt(res["amount"])))
 	var keys map[string]any
 	if k := fmt.Sprint(res["kaspi"]); k != "" && k != "<nil>" {
-		text += "\n\nОплатите через Kaspi по кнопке ниже. Как только команда увидит оплату, пакет продлится сам и придёт подтверждение."
+		text += "\n\nОплатите через Kaspi по кнопке ниже" + kaspiSum(k, anyInt(res["amount"])) + ". Как только команда увидит оплату, пакет продлится сам и придёт подтверждение."
 		keys = kb(row(map[string]any{"text": "💳 Оплатить " + tenge(anyInt(res["amount"])) + " (Kaspi)", "url": k}))
 	} else {
 		text += "\n\nКоманда пришлёт ссылку на оплату" + workWhen(s.now()) + ". Как только оплата придёт, пакет продлится сам."

@@ -396,7 +396,7 @@ func (c *Client) state(name string) ProviderState {
 		p.State, p.Problem, p.Action = "badkey", ke.Problem(), ke.Action()
 		return p
 	}
-	if q := c.quotaClosed(name); q != nil {
+	if q := c.provQuota(name); q != nil {
 		p.State, p.Until = "quota", q.Until.UTC().Format(time.RFC3339)
 		p.Daily, p.Billing = q.Daily, q.Billing
 		if q.Billing {
@@ -475,7 +475,7 @@ func (c *Client) longHold(name string) bool {
 	if c.providerKey(name) == "" {
 		return true
 	}
-	if q := c.quotaClosed(name); q != nil {
+	if q := c.provQuota(name); q != nil {
 		return q.Daily || q.Billing || q.Budget || q.Until.Sub(quotaNow()) >= 15*time.Minute
 	}
 	return !c.budgetLeft(name)
@@ -582,7 +582,7 @@ func (c *Client) pingOnce(ctx context.Context, name string) (string, error) {
 	if c.providerKey(name) == "" {
 		return "", ErrNoKey
 	}
-	if q := c.quotaClosed(name); q != nil {
+	if q := c.provQuota(name); q != nil {
 		return "", q
 	}
 	if err := c.spend(name); err != nil {

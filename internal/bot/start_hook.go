@@ -344,6 +344,49 @@ func (s *Service) SendDocumentKB(ctx context.Context, chatID int64, key, name st
 	return s.upload(ctx, "sendDocument", "document", key, name, data, map[string]any{"chat_id": chatID, "caption": caption, "reply_markup": kb})
 }
 
+// VideoMeta: what Telegram shows before the video loads (0: unknown).
+type VideoMeta struct{ W, H, Dur int }
+
+// SendVideoKB (R55: the funnel's video library) sends a video by its known
+// Telegram file_id, or uploads it once; the answer is the file_id to keep
+// (it survives deploys in the library, so the file is uploaded only once).
+func (s *Service) SendVideoKB(ctx context.Context, chatID int64, key, name string, data []byte, fileID, caption string, kb map[string]any, m VideoMeta) (string, error) {
+	p := map[string]any{"chat_id": chatID, "caption": caption, "parse_mode": "HTML", "supports_streaming": true}
+	if m.W > 0 && m.H > 0 {
+		p["width"], p["height"] = m.W, m.H
+	}
+	if m.Dur > 0 {
+		p["duration"] = m.Dur
+	}
+	if kb != nil {
+		p["reply_markup"] = kb
+	}
+	if fileID == "" {
+		if v, ok := s.files.Load(key); ok {
+			fileID = v.(string)
+		}
+	}
+	if fileID != "" {
+		p["video"] = fileID
+		if _, err := s.call(ctx, "sendVideo", p); err == nil {
+			return fileID, nil
+		} else if len(data) == 0 {
+			return "", err
+		}
+		s.files.Delete(key)
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("telegram sendVideo: no file")
+	}
+	delete(p, "video")
+	if err := s.upload(ctx, "sendVideo", "video", key, name, data, p); err != nil {
+		return "", err
+	}
+	v, _ := s.files.Load(key)
+	id, _ := v.(string)
+	return id, nil
+}
+
 func (s *Service) upload(ctx context.Context, method, field, key, name string, data []byte, params map[string]any) error {
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
@@ -384,6 +427,9 @@ func (s *Service) upload(ctx context.Context, method, field, key, name string, d
 			Document struct {
 				FileID string `json:"file_id"`
 			} `json:"document"`
+			Video struct {
+				FileID string `json:"file_id"`
+			} `json:"video"`
 		} `json:"result"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&r); err != nil {
@@ -396,6 +442,8 @@ func (s *Service) upload(ctx context.Context, method, field, key, name string, d
 		s.files.Store(key, r.Result.Photo[n-1].FileID)
 	} else if r.Result.Document.FileID != "" {
 		s.files.Store(key, r.Result.Document.FileID)
+	} else if r.Result.Video.FileID != "" {
+		s.files.Store(key, r.Result.Video.FileID)
 	}
 	return nil
 }

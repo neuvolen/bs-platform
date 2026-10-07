@@ -11,6 +11,7 @@ import (
 	httpapi "github.com/bnursik/business_surgery_backend/internal/handlers/http"
 	"github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/bnursik/business_surgery_backend/web"
+	funnelvideo "github.com/bnursik/business_surgery_backend/web/funnel_video"
 )
 
 // R51: продажи клуба (handlers/http/sales*.go): сценарий после
@@ -95,5 +96,26 @@ func WireSales(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team, j
 			s.Loop(context.Background())
 		}()
 	}
-	return &httpapi.SalesModule{S: s, G: appGW, Secret: []byte(jwtSecret)}
+	// R55: «Видео в воронке»: the library, its seeds from web/funnel_video, the bot's sendVideo
+	var fv *httpapi.FunnelVideos
+	if d.PlatformRepo != nil {
+		fv = httpapi.NewFunnelVideos(d.PlatformRepo, d.PlatformRepo, []byte(jwtSecret))
+		if s.F != nil {
+			s.F.Videos = fv
+			if botSvc != nil && botSvc.Enabled() {
+				s.F.Video = botSvc.SendVideoKB
+			}
+			go s.F.StatsLoop(context.Background())
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			if n, err := fv.Seed(ctx, funnelvideo.FS); err != nil {
+				log.Printf("funnel video: seed: %v", err)
+			} else {
+				log.Printf("funnel video: library ready (%d added from the repo), steps with a video: %v", n, fv.Steps(ctx))
+			}
+		}()
+	}
+	return &httpapi.SalesModule{S: s, G: appGW, Secret: []byte(jwtSecret), FV: fv}
 }

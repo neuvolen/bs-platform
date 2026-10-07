@@ -851,8 +851,9 @@ func TestSalesSettings(t *testing.T) {
 		_ = json.Unmarshal(w.Body.Bytes(), &out)
 		return w.Code, out
 	}
-	if code, _ := call(`{"kaspiClub":"` + bot.KaspiLink + `"}`); code != 400 {
-		t.Fatalf("fines link accepted %d", code)
+	// R55: the owner pays everything through one Kaspi link
+	if code, _ := call(`{"kaspiClub":"` + bot.KaspiLink + `"}`); code != 200 {
+		t.Fatalf("the owner's Kaspi link refused %d", code)
 	}
 	if code, _ := call(`{"kaspiClub":"http://x"}`); code != 400 {
 		t.Fatal("http accepted")
@@ -870,6 +871,41 @@ func TestSalesSettings(t *testing.T) {
 	}
 	if _, err := e.s.RequestRenewal(context.Background(), "X", 3, "test"); err == nil {
 		t.Fatal("3 months without a price")
+	}
+}
+
+// R55: the owner's Kaspi link goes into an empty «Ссылка на оплату клуба»
+// once; a link the team cleared afterwards stays cleared; the renewal names
+// the sum to type (the link opens Kaspi without one).
+func TestR55SeedKaspiClub(t *testing.T) {
+	e := newSalesEnv(t)
+	ctx := context.Background()
+	if ok, err := e.s.SeedKaspi(ctx); err != nil || !ok {
+		t.Fatalf("seed: %v %v", ok, err)
+	}
+	cfg := e.s.Settings(ctx)
+	if cfg.KaspiClub != bot.KaspiLink || cfg.KaspiSeeded == "" || cfg.YearPrice != salesYearPrice {
+		t.Fatalf("cfg %+v", cfg)
+	}
+	if ok, _ := e.s.SeedKaspi(ctx); ok {
+		t.Fatal("seeded twice")
+	}
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("PUT", "/", strings.NewReader(`{"kaspiClub":""}`))
+	e.s.PutSettings(c)
+	if w.Code != 200 {
+		t.Fatalf("save %d", w.Code)
+	}
+	if ok, _ := e.s.SeedKaspi(ctx); ok || e.s.Settings(ctx).KaspiClub != "" {
+		t.Fatal("a cleared link came back")
+	}
+	if s := kaspiSum(bot.KaspiLink, 1500000); s != " (сумму 1 500 000 ₸ введите в Kaspi сами)" {
+		t.Fatalf("sum hint %q", s)
+	}
+	if kaspiSum("https://kaspi.kz/pay/fixed?amount=5", 5) != "" {
+		t.Fatal("hint for another link")
 	}
 }
 

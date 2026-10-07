@@ -266,6 +266,21 @@ func (f *LeadFunnel) placeLine(s slot) string {
 	return "💻 Онлайн, ссылку пришлём перед встречей"
 }
 
+// isKaspiOpen (R55): a pay.kaspi.kz/pay/… link of the owner opens Kaspi
+// without a sum (the same link takes fines of any size): the message says
+// which sum to type.
+func isKaspiOpen(link string) bool {
+	return strings.Contains(link, "pay.kaspi.kz/pay/")
+}
+
+// kaspiSum: « (сумму 50 000 ₸ введите в Kaspi)» for an open-amount link.
+func kaspiSum(link string, amount int64) string {
+	if !isKaspiOpen(link) || amount <= 0 {
+		return ""
+	}
+	return " (сумму " + tenge(amount) + " введите в Kaspi сами)"
+}
+
 func (f *LeadFunnel) payKB(s slot, price int64, kaspi string, paid bool) map[string]any {
 	var rows [][]map[string]any
 	if !paid && kaspi != "" {
@@ -408,10 +423,17 @@ func (f *LeadFunnel) BookSlot(ctx context.Context, u *platformTgUser, r bookReq,
 	})
 
 	text := "✅ Вы записаны на разбор\n\n📅 " + when + " (время Алматы)\n⏱ " + strconv.Itoa(got.Dur) + " минут с основателями BS\n" + f.placeLine(got) +
-		"\n\nСтоимость " + tenge(price) + ". Оплатите через Kaspi по кнопке ниже, чтобы закрепить время.\n\nПеренести или отменить запись можно в приложении."
+		"\n\nСтоимость " + tenge(price) + ". Оплатите через Kaspi по кнопке ниже" + kaspiSum(kaspi, price) + ", чтобы закрепить время.\n\nПеренести или отменить запись можно в приложении."
 	if f.send != nil {
 		if err := f.send(ctx, u.ID, text, f.payKB(got, price, kaspi, false)); err != nil {
 			log.Printf("booking: confirm %d: %v", u.ID, err)
+		} else if f.Video != nil {
+			// R55: what happens at the разбор, on video (the step «booked»)
+			go func(tg int64, first string) {
+				vctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				f.sendStepVideo(vctx, tg, "booked", first)
+			}(u.ID, u.FirstName)
 		}
 	}
 	who := name
@@ -640,7 +662,7 @@ func (f *LeadFunnel) RemindOnce(ctx context.Context) int {
 				text = "Через час разбор, в " + j.s.Start.In(almaty).Format("15:04") + ".\n" + f.placeLine(j.s)
 			}
 			if !paid {
-				text += "\n\nОплата " + tenge(j.price) + " через Kaspi по кнопке ниже."
+				text += "\n\nОплата " + tenge(j.price) + " через Kaspi по кнопке ниже" + kaspiSum(j.kaspi, j.price) + "."
 			}
 			text += "\n\nЕсли планы изменились, перенесите запись в приложении."
 			if err := f.send(ctx, tg, text, f.payKB(j.s, j.price, j.kaspi, paid)); err != nil {

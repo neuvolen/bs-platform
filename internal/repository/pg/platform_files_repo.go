@@ -49,6 +49,12 @@ func (r *PlatformRepo) GetFile(ctx context.Context, id string) (*PlatformFile, e
 	return &f, err
 }
 
+// DeleteFile removes a kept file (R55: a video taken out of the funnel library).
+func (r *PlatformRepo) DeleteFile(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM platform_files WHERE id=$1`, id)
+	return err
+}
+
 func (r *PlatformRepo) CreateAIJob(ctx context.Context, j AIJob, by string) error {
 	_, err := r.db.Pool.Exec(ctx, `INSERT INTO platform_ai_jobs (id, kind, board_id, resident, status, created_by)
 		VALUES ($1,$2,$3,$4,$5,$6)`, j.ID, j.Kind, j.BoardID, j.Resident, j.Status, by)

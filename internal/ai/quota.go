@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -252,6 +253,9 @@ func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 		var he *HTTPError
 		if errors.As(err, &he) {
 			msg = apiMessage(he.Body)
+			if d := QuotaDetail(he.Body); d != "" {
+				msg += " [" + d + "]"
+			}
 		}
 		log.Printf("ai: %s paused until %s (%s): %s", service, until.UTC().Format(time.RFC3339), kind, msg)
 	}
@@ -310,4 +314,58 @@ func fallbackWorthy(ctx context.Context, err error) bool {
 		return false
 	}
 	return !errors.Is(err, context.Canceled)
+}
+
+var quotaMetricRe = regexp.MustCompile(`(?i)quota exceeded for metric:\s*([\w./\-]+),\s*limit:\s*(\d+)(?:,\s*model:\s*([\w.\-]+))?`)
+
+// QuotaDetail (R55): which limit Google named in a 429, for the logs: the
+// metric, its limit and the model («limit: 0» means the key's tier does not
+// include that model at all), and the violated quota ids. Never a key.
+func QuotaDetail(body string) string {
+	var parts []string
+	seen := map[string]bool{}
+	add := func(s string) {
+		if s != "" && !seen[s] && len(parts) < 4 {
+			seen[s] = true
+			parts = append(parts, s)
+		}
+	}
+	for _, m := range quotaMetricRe.FindAllStringSubmatch(body, -1) {
+		s := strings.TrimPrefix(m[1], "generativelanguage.googleapis.com/") + " limit " + m[2]
+		if m[3] != "" {
+			s += " model " + m[3]
+		}
+		add(s)
+	}
+	var b struct {
+		Error struct {
+			Details []struct {
+				Violations []struct {
+					QuotaID    string `json:"quotaId"`
+					QuotaValue string `json:"quotaValue"`
+					Dimensions struct {
+						Model string `json:"model"`
+					} `json:"quotaDimensions"`
+				} `json:"violations"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+	if json.Unmarshal([]byte(body), &b) == nil {
+		for _, d := range b.Error.Details {
+			for _, v := range d.Violations {
+				if v.QuotaID == "" {
+					continue
+				}
+				s := v.QuotaID
+				if v.QuotaValue != "" {
+					s += "=" + v.QuotaValue
+				}
+				if v.Dimensions.Model != "" {
+					s += " (" + v.Dimensions.Model + ")"
+				}
+				add(s)
+			}
+		}
+	}
+	return strings.Join(parts, "; ")
 }

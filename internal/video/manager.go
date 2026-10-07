@@ -78,6 +78,10 @@ type Manager struct {
 	// Render is replaceable in tests; nil means Render.
 	Render func(ctx context.Context, in Input, t Tools, work string, prog func(string, float64)) (*Result, error)
 	Now    func() time.Time
+	// MaxBytes (R55): the folder never keeps more than this (uploads and
+	// finished Reels together, VIDEO_MAX_MB); past it the oldest finished
+	// Reels go first, then the oldest uploads no job waits for. 0: no cap.
+	MaxBytes int64
 
 	mu      sync.Mutex
 	jobs    map[string]*Job
@@ -586,6 +590,7 @@ func (m *Manager) Cleanup() {
 			os.RemoveAll(m.jobDir(j.ID))
 		}
 	}
+	m.capSize(inUse)
 	// files nobody knows about (a crash between writes)
 	if ents, err := os.ReadDir(filepath.Join(m.Dir, "up")); err == nil {
 		for _, e := range ents {
@@ -603,6 +608,82 @@ func (m *Manager) Cleanup() {
 		}
 	}
 	m.save()
+}
+
+// dirSize: the bytes under p.
+func dirSize(p string) int64 {
+	var n int64
+	_ = filepath.WalkDir(p, func(_ string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			if fi, e := d.Info(); e == nil {
+				n += fi.Size()
+			}
+		}
+		return nil
+	})
+	return n
+}
+
+// Used: the bytes of uploads and finished Reels on disk.
+func (m *Manager) Used() int64 {
+	return dirSize(filepath.Join(m.Dir, "up")) + dirSize(filepath.Join(m.Dir, "jobs"))
+}
+
+// capSize (m.mu held): over MaxBytes, the oldest finished jobs and then the
+// oldest free uploads are removed until the folder fits.
+func (m *Manager) capSize(inUse map[string]bool) {
+	if m.MaxBytes <= 0 {
+		return
+	}
+	used := m.Used()
+	if used <= m.MaxBytes {
+		return
+	}
+	type victim struct {
+		at   time.Time
+		size int64
+		drop func()
+	}
+	var vs []victim
+	for _, j := range m.jobs {
+		if j.Status == "queued" || j.Status == "running" {
+			continue
+		}
+		j := j
+		vs = append(vs, victim{j.Created, dirSize(m.jobDir(j.ID)), func() {
+			delete(m.jobs, j.ID)
+			os.RemoveAll(m.jobDir(j.ID))
+		}})
+	}
+	var ups []victim
+	for id, u := range m.uploads {
+		if inUse[id] {
+			continue
+		}
+		id := id
+		size := int64(0)
+		if st, err := os.Stat(m.upPath(id)); err == nil {
+			size = st.Size()
+		}
+		ups = append(ups, victim{u.Created, size, func() {
+			delete(m.uploads, id)
+			os.Remove(m.upPath(id))
+		}})
+	}
+	sort.Slice(vs, func(a, b int) bool { return vs[a].at.Before(vs[b].at) })
+	sort.Slice(ups, func(a, b int) bool { return ups[a].at.Before(ups[b].at) })
+	dropped := 0
+	for _, v := range append(vs, ups...) {
+		if used <= m.MaxBytes {
+			break
+		}
+		v.drop()
+		used -= v.size
+		dropped++
+	}
+	if dropped > 0 {
+		log.Printf("video: folder over %d MB: %d oldest files removed, %d MB kept", m.MaxBytes>>20, dropped, used>>20)
+	}
 }
 
 func trimExt(n string) string {

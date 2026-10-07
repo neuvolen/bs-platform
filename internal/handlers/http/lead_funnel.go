@@ -56,6 +56,9 @@ type LeadFunnel struct {
 	dlgOn bool
 	// AfterRazbor: R51: a booked разбор is over (sales_razbor.go asks the team for the итоги).
 	AfterRazbor func(ctx context.Context, tg int64, name, when string)
+	// R55 (funnel_video.go): the video library and the bot's sendVideo; nil: no videos.
+	Videos *FunnelVideos
+	Video  VideoSender
 }
 
 func NewLeadFunnel(docs funnelDocs, send func(ctx context.Context, chatID int64, text string, kb map[string]any) error, admins []int64) *LeadFunnel {
@@ -541,8 +544,9 @@ type warmStep struct {
 }
 
 func warmSteps() []warmStep {
-	open := func(f *LeadFunnel) map[string]any {
-		return kb(row(f.appBtn("📘 Открыть гайды", "checklists")), row(f.appBtn("🔬 Диагностика бизнеса", "diagnostic")))
+	open := func(f *LeadFunnel) map[string]any { // R55: the express-разбор is one tap away from the first touch
+		return kb(row(f.appBtn("📘 Открыть гайды", "checklists")), row(f.appBtn("🔬 Диагностика бизнеса", "diagnostic")),
+			row(f.appBtn("📅 Экспресс-разбор", "razbor")))
 	}
 	razbor := func(f *LeadFunnel) map[string]any {
 		return kb(row(f.appBtn("📅 Записаться на разбор", "razbor")), row(f.appBtn("📘 Гайды", "checklists")))
@@ -637,13 +641,26 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 	var jobs []job
 	steps := warmSteps()
 	csteps := claimSteps()
+	vsteps := map[string]bool{}
+	if f.Video != nil {
+		vsteps = f.Videos.Steps(ctx) // R55: the steps that have a video
+	}
+	type vjob struct {
+		tg    int64
+		first string
+	}
+	var startVids []vjob
 	_ = f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
 		leads, _ := crm["leads"].([]any)
 		changed := false
+		startVids = nil
 		for _, l := range leads {
 			m, _ := l.(map[string]any)
 			if m == nil || !warmCols[fmt.Sprint(m["col"])] || m["warmStop"] == true {
 				continue
+			}
+			if vsteps["start"] && len(startVids) < 25 && startVideoDue(m, now) {
+				startVids = append(startVids, vjob{leadTg(m), leadFirst(m)})
 			}
 			// Wanted to be a resident: its own short sequence goes first.
 			if cst, cat, ok := claimWarmState(m); ok {
@@ -716,6 +733,12 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 			s := steps[j.stage]
 			text, keys = s.text(j.first, j.last, st[0], st[1]), s.keys(f)
 		}
+		if !j.claim { // R55: the day's video first, then the touch
+			if vs := fvWarmStep(j.stage); vsteps[vs] && f.sendStepVideo(ctx, j.tg, vs, j.first) {
+				sent++
+				time.Sleep(300 * time.Millisecond)
+			}
+		}
 		if err := f.send(ctx, j.tg, text, keys); err != nil {
 			log.Printf("funnel: warm %d: %v", j.tg, err)
 			if strings.Contains(err.Error(), "blocked") || strings.Contains(err.Error(), "deactivated") {
@@ -734,12 +757,20 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 		sent++
 		time.Sleep(300 * time.Millisecond)
 	}
+	// R55: the start video, 20 minutes after /start (the checklists are given by then)
+	for _, v := range startVids {
+		if f.sendStepVideo(ctx, v.tg, "start", v.first) {
+			sent++
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
 	return sent
 }
 
-// WarmLoop checks every 30 minutes.
+// WarmLoop checks every 10 minutes (R55: the start video comes 20-30
+// minutes after /start; a touch still goes once a day at most).
 func (f *LeadFunnel) WarmLoop(ctx context.Context) {
-	t := time.NewTicker(30 * time.Minute)
+	t := time.NewTicker(10 * time.Minute)
 	defer t.Stop()
 	for {
 		select {

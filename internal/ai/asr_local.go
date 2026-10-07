@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bnursik/business_surgery_backend/internal/datadir"
 	"io"
 	"log"
 	"net/http"
@@ -120,10 +121,7 @@ func (a *LocalASR) defaults() *LocalASR {
 		a.Chunk = 10 * time.Minute
 	}
 	if a.Dir == "" {
-		a.Dir = filepath.Join(os.TempDir(), "bs-asr")
-		if st, err := os.Stat("/data"); err == nil && st.IsDir() && writable("/data") {
-			a.Dir = "/data/bs-asr"
-		}
+		a.Dir = datadir.Path("bs-asr") // R55: the volume at /data (or BS_DATA_DIR) keeps the download
 	}
 	if a.ModelURL == "" {
 		a.ModelURL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-" + a.Model + ".tar.bz2"

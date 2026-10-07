@@ -333,3 +333,37 @@ func TestR54Check(t *testing.T) {
 		t.Fatalf("%+v %v", f, err)
 	}
 }
+
+// R55: the folder lives on the 5 GB volume: past MaxBytes the oldest
+// finished Reels go first, a job still waiting keeps its clips.
+func TestR55CapSizeOldestFirst(t *testing.T) {
+	m, err := NewManager(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 7, 10, 0, 0, 0, time.UTC)
+	m.Now = func() time.Time { return now }
+	mk := func(id string, age time.Duration, size int) {
+		os.MkdirAll(m.jobDir(id), 0o755)
+		os.WriteFile(m.OutPath(id), make([]byte, size), 0o644)
+		m.jobs[id] = &Job{ID: id, Status: "done", Created: now.Add(-age)}
+	}
+	mk("aaaaaaaaaaaaaaaa", 3*time.Hour, 400)
+	mk("bbbbbbbbbbbbbbbb", 2*time.Hour, 400)
+	mk("cccccccccccccccc", time.Hour, 400)
+	// an upload a queued job waits for: never removed
+	os.WriteFile(m.upPath("dddddddddddddddd"), make([]byte, 300), 0o644)
+	m.uploads["dddddddddddddddd"] = &Upload{ID: "dddddddddddddddd", Kind: "clip", Size: 300, Got: 300, Created: now.Add(-5 * time.Hour)}
+	m.jobs["eeeeeeeeeeeeeeee"] = &Job{ID: "eeeeeeeeeeeeeeee", Status: "queued", Clips: []string{"dddddddddddddddd"}, Created: now}
+	m.MaxBytes = 1000
+	m.Cleanup()
+	if m.jobs["aaaaaaaaaaaaaaaa"] != nil || m.jobs["bbbbbbbbbbbbbbbb"] != nil {
+		t.Fatal("the oldest finished jobs should go")
+	}
+	if m.jobs["cccccccccccccccc"] == nil || m.uploads["dddddddddddddddd"] == nil {
+		t.Fatal("the newest job and the waited-for upload stay")
+	}
+	if u := m.Used(); u > 1000 {
+		t.Fatalf("used %d", u)
+	}
+}

@@ -27149,7 +27149,7 @@ html.lead-user #aiBadge,html.lead-user #bsxPill,html.lead-user #tr16Help,html.le
       var m = rz.mine || {}, sl = m.slot || {};
       box.innerHTML = '<div class="lh-ok"><div class="lh-oki">' + ic(IC.ok, 26) + '</div><h3>Вы записаны на экспресс-разбор</h3>' +
         '<div class="lh-kv"><span>Когда</span><b>' + E(dayKey(sl.start)) + ', ' + hm(sl.start) + ' (Алматы)</b><span>Формат</span><div>' + E(sl.format || 'Онлайн') + (sl.place ? ', ' + E(sl.place) : '') + '</div>' +
-        '<span>Длительность</span><div>' + (sl.dur || 60) + ' минут с основателями BS</div><span>Оплата</span><div>' + (m.paid ? 'Оплачено' : M(rz.price) + ' ₸, закрепляет время') + '</div></div>' +
+        '<span>Длительность</span><div>' + (sl.dur || 60) + ' минут с основателями BS</div><span>Оплата</span><div>' + (m.paid ? 'Оплачено' : M(rz.price) + ' ₸, закрепляет время' + (/pay\.kaspi\.kz\/pay\//.test(rz.kaspiLink || '') ? '. Сумму ' + M(rz.price) + ' ₸ введите в Kaspi сами' : '')) + '</div></div>' +
         (m.paid ? '' : pay) + '<p class="lh-ps" style="margin:14px 0 0">Подтверждение и напоминание придут в Telegram от бота BS. Перенести или отменить запись можно там же.</p></div>';
       return;
     }
@@ -33727,8 +33727,9 @@ function ptUgcHTML(){
   window.renderMSmm = function(){
     try{ loadContent(); }catch(e){}
     var el = pgSet('SMM', 'Все публикации контент-движка по дням: текст, время, статус, ссылка на пост и лиды с каждого');
-    el.innerHTML = '<div class="smm">' + window.r40bFunnelBlock() + '<div id="r40bSmm"></div></div>';
+    el.innerHTML = '<div class="smm">' + window.r40bFunnelBlock() + '<div id="r55Fv"></div><div id="r40bSmm"></div></div>';
     paint();
+    if(typeof window.r55FvLoad === 'function') window.r55FvLoad(); // R55: видео в воронке и цифры воронки с сервера
   };
   window.r40bDay = function(d){ V.day = d; keep(); paint(); };
   window.r40bDate = function(v){ if(v){ V.day = 'date'; V.from = v; } else V.day = 'today'; keep(); paint(); };
@@ -36146,7 +36147,7 @@ function r46LeadTeaser(){
     var s = SET.settings || {}, tx = SET.texts || [];
     var cur = tx.find(function(t){ return t.key === TXK; }) || tx[0] || {key: 'offer', name: '', hint: '', default: ''};
     SETBOX.innerHTML = '<h4>Продажи клуба: сценарии, продление, отчёт недели</h4>' +
-      '<div class="k">Цены идут в предложение после разбора, в итог периода и в кнопки продления. Ссылка Kaspi клуба отдельная от ссылки штрафов.' + (s.kaspiClub ? '' : ' <b style="color:#d98200">Ссылка Kaspi клуба не задана: резидент получит «команда пришлёт ссылку».</b>') + '</div>' +
+      '<div class="k">Цены идут в предложение после разбора, в итог периода и в кнопки продления. Ссылка Kaspi открывает оплату без суммы: сумма стоит в сообщении резиденту, он вводит её сам. Подходит та же ссылка, что для штрафов.' + (s.kaspiClub ? '' : ' <b style="color:#d98200">Ссылка Kaspi клуба не задана: резидент получит «команда пришлёт ссылку».</b>') + '</div>' +
       '<div class="r51s-set"><label>Год, ₸<input class="inp" id="r51sYP" inputmode="numeric" value="' + ea(n0(s.yearPrice)) + '"></label>' +
       '<label>3 месяца, ₸ (0: не предлагать)<input class="inp" id="r51sQP" inputmode="numeric" value="' + ea(n0(s.q3Price)) + '"></label>' +
       '<label>Ссылка на оплату клуба (Kaspi)<input class="inp" id="r51sKL" value="' + ea(s.kaspiClub || '') + '" placeholder="https://pay.kaspi.kz/pay/…"></label>' +
@@ -38236,5 +38237,162 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
 })();
 </script>
 <!-- /R52c -->
+<!-- R55: Маркетинг → SMM → «Видео в воронке»: библиотека видео, которые бот присылает лидам на шагах воронки, и цифры воронки с сервера -->
+<style id="r55Style">
+.fv-box{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:14px;margin:0 0 16px}
+.fv-h{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 6px}
+.fv-h h4{margin:0;font-size:15px;font-weight:800;letter-spacing:-.2px;color:var(--ptx)}
+.fv-k{font-size:12.5px;color:var(--pm);line-height:1.45;margin:0 0 10px}
+.fv-num{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.fv-num>div{border:1px solid var(--pb);border-radius:10px;padding:8px 10px;min-width:0}
+.fv-num b{display:block;font-size:19px;font-weight:800;color:var(--ptx)}
+.fv-num span{display:block;font-size:11px;font-weight:700;color:var(--pm);line-height:1.3}
+.fv-steps{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
+.fv-st{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) auto;gap:10px;align-items:center;border:1px solid var(--pb);border-radius:10px;padding:8px 10px}
+.fv-st b{display:block;font-size:13px;color:var(--ptx)}
+.fv-st i{display:block;font-style:normal;font-size:11.5px;color:var(--pm);line-height:1.35}
+.fv-st select,.fv-up select,.fv-up input,.fv-card input,.fv-card select,.fv-card textarea{height:32px;border-radius:8px;border:1px solid var(--pb);background:var(--ph);color:var(--ptx);font:inherit;font-size:12.5px;padding:0 8px;max-width:100%;box-sizing:border-box}
+.fv-st .n{font-size:11.5px;color:var(--pm);font-weight:700;white-space:nowrap;min-width:96px;text-align:right}
+.fv-lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.fv-card{border:1px solid var(--pb);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.fv-card.off{opacity:.75}
+.fv-card video{width:100%;aspect-ratio:9/16;max-height:300px;object-fit:contain;background:#000;border-radius:8px}
+.fv-card textarea{height:86px;padding:6px 8px;resize:vertical;line-height:1.4}
+.fv-card input,.fv-card select,.fv-card textarea{width:100%}
+.fv-m{font-size:11.5px;color:var(--pm);font-weight:600;line-height:1.4}
+.fv-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.fv-b{height:30px;padding:0 11px;border-radius:8px;border:1px solid var(--pb);background:var(--pc);color:var(--ptx);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.fv-b.p{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.fv-b.warn{border-color:var(--pred);color:var(--pred)}
+.fv-up{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border:1px dashed var(--pb);border-radius:10px;padding:10px;margin:0 0 12px}
+.fv-up input[type=text]{flex:1;min-width:160px}
+.fv-msg{font-size:12px;font-weight:700;color:var(--pm)}
+.fv-msg.err{color:var(--pred)}
+.fv-sw{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ptx)}
+@media (max-width:720px){
+  .fv-num{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fv-st{grid-template-columns:minmax(0,1fr)}
+}
+</style>
+<script id="r55Script">
+(function(){
+  'use strict';
+  var S = {lib:null, stats:null, msg:'', err:false, busy:false, del:'', days:14};
+  function e(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function n(v){ return typeof fmtN === 'function' ? fmtN(v || 0) : String(v || 0); }
+  function api(m, p, b){ return typeof r6Api === 'function' ? r6Api(m, p, b) : Promise.resolve({error:'Нет связи с сервером'}); }
+  function box(){ return document.getElementById('r55Fv'); }
+  function pc(a, b){ return b ? ' · ' + Math.round(a / b * 100) + '%' : ''; }
+  function numsHTML(){
+    var s = S.stats;
+    if(!s || s.error) return '<div class="fv-k">Цифры воронки с сервера: ' + e(s && s.error ? s.error : 'загружаю…') + '</div>';
+    var v = s.videos || {}, vids = 0; Object.keys(v).forEach(function(k){ vids += v[k]; });
+    var cells = [
+      [s.leads, 'Пришли в бот', ''], [s.threads, 'Из Threads', 'по ссылке поста ' + n(s.threadPost)], [s.noSource, 'Без метки источника', pc(s.noSource, s.leads).replace(' · ', '')],
+      [s.quizFin, 'Прошли проверку', 'начали ' + n(s.quizStart)], [s.guides, 'Открыли гайд', pc(s.guides, s.leads).replace(' · ', '')],
+      [s.warm1, 'Получили прогрев', 'касаний ' + n(s.touches)], [s.warm3, 'Позваны на разбор (7 день)', 'заблокировали бота ' + n(s.blocked)],
+      [vids, 'Видео отправлено', Object.keys(v).map(function(k){ return k + ' ' + v[k]; }).join(', ')],
+      [s.booked, 'Записались на разбор', 'оплатили ' + n(s.paid)], [s.razbor, 'Разбор прошёл', 'резидентов ' + n(s.won)]];
+    return '<div class="fv-k">Воронка бота за ' + n(s.days) + ' дней по CRM на сервере. Клики по ссылкам в Threads не считаются: ссылка ведёт прямо в Telegram, первый счётчик здесь «Пришли в бот».</div>' +
+      '<div class="fv-num">' + cells.map(function(c){ return '<div><b>' + n(c[0]) + '</b><span>' + e(c[1]) + '</span>' + (c[2] ? '<span style="font-weight:600">' + e(c[2]) + '</span>' : '') + '</div>'; }).join('') + '</div>';
+  }
+  function stepOpts(cur, withNone){
+    var st = (S.lib && S.lib.steps) || [];
+    return (withNone ? '<option value="">Без шага (не отправляется)</option>' : '') + st.map(function(s){ return '<option value="' + e(s.key) + '"' + (s.key === cur ? ' selected' : '') + '>' + e(s.name) + '</option>'; }).join('');
+  }
+  function stepsHTML(){
+    var st = S.lib.steps || [], vids = S.lib.videos || [];
+    return '<div class="fv-steps">' + st.map(function(s){
+      var on = vids.filter(function(v){ return v.on && v.step === s.key; })[0];
+      var opts = '<option value="">Без видео</option>' + vids.map(function(v){ return '<option value="' + e(v.id) + '"' + (on && on.id === v.id ? ' selected' : '') + '>' + e(v.title) + '</option>'; }).join('');
+      return '<div class="fv-st"><div><b>' + e(s.name) + '</b><i>' + e(s.hint) + (s.cta ? '. Под видео кнопка «Записаться на экспресс-разбор»' : '') + '</i></div>' +
+        '<select data-step="' + e(s.key) + '" onchange="r55Assign(this)">' + opts + '</select>' +
+        '<span class="n">' + (on ? 'отправлено ' + n(on.sent) : '') + '</span></div>';
+    }).join('') + '</div>';
+  }
+  function cardHTML(v){
+    var del = S.del === v.id;
+    return '<div class="fv-card' + (v.on ? '' : ' off') + '" data-id="' + e(v.id) + '">' +
+      '<video src="' + e(v.url) + '" controls preload="metadata" playsinline></video>' +
+      '<input type="text" data-f="title" value="' + e(v.title) + '" placeholder="Название">' +
+      '<input type="text" data-f="topic" value="' + e(v.topic || '') + '" placeholder="Тема (о чём видео)">' +
+      '<select data-f="step">' + stepOpts(v.step, true) + '</select>' +
+      '<textarea data-f="caption" placeholder="Подпись под видео в боте. {имя}: имя лида">' + e(v.caption || '') + '</textarea>' +
+      '<div class="fv-m">' + (v.size ? Math.round(v.size / 1048576 * 10) / 10 + ' МБ · ' : '') + (v.dur ? v.dur + ' с · ' : '') + 'отправлено ' + n(v.sent) + (v.cached ? ' · в Telegram уже загружено' : '') + (v.source && v.source.indexOf('seed:') === 0 ? ' · из репозитория' : '') + '</div>' +
+      '<div class="fv-row"><label class="fv-sw"><input type="checkbox" data-f="on"' + (v.on ? ' checked' : '') + '>Отправлять</label>' +
+      '<button class="fv-b p" onclick="r55Save(\'' + e(v.id) + '\')">Сохранить</button>' +
+      (del ? '<button class="fv-b warn" onclick="r55Del(\'' + e(v.id) + '\', true)">Точно удалить</button><button class="fv-b" onclick="r55Del(\'\')">Отмена</button>'
+           : '<button class="fv-b" onclick="r55Del(\'' + e(v.id) + '\')">Удалить</button>') + '</div></div>';
+  }
+  function paint(){
+    var b = box(); if(!b) return;
+    if(!S.lib){ b.innerHTML = '<div class="fv-box"><div class="fv-h"><h4>Видео в воронке</h4></div><div class="fv-k">' + e(S.msg || 'Загружаю…') + '</div></div>'; return; }
+    var max = S.lib.maxMB || 20;
+    b.innerHTML = '<div class="fv-box"><div class="fv-h"><h4>Видео в воронке</h4></div>' + numsHTML() +
+      '<div class="fv-k">Бот присылает лиду одно видео на шаге, один раз. Первое видео уходит в Telegram с сервера, дальше по сохранённому file_id сразу. Видео в репозитории: папка web/funnel_video (описание в videos.json).</div>' +
+      stepsHTML() +
+      '<div class="fv-up"><input type="file" id="r55File" accept="video/mp4"><input type="text" id="r55Title" placeholder="Название видео">' +
+      '<select id="r55Step">' + stepOpts('', true) + '</select><button class="fv-b p" id="r55Go" onclick="r55Upload()"' + (S.busy ? ' disabled' : '') + '>' + (S.busy ? 'Загружаю…' : 'Загрузить видео') + '</button>' +
+      '<span class="fv-k" style="margin:0">MP4 H.264 до ' + max + ' МБ, лучше вертикальное 720×1280</span></div>' +
+      (S.msg ? '<div class="fv-msg' + (S.err ? ' err' : '') + '">' + e(S.msg) + '</div>' : '') +
+      '<div class="fv-lib">' + ((S.lib.videos || []).map(cardHTML).join('') || '<div class="fv-k">Видео пока нет</div>') + '</div></div>';
+  }
+  function say(m, err){ S.msg = m || ''; S.err = !!err; paint(); }
+  function got(j){ if(j && !j.error && j.steps){ S.lib = j; S.del = ''; return true; } say((j && (j.message || j.error)) || 'Не получилось', true); return false; }
+  window.r55FvLoad = function(){
+    paint();
+    api('GET', '/sales/funnel/videos').then(function(j){ if(got(j)) paint(); });
+    api('GET', '/sales/funnel/stats?days=' + S.days).then(function(j){ S.stats = j || {error:'нет ответа'}; paint(); });
+  };
+  window.r55Assign = function(sel){
+    var step = sel.getAttribute('data-step'), id = sel.value, vids = (S.lib && S.lib.videos) || [];
+    var p;
+    if(id) p = api('PUT', '/sales/funnel/videos/' + encodeURIComponent(id), {step: step, on: true});
+    else {
+      var cur = vids.filter(function(v){ return v.on && v.step === step; })[0];
+      if(!cur) return;
+      p = api('PUT', '/sales/funnel/videos/' + encodeURIComponent(cur.id), {on: false});
+    }
+    p.then(function(j){ if(got(j)) say(id ? 'Видео назначено на шаг' : 'Шаг без видео'); });
+  };
+  window.r55Save = function(id){
+    var c = document.querySelector('.fv-card[data-id="' + id + '"]'); if(!c) return;
+    function f(k){ return c.querySelector('[data-f="' + k + '"]'); }
+    var body = {title: f('title').value, topic: f('topic').value, caption: f('caption').value, step: f('step').value, on: f('on').checked};
+    api('PUT', '/sales/funnel/videos/' + encodeURIComponent(id), body).then(function(j){ if(got(j)) say(body.on && !body.step ? 'Сохранено. Чтобы видео уходило, выберите шаг' : 'Сохранено'); });
+  };
+  window.r55Del = function(id, sure){
+    if(!sure){ S.del = id || ''; paint(); return; }
+    api('DELETE', '/sales/funnel/videos/' + encodeURIComponent(id)).then(function(j){ if(got(j)) say('Видео удалено'); });
+  };
+  window.r55Upload = function(){
+    var inp = document.getElementById('r55File'), file = inp && inp.files && inp.files[0];
+    if(!file){ say('Выберите файл MP4', true); return; }
+    var max = ((S.lib && S.lib.maxMB) || 20) * 1048576;
+    if(file.size > max){ say('Файл больше ' + Math.round(max / 1048576) + ' МБ: сожмите до 720×1280', true); return; }
+    var title = document.getElementById('r55Title').value.trim(), step = document.getElementById('r55Step').value;
+    S.busy = true; say('Загружаю…');
+    var go = function(meta){
+      var fd = new FormData();
+      fd.append('file', file); fd.append('title', title); fd.append('step', step);
+      fd.append('w', meta.w || 0); fd.append('h', meta.h || 0); fd.append('dur', meta.dur || 0);
+      if(!window.BSSync || !BSSync.upload){ S.busy = false; say('Нет связи с сервером', true); return; }
+      BSSync.upload('/sales/funnel/videos', fd, {}, function(p){ S.msg = 'Загружаю… ' + Math.round(p * 100) + '%'; var m = document.querySelector('#r55Fv .fv-msg'); if(m) m.textContent = S.msg; })
+        .then(function(r){ S.busy = false; if(r.status === 200){ say('Видео загружено' + (step ? ' и назначено на шаг' : '. Выберите шаг, чтобы бот его присылал')); window.r55FvLoad(); } else say((r.j && (r.j.message || r.j.error)) || 'Сервер ответил ' + r.status, true); },
+              function(){ S.busy = false; say('Нет связи с сервером', true); });
+    };
+    // длительность и размер кадра для Telegram: из самого файла
+    try{
+      var v = document.createElement('video'), url = URL.createObjectURL(file), done = false;
+      var fin = function(meta){ if(done) return; done = true; URL.revokeObjectURL(url); go(meta); };
+      v.preload = 'metadata';
+      v.onloadedmetadata = function(){ fin({w: v.videoWidth, h: v.videoHeight, dur: Math.round(v.duration || 0)}); };
+      v.onerror = function(){ fin({}); };
+      setTimeout(function(){ fin({}); }, 4000);
+      v.src = url;
+    }catch(err){ go({}); }
+  };
+})();
+</script>
 </body>
 </html>
