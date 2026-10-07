@@ -1,0 +1,8 @@
+{
+ "at": "2026-10-07T10:51:45Z",
+ "subscription_error": [
+  401,
+  "{\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission user_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"b52c0d2ec0e6500fef33f41b80676f56\"}}"
+ ],
+ "error": "ElevenLabs plan is None: a paid plan is required (library voices, commercial license)"
+}
