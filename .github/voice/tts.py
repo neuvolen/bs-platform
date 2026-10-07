@@ -98,19 +98,39 @@ def find_voice(query, add_name, acc):
         acc.setdefault("warnings", []).append("GET /v1/voices %s %s" % (st, short(mine)))
     st, lib = el("GET", "/v1/shared-voices", {"search": query, "page_size": "30"})
     if st != 200:
-        raise SystemExit("voice library search failed: %s %s" % (st, short(lib)))
+        acc.setdefault("warnings", []).append("GET /v1/shared-voices via server %s %s" % (st, short(lib)))
+        lib = public_library(query, acc)
     cands = [v for v in lib.get("voices", []) if (v.get("name") or "").lower().startswith(q)]
+    if not cands and q in KNOWN:
+        return KNOWN[q], query, "known library id (library search unavailable)"
     if not cands:
         raise SystemExit("voice %r not found in the account or the library" % query)
     # «Stanislav - Deep, Empathetic and Warm» first, then by usage
     cands.sort(key=lambda v: (("deep" not in (v.get("name") or "").lower()) + ("warm" not in (v.get("name") or "").lower()),
                               -(v.get("cloned_by_count") or 0)))
     v = cands[0]
-    acc.setdefault("library_candidates", [{"name": c.get("name"), "voice_id": c.get("voice_id"), "language": c.get("language")} for c in cands[:5]])
+    acc.setdefault("library_candidates", [{"name": c.get("name"), "voice_id": c.get("voice_id"), "language": c.get("language"),
+                                           "accent": c.get("accent")} for c in cands[:5]])
     st, added = el("POST", "/v1/voices/add/%s/%s" % (v["public_owner_id"], v["voice_id"]), body={"new_name": add_name})
-    if st != 200:
-        raise SystemExit("adding library voice %s failed: %s %s" % (v.get("name"), st, short(added)))
-    return added.get("voice_id") or v["voice_id"], v.get("name"), "library→account"
+    if st == 200:
+        return added.get("voice_id") or v["voice_id"], v.get("name"), "library→account"
+    # a key without «Voices: Write»: paid plans read library voices by their id
+    acc.setdefault("warnings", []).append("add library voice %s %s (using the library id directly)" % (st, short(added)))
+    return v["voice_id"], v.get("name"), "library id (not added: key lacks voices_write)"
+
+
+KNOWN = {"stanislav": "ogi2DyUAKJb7CEdqqvlU"}  # «Stanislav - Deep, Empathetic and Warm»
+
+
+def public_library(query, acc):
+    """The Voice Library search without a key, straight from the runner."""
+    u = "https://api.elevenlabs.io/v1/shared-voices?" + urllib.parse.urlencode({"search": query, "page_size": 30})
+    try:
+        with urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "bs-voicepipe"}), timeout=30) as r:
+            return json.load(r)
+    except Exception as e:
+        acc.setdefault("warnings", []).append("keyless library search: %s" % e)
+        return {"voices": []}
 
 
 def words_from(al):
