@@ -1,0 +1,26 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {
+  "stability": 0.42,
+  "similarity": 0.8,
+  "style": 0.35,
+  "speed": 1.0,
+  "speaker_boost": true
+ },
+ "context": false,
+ "lines": [
+  {
+   "id": "y01",
+   "text": "Двести сорок шесть месяцев. Двадцать с половиной лет."
+  },
+  {
+   "id": "g01",
+   "text": "Но за год квартира подорожала на два и три десятых миллиона."
+  },
+  {
+   "id": "p01",
+   "text": "За год квартира дорожала быстрее, чем росла копилка."
+  }
+ ]
+}
