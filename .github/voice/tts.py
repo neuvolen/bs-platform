@@ -237,9 +237,16 @@ def main():
     acc = account(out_root)
     ok = True
     try:
-        if acc.get("tier") in (None, "free"):
-            raise SystemExit("ElevenLabs plan is %r: a paid plan is required (library voices, commercial license)" % acc.get("tier"))
         platform_target(acc)
+        # the key may lack «User: Read» (no tier): a library voice reading
+        # (200) means a paid plan; 402 paid_plan_required means free
+        pt = acc["platform_target"]
+        if acc.get("tier") == "free" or (pt.get("probe_status") == 402 and "paid_plan" in pt.get("probe_error", "")):
+            raise SystemExit("ElevenLabs plan is free: a paid plan is required (library voices, commercial license)")
+        if acc.get("tier") is None:
+            acc["tier"] = "paid (inferred: library voice reads; tier unknown, key lacks user_read)" if pt.get("readable") else None
+            if acc["tier"] is None:
+                raise SystemExit("cannot tell the plan: subscription unreadable and the library probe failed: %s" % pt.get("probe_error"))
         cache = {}
         q = DEFAULT_QUERY
         cache[q] = find_voice(q, DEFAULT_NAME, acc)
