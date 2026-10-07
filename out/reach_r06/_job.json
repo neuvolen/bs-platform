@@ -1,0 +1,73 @@
+{
+ "job": "reach_r06",
+ "job_sha256": "8cb2c835810668886f802e03e631516d4d3071da5e73263c1979d157429904b7",
+ "run_id": "37611698324",
+ "jobs_sha": "4df818273f29546f60d438f8650246657b2dfbcc",
+ "ok": true,
+ "lines": [
+  {
+   "id": "b01",
+   "chars": 64,
+   "words": 10,
+   "duration": 3.437
+  },
+  {
+   "id": "b02",
+   "chars": 15,
+   "words": 4,
+   "duration": 0.882
+  },
+  {
+   "id": "b03",
+   "chars": 64,
+   "words": 9,
+   "duration": 3.947
+  },
+  {
+   "id": "b04",
+   "chars": 61,
+   "words": 7,
+   "duration": 3.947
+  },
+  {
+   "id": "b05",
+   "chars": 64,
+   "words": 9,
+   "duration": 3.065
+  },
+  {
+   "id": "b06",
+   "chars": 34,
+   "words": 7,
+   "duration": 2.368
+  },
+  {
+   "id": "b07",
+   "chars": 44,
+   "words": 8,
+   "duration": 3.251
+  },
+  {
+   "id": "b08",
+   "chars": 39,
+   "words": 5,
+   "duration": 2.136
+  },
+  {
+   "id": "b09",
+   "chars": 74,
+   "words": 9,
+   "duration": 3.622
+  }
+ ],
+ "chars": 459,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.42,
+  "similarity_boost": 0.8,
+  "style": 0.25,
+  "use_speaker_boost": true,
+  "speed": 1.12
+ }
+}
