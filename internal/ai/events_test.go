@@ -82,14 +82,14 @@ func TestSearchRetriesOverloadAndExplainsErrors(t *testing.T) {
 	mode = "quota"
 	n.Store(0)
 	_, err = c.FindEvents(context.Background(), 21, time.Now())
-	if err == nil || FriendlyError(err) != GeminiNoFreeMessage || n.Load() != 1 {
+	if err == nil || FriendlyError(err) != GeminiSearchQuotaMessage || n.Load() != 1 {
 		t.Fatalf("quota: %v / %s calls=%d", err, FriendlyError(err), n.Load())
 	}
 	// R32d: the quota is not asked again until it is back
 	if _, err = c.FindEvents(context.Background(), 21, time.Now()); !IsQuota(err) || n.Load() != 1 {
 		t.Fatalf("closed quota called: %v calls=%d", err, n.Load())
 	}
-	c.SetQuotaUntil("gemini", time.Time{})
+	c.SetQuotaUntil("gemini-search", time.Time{})
 	mode = "badkey"
 	n.Store(0)
 	_, err = c.FindEvents(context.Background(), 21, time.Now())

@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -276,5 +277,50 @@ func TestR56SelfTest(t *testing.T) {
 	if !strings.HasPrefix(lines[0], "gemini selftest gemini-3.8-flash: 429 no-quota-id ? (billing, details=none)") ||
 		!strings.HasPrefix(lines[1], "gemini selftest gemini-3.5-flash-lite: 503 This model is currently experiencing high demand") {
 		t.Fatalf("lines: %q", lines)
+	}
+}
+
+// Prod 07.10.2026 08:03: the morning events search (google_search tool) got
+// a bare 429 on both models a minute after both answered the self-test. Only
+// the search closes; text tasks keep Gemini and the owner is not told.
+func TestR56SearchQuotaClosesOnlySearch(t *testing.T) {
+	SearchBackoff = []time.Duration{time.Millisecond}
+	defer func() { SearchBackoff = []time.Duration{4 * time.Second, 12 * time.Second} }()
+	var searches, texts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := new(strings.Builder)
+		_, _ = io.Copy(buf, r.Body)
+		if strings.Contains(buf.String(), "google_search") {
+			searches.Add(1)
+			w.WriteHeader(429)
+			_, _ = w.Write([]byte(`{"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details.","status":"RESOURCE_EXHAUSTED","details":[{"@type":"type.googleapis.com/google.rpc.Help","links":[{"description":"Learn more","url":"https://ai.google.dev/gemini-api/docs/rate-limits"}]}]}}`))
+			return
+		}
+		texts.Add(1)
+		_, _ = w.Write([]byte(r56OK))
+	}))
+	defer srv.Close()
+	c := r56Client(srv, "gemini-3.5-flash-lite")
+	var told atomic.Int32
+	c.OnQuota = func(*QuotaError) { told.Add(1) }
+	for i := 0; i < 2; i++ {
+		_, err := c.Search(context.Background(), "events")
+		if err == nil || UserMessage(err) != GeminiSearchQuotaMessage {
+			t.Fatalf("search: %v", err)
+		}
+	}
+	if searches.Load() != 1 {
+		t.Fatalf("closed search asked %d times", searches.Load())
+	}
+	ans, err := c.Text(context.Background(), "s", "p")
+	if err != nil || ans != "ок" || texts.Load() != 1 {
+		t.Fatalf("text: %q %v", ans, err)
+	}
+	if !c.QuotaUntil("gemini").IsZero() || !c.QuotaUntil("gemini-lite").IsZero() || c.QuotaUntil("gemini-search").IsZero() || c.Paused() {
+		t.Fatal("the search refusal paused text")
+	}
+	time.Sleep(20 * time.Millisecond)
+	if told.Load() != 0 {
+		t.Fatal("owner told about the search")
 	}
 }

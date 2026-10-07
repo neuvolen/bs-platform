@@ -58,6 +58,10 @@ const GeminiQuotaMessage = "Закончился бесплатный лимит
 // balance is used up. It does not come back by itself.
 const GeminiNoFreeMessage = "У проекта Google нет бесплатного лимита Gemini для этого ключа (или закончился его баланс). Откройте aistudio.google.com → Usage and limits / Billing. Gemini на паузе на несколько часов"
 
+// GeminiSearchQuotaMessage (R56): Google refused the web search tool
+// (grounding has its own quota); plain Gemini answers go on.
+const GeminiSearchQuotaMessage = "Поиск Google через Gemini сейчас недоступен (лимит поиска у ключа Gemini). Обычные ответы ИИ работают; поиск попробует снова позже"
+
 // AllPausedMessage: no provider can answer (R42: every free limit is used up).
 const AllPausedMessage = "ИИ временно на паузе: у Claude нет баланса, а бесплатные лимиты на сегодня закончились. Лимиты восстановятся сами"
 
@@ -65,6 +69,8 @@ func quotaMessage(service string) string {
 	switch service {
 	case "gemini", "gemini-lite", "tts":
 		return GeminiQuotaMessage
+	case "gemini-search":
+		return GeminiSearchQuotaMessage
 	case "groq", "openrouter":
 		return "Закончился бесплатный лимит " + ProviderLabel(service) + " на сегодня. Он восстановится сам"
 	case "openai":
@@ -328,7 +334,7 @@ func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 				msg += " [" + d + "]"
 			}
 		}
-		if service == "gemini" || service == "gemini-lite" {
+		if strings.HasPrefix(service, "gemini") {
 			// R56: one compact line with what Google named (quota id, value, model, retry)
 			line := c.quotaLine(service, q)
 			if he != nil {
@@ -344,7 +350,8 @@ func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 	}
 	// The owner hears about a long pause once (OnQuota dedupes by day); a
 	// per-minute limit is not worth a message.
-	if wasOpen && (daily || billing) && c.OnQuota != nil {
+	// R56: a closed web search alone is not worth a message (text goes on)
+	if wasOpen && (daily || billing) && c.OnQuota != nil && service != "gemini-search" {
 		go c.OnQuota(qe)
 	}
 	return qe

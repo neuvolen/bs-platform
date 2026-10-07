@@ -149,7 +149,8 @@ func TestR32cNoFallbackCleanMessage(t *testing.T) {
 	SearchBackoff = []time.Duration{time.Millisecond, time.Millisecond}
 	for i := 0; i < 4; i++ {
 		_, err := c.Search(context.Background(), "recs")
-		if err == nil || err.Error() != GeminiNoFreeMessage || UserMessage(err) != GeminiNoFreeMessage || FriendlyError(err) != GeminiNoFreeMessage {
+		// R56: a refused search closes only the search (its own quota at Google)
+		if err == nil || err.Error() != GeminiSearchQuotaMessage || UserMessage(err) != GeminiSearchQuotaMessage || FriendlyError(err) != GeminiSearchQuotaMessage {
 			t.Fatalf("message: %v", err)
 		}
 		_, err = c.JSON(context.Background(), "s", "p")
@@ -157,7 +158,7 @@ func TestR32cNoFallbackCleanMessage(t *testing.T) {
 			t.Fatalf("json: %v", err)
 		}
 	}
-	if f.gem.Load() != 1 {
+	if f.gem.Load() != 2 { // one search, one text
 		t.Fatalf("Gemini hammered: %d", f.gem.Load())
 	}
 	if !c.Paused() {

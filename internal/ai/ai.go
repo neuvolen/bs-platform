@@ -900,7 +900,9 @@ func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
 	for _, m := range ms {
 		var ans string
 		var err error
-		if q := c.quotaClosed(m); q != nil {
+		if q := c.quotaClosed("gemini-search"); q != nil && m == "gemini" {
+			err = q
+		} else if q := c.quotaClosed(m); q != nil {
 			err = q
 		} else if ke := c.keyClosed(m); ke != nil && m != "claude" {
 			err = ke
@@ -951,8 +953,39 @@ func (c *Client) noteGeminiSearch(err error) {
 	c.noteSearch(si)
 }
 
+// geminiSearchCall (R56, prod 07.10.2026): a request with the google_search
+// tool has its own quota at Google (grounding): the morning events search got
+// a bare 429 «check your plan and billing» on both models while a plain
+// request a minute earlier was answered. That refusal used to pause all of
+// Gemini for 6 hours; now it closes only "gemini-search" (the search goes on
+// with Claude or says so), and text tasks keep Gemini.
+func (c *Client) geminiSearchCall(ctx context.Context, body any) ([]byte, error) {
+	if ke := c.keyClosed("gemini"); ke != nil {
+		return nil, ke
+	}
+	if q := c.quotaClosed("gemini-search"); q != nil {
+		return nil, q
+	}
+	for try := 0; ; try++ {
+		b, err := c.gemPost(ctx, c.geminiModel(), "generateContent", body)
+		if q := c.noteQuota("gemini-search", err); q != nil {
+			return nil, q
+		}
+		if ke := c.noteBadKey("gemini", err); ke != nil {
+			return nil, ke
+		}
+		if err == nil || try > 0 {
+			return b, err
+		}
+		he, retired := retiredModel(err)
+		if !retired || !c.switchGeminiModel(ctx, he) {
+			return b, err
+		}
+	}
+}
+
 func (c *Client) geminiSearch(ctx context.Context, prompt string) (string, error) {
-	b, err := c.geminiCall(ctx, "generateContent", map[string]any{
+	b, err := c.geminiSearchCall(ctx, map[string]any{
 		"contents": []map[string]any{{"role": "user", "parts": []map[string]any{{"text": prompt}}}},
 		"tools":    []map[string]any{{"google_search": map[string]any{}}},
 	})
