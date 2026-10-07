@@ -1,0 +1,61 @@
+{
+ "job": "r3b_quiz",
+ "job_sha256": "8d5bd79971717ca87e48e139e280f7cad9d109d750d44c746d8d57d279adf715",
+ "run_id": "37670952356",
+ "jobs_sha": "264cc9eca10a830936742297d9cde88bef91c6c5",
+ "ok": true,
+ "lines": [
+  {
+   "id": "l01",
+   "chars": 52,
+   "words": 6,
+   "duration": 3.92
+  },
+  {
+   "id": "l02",
+   "chars": 62,
+   "words": 7,
+   "duration": 4.64
+  },
+  {
+   "id": "l03",
+   "chars": 39,
+   "words": 6,
+   "duration": 3.44
+  },
+  {
+   "id": "l04",
+   "chars": 10,
+   "words": 2,
+   "duration": 1.52
+  },
+  {
+   "id": "l05",
+   "chars": 80,
+   "words": 14,
+   "duration": 6.24
+  },
+  {
+   "id": "l06",
+   "chars": 41,
+   "words": 6,
+   "duration": 3.36
+  },
+  {
+   "id": "l07",
+   "chars": 51,
+   "words": 7,
+   "duration": 3.76
+  }
+ ],
+ "chars": 335,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_v4",
+ "voice_settings": {
+  "stability": 0.35,
+  "similarity_boost": 0.8,
+  "style": 0.45,
+  "use_speaker_boost": true,
+  "speed": 1.06
+ }
+}

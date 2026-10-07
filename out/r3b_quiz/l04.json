@@ -1,0 +1,106 @@
+{
+ "id": "l04",
+ "text": "Раунд два!",
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_v4",
+ "voice_settings": {
+  "stability": 0.35,
+  "similarity_boost": 0.8,
+  "style": 0.45,
+  "use_speaker_boost": true,
+  "speed": 1.06
+ },
+ "duration": 1.52,
+ "words": [
+  {
+   "word": "Раунд",
+   "start": 0.0,
+   "end": 0.56,
+   "char_start": 0,
+   "clean": "Раунд"
+  },
+  {
+   "word": "два!",
+   "start": 0.64,
+   "end": 1.52,
+   "char_start": 6,
+   "clean": "два"
+  }
+ ],
+ "alignment": {
+  "characters": [
+   "Р",
+   "а",
+   "у",
+   "н",
+   "д",
+   " ",
+   "д",
+   "в",
+   "а",
+   "!"
+  ],
+  "character_start_times_seconds": [
+   0.0,
+   0.08,
+   0.16,
+   0.28,
+   0.4,
+   0.56,
+   0.64,
+   0.72,
+   0.84,
+   0.96
+  ],
+  "character_end_times_seconds": [
+   0.08,
+   0.16,
+   0.28,
+   0.4,
+   0.56,
+   0.64,
+   0.72,
+   0.84,
+   0.96,
+   1.52
+  ]
+ },
+ "normalized_alignment": {
+  "characters": [
+   "Р",
+   "а",
+   "у",
+   "н",
+   "д",
+   " ",
+   "д",
+   "в",
+   "а",
+   "!"
+  ],
+  "character_start_times_seconds": [
+   0.0,
+   0.08,
+   0.16,
+   0.28,
+   0.4,
+   0.56,
+   0.64,
+   0.72,
+   0.84,
+   0.96
+  ],
+  "character_end_times_seconds": [
+   0.08,
+   0.16,
+   0.28,
+   0.4,
+   0.56,
+   0.64,
+   0.72,
+   0.84,
+   0.96,
+   1.52
+  ]
+ }
+}
