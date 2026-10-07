@@ -22,7 +22,8 @@ import (
 // a classic script (indirect eval), the IIFE's own scope through a small
 // hook declared at the top of the IIFE (direct eval), so every name in the
 // body means what it meant. The page fetches all chunks quietly after it
-// has drawn (__LZ.pre); a call before that reads the chunk synchronously.
+// has loaded (__LZ.pre); a call before that is queued until its chunk
+// arrives (never a synchronous request).
 //
 // Functions the page calls while it starts stay as they are (lazyKeep).
 

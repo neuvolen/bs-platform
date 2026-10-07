@@ -562,19 +562,44 @@ func jsonObjectKeys(raw []byte) ([]string, error) {
 	return keys, nil
 }
 
-// lzRuntime: __LZ.f runs a function from a chunk (fetching the chunk on its
-// first use), __LZ.s keeps an IIFE's eval hook, __LZ.pre fetches all chunks
-// quietly once the page has drawn, so a click never waits for the network.
-const lzRuntime = `(function(){var U=__URLS__,S=__SCOPES__,H={},D={},T={},L=window.__LZ={n:__NCODE__,s:function(i,e){H[i]=e},log:[]};
-function tx(c){var el=document.getElementById('lzc-'+c),t=el?el.textContent:T[c];if(t==null){var x=new XMLHttpRequest();x.open('GET',U[c],false);x.send(null);if(x.status!==200||!/javascript|json/.test(x.getResponseHeader('content-type')||''))throw new Error('Не загрузилась часть платформы ('+x.status+'). Обновите страницу');t=x.responseText;L.log.push([c,Math.round(performance.now()),1])}else L.log.push([c,Math.round(performance.now()),0]);T[c]=null;return t}
+// lzRuntime: __LZ.f runs a function from a chunk, __LZ.s keeps an IIFE's
+// eval hook, __LZ.pre fetches all chunks (data files first) as soon as the
+// page has parsed, so the start's own requests keep the bandwidth (the page
+// calls none of them while it starts, see lazy_keep.go). Nothing is read
+// synchronously (R56: «Synchronous XMLHttpRequest on the main thread is
+// deprecated»): until every chunk is here, a click, a submit, a key outside
+// a field, hashchange and popstate are held (not passed to the page) and
+// played again, in order, when the chunks arrive; __LZ.when(fn) runs fn then
+// (the start's #section link); any other call that comes before its chunk is queued,
+// the chunk is fetched at once and the queued calls run in their order when
+// it arrives (that call returns undefined). A lazy data key read before its
+// file arrives is undefined. __LZ.all() returns a promise of the number of
+// code chunks, all evaluated.
+const lzRuntime = `(function(){var U=__URLS__,S=__SCOPES__,H={},D={},T={},P={},R={},Q=[],fl=0,ins=0,ok=0,HE=[],L=window.__LZ={n:__NCODE__,s:function(i,e){H[i]=e},log:[],q:0,held:0};
+function el(c){return document.getElementById('lzc-'+c)}
+function ready(c){return !!(D[c]||T[c]!=null||el(c))}
+function all(){if(ok)return 1;for(var c=0;c<U.length;c++)if(!ready(c))return 0;return ok=1}
+function tx(c){var e=el(c),t=e?e.textContent:T[c];L.log.push([c,Math.round(performance.now()),0]);T[c]=null;return t}
+function get(c,hi){if(ready(c))return Promise.resolve(1);if(P[c])return P[c];return P[c]=fetch(U[c],{credentials:'same-origin',priority:hi?'high':'low'}).then(function(r){if(!r.ok||!/javascript|json/.test(r.headers.get('content-type')||''))throw new Error('Не загрузилась часть платформы ('+r.status+'). Обновите страницу');return r.text()}).then(function(t){P[c]=0;if(!ready(c))T[c]=t;run();return 1},function(e){P[c]=0;throw e})}
+function need(c){get(c,1).catch(function(e){R[c]=(R[c]||0)+1;if(R[c]<3)return setTimeout(function(){need(c)},800*R[c]);Q=Q.filter(function(q){return q[0]!==c});run();setTimeout(function(){throw e})})}
 function ld(c){var t=tx(c);var e=S[c]?H[S[c]]:0;if(S[c]&&!e)throw new Error('lazy scope '+S[c]);t+='\n//# sourceURL='+U[c];var f=e?e(t):(0,eval)(t);D[c]=f;return f}
-L.f=function(c,i,self,args,nt){if(window.__LZ_TRACE)__LZ_TRACE(c,i,!D[c]&&T[c]==null);var f=(D[c]||ld(c))[i];return nt?Reflect.construct(f,args,nt):f.apply(self,args)};
-L.all=function(){for(var c=0;c<L.n;c++)if(!D[c])ld(c);return L.n};
-L.o=function(c,ks,e){var o={},done=0;function val(k,v){Object.defineProperty(o,k,{value:v,writable:true,configurable:true,enumerable:true})}
-function fill(){if(done)return;done=1;if(window.__LZ_TRACE)__LZ_TRACE(c,-1,T[c]==null);var v=JSON.parse(tx(c));D[c]=1;ks.forEach(function(k){if(!(k in e))val(k,v[k])})}
-ks.forEach(function(k){if(k in e)val(k,e[k]);else Object.defineProperty(o,k,{configurable:true,enumerable:true,get:function(){fill();return o[k]},set:function(x){fill();o[k]=x}})});return o};
-L.pre=function(){if(L.pre.on)return;L.pre.on=1;var c=0;(function nx(){while(c<U.length&&(D[c]||T[c]!=null))c++;if(c>=U.length)return;var k=c++;fetch(U[k],{credentials:'same-origin'}).then(function(r){return r.ok&&/javascript|json/.test(r.headers.get('content-type')||'')?r.text():null}).then(function(t){if(t!=null&&!D[k]&&T[k]==null)T[k]=t}).catch(function(){}).then(nx)})();setTimeout(function(){c=0;L.pre.on=0;},60000)};
-var cn=navigator.connection||{};if(!cn.saveData&&!/2g|3g/.test(cn.effectiveType||''))addEventListener('load',function(){setTimeout(function(){(window.requestIdleCallback||setTimeout)(L.pre,{timeout:5000})},4000)})})();`
+function call(c,i,self,args,nt){var f=(D[c]||ld(c))[i];return nt?Reflect.construct(f,args,nt):f.apply(self,args)}
+function run(){if(!fl){fl=1;try{while(Q.length&&ready(Q[0][0])){var q=Q.shift();ins=0;try{call(q[0],q[1],q[2],q[3],q[4])}catch(e){setTimeout(function(){throw e})}}}finally{fl=0}}if((HE.length||WH.length)&&all())replay()}
+L.f=function(c,i,self,args,nt){if(window.__LZ_TRACE)__LZ_TRACE(c,i,!D[c]&&T[c]==null);if(!ready(c)||(!fl&&Q.length)){var q=[c,i,self,args,nt];if(fl)Q.splice(ins++,0,q);else Q.push(q);L.q++;L.log.push([c,Math.round(performance.now()),2]);need(c);return}return call(c,i,self,args,nt)};
+L.all=function(){var a=[];for(var c=0;c<U.length;c++)a.push(get(c,1));return Promise.all(a).then(function(){for(var c=0;c<L.n;c++)if(!D[c])ld(c);run();return L.n})};
+L.o=function(c,ks,e){var o={},done=0,W={};function val(k,v){Object.defineProperty(o,k,{value:v,writable:true,configurable:true,enumerable:true})}
+function fill(){if(done)return 1;if(!ready(c)){need(c);return 0}done=1;if(window.__LZ_TRACE)__LZ_TRACE(c,-1,T[c]==null);var v=JSON.parse(tx(c));D[c]=1;ks.forEach(function(k){if(!(k in e)&&!W[k])val(k,v[k])});return 1}
+ks.forEach(function(k){if(k in e)val(k,e[k]);else Object.defineProperty(o,k,{configurable:true,enumerable:true,get:function(){return fill()?o[k]:void 0},set:function(x){W[k]=1;val(k,x);fill()}})});return o};
+L.pre=function(hi){if(L.pre.on)return;L.pre.on=1;var O=[],j=0,act=0,c;for(c=L.n;c<U.length;c++)O.push(c);for(c=0;c<L.n;c++)O.push(c);(function nx(){while(act<6){while(j<O.length&&ready(O[j]))j++;if(j>=O.length){if(!act){L.pre.on=0;if(!all()&&!U.some(function(u,k){return P[k]})){if(++L.pre.fail<3)setTimeout(L.pre,2000*L.pre.fail);else replay()}}return}act++;get(O[j++],hi||0).catch(function(){}).then(function(){act--;nx()})}})()};
+var EV=['click','dblclick','auxclick','contextmenu','submit','keydown','hashchange','popstate'],WH=[];
+L.when=function(fn){if(all())fn();else{WH.push(fn);L.pre(1)}};
+function field(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))}
+function hold(e){if(all()||L.pre.fail>=3){off();return}if(e.type==='keydown'&&(field(e.target)||/^(Shift|Control|Alt|Meta|Tab)$/.test(e.key)))return;e.preventDefault();e.stopImmediatePropagation();L.held++;HE.push([e,Date.now()]);if(e.target!==window)document.documentElement.style.cursor='progress';L.pre.on=0;L.pre(1)}
+L.pre.fail=0;
+function off(){EV.forEach(function(t){removeEventListener(t,hold,true)})}
+function replay(){off();document.documentElement.style.cursor='';var h=HE,w=WH;HE=[];WH=[];w.forEach(function(f){try{f()}catch(e){setTimeout(function(){throw e})}});h.forEach(function(x){var e=x[0],t=e.target,W=t===window;if(!t||!W&&(Date.now()-x[1]>8000||!t.isConnected))return;try{if(e.type==='submit'){t.requestSubmit?t.requestSubmit(e.submitter||undefined):t.submit();return}t.dispatchEvent(new e.constructor(e.type,e))}catch(x){}})}
+EV.forEach(function(t){addEventListener(t,hold,true)});
+if(document.readyState!=='loading')L.pre(1);else document.addEventListener('DOMContentLoaded',function(){L.pre(1)})})();`
 
 // ── Serving ──
 

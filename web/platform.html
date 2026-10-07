@@ -23160,7 +23160,7 @@ function bsBoot(){
   r8DocMigrate(); loadAll(); loadQ(); loadContacts(); loadLibs(); loadInbox(); loadPL(); loadKanban(); loadCDev(); loadSPlan(); loadCRM(); loadCrmCols(); loadScripts(); loadResLib(); loadUseful(); loadStickers(); loadMe(); loadMkt(); loadKB(); loadCal(); loadLead(); loadAchDefs(); loadTheme(); applyOrder(); startSync(); applyView();
   if(boards.length) openBoard(boards[0].id); else newBoard();
   goBlock('track');
-  goHashSection();
+  if(window.__LZ && __LZ.when) __LZ.when(goHashSection); else goHashSection(); // R56: #раздел открывается, когда части платформы здесь (без синхронной загрузки)
   window.addEventListener('hashchange', goHashSection);
   czDeepLink();
   setTimeout(fitAll, 140);
