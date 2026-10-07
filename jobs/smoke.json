@@ -1,0 +1,3 @@
+{"voice_id": "ogi2DyUAKJb7CEdqqvlU", "model": "eleven_multilingual_v2",
+ "settings": {"stability": 0.45, "similarity": 0.8, "style": 0.2, "speed": 1.0},
+ "lines": [{"id": "s01", "text": "Проверка связи."}]}
