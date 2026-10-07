@@ -1,8 +1,18 @@
 {
- "at": "2026-10-07T10:51:45Z",
+ "at": "2026-10-07T10:52:54Z",
  "subscription_error": [
   401,
-  "{\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission user_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"b52c0d2ec0e6500fef33f41b80676f56\"}}"
+  "{\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission user_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"ede5b36c80375639d0864a198aef9665\"}}"
  ],
- "error": "ElevenLabs plan is None: a paid plan is required (library voices, commercial license)"
+ "platform_target": {
+  "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+  "in_account": false,
+  "probe_status": 200,
+  "readable": true
+ },
+ "tier": "paid (inferred: library voice reads; tier unknown, key lacks user_read)",
+ "warnings": [
+  "GET /v1/voices 401 {\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission voices_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"11ce5102d4c09f80d0864a198aef9e49\"}}"
+ ],
+ "error": "voice library search failed: 401 {\"detail\": {\"type\": \"authentication_error\", \"code\": \"unauthorized\", \"message\": \"The API key you used is missing the permission voices_read to execute this operation.\", \"status\": \"missing_permissions\", \"request_id\": \"327221273455bb87d0864a198aef933c\"}}"
 }
