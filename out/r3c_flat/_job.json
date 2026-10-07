@@ -1,0 +1,67 @@
+{
+ "job": "r3c_flat",
+ "job_sha256": "02295e7e15444bca4368dfba432dbe2eda42353e0425b93daaf9810c6472a9ab",
+ "run_id": "37671541296",
+ "jobs_sha": "c8c6becaf150e11ca193e6a5b569175363391fc9",
+ "ok": true,
+ "lines": [
+  {
+   "id": "l01",
+   "chars": 52,
+   "words": 8,
+   "duration": 3.39
+  },
+  {
+   "id": "l02",
+   "chars": 60,
+   "words": 8,
+   "duration": 5.016
+  },
+  {
+   "id": "l03",
+   "chars": 33,
+   "words": 4,
+   "duration": 2.74
+  },
+  {
+   "id": "l04",
+   "chars": 49,
+   "words": 7,
+   "duration": 3.204
+  },
+  {
+   "id": "l05",
+   "chars": 57,
+   "words": 9,
+   "duration": 3.808
+  },
+  {
+   "id": "l06",
+   "chars": 58,
+   "words": 10,
+   "duration": 3.622
+  },
+  {
+   "id": "l07",
+   "chars": 29,
+   "words": 5,
+   "duration": 2.322
+  },
+  {
+   "id": "l08",
+   "chars": 32,
+   "words": 4,
+   "duration": 2.183
+  }
+ ],
+ "chars": 370,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.42,
+  "similarity_boost": 0.8,
+  "style": 0.35,
+  "use_speaker_boost": true,
+  "speed": 1.0
+ }
+}
