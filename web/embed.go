@@ -142,8 +142,8 @@ func init() {
 		_ = os.WriteFile(f, SiteManifest(), 0o644)
 	}
 	appPage = build(injectMarker(injectVoice(shell)))
-	loginHTMLBase = loginWithIcons(useOwnFonts(string(loginHTML)), shell)
-	loginPage = build(injectLoginVoice(loginHTMLBase)) // R40c: demo voice map (login_voice.go)
+	loginHTMLBase = injectScale(loginWithIcons(useOwnFonts(string(loginHTML)), shell)) // R61: real library counts
+	loginPage = build(injectLoginVoice(loginHTMLBase))                                 // R40c: demo voice map (login_voice.go)
 }
 
 // stripSeed replaces `var NAME = <json>;` lines with empty values and returns
@@ -273,8 +273,8 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	r.GET("/a/:file", func(c *gin.Context) { serveAsset(c, secret, sessionCookie) })
 	r.HEAD("/a/:file", func(c *gin.Context) { serveAsset(c, secret, sessionCookie) })
 	r.GET("/img", func(c *gin.Context) { serveImg(c, secret, sessionCookie) }) // R52: http:// pictures over https (imgproxy.go)
-	r.GET("/voice/:file", serveVoice) // voice.go: the tour's recorded phrases
-	r.GET("/promo/:file", servePromo) // promo.go: screens for the login page (R38a)
+	r.GET("/voice/:file", serveVoice)                                          // voice.go: the tour's recorded phrases
+	r.GET("/promo/:file", servePromo)                                          // promo.go: screens for the login page (R38a)
 	r.HEAD("/promo/:file", servePromo)
 	r.HEAD("/voice/:file", serveVoice)
 	r.GET("/voice/login/:file", serveLoginVoice) // login_voice.go: the login demo voice (R40c)

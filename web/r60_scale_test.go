@@ -17,10 +17,15 @@ import (
 func TestR60LoginScale(t *testing.T) {
 	tools, diag := content.RichTitles()
 	real := map[string]int{"diag": len(diag), "tools": len(tools), "ideas": content.IdeasTotal()}
-	if real["ideas"] < 1000 || real["diag"] < 50 || real["tools"] < 100 {
-		t.Fatalf("library shrank: %v, update the login page", real)
+	// the voiced demo says «больше ста семидесяти диагнозов, больше двухсот
+	// пятидесяти инструментов и больше тысячи бизнес-идей»
+	if real["ideas"] <= 1000 || real["diag"] <= 170 || real["tools"] <= 250 {
+		t.Fatalf("library shrank below the voiced demo: %v, change the demo lines", real)
 	}
-	page := string(loginHTML)
+	page := string(loginPage.plain)
+	if strings.Contains(page, "{{scale:") {
+		t.Fatal("a {{scale:...}} token left in the served page")
+	}
 	num := func(s string) int {
 		n, _ := strconv.Atoi(strings.NewReplacer("&nbsp;", "", " ", "", " ", "").Replace(s))
 		return n
@@ -35,7 +40,7 @@ func TestR60LoginScale(t *testing.T) {
 			t.Errorf("%s: page says %d, library has %d", m[1], n, real[m[1]])
 		}
 		// rounded down, never stale by more than 10%
-		if n*10 < real[m[1]]*9 {
+		if n != real[m[1]] {
 			t.Errorf("%s: page says %d, library has %d: update the number", m[1], n, real[m[1]])
 		}
 	}
@@ -59,14 +64,14 @@ func TestR60LoginScale(t *testing.T) {
 
 	// Demo order: how a разбор goes, diagnoses, the cost of not treating,
 	// tools, help with implementation, then measurements, Gallup, the group, tracking, CTA
-	tm := loginTourRe.FindSubmatch(loginHTML)
+	tm := loginTourRe.FindSubmatch(loginPage.plain)
 	var d struct {
 		Steps []struct{ T, V string } `json:"steps"`
 	}
 	if err := json.Unmarshal(tm[1], &d); err != nil {
 		t.Fatal(err)
 	}
-	order := []string{"Как проходит разбор", "Доска разбора", "Диагноз", "диагнозов", "если не лечить", "инструмента", "внедрить", "Колесо", "Gallup", "Окружение", "Трекинг", "Посмотрим"}
+	order := []string{"Как проходит разбор", "Доска разбора", "Диагноз", "диагноз", "если не лечить", "инструмент", "внедрить", "Колесо", "Gallup", "Окружение", "Трекинг", "Посмотрим"}
 	if len(d.Steps) != len(order) {
 		t.Fatalf("%d steps, want %d", len(d.Steps), len(order))
 	}
