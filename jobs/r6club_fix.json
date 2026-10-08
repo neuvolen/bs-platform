@@ -1,0 +1,10 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {"stability": 0.4, "similarity": 0.8, "style": 0.38, "speed": 1.05, "speaker_boost": true},
+ "context": true,
+ "lines": [
+  {"id": "f10", "text": "Раз в цикл замер. Видно, что реально выросло."},
+  {"id": "f13", "text": "Каждый день короткий отчёт. После разбора итоги и задачи."}
+ ]
+}
