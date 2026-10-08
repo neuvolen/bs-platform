@@ -414,13 +414,20 @@ func TestBotConnectSetsWebhook(t *testing.T) {
 	// Status.
 	e.hook(msg(3001, 9, "private", 9, "hi"))
 	e.waitRelayed(1, 3*time.Second)
-	w = e.signedPost("/api/v1/bot/status", map[string]any{})
 	var st struct {
 		ViaServer bool           `json:"viaServer"`
 		Version   string         `json:"version"`
 		Queue     map[string]any `json:"queue"`
 	}
-	_ = json.Unmarshal(w.Body.Bytes(), &st)
+	// the script got the update; the server marks it relayed right after its answer
+	for end := time.Now().Add(3 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		w = e.signedPost("/api/v1/bot/status", map[string]any{})
+		st.Queue = nil
+		_ = json.Unmarshal(w.Body.Bytes(), &st)
+		if r, _ := st.Queue["relayed24h"].(float64); r >= 1 || time.Now().After(end) {
+			break
+		}
+	}
 	if w.Code != 200 || !st.ViaServer || st.Version != "2026-09-28-4" || st.Queue["received24h"].(float64) != 1 || st.Queue["relayed24h"].(float64) != 1 {
 		t.Fatalf("status: %d %s", w.Code, w.Body.String())
 	}
