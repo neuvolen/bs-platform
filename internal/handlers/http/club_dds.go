@@ -24,6 +24,51 @@ import (
 func registerDDS(g *gin.RouterGroup, h *ClubHandler) {
 	g.GET("/dds", h.DDS)
 	g.POST("/dds", h.DDSSave)
+	g.POST("/dds/link", h.DDSLink)
+}
+
+type ddsLinkReq struct {
+	ID       int64  `json:"id"`
+	Resident string `json:"resident"`
+}
+
+// DDSLink godoc
+// @Summary  «Привязать платёж»: a resident's payment counted against their debt
+// @Description  {id, resident}: the ДДС income row is linked to the resident and pays off the rest of the entry fee, then the renewal debt (once; the row becomes «учтено»). For a payment the server could not match to a resident by name.
+// @Tags     club
+// @Security BearerAuth
+// @Router   /api/v1/club/dds/link [post]
+func (h *ClubHandler) DDSLink(c *gin.Context) {
+	var req ddsLinkReq
+	if err := c.ShouldBindJSON(&req); err != nil || req.ID <= 0 || strings.TrimSpace(req.Resident) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_params", "detail": "нужны строка ДДС и резидент"})
+		return
+	}
+	ctx := c.Request.Context()
+	if _, editable := ddsMaster(ctx, h.repo); !editable {
+		c.JSON(http.StatusConflict, gin.H{"error": "sheet_is_master", "detail": "ДДС пока только для просмотра"})
+		return
+	}
+	res, err := h.repo.LinkPayment(ctx, req.ID, req.Resident)
+	if err != nil {
+		var in *pg.ErrLinkInput
+		if errors.As(err, &in) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "bad_params", "detail": in.Msg})
+			return
+		}
+		log.Printf("dds link: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	who := platformUser(c)
+	p := map[string]string{"id": strconv.FormatInt(req.ID, 10), "resident": res.Resident, "paid": strconv.FormatInt(res.Paid, 10)}
+	if err := h.repo.LogOp(ctx, pg.ClubOp{Source: "platform", Who: who, Action: "linkPayment", Params: p, OK: true}); err != nil {
+		log.Printf("dds link log: %v", err)
+	}
+	if err := RefreshPlatformSeed(ctx, h.repo, h.platform, h.StaticSeed); err != nil {
+		log.Printf("platform seed: %v", err)
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "resident": res.Resident, "paid": res.Paid, "applied": res.Applied})
 }
 
 type ddsPLInfo struct {

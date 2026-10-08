@@ -323,9 +323,10 @@ func TestClubWritesRejectedDoubleAndNotTeam(t *testing.T) {
 	if e.count(t, `SELECT count(*) FROM club_fines WHERE resident = 'Альтаир'`) != 0 || e.count(t, `SELECT count(*) FROM club_writes WHERE NOT applied AND tg_id = 478757502`) != 1 {
 		t.Fatal("a resident's write is passed on, not applied")
 	}
-	// A meeting done: one more meeting, «Лог встреч», the package ends → renewal debt.
+	// A meeting done: one more meeting, «Лог встреч», the package ends → renewal debt,
+	// the counter starts again (R59: 3/3 → 0/3).
 	e.call(453800951, "confirmMeeting", "res", "Альтаир", "date", "01.10", "time", "15:00")
-	if e.count(t, `SELECT count(*) FROM club_residents WHERE name = 'Альтаир' AND meetings_done = 3 AND renew_debt = 100000`) != 1 ||
+	if e.count(t, `SELECT count(*) FROM club_residents WHERE name = 'Альтаир' AND meetings_done = 0 AND renew_debt = 100000`) != 1 ||
 		e.count(t, `SELECT count(*) FROM club_meeting_log WHERE resident = 'Альтаир'`) != 1 {
 		t.Fatal("confirmMeeting")
 	}
@@ -530,7 +531,9 @@ func TestClubResidentPaymentExtendsPackage(t *testing.T) {
 	case t0 < 400000:
 		months = 1
 	}
-	if t1, g1, d1 := row(); t1 != t0 || d1 != 0 || g1 != months*3*2+g0-d0 {
+	// R59: the payment first pays off the debt (Асет owes 50 000 of the entry fee),
+	// only what is over extends the package
+	if t1, g1, d1 := row(); t1 != t0 || d1 != 0 || g1 != months*3*((2*t0-50000)/t0)+g0-d0 {
 		t.Fatalf("after payment: tariff %d granted %d done %d (was %d %d %d)", t1, g1, d1, t0, g0, d0)
 	}
 }

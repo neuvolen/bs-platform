@@ -10151,11 +10151,64 @@ function renderAIRec(){
 
 // ═══ КАЛЕНДАРЬ РЕЗИДЕНТА ═══
 var MYCAL = null;
+// R59: календарь у каждого резидента свой (bs_mycal в его личной области, тот же, что в приложении).
+// У команды раньше был один календарь на всех (общий bs_mycal клуба): открыли другого резидента,
+// а в календаре отметки прежнего. Теперь команда видит и правит календарь резидента открытого разбора
+// (/platform/mycal?name=), сам резидент как раньше, свой
+var MYCAL_FOR = null, MYCAL_VER = 0, MYCAL_ST = '', MYCAL_T = 0;
+function calTeam(){ try{ return !!(window.BSSync && BSSync.online() && !BSSync.isResident()); }catch(e){ return false; } }
+function calWho(){ return (typeof curBoard !== 'undefined' && curBoard && curBoard.info && curBoard.info.res) ? String(curBoard.info.res).trim() : ''; }
+function calNorm(v){
+  var o = null; try{ o = typeof v === 'string' ? JSON.parse(v || '{}') : v; }catch(e){}
+  if(!o || typeof o !== 'object' || Array.isArray(o)) o = {};
+  if(!o.slots || typeof o.slots !== 'object' || Array.isArray(o.slots)) o.slots = {};
+  if(!o.notes || typeof o.notes !== 'object' || Array.isArray(o.notes)) o.notes = {};
+  return o;
+}
 function loadCal(){
+  if(calTeam()) return; // команда: календарь резидента приходит с сервера, когда его открывают
   try{ MYCAL = JSON.parse(localStorage.getItem('bs_mycal')||'null'); }catch(e){}
   if(!MYCAL) MYCAL = {slots:{}};
+  MYCAL_FOR = '';
 }
-function saveCal(){ try{ localStorage.setItem('bs_mycal', JSON.stringify(MYCAL)); }catch(e){} }
+function calFetch(who){
+  BSSync.api('GET', '/mycal?name=' + encodeURIComponent(who)).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(j){ return {st: r.status, j: j}; });
+  }).then(function(x){
+    if(MYCAL_FOR !== who) return; // пока грузили, открыли другого резидента
+    if(x.st === 200){ MYCAL = calNorm(x.j.value); MYCAL_VER = Number(x.j.version) || 0; MYCAL_ST = ''; }
+    else MYCAL_ST = x.st === 404 ? 'none' : 'err';
+    if(typeof section !== 'undefined' && section === 'mycal') renderMyCal();
+  }, function(){ if(MYCAL_FOR === who){ MYCAL_ST = 'err'; if(section === 'mycal') renderMyCal(); } });
+}
+function calPut(who, again){
+  var body = {value: JSON.stringify(MYCAL), version: MYCAL_VER};
+  BSSync.api('PUT', '/mycal?name=' + encodeURIComponent(who), body).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(j){
+      if(MYCAL_FOR !== who) return;
+      if(r.status === 200){ MYCAL_VER = Number(j.version) || MYCAL_VER; return; }
+      if(r.status === 409 && !again){
+        // календарь изменили в приложении: берём их отметки и кладём сверху свои
+        var v = calNorm(j.value);
+        Object.keys(MYCAL.slots).forEach(function(k){ v.slots[k] = MYCAL.slots[k]; });
+        Object.keys(MYCAL.notes || {}).forEach(function(k){ v.notes[k] = MYCAL.notes[k]; });
+        MYCAL = v; MYCAL_VER = Number(j.version) || 0; calPut(who, true);
+        if(section === 'mycal') renderMyCal();
+        return;
+      }
+      toast('Календарь не сохранился, попробуйте ещё раз');
+    });
+  }, function(){ toast('Нет связи: календарь не сохранился'); });
+}
+function saveCal(){
+  if(calTeam()){
+    var who = MYCAL_FOR;
+    if(!who || MYCAL_ST) return;
+    clearTimeout(MYCAL_T); MYCAL_T = setTimeout(function(){ calPut(who); }, 400);
+    return;
+  }
+  try{ localStorage.setItem('bs_mycal', JSON.stringify(MYCAL)); }catch(e){}
+}
 var calMode = 'week', calOffset = 0;
 var CAL_TYPES = [
   {id:'work', n:'Работа', c:'#FFFFFF'},
@@ -10167,8 +10220,18 @@ var CAL_TYPES = [
 var calType = 'work';
 
 function renderMyCal(){
-  if(!MYCAL) loadCal();
-  var el = pgSet('Мой календарь', 'Планируйте цикл и отмечайте занятость');
+  if(calTeam()){
+    var who = calWho();
+    if(MYCAL_FOR !== who){ MYCAL_FOR = who; MYCAL = {slots:{}, notes:{}}; MYCAL_VER = 0; MYCAL_ST = who ? 'load' : 'none'; if(who) calFetch(who); }
+    if(MYCAL_ST){
+      var e0 = pgSet('Календарь · ' + (who || 'резидент'), 'У каждого резидента свой календарь');
+      e0.innerHTML = '<div class="pf-empty">' + (!who ? 'Откройте разбор резидента: календарь покажется его' :
+        MYCAL_ST === 'load' ? 'Загружаю календарь…' : MYCAL_ST === 'none' ? 'У резидента нет входа через Telegram: календарь появится, когда он войдёт' :
+        'Календарь не загрузился. <span class="pf-link" onclick="MYCAL_FOR=null;renderMyCal()">Повторить</span>') + '</div>';
+      return;
+    }
+  } else if(!MYCAL) loadCal();
+  var el = pgSet(calTeam() ? 'Календарь · ' + MYCAL_FOR : 'Мой календарь', 'Планируйте цикл и отмечайте занятость');
   var HOURS = [];
   for(var hh=7; hh<=23; hh++) HOURS.push(hh);
   var base = new Date();
@@ -10280,7 +10343,7 @@ function delSlotNote(k){
 }
 function clearCal(){
   askConfirm('Очистить календарь?', 'Все отметки будут удалены', function(){
-    MYCAL.slots = {}; saveCal(); renderMyCal();
+    MYCAL.slots = {}; MYCAL.notes = {}; saveCal(); renderMyCal();
   });
 }
 function toggleSlot(k){
@@ -32431,13 +32494,16 @@ function trackData(){
 }
 function trackKpi(){
   var D = trackData(), no = Math.max(0, D.act - D.cyc);
+  // R59: «Резиденты в цикле», «Здоровье бизнеса» и «Задачи просрочены» только в «Карте диагнозов» (просьба владельца);
+  // на вкладке «Резиденты» и других вкладках трекинга остаются «Замеры за 30 дней»
+  var diag = typeof section !== 'undefined' && section === 'diagMap';
   return [
     {k: 'cyc', c: 'c-in', l: 'Резиденты в цикле', v: nf(D.cyc) + '<small>из ' + nf(D.act) + '</small>', s: no ? 'без разбора ' + no : 'у всех есть разбор', go: "goSection('boards')"},
     {k: 'health', c: 'c-pro', l: 'Здоровье бизнеса', v: D.hN ? nf(D.h) + '<small>из 100</small>' : '0', d: D.hN ? dchip(D.h, D.hPrev, true, 'к прошлому циклу') : '',
       s: D.hN ? 'среднее, оценено у ' + D.hN + ' из ' + D.cyc : 'трекеры ещё не оценили', go: "goSection('diagMap')"},
     {k: 'over', c: 'c-out', l: 'Задачи просрочены', v: nf(D.over), cls: D.over ? 'neg' : '', s: D.over ? 'у ' + D.overRes + ' ' + pl(D.overRes, 'резидента', 'резидентов', 'резидентов') + ' · открыто ' + nf(D.open) : 'всё в срок · открыто ' + nf(D.open), go: "goSection('boards')"},
     {k: 'meas', c: 'c-cash', l: 'Замеры за 30 дней', v: nf(D.meas) + '<small>из ' + nf(D.measAll) + '</small>', s: D.measAll - D.meas ? 'не обновлялись ' + (D.measAll - D.meas) : 'все свежие', go: "goSection('boards')"}
-  ];
+  ].filter(function(x){ return diag || x.k === 'meas'; });
 }
 function evWeek(){
   if(typeof MKT === 'undefined' || !MKT){ try{ loadMkt(); }catch(e){} }
@@ -32478,7 +32544,7 @@ BK_EXT.badge = function(id){
   if(id === 'kanban'){ var d = libData(); return d.od ? {n: d.od, red: 1} : (d.work ? {n: d.work} : null); }
   if(id === 'notes'){ var n = ((typeof INBOX !== 'undefined' && INBOX) || []).filter(function(x){ return x && x.status === 'new'; }).length; return n ? {n: n} : null; }
   if(id === 'events'){ var e = evWeek(); return e.ours + e.feed ? {n: e.ours + e.feed} : null; }
-  if(id === 'boards'){ var t = trackData(); return t.over ? {n: t.over, red: 1} : null; }
+  if(id === 'boards') return null; // R59: просроченные задачи считаются только в «Карте диагнозов»
   return undefined;
 };
 
@@ -39166,5 +39232,103 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
 .cl57-fu.on .cl57-b{flex-shrink:0}
 @media(max-width:700px){.cl57-btn span{display:none}.cl57{top:auto;bottom:12px;right:12px;left:12px;width:auto}}
 </style>
+<!-- R59: оплаты резидента в его карточке, «Учесть в долге» и «Привязать платёж» для оплат, которые сервер не узнал по имени -->
+<style id="r59Style">
+.r59p .pf-li{gap:10px}
+.r59p .r59-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.r59p .r59-c{flex:1;min-width:0;color:var(--ptx);font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r59p .r59-s{font-size:11.5px;font-weight:700;color:var(--pm)}
+.r59p .r59-s.ok{color:var(--pgreen,#3DD68C)}
+.r59p .r59-s.no{color:var(--pred)}
+.r59p .r59-b{font-size:12px;padding:5px 10px;min-height:0}
+.r59p .r59-h{font-size:12px;color:var(--pm);line-height:1.45;margin:2px 0 6px}
+</style>
+<script id="r59Script">
+(function(){
+  'use strict';
+  function e(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
+  function nm(s){ return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim(); }
+  function tg(v){ return (money(String(v || 0)) || '0') + ' ₸'; }
+  function dmy(d){ var p = String(d || '').split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : String(d || ''); }
+  function fine(r){ return /штраф/i.test(r.incomeCat || ''); }
+  var cache = null, at = 0;
+  function load(force){
+    if(!window.BSSync || !BSSync.clubApi) return Promise.resolve(null);
+    if(!force && cache && Date.now() - at < 20000) return Promise.resolve(cache);
+    return BSSync.clubApi('GET', '/dds').then(function(r){ return r.ok ? r.json() : null; }).then(function(j){ if(j && j.rows){ cache = j; at = Date.now(); } return j; }, function(){ return null; });
+  }
+  // Оплата этого резидента: то же имя (регистр, ё/е не важны) или только имя без фамилии
+  function mine(r, name){
+    var a = nm(r.resident), b = nm(name);
+    return !!a && (a === b || (a.indexOf(' ') < 0 && b.split(' ')[0] === a));
+  }
+  function known(r, all){ return all.some(function(n){ return mine(r, n); }); }
+  function paint(name){
+    var host = document.getElementById('r59Pay'); if(!host) return;
+    load().then(function(j){
+      if(!j || !document.getElementById('r59Pay') || host.dataset.name !== name) return;
+      var rows = (j.rows || []).filter(function(r){ return r.income > 0; });
+      var all = (window.RESIDENTS || []).map(function(r){ return r.name; });
+      var my = rows.filter(function(r){ return mine(r, name); }).sort(function(a, b){ return a.date < b.date ? 1 : -1; }).slice(0, 12);
+      var lim = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
+      var lost = rows.filter(function(r){ return !r.applied && !fine(r) && r.date >= lim && !known(r, all) && (r.resident || /бх|трекинг|резидент/i.test(r.incomeCat || '')); })
+        .sort(function(a, b){ return a.date < b.date ? 1 : -1; }).slice(0, 8);
+      var editable = !!j.editable;
+      var line = function(r, btn){
+        var st = fine(r) ? '<span class="r59-s">штраф</span>' : (r.applied ? '<span class="r59-s ok">учтено в долге</span>' : '<span class="r59-s no">не учтено в долге</span>');
+        return '<div class="pf-li"><div class="r59-r"><span class="pf-ld">' + e(dmy(r.date)) + '</span><span class="r59-c">' + e(r.incomeCat || 'Приход') + (r.resident && !mine(r, name) ? ' · ' + e(r.resident) : '') + '</span>' +
+          '<b>' + e(tg(r.income)) + '</b>' + (btn === 'Привязать платёж' ? '' : st) + (btn && editable ? '<button type="button" class="btn pf-b r59-b" data-r59l="' + r.id + '" data-r59a="' + e(tg(r.income)) + '" data-r59d="' + e(dmy(r.date)) + '">' + btn + '</button>' : '') + '</div></div>';
+      };
+      var h = '<div class="pf-lbl">Оплаты</div>' + (my.length ? my.map(function(r){ return line(r, !r.applied && !fine(r) ? 'Учесть в долге' : ''); }).join('') : '<div class="r59-h">Оплат в ДДС пока нет</div>');
+      if(lost.length) h += '<div class="pf-lbl" style="margin-top:12px">Оплаты без резидента</div><div class="r59-h">Имя в ДДС не совпало ни с одним резидентом. Если это оплата ' + e(name) + ', привяжите её: сумма уйдёт в погашение долга</div>' +
+        lost.map(function(r){ return line(r, 'Привязать платёж'); }).join('');
+      host.innerHTML = h;
+    });
+  }
+  function link(id, name, amount, date, btn){
+    askConfirm('Учесть оплату в долге?', amount + ' от ' + date + ' погасит долг ' + name + ': сначала остаток входа, затем продление', function(){
+      btn.disabled = true;
+      BSSync.clubApi('POST', '/dds/link', {id: Number(id), resident: name}).then(function(r){ return r.json().catch(function(){ return {}; }); }).then(function(j){
+        btn.disabled = false;
+        if(!j || !j.ok){ toast((j && j.detail) || 'Не получилось привязать'); return; }
+        toast(j.paid ? 'Учтено в долге: ' + tg(j.paid) : 'Привязано. Долга нет, сумма записана как оплата');
+        cache = null;
+        var re = function(){ var i = (window.RESIDENTS || []).findIndex(function(x){ return x.name === name; }); var cs = document.getElementById('cardSheet'); if(i >= 0 && cs && cs.classList.contains('on')) openResident(i); };
+        try{ BSSync.refresh().then(re, re); }catch(x){ re(); }
+      }, function(){ btn.disabled = false; toast('Нет связи с сервером'); });
+    }, 'Учесть');
+  }
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('[data-r59l]'); if(!b) return;
+    var host = b.closest('#r59Pay'); if(!host) return;
+    link(b.dataset.r59l, host.dataset.name, b.dataset.r59a, b.dataset.r59d, b);
+  });
+  if(typeof OPS_NAMES !== 'undefined') OPS_NAMES.linkPayment = 'Оплата учтена в долге';
+  if(typeof openResident === 'function'){
+    var or0 = openResident;
+    openResident = window.openResident = function(i){
+      var out = or0.apply(this, arguments);
+      try{
+        var res = (window.RESIDENTS || [])[i];
+        if(res && typeof bsIsTeam === 'function' && bsIsTeam()){
+          var cb = document.getElementById('cardBody'), old = document.getElementById('r59Pay');
+          if(old) old.remove();
+          if(cb){
+            var d = document.createElement('div'); d.id = 'r59Pay'; d.className = 'pf-card r59p'; d.dataset.name = res.name;
+            d.innerHTML = '<div class="pf-lbl">Оплаты</div><div class="r59-h">Загружаю…</div>';
+            // сразу под долгом и пакетом встреч, чтобы оплаты были рядом с суммой долга
+            var pk = document.getElementById('resPack'), acts = cb.querySelector(':scope > .cd-acts');
+            if(pk && pk.parentNode === cb) cb.insertBefore(d, pk.nextSibling); else cb.insertBefore(d, acts || null);
+            paint(res.name);
+          }
+        }
+      }catch(x){}
+      return out;
+    };
+  }
+  window.r59Pay = {load: load, paint: paint};
+})();
+</script>
+<!-- /R59 -->
 </body>
 </html>

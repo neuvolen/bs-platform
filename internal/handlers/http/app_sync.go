@@ -173,52 +173,29 @@ func (g *AppGateway) MyTests(c *gin.Context) {
 }
 
 // MyCal: GET/PUT /api/v1/app/mycal?_tg=  body for PUT: {"value": "<json>", "version": n}
+// R59: the team's preview (?name=) reads and edits that resident's calendar,
+// not the admin's own (one calendar showed up for every resident).
 func (g *AppGateway) MyCal(c *gin.Context) {
 	if g.Sync == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "not_configured"})
 		return
 	}
-	_, tg, ok := g.syncWho(c)
+	name, tg, ok := g.syncWho(c)
 	if !ok {
 		return
 	}
-	ctx := c.Request.Context()
 	scope := fmt.Sprintf("user:tg:%d", tg)
-	if c.Request.Method == http.MethodGet {
-		d, err := g.Sync.GetDoc(ctx, scope, "bs_mycal")
+	if _, admin := g.Admins[tg]; admin && strings.TrimSpace(c.Query("name")) != "" {
+		f, _ := g.Sync.(residentTgFinder)
+		if f == nil {
+			f, _ = g.Boards.(residentTgFinder)
+		}
+		s, err := residentCalScope(c.Request.Context(), f, name)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "load_failed"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "no_resident"})
 			return
 		}
-		if d == nil || d.Deleted {
-			c.JSON(http.StatusOK, gin.H{"value": `{"slots":{}}`, "version": 0})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"value": d.Value, "version": d.Version})
-		return
+		scope = s
 	}
-	var req struct {
-		Value   string `json:"value"`
-		Version int    `json:"version"`
-	}
-	body, _ := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20))
-	var probe map[string]any
-	if json.Unmarshal(body, &req) != nil || json.Unmarshal([]byte(req.Value), &probe) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "value_must_be_json"})
-		return
-	}
-	d, err := g.Sync.PutDoc(ctx, scope, "bs_mycal", req.Version, req.Value, false, fmt.Sprintf("tg:%d", tg))
-	if errors.Is(err, pg.ErrPlatformConflict) {
-		cur := gin.H{"error": "conflict"}
-		if d != nil {
-			cur["value"], cur["version"] = d.Value, d.Version
-		}
-		c.JSON(http.StatusConflict, cur)
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "save_failed"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "version": d.Version})
+	serveCal(c, g.Sync, scope, fmt.Sprintf("tg:%d", tg))
 }

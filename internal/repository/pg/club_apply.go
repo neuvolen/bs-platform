@@ -402,13 +402,18 @@ func (a *applier) meetingHappened(name, date, tm string, matchTime bool) error {
 	if err != nil {
 		return err
 	}
-	// Пакет закончился: тариф уходит в долг продления (как _addCheckForResident)
-	renew := int64(0)
-	if r.granted > 0 && r.done+1 >= r.granted && r.tariff > 0 {
-		renew = r.tariff
+	// R59: пакет закончился (3/3): тариф один раз уходит в долг продления, счётчик
+	// начинается заново (0/3). Встречи сверх пакета (4/3, 5/3) больше не копятся,
+	// история остаётся в «Логе встреч»
+	renew, done := int64(0), r.done+1
+	if r.granted > 0 && done >= r.granted {
+		done = 0
+		if r.tariff > 0 {
+			renew = r.tariff
+		}
 	}
-	if err := a.update("club_residents", r.id, `meetings_done = meetings_done + 1, renew_debt = renew_debt + $2,
-		updated_at = now(), updated_by = 'server'`, renew); err != nil {
+	if err := a.update("club_residents", r.id, `meetings_done = $3, renew_debt = renew_debt + $2,
+		updated_at = now(), updated_by = 'server'`, renew, done); err != nil {
 		return err
 	}
 	d := a.day()
@@ -531,8 +536,9 @@ func (a *applier) apply(action string, p map[string]string) error {
 		if p["isCash"] != "true" {
 			fee, feeCat = (amount*4+50)/100, "Комиссия+налог" // банк: 4% комиссия и налог
 		}
-		if _, err := a.insert("club_payments", `INSERT INTO club_payments (date, income, expense, income_cat, resident, expense_cat, source, created_by)
-			VALUES ($1,$2,$3,$4,$5,$6,'server','server')`, day, amount, fee, src, res, feeCat); err != nil {
+		payID, err := a.insert("club_payments", `INSERT INTO club_payments (date, income, expense, income_cat, resident, expense_cat, source, created_by)
+			VALUES ($1,$2,$3,$4,$5,$6,'server','server')`, day, amount, fee, src, res, feeCat)
+		if err != nil {
 			return err
 		}
 		// Оплата штрафа закрывает неоплаченные штрафы резидента: строки удаляются
@@ -554,14 +560,25 @@ func (a *applier) apply(action string, p map[string]string) error {
 			}
 			return a.deleteFines(gone)
 		}
-		// Оплата резидента продлевает пакет встреч (addMeetingsOnPayment): за каждый
-		// оплаченный период пакет по тарифу, остаток (или перебор) переносится
+		// R59: оплата резидента сначала гасит его долг (остаток входа, затем долг
+		// продления), как bsApplyPaymentsFromDDS скрипта: строка ДДС отмечается «учтено».
+		// Раньше сервер этого не делал, и оплата не уменьшала долг.
 		if res != "" {
-			r, err := a.resident(res)
-			if err != nil || r.tariff <= 0 || amount/r.tariff < 1 {
+			r, err := a.matchResident(res)
+			if err != nil {
+				return nil // не нашли резидента: строка останется «не учтено», её привяжут вручную
+			}
+			paid, err := a.payDebt(payID, r, amount)
+			if err != nil {
+				return err
+			}
+			// Что сверх долга, продлевает пакет встреч (addMeetingsOnPayment): за каждый
+			// оплаченный период пакет по тарифу, остаток (или перебор) переносится
+			extra := amount - paid
+			if r.tariff <= 0 || extra/r.tariff < 1 {
 				return nil
 			}
-			total := tariffMonths(r.tariff)*3*(amount/r.tariff) + r.granted - r.done
+			total := tariffMonths(r.tariff)*3*(extra/r.tariff) + r.granted - r.done
 			if total < 0 {
 				total = 0
 			}

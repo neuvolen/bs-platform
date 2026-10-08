@@ -131,6 +131,8 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/boards/:id/versions", m.h.BoardVersions)
 	g.GET("/boards/:id/versions/:version", m.h.BoardVersion)
 	g.PUT("/docs/:key", m.h.PutDoc)
+	g.GET("/mycal", m.h.ResidentCal) // R59: календарь резидента (mycal_scope.go)
+	g.PUT("/mycal", m.h.ResidentCal)
 	g.GET("/docs/:key/versions", m.h.DocVersions)
 	g.GET("/docs/:key/versions/:version", m.h.DocVersion)
 	g.POST("/import", m.h.Import)

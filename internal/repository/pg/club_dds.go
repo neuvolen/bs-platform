@@ -309,6 +309,37 @@ func (r *ClubRepo) DDSApply(ctx context.Context, ops []DDSOp, who string, now ti
 			return nil, &ErrDDSInput{fmt.Sprintf("строка %d: действие %q", i+1, op.Op)}
 		}
 	}
+	// R59: a new income row naming a resident pays off their debt at once, as a
+	// payment entered in the app does; an edited row is linked by hand
+	// («Привязать платёж»), so a correction never counts the money twice.
+	// Only rows of the last 7 days: a pasted block of old rows is history.
+	inserted := map[int64]bool{}
+	for _, id := range res.IDs {
+		inserted[id] = true
+	}
+	for _, id := range order {
+		if !touched[id] || !inserted[id] {
+			continue
+		}
+		var income int64
+		var cat, who string
+		var d time.Time
+		if err := tx.QueryRow(ctx, `SELECT income, income_cat, resident, date FROM club_payments WHERE id = $1`, id).Scan(&income, &cat, &who, &d); err != nil {
+			return nil, err
+		}
+		if d.Format("2006-01-02") < now.In(club.Almaty).AddDate(0, 0, -7).Format("2006-01-02") {
+			continue
+		}
+		if income <= 0 || strings.TrimSpace(who) == "" || strings.Contains(cat, "Штраф") {
+			continue
+		}
+		a := &applier{ctx: ctx, tx: tx, at: now}
+		if rr, err := a.matchResident(who); err == nil {
+			if _, err := a.payDebt(id, rr, income); err != nil {
+				return nil, err
+			}
+		}
+	}
 	for _, id := range order {
 		if !touched[id] {
 			continue

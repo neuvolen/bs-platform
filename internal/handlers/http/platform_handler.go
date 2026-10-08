@@ -40,6 +40,9 @@ var platformPersonalKeys = map[string]bool{
 	"bs_me":      true, // who I am on the board (name, colour, presence id)
 	// R32b: «Аналитика и инсайты»: что человек скрыл, отправил в идеи или задачи
 	"bs_an_state": true,
+	// R59: «Мой календарь» одного резидента; старая общая копия в области клуба
+	// (у команды календарь был один на всех) больше не раздаётся
+	"bs_mycal": true,
 }
 
 // Keys that are pure local bookkeeping and never leave the browser.
