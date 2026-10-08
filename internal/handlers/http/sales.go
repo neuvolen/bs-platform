@@ -379,10 +379,15 @@ type SalesModule struct {
 	Secret []byte
 	// FV (R55): the funnel's video library (funnel_video.go); nil: none.
 	FV *FunnelVideos
+	// BL (R57): «Ссылка для клиента» (board_link.go); nil: none.
+	BL *BoardLinks
 }
 
 func (m *SalesModule) Register(r *gin.Engine) {
 	s := m.S
+	if m.BL != nil {
+		m.BL.Register(r)
+	}
 	if m.FV != nil {
 		r.GET("/api/v1/public/fv/:name", m.FV.PublicFile)
 		r.HEAD("/api/v1/public/fv/:name", m.FV.PublicFile)

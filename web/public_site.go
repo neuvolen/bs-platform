@@ -1136,3 +1136,16 @@ func notFoundHTML() string {
 	return pageHead("Страница не найдена | Business Surgery", "Страница не найдена.", SiteURL+"/library", "website", "") +
 		`<main><div class="hero"><div class="w"><h1>Страница не найдена</h1><p class="lead">Возможно, карточку переименовали. Вся библиотека: <a href="/library">app.bxclub.kz/library</a>.</p></div></div></main>` + pageFoot()
 }
+
+// FontHead (R57): the self-hosted Manrope for a standalone page (the client's board).
+func FontHead() string {
+	if fontsCSS == nil {
+		return ""
+	}
+	return fontPreload + `<link rel="stylesheet" href="` + fontsCSS.URL() + `">` + "\n"
+}
+
+// Contacts (R57): the club's public WhatsApp and Telegram bot.
+func Contacts() (waPhone, waLink, bot string) {
+	return bsProfile.WAPhone, bsProfile.WALink, bsProfile.Bot
+}

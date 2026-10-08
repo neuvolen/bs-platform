@@ -3717,6 +3717,7 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
     <div class="ic" id="drawBtn" onclick="toggleDraw()" title="Рисовать"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg></div>
     <div class="ic" id="undoBtn" onclick="undo()" title="Отменить (Ctrl Z)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12"/></svg></div>
     <div class="ic" onclick="toggleTheme()" title="Сменить тему" id="thBtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg></div>
+    <button type="button" class="btn rp-btn cl57-btn admin-only" id="cl57Btn" onclick="cl57Open()" title="Ссылка для клиента: доска без входа, только просмотр"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Ссылка для клиента</span></button>
     <div class="ic" id="presBtn" onclick="togglePres()" title="Презентация"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l11 7-11 7z"/></svg></div>
     <button type="button" class="btn rp-btn" id="rpBtn" onclick="toggleRP()" title="Панель резидента"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg><span>Резидент</span></button>
     <div class="ic save-ic" id="saveBtn" onclick="saveBoard()" title="Сохранить"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
@@ -38398,5 +38399,98 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
   };
 })();
 </script>
+<script id="r57Script">
+// R57: «Ссылка для клиента»: доска без входа (только просмотр) + статистика просмотров
+(function(){
+  var S = {link:null, busy:false, sure:false, msg:''};
+  function api(m, p, b){ return typeof r6Api === 'function' ? r6Api(m, p, b) : Promise.resolve({error:'Нет связи с сервером'}); }
+  function e(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function bid(){ return (window.curBoard && curBoard.id) || ''; }
+  function box(){
+    var b = document.getElementById('cl57');
+    if(!b){
+      b = document.createElement('div'); b.id = 'cl57'; b.className = 'cl57';
+      document.body.appendChild(b);
+      document.addEventListener('mousedown', function(ev){ var x = document.getElementById('cl57'); if(x && x.classList.contains('on') && !x.contains(ev.target) && !ev.target.closest('#cl57Btn')) x.classList.remove('on'); });
+    }
+    return b;
+  }
+  function place(b){
+    var btn = document.getElementById('cl57Btn');
+    if(!btn || window.innerWidth <= 700){ b.style.top = ''; b.style.right = ''; return; }
+    var r = btn.getBoundingClientRect();
+    b.style.top = Math.round(r.bottom + 10) + 'px';
+    b.style.right = Math.max(12, Math.round(window.innerWidth - r.right)) + 'px';
+  }
+  function dur(s){ s = s || 0; if(s < 60) return s + ' с'; var m = Math.round(s / 60); return m < 60 ? m + ' мин' : Math.floor(m / 60) + ' ч ' + (m % 60) + ' мин'; }
+  function when(v){ if(!v) return ''; if(typeof r6Time === 'function') return r6Time(v); var d = new Date(v); return d.toLocaleString('ru'); }
+  var SEC = {top:'Начало', diag:'Диагнозы', cause:'Причины', strat:'Стратегия', plan:'План на 10 дней', tools:'Инструменты', club:'Клуб', cases:'Кейсы', price:'Цены', pay:'Оплата'};
+  var CLK = {join:'«Хочу в клуб»', ask:'«Есть вопрос»', think:'«Пока подумаю»', kaspi:'Kaspi', wa:'WhatsApp', tg:'Telegram'};
+  var INT = {join:'Хочет в клуб', ask:'Есть вопрос', think:'Пока думает'};
+  function paint(){
+    var b = box(), l = S.link, h = '<div class="cl57-h"><b>Ссылка для клиента</b><span class="cl57-x" onclick="cl57Close()">×</span></div>';
+    if(!l){ h += '<p class="cl57-k">' + (S.busy ? 'Создаю ссылку…' : e(S.msg || 'Нет ссылки')) + '</p>'; b.innerHTML = h; return; }
+    if(l.live){
+      h += '<p class="cl57-k">Клиент увидит доску без входа и регистрации: только просмотр, только эту доску. Действует до ' + e(new Date(l.expiresAt).toLocaleDateString('ru')) + '.</p>' +
+        '<div class="cl57-u"><input readonly value="' + e(l.url) + '" onclick="this.select()"><button type="button" class="cl57-b pri" onclick="cl57Copy()">Копировать</button></div>' +
+        '<div class="cl57-row"><a class="cl57-b" href="' + e(l.wa) + '" target="_blank" rel="noopener">Отправить в WhatsApp</a><a class="cl57-b" href="' + e(l.tg) + '" target="_blank" rel="noopener">Отправить в Telegram</a></div>';
+    } else {
+      h += '<p class="cl57-k">Ссылка ' + (l.state === 'expired' ? 'истекла' : 'отключена') + ': клиент видит страницу «ссылка не действует».</p>' +
+        '<div class="cl57-row"><button type="button" class="cl57-b pri" onclick="cl57Make()">Создать новую ссылку</button></div>';
+    }
+    var sec = Object.keys(l.sections || {}).filter(function(k){ return SEC[k]; }).map(function(k){ return SEC[k]; });
+    var clk = Object.keys(l.clicks || {}).filter(function(k){ return CLK[k]; }).map(function(k){ return CLK[k] + (l.clicks[k] > 1 ? ' ×' + l.clicks[k] : ''); });
+    h += '<div class="cl57-st"><div><span>Открыта</span><b>' + (l.opens || 0) + ' раз</b></div><div><span>Последний раз</span><b>' + (l.lastOpen ? e(when(l.lastOpen)) : 'ещё не открывал') + '</b></div><div><span>На странице</span><b>' + dur(l.seconds) + '</b></div></div>';
+    if(l.intent) h += '<p class="cl57-int">' + e(INT[l.intent] || l.intent) + (l.intentAt ? ' · ' + e(when(l.intentAt)) : '') + '</p>';
+    if(sec.length) h += '<p class="cl57-k"><span>Смотрел:</span> ' + e(sec.join(', ')) + '</p>';
+    if(clk.length) h += '<p class="cl57-k"><span>Нажимал:</span> ' + e(clk.join(', ')) + '</p>';
+    if(l.live) h += '<div class="cl57-row"><button type="button" class="cl57-b ' + (S.sure ? 'warn' : 'ghost') + '" onclick="cl57Revoke()">' + (S.sure ? 'Точно отключить? Нажмите ещё раз' : 'Отключить ссылку') + '</button></div>';
+    if(S.msg) h += '<p class="cl57-k">' + e(S.msg) + '</p>';
+    b.innerHTML = h;
+  }
+  function copy(t){
+    try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(function(){ toast('Ссылка скопирована'); }, function(){ if(typeof r6CopyOld === 'function') r6CopyOld(t); }); return; } }catch(err){}
+    if(typeof r6CopyOld === 'function') r6CopyOld(t);
+  }
+  function got(j){
+    if(!j || j.error){ S.msg = (j && (j.message || j.error)) || 'Нет связи с сервером'; S.busy = false; paint(); return false; }
+    S.link = j.link; S.msg = ''; S.busy = false; paint(); return true;
+  }
+  window.cl57Make = function(){
+    var id = bid(); if(!id){ toast('Сначала откройте доску клиента'); return; }
+    S.busy = true; S.sure = false; S.link = null; S.msg = ''; var bx = box(); bx.classList.add('on'); place(bx); paint();
+    api('POST', '/clientlink/' + encodeURIComponent(id)).then(function(j){ if(got(j) && S.link && S.link.live) copy(S.link.url); });
+  };
+  window.cl57Open = function(){
+    var b = box();
+    if(b.classList.contains('on')){ b.classList.remove('on'); return; }
+    window.cl57Make();
+  };
+  window.cl57Close = function(){ box().classList.remove('on'); };
+  window.cl57Copy = function(){ if(S.link) copy(S.link.url); };
+  window.cl57Revoke = function(){
+    if(!S.sure){ S.sure = true; paint(); return; }
+    S.sure = false;
+    api('DELETE', '/clientlink/' + encodeURIComponent(bid())).then(function(j){ if(got(j)) toast('Ссылка отключена'); });
+  };
+  window.cl57Refresh = function(){ var id = bid(); if(!id) return; api('GET', '/clientlink/' + encodeURIComponent(id)).then(got); };
+})();
+</script>
+<style id="r57Style">
+.cl57{position:fixed;top:64px;right:16px;z-index:260;width:400px;max-width:calc(100vw - 32px);max-height:calc(100vh - 90px);overflow:auto;background:var(--pc,#141414);color:var(--ptx,#F5F5F5);border:1px solid var(--pi,#2A2A2A);border-radius:16px;padding:16px;box-shadow:0 18px 50px rgba(0,0,0,.45);display:none;font-size:13.5px}
+.cl57.on{display:block}
+.cl57-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.cl57-h b{font-size:15px;font-weight:800}
+.cl57-x{cursor:pointer;font-size:22px;line-height:1;opacity:.6;padding:0 4px}.cl57-x:hover{opacity:1}
+.cl57-k{opacity:.8;margin:8px 0;line-height:1.45}.cl57-k span{opacity:.7}
+.cl57-u{display:flex;gap:6px;margin:10px 0}.cl57-u input{flex:1;min-width:0;background:transparent;border:1px solid var(--pi,#2A2A2A);border-radius:10px;padding:9px 10px;color:inherit;font:inherit;font-size:12.5px}
+.cl57-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}.cl57-row>:only-child{grid-column:1/-1}
+.cl57-b{display:flex;align-items:center;justify-content:center;text-align:center;border:1px solid var(--pi,#2A2A2A);border-radius:10px;padding:9px 10px;font:inherit;font-weight:700;font-size:12.5px;color:inherit;background:transparent;cursor:pointer;text-decoration:none;white-space:nowrap}
+.cl57-b.pri{background:var(--pon,#F5F5F5);color:var(--pontx,#0A0A0A);border-color:var(--pon,#F5F5F5)}
+.cl57-b.ghost{opacity:.75}.cl57-b.warn{border-color:#FF4D4D;color:#FF4D4D}
+.cl57-st{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0 4px}.cl57-st div{border:1px solid var(--pi,#2A2A2A);border-radius:10px;padding:8px}
+.cl57-st span{display:block;font-size:11px;opacity:.6}.cl57-st b{font-size:13px}
+.cl57-int{margin:8px 0;font-weight:800}
+@media(max-width:700px){.cl57-btn span{display:none}.cl57{top:auto;bottom:12px;right:12px;left:12px;width:auto}}
+</style>
 </body>
 </html>

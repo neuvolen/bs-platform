@@ -117,5 +117,10 @@ func WireSales(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team, j
 			}
 		}()
 	}
-	return &httpapi.SalesModule{S: s, G: appGW, Secret: []byte(jwtSecret), FV: fv}
+	// R57: «Ссылка для клиента»: read-only board links /b/<id> with the club offer
+	var bl *httpapi.BoardLinks
+	if d.PlatformRepo != nil && d.DB != nil {
+		bl = httpapi.NewBoardLinks(pg.NewBoardLinksRepo(d.DB), d.PlatformRepo, s, []byte(jwtSecret))
+	}
+	return &httpapi.SalesModule{S: s, G: appGW, Secret: []byte(jwtSecret), FV: fv, BL: bl}
 }

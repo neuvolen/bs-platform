@@ -773,7 +773,12 @@ func (s *ClubSales) stepText(ctx context.Context, cfg SalesCfg, l map[string]any
 	if step == "later" {
 		key = "later"
 	}
-	return salesFill(cfg.Text(key), vals)
+	out := salesFill(cfg.Text(key), vals)
+	// R57: the client's board link (made from the board) goes into the reminders
+	if u := sStr(l, "boardLink"); u != "" && (step == "d2" || step == "d5" || step == "d10") && strings.HasPrefix(u, "https://") {
+		out += "\n\nВаша доска с диагнозами и планом: " + u
+	}
+	return out
 }
 
 // sendStep sends one step (the offer with the PDF first).
