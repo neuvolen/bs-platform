@@ -1,0 +1,73 @@
+{
+ "job": "r5e_kurs",
+ "job_sha256": "ebe1780b3f4a465d3678d22be236a07928ed3f924374ccda01734352b2c8e52f",
+ "run_id": "37713594160",
+ "jobs_sha": "e4cff2b3423b0fae7e7ddd913a7545cde1b59c2b",
+ "ok": true,
+ "lines": [
+  {
+   "id": "l01",
+   "chars": 39,
+   "words": 8,
+   "duration": 2.415
+  },
+  {
+   "id": "l02",
+   "chars": 46,
+   "words": 10,
+   "duration": 2.972
+  },
+  {
+   "id": "l03",
+   "chars": 56,
+   "words": 7,
+   "duration": 3.39
+  },
+  {
+   "id": "l04",
+   "chars": 16,
+   "words": 2,
+   "duration": 1.44
+  },
+  {
+   "id": "l05",
+   "chars": 55,
+   "words": 8,
+   "duration": 3.251
+  },
+  {
+   "id": "l06",
+   "chars": 37,
+   "words": 6,
+   "duration": 3.251
+  },
+  {
+   "id": "l07",
+   "chars": 85,
+   "words": 14,
+   "duration": 4.133
+  },
+  {
+   "id": "l08",
+   "chars": 36,
+   "words": 5,
+   "duration": 2.368
+  },
+  {
+   "id": "l09",
+   "chars": 60,
+   "words": 8,
+   "duration": 5.016
+  }
+ ],
+ "chars": 430,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.32,
+  "similarity_boost": 0.8,
+  "style": 0.55,
+  "use_speaker_boost": true,
+  "speed": 1.07
+ }
+}
