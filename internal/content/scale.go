@@ -12,7 +12,7 @@ func Scale() (diag, tools, ideas int) {
 	return len(d), len(t), IdeasTotal()
 }
 
-// ScaleText: «79 диагнозов, 122 инструмента с шаблонами и 1 059 бизнес-идей».
+// ScaleText: «173 диагноза, 259 инструментов с шаблонами и 1 059 бизнес-идей».
 func ScaleText() string {
 	d, t, i := Scale()
 	return Num(d) + " " + Plural(d, "диагноз", "диагноза", "диагнозов") + ", " +

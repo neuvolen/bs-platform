@@ -12,7 +12,7 @@ import (
 // документы клуба то, чего там ещё нет (handlers/http/library_ext.go).
 
 // LibExtVersion: поднимать, когда в library_ext добавлены новые пункты.
-const LibExtVersion = "2026-10-ext4" // R52: + «SWOT-анализ»
+const LibExtVersion = "2026-10-ext5" // R61: library ×2, + 94 diagnoses and 137 tools in every category
 
 //go:embed library_ext/*.json
 var libExtFS embed.FS

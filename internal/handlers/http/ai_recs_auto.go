@@ -250,13 +250,18 @@ func (h *PlatformAI) recJudge(ctx context.Context, rec map[string]any, lib []rec
 	for _, it := range lib {
 		l := fmt.Sprintf("- %s, %s", recKindName(it.Kind), it.Title)
 		if it.Line != "" {
-			l += ": " + it.Line
+			// R61: the library doubled (430+ cards); a short line keeps every title in the prompt
+			line := []rune(it.Line)
+			if len(line) > 90 {
+				line = append(line[:90], '…')
+			}
+			l += ": " + string(line)
 		}
 		lines = append(lines, l)
 	}
 	list := strings.Join(lines, "\n")
-	if r := []rune(list); len(r) > 20000 {
-		list = string(r[:20000])
+	if r := []rune(list); len(r) > 60000 {
+		list = string(r[:60000])
 	}
 	src := strings.Join(nonEmpty(recStr(rec, "source"), recStr(rec, "company"), recStr(rec, "author"), recStr(rec, "url")), ", ")
 	prompt := fmt.Sprintf(recJudgePrompt, recKindName(recStr(rec, "kind")), recStr(rec, "organ"), recStr(rec, "title"),
@@ -475,8 +480,8 @@ func (h *PlatformAI) recEnrich(ctx context.Context, rec map[string]any, tools []
 	if kind == "diag" {
 		spec = recRichSpecDiag
 		extra = "Инструменты библиотеки (для cure бери названия ТОЛЬКО отсюда, слово в слово):\n- " + strings.Join(tools, "\n- ")
-		if r := []rune(extra); len(r) > 12000 {
-			extra = string(r[:12000])
+		if r := []rune(extra); len(r) > 24000 {
+			extra = string(r[:24000])
 		}
 	}
 	src := strings.Join(nonEmpty(recStr(rec, "source"), recStr(rec, "company"), recStr(rec, "author"), recStr(rec, "url")), ", ")

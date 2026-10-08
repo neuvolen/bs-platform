@@ -341,8 +341,8 @@ func (h *PlatformAI) updateRecs(ctx context.Context, fn func([]any) ([]any, bool
 func (h *PlatformAI) recCandidate(ctx context.Context, organ string, titles, rejected []string) (*aiRecCand, error) {
 	excl := append(append([]string{}, titles...), rejected...)
 	list := strings.Join(excl, "; ")
-	if r := []rune(list); len(r) > 12000 {
-		list = string(r[:12000])
+	if r := []rune(list); len(r) > 30000 { // R61: the doubled library fits whole
+		list = string(r[:30000])
 	}
 	c, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
@@ -396,8 +396,8 @@ func (h *PlatformAI) recDupByMeaning(ctx context.Context, c *aiRecCand, titles [
 		return ""
 	}
 	list := "- " + strings.Join(titles, "\n- ")
-	if r := []rune(list); len(r) > 15000 {
-		list = string(r[:15000])
+	if r := []rune(list); len(r) > 30000 { // R61: the doubled library fits whole
+		list = string(r[:30000])
 	}
 	cx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
