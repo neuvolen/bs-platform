@@ -29884,13 +29884,14 @@ function paint(){
   // R34b: показатели периода сверху (кроме «В цифрах»)
   var kp = FX.st === 'ready' && FX.tab !== 'num' && FX.tab !== 'fc' ? '<div id="fxKpi">' + kpiHTML() + '</div>' : '';
   el.innerHTML = '<div id="fxRoot">' + kp + tabsHTML() + '<div id="fxBody">' + body + '</div></div>';
+  if(kp) fxMonScroll();
   if(FX.st === 'ready' && FX.tab === 'dds') mountGrid();
   if(FX.st === 'ready' && FX.tab === 'an') mountChart();
   if(FX.st === 'ready' && FX.tab === 'fc' && window.fxFcMount) fxFcMount();
 }
 function kpiPaint(){
   var k = document.getElementById('fxKpi'); if(!k || FX.st !== 'ready') return;
-  clearTimeout(FX._kt); FX._kt = setTimeout(function(){ try{ k.innerHTML = kpiHTML(); }catch(e){} }, 250);
+  clearTimeout(FX._kt); FX._kt = setTimeout(function(){ try{ var sl = (document.getElementById('fxMcs') || {}).scrollLeft; k.innerHTML = kpiHTML(); var r = document.getElementById('fxMcs'); if(r && sl) r.scrollLeft = sl; }catch(e){} }, 250);
 }
 // ── R34b: показатели (выручка, расходы, прибыль, рентабельность, касса) с изменением к прошлому месяцу и графиком ──
 function spark(vals, color, id){
@@ -29906,38 +29907,65 @@ function spark(vals, color, id){
     '<polyline points="' + line + '" style="fill:none;stroke:' + color + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>' +
     '<circle cx="' + last[0] + '" cy="' + last[1] + '" r="2.6" style="fill:' + color + '"/></svg>';
 }
+// R59: сверху, как в приложении (Сводка → карточка месяца): один месяц (по умолчанию текущий), его выручка, расходы,
+// прибыль, дивиденды и касса, ниже ряд месяцев с прибылью для переключения. «Год» в конце ряда даёт итоги года.
+// Период таблиц (выбор в шапке) этот блок не меняет
+function kpiYear(){ return buildPL(FX.rows, FX.info, FX.info.year, FX.info.upTo); } // быстро: один проход по строкам
 function kpiHTML(){
-  var d = plData(), cols = d.cols; if(!cols.length) return '';
-  var tot = {inc: 0, exp: 0, profit: 0};
-  cols.forEach(function(m){ var x = d.months[m - 1]; tot.inc += x.incSum; tot.exp += x.exps; tot.profit += x.profit; });
-  var last = cols[cols.length - 1], prev = last > 1 ? last - 1 : 0, L = d.months[last - 1], P = prev ? d.months[prev - 1] : null;
-  // Ряд для графика: месяцы периода, а для одного месяца полгода до него
-  var from = cols.length >= 3 ? cols[0] : Math.max(1, last - 5), ser = []; for(var m = from; m <= last; m++) ser.push(m);
+  var i = FX.info, up = Math.max(1, Math.min(12, i.upTo || 1)), d = kpiYear();
+  var km = FX.km === 'y' ? 'y' : (FX.km >= 1 && FX.km <= up ? FX.km : up);
+  var yr = km === 'y', last = yr ? up : km, prev = !yr && last > 1 ? last - 1 : 0;
+  var L = d.months[last - 1], P = prev ? d.months[prev - 1] : null;
+  var tot = {inc: 0, exp: 0, profit: 0, div: 0};
+  for(var m = yr ? 1 : last; m <= last; m++){ var x = d.months[m - 1]; tot.inc += x.incSum; tot.exp += x.exps; tot.profit += x.profit; tot.div += x.div; }
+  var ser = []; for(m = yr ? 1 : Math.max(1, last - 5); m <= last; m++) ser.push(m);
   function S2(f){ return ser.map(function(m){ return f(d.months[m - 1]); }); }
-  var mg = function(x){ return x.incSum ? x.profit / x.incSum * 100 : null; };
   function dlt(cur, pre, good, kind){
+    if(yr) return '<span class="fx-dl0">' + MS[0] + ' – ' + MS[up - 1] + ' ' + i.year + '</span>';
     if(!P || pre === null || pre === undefined || cur === null) return '<span class="fx-dl0">нет прошлого месяца</span>';
-    var diff = cur - pre, up = diff > 0, txt;
+    var diff = cur - pre, upw = diff > 0, txt;
     if(!diff) return '<span class="fx-dt">0 к ' + MS[prev - 1] + '</span>';
-    if(kind === 'pp') txt = (up ? '+' : '−') + Math.abs(Math.round(diff)) + ' п.п.';
-    else if(kind === 'abs' || pre <= 0) txt = (up ? '+' : '−') + short(Math.abs(diff));
-    else txt = (up ? '+' : '−') + Math.abs(Math.round(diff / pre * 100)) + '%';
-    return '<span class="fx-dt ' + ((up === good) ? 'up' : 'dn') + '">' + (up ? '▲ ' : '▼ ') + txt + ' <em>к ' + MS[prev - 1] + '</em></span>';
+    if(kind === 'abs' || pre <= 0) txt = (upw ? '+' : '−') + short(Math.abs(diff));
+    else txt = (upw ? '+' : '−') + Math.abs(Math.round(diff / pre * 100)) + '%';
+    return '<span class="fx-dt ' + ((upw === good) ? 'up' : 'dn') + '">' + (upw ? '▲ ' : '▼ ') + txt + ' <em>к ' + MS[prev - 1] + '</em></span>';
   }
+  var mgv = tot.inc ? tot.profit / tot.inc * 100 : null;
   var cash = L.hasCash ? L.cash : null, pcash = P && P.hasCash ? P.cash : null;
-  var mgT = tot.inc ? tot.profit / tot.inc * 100 : null;
-  var one = cols.length === 1, mn = MS[last - 1];
   var K = [
-    {k: 'inc', l: 'Выручка', v: nf(tot.inc), s: one ? '' : mn + ': ' + nf(L.incSum), d: dlt(L.incSum, P && P.incSum, true), c: 'var(--fc-in)', ser: S2(function(x){ return x.incSum; })},
-    {k: 'exp', l: 'Расходы', v: nf(tot.exp), s: one ? '' : mn + ': ' + nf(L.exps), d: dlt(L.exps, P && P.exps, false), c: 'var(--fc-out)', ser: S2(function(x){ return x.exps; })},
-    {k: 'pro', l: 'Чистая прибыль', v: (tot.profit > 0 ? '+' : '') + nf(tot.profit), neg: tot.profit < 0, pos: tot.profit > 0, s: one ? '' : mn + ': ' + nf(L.profit), d: dlt(L.profit, P && P.profit, true, 'abs'), c: 'var(--fc-pro)', ser: S2(function(x){ return x.profit; })},
-    {k: 'mg', l: 'Рентабельность', v: mgT === null ? '·' : fmtPL(mgT, 1), neg: mgT < 0, pos: mgT > 0, s: one || mg(L) === null ? '' : mn + ': ' + fmtPL(mg(L), 1), d: dlt(mg(L), P ? mg(P) : null, true, 'pp'), c: 'var(--fc-mg)', ser: S2(mg)},
-    {k: 'cash', l: 'Остаток на кассе', v: cash === null ? '·' : nf(cash), neg: cash < 0, s: 'на конец ' + MS[last - 1], d: dlt(cash, pcash, true, 'abs'), c: 'var(--fc-cash)', ser: S2(function(x){ return x.hasCash ? x.cash : null; })}
+    {k: 'inc', l: 'Выручка', v: nf(tot.inc), d: dlt(L.incSum, P && P.incSum, true), c: 'var(--fc-in)', ser: S2(function(x){ return x.incSum; })},
+    {k: 'exp', l: 'Расходы', v: nf(tot.exp), d: dlt(L.exps, P && P.exps, false), c: 'var(--fc-out)', ser: S2(function(x){ return x.exps; })},
+    {k: 'pro', l: 'Чистая прибыль', v: (tot.profit > 0 ? '+' : '') + nf(tot.profit), neg: tot.profit < 0, pos: tot.profit > 0, s: mgv === null ? '' : 'маржа ' + fmtPL(mgv, 1),
+      d: dlt(L.profit, P && P.profit, true, 'abs'), c: 'var(--fc-pro)', ser: S2(function(x){ return x.profit; })},
+    {k: 'div', l: 'Дивиденды', v: nf(tot.div), d: yr ? dlt() : '', s: yr ? '' : (P ? MS[prev - 1] + ': ' + nf(P.div) : ''), c: 'var(--fc-mg)', ser: S2(function(x){ return x.div; })},
+    {k: 'cash', l: 'На кассе', v: cash === null ? '·' : nf(cash), neg: cash < 0, s: 'на конец ' + MS[last - 1], d: yr ? '' : dlt(cash, pcash, true, 'abs'), c: 'var(--fc-cash)', ser: S2(function(x){ return x.hasCash ? x.cash : null; })}
   ];
-  return '<div class="fx-kp">' + K.map(function(x, i){
-    return '<div class="fx-kc ' + {inc: 'c-in', exp: 'c-out', pro: 'c-pro', mg: 'c-mg', cash: 'c-cash'}[x.k] + '" data-k="' + x.k + '"><div class="fx-kl"><i></i>' + x.l + '</div><div class="fx-kv' + (x.neg ? ' neg' : (x.pos ? ' pos' : '')) + '">' + x.v + '</div>' +
-      '<div class="fx-kf"><div class="fx-kd">' + x.d + (x.s ? '<span class="fx-ks">' + x.s + '</span>' : '') + '</div>' + spark(x.ser, x.c, i) + '</div></div>';
+  var chips = '';
+  for(m = 1; m <= up; m++){
+    var mo = d.months[m - 1], has = mo.incSum || mo.exps || mo.div;
+    chips += '<button type="button" class="fx-mc' + (km === m ? ' on' : '') + (has ? '' : ' empty') + (has && mo.profit < 0 ? ' neg' : '') + '" data-m="' + m + '" onclick="fxMon(' + m + ')">' +
+      '<span>' + MS[m - 1] + '</span><b>' + (has ? (mo.profit > 0 ? '+' : '') + short(mo.profit) : '·') + '</b></button>';
+  }
+  var yp = tot.profit;
+  chips += '<button type="button" class="fx-mc yr' + (yr ? ' on' : '') + '" data-m="y" onclick="fxMon(\'y\')"><span>Год</span><b>' + (yr ? (yp > 0 ? '+' : '') + short(yp) : i.year) + '</b></button>';
+  var nav = function(dir, dis){ return '<button type="button" class="fx-mn"' + (dis ? ' disabled' : '') + ' onclick="fxMon(' + (dir < 0 ? "'-'" : "'+'") + ')" aria-label="' + (dir < 0 ? 'Прошлый месяц' : 'Следующий месяц') + '">' + (dir < 0 ? '‹' : '›') + '</button>'; };
+  var head = '<div class="fx-mon"><div class="fx-mt">' + nav(-1, yr || last <= 1) + '<b>' + (yr ? 'Весь ' + i.year : MN[last - 1] + ' ' + i.year) + '</b>' + nav(1, yr || last >= up) + '</div>' +
+    '<div class="fx-mcs" id="fxMcs">' + chips + '</div></div>';
+  return head + '<div class="fx-kp">' + K.map(function(x, n){
+    return '<div class="fx-kc ' + {inc: 'c-in', exp: 'c-out', pro: 'c-pro', div: 'c-mg', cash: 'c-cash'}[x.k] + '" data-k="' + x.k + '"><div class="fx-kl"><i></i>' + x.l + '</div><div class="fx-kv' + (x.neg ? ' neg' : (x.pos ? ' pos' : '')) + '">' + x.v + '</div>' +
+      '<div class="fx-kf"><div class="fx-kd">' + (x.d || '') + (x.s ? '<span class="fx-ks">' + x.s + '</span>' : '') + '</div>' + spark(x.ser, x.c, n) + '</div></div>';
   }).join('') + '</div>';
+}
+window.fxMon = function(m){
+  var up = Math.max(1, Math.min(12, (FX.info && FX.info.upTo) || 1)), cur = FX.km === 'y' ? up : (FX.km >= 1 && FX.km <= up ? FX.km : up);
+  if(m === '-') m = Math.max(1, cur - 1); else if(m === '+') m = Math.min(up, cur + 1);
+  FX.km = m === 'y' ? 'y' : +m;
+  var k = document.getElementById('fxKpi'); if(!k) return;
+  k.innerHTML = kpiHTML(); fxMonScroll();
+};
+// Выбранный месяц виден в ряду (как в приложении: ряд прокручивается к нему)
+function fxMonScroll(){
+  var row = document.getElementById('fxMcs'), a = row && row.querySelector('.fx-mc.on');
+  if(a && row.scrollWidth > row.clientWidth) row.scrollLeft = Math.max(0, a.offsetLeft - row.offsetLeft - row.clientWidth / 2 + a.clientWidth / 2);
 }
 window.fxTab = function(t){
   if(FX.ed) commitEdit(false);
@@ -31054,6 +31082,27 @@ body.light{--fc-in:#11915A;--fc-out:#E5484D;--fc-pro:#2F6BE0;--fc-mg:#7B5BD6;--f
 /* ═══ Показатели сверху (Учёт, Клуб, Продажи) ═══ */
 .fx-kp{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:0 0 16px}
 .fx-kp.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+/* R59: «Учёт» сверху как в приложении: месяц, стрелки и ряд месяцев с прибылью */
+.fx-mon{display:flex;align-items:center;gap:16px;margin:0 0 12px;min-width:0}
+.fx-mt{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.fx-mt b{font-size:17px;font-weight:900;letter-spacing:-.2px;min-width:132px;text-align:center;white-space:nowrap}
+.fx-mn{appearance:none;width:30px;height:30px;border-radius:9px;border:1px solid var(--pi);background:var(--pc);color:var(--ptx);font:800 16px/1 'Manrope',sans-serif;cursor:pointer}
+.fx-mn:disabled{opacity:.3;cursor:default}
+.fx-mcs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;min-width:0;flex:1 1 auto;padding:1px}
+.fx-mcs::-webkit-scrollbar{display:none}
+.fx-mc{appearance:none;flex:0 0 auto;min-width:58px;padding:5px 9px;border-radius:9px;border:1px solid var(--pi);background:none;color:var(--ptx);text-align:center;cursor:pointer;font-family:'Manrope',sans-serif;font-variant-numeric:tabular-nums}
+.fx-mc span{display:block;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--pm)}
+.fx-mc b{display:block;font-size:12px;font-weight:800;white-space:nowrap;color:var(--fc-in)}
+.fx-mc.neg b{color:var(--fc-out)} .fx-mc.empty b,.fx-mc.yr b{color:var(--pm)}
+.fx-mc.yr{margin-left:6px}
+.fx-mc:not(.on):hover{border-color:color-mix(in srgb,var(--ptx) 40%,var(--pi))}
+.fx-mc.on{background:var(--pon);border-color:var(--pon)}
+.fx-mc.on span,.fx-mc.on b{color:var(--pontx)}
+@media (max-width:640px){
+  .fx-mon{flex-direction:column;align-items:stretch;gap:10px}
+  .fx-mt{justify-content:space-between}
+  .fx-mcs{margin:0 -16px;padding:1px 16px}
+}
 .fx-kc{--kc:var(--ptx);position:relative;border:1px solid var(--pb);border-radius:14px;padding:14px 16px 12px;min-width:0;overflow:hidden;
   background:linear-gradient(180deg,color-mix(in srgb,var(--kc) 9%,transparent),transparent 62%),var(--pc)}
 .fx-kc:before{content:'';position:absolute;left:16px;right:16px;top:0;height:2px;border-radius:0 0 2px 2px;background:var(--kc);opacity:.85}
@@ -31436,9 +31485,14 @@ function paint(){
         return '<button class="bk-tab' + (on2 ? ' on' : '') + '" role="tab" draggable="true" data-s="' + E(t.ids.indexOf(section) >= 0 ? section : t.id) + '" data-ids="' + E(t.ids.join(',')) + '"' + (i < 9 ? ' title="Ctrl ' + (i + 1) + '"' : '') + '>' + E(t.n) +
           (b ? '<small' + (b.red ? ' class="red"' : '') + '>' + nf(b.n) + '</small>' : '') + '</button>';
       }).join('') + '</div>' +
-      (g ? '<i class="bk-dv"></i><div class="bk-sw" role="tablist">' + g.ids.map(function(id){ return '<b class="' + (id === section ? 'on' : '') + '" data-s="' + id + '">' + E(g.sub[id]) + '</b>'; }).join('') + '</div>' : '') + '</div>' +
-      '<div class="fx-kp k4">' + k.map(card).join('') + '</div>';
+      '</div>' +
+      '<div class="fx-kp k4">' + k.map(card).join('') + '</div>' +
+      // R59: переключатель внутри вкладки (База знаний: Болезни, Инструменты…) отдельной строкой вкладок под меню
+      // и показателями, как вкладки «Учёта» (ДДС, P&L…), а не справа в верхней строке
+      (g ? '<div class="fx-tabs bk-sub" role="tablist">' + g.ids.map(function(id){ return '<button type="button" class="fx-tab' + (id === section ? ' on' : '') + '" role="tab" data-s="' + id + '">' + E(g.sub[id]) + '</button>'; }).join('') + '</div>' : '');
     if(el._h !== h){ el.innerHTML = h; el._h = h; }
+    var sub = el.querySelector('.bk-sub'), so = sub && sub.querySelector('.fx-tab.on'); // R59: на телефоне выбранная видна
+    if(so && sub.scrollWidth > sub.clientWidth){ var rs = sub.getBoundingClientRect(), ro = so.getBoundingClientRect(); if(ro.left < rs.left || ro.right > rs.right) sub.scrollLeft += ro.left - rs.left - 16; }
     var top = el.querySelector('.bk-top'), a = el.querySelector('.bk-tab.on');
     if(window.r52KeepStrip){ try{ r52KeepStrip(); }catch(e){} } // R52: строка прокручивается, только если вкладка не видна
     else if(a && top && top.scrollWidth > top.clientWidth){ try{ top.scrollLeft = Math.max(0, a.offsetLeft - 40); }catch(e){} }
@@ -37375,7 +37429,7 @@ function E(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c)
 // Прокрутка запоминается и возвращается только при переходе вкладками (строка вкладок, Ctrl 1…9):
 // ссылки, поиск и кнопки «перейти к главе» прокручивают экран сами
 var SCR = {}, TABNAV = 0;
-document.addEventListener('click', function(e){ if(e.target.closest && e.target.closest('#bkBar .bk-top [data-s], #r32Tabs .r32-tab')) TABNAV = Date.now(); }, true);
+document.addEventListener('click', function(e){ if(e.target.closest && e.target.closest('#bkBar .bk-top [data-s], #bkBar .bk-sub [data-s], #r32Tabs .r32-tab')) TABNAV = Date.now(); }, true);
 var _go = window.goSection;
 window.goSection = goSection = function(s){
   var prev = typeof section !== 'undefined' ? section : '', pg = document.querySelector('.page.on');
