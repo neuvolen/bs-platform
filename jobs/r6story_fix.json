@@ -1,0 +1,9 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {"stability": 0.4, "similarity": 0.8, "style": 0.38, "speed": 1.05, "speaker_boost": true},
+ "context": true,
+ "lines": [
+  {"id": "t09", "text": "Итог цикла: кассовый разрыв закрыт. Дальше закуп переходит к управляющей."}
+ ]
+}
