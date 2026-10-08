@@ -1,0 +1,61 @@
+{
+ "job": "r6d_case",
+ "job_sha256": "47cd363daa7a43fe5908c37f698027d65a38573a1fd9e4ae512a855039583ac5",
+ "run_id": "37719470596",
+ "jobs_sha": "dda7b10e6284d8130588a972e6df03ae4368a4b5",
+ "ok": true,
+ "lines": [
+  {
+   "id": "l01",
+   "chars": 49,
+   "words": 7,
+   "duration": 3.251
+  },
+  {
+   "id": "l02",
+   "chars": 98,
+   "words": 18,
+   "duration": 6.548
+  },
+  {
+   "id": "l03",
+   "chars": 73,
+   "words": 10,
+   "duration": 4.923
+  },
+  {
+   "id": "l04",
+   "chars": 53,
+   "words": 8,
+   "duration": 3.994
+  },
+  {
+   "id": "l05",
+   "chars": 67,
+   "words": 11,
+   "duration": 4.04
+  },
+  {
+   "id": "l06",
+   "chars": 105,
+   "words": 16,
+   "duration": 6.362
+  },
+  {
+   "id": "l07",
+   "chars": 73,
+   "words": 9,
+   "duration": 5.108
+  }
+ ],
+ "chars": 518,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.45,
+  "similarity_boost": 0.8,
+  "style": 0.3,
+  "use_speaker_boost": true,
+  "speed": 1.0
+ }
+}
