@@ -315,7 +315,11 @@ func (f *ThreadsFetcher) Page(ctx context.Context, ref ThreadsRef) (ThreadsPostI
 	if code != 200 {
 		return ThreadsPostInfo{}, fmt.Errorf("ответ %d", code)
 	}
-	return parseThreadsPage(string(b))
+	info, err := parseThreadsPage(string(b))
+	if err == nil {
+		info.Text = withChain(info.Text, threadsAuthorChain(string(b), info.Author))
+	}
+	return info, err
 }
 
 func parseThreadsPage(page string) (ThreadsPostInfo, error) {

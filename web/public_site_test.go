@@ -238,8 +238,8 @@ func TestAboutPage(t *testing.T) {
 		t.Fatal("no FAQPage")
 	}
 	qs := faq[0]["mainEntity"].([]any)
-	if len(qs) < 10 || len(qs) > 15 {
-		t.Errorf("FAQ has %d questions, want 10-15", len(qs))
+	if len(qs) < 10 || len(qs) > 18 {
+		t.Errorf("FAQ has %d questions, want 10-18", len(qs))
 	}
 	for _, q := range qs {
 		m := q.(map[string]any)

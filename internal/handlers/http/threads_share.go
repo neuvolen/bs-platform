@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // R62: short share links threads.com/share/<code> (what the Threads app's
@@ -152,8 +153,8 @@ func threadsPageCaptions(page string) []string {
 }
 
 // thOwnerShare: the link the owner sent on 08.10.2026 («посмотри это и
-// примени»). The self-test resolves it once per start and logs the public
-// post (author and text) so the team can read it without the app.
+// примени»). The self-test resolves it once per start and logs only what
+// worked (no content).
 const thOwnerShare = "https://www.threads.com/share/BBr-UwA_Ka/"
 
 func (m *Trends) shareSelfTest(ctx context.Context) {
@@ -171,29 +172,19 @@ func (m *Trends) shareSelfTest(ctx context.Context) {
 		return
 	}
 	pg, _ := parseThreadsPage(page)
-	log.Printf("trends: self-test share link: %s author @%s, likes %d, replies %d: %s", ref.URL, pg.Author, pg.Likes, pg.Replies, oneLine(pg.Text, 1500))
-	all := threadsPageCaptions(page)
 	chain := threadsAuthorChain(page, pg.Author)
-	log.Printf("trends: self-test share link: %d texts on the page, %d by the author", len(all), len(chain))
-	for i, c := range threadsCaptionsWho(page) {
-		if i >= 30 {
-			break
-		}
-		log.Printf("trends: self-test share link text %d (@%s|@%s): %s", i+1, c.Before, c.After, oneLine(c.Text, 900))
-	}
+	log.Printf("trends: self-test share link: ok → %s (@%s, text %v, %d author parts, likes %d, replies %d)",
+		ref.URL, pg.Author, pg.Text != "", len(chain), pg.Likes, pg.Replies)
 }
 
-func oneLine(s string, n int) string {
-	return cutRunes(strings.ReplaceAll(s, "\n", " / "), n)
-}
 
 var thUsernameRe = regexp.MustCompile(`"username"\s*:\s*"([A-Za-z0-9._]+)"`)
 
 type thCaption struct{ Text, Before, After string }
 
 // threadsCaptionsWho: every post text on the page with the closest
-// "username" before and after it (Threads keeps the author in the post
-// object next to its caption).
+// "username" before and after it. On the real page (checked on the owner's
+// link, 08.10.2026) the author's username stands before the caption.
 func threadsCaptionsWho(page string) []thCaption {
 	users := thUsernameRe.FindAllStringSubmatchIndex(page, -1)
 	var out []thCaption
@@ -216,8 +207,9 @@ func threadsCaptionsWho(page string) []thCaption {
 	return out
 }
 
-// threadsAuthorChain: the author's own parts of a post (the post and its
-// thread continuation), without other people's replies.
+// threadsAuthorChain: the author's own texts on a post page (the post, its
+// thread continuation, and the author's answers to comments), without other
+// people's replies and posts.
 func threadsAuthorChain(page, author string) []string {
 	if author == "" {
 		return nil
@@ -225,10 +217,39 @@ func threadsAuthorChain(page, author string) []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, c := range threadsCaptionsWho(page) {
-		if strings.EqualFold(c.After, author) && !seen[c.Text] {
+		if strings.EqualFold(c.Before, author) && !seen[c.Text] {
 			seen[c.Text] = true
 			out = append(out, c.Text)
 		}
+	}
+	return out
+}
+
+// withChain: the post's text with the author's next parts (a thread of
+// posts reads as one text in the inbox): parts of 60+ signs, at most 6, the
+// whole at most 3 000 signs. The first part must be the post itself.
+func withChain(text string, chain []string) string {
+	if len(chain) < 2 || text == "" {
+		return text
+	}
+	head := []rune(strings.TrimSpace(chain[0]))
+	if len(head) > 60 {
+		head = head[:60]
+	}
+	if !strings.HasPrefix(strings.TrimSpace(text), string(head)) {
+		return text
+	}
+	out := strings.TrimSpace(chain[0])
+	n := 0
+	for _, p := range chain[1:] {
+		if utf8.RuneCountInString(p) < 60 || n >= 6 {
+			continue
+		}
+		if utf8.RuneCountInString(out)+utf8.RuneCountInString(p) > 3000 {
+			break
+		}
+		out += "\n\n" + p
+		n++
 	}
 	return out
 }

@@ -52,14 +52,40 @@ func TestThreadsPageCaptions(t *testing.T) {
 }
 
 func TestThreadsAuthorChain(t *testing.T) {
-	page := `[{"post":{"caption":{"text":"Часть 1"},"user":{"username":"au.thor"}}},` +
-		`{"post":{"caption":{"text":"Спасибо!"},"user":{"username":"fan"}}},` +
-		`{"post":{"caption":{"text":"Часть 2"},"user":{"username":"au.thor"}}}]`
+	// the real page: the username stands before the caption
+	page := `[{"post":{"user":{"username":"au.thor"},"caption":{"text":"Часть 1"}}},` +
+		`{"post":{"user":{"username":"fan"},"caption":{"text":"Спасибо!"}}},` +
+		`{"post":{"user":{"username":"au.thor"},"caption":{"text":"Часть 2"}}}]`
 	got := threadsAuthorChain(page, "au.thor")
 	if len(got) != 2 || got[0] != "Часть 1" || got[1] != "Часть 2" {
 		t.Fatalf("chain: %q", got)
 	}
 	if threadsAuthorChain(page, "") != nil {
 		t.Fatal("no author")
+	}
+}
+
+func TestWithChain(t *testing.T) {
+	long := func(s string) string { return s + strings.Repeat(" шаг", 20) }
+	chain := []string{"Лайфхак: как попасть в ответы ИИ\n1. откройте консоль", "🙂", long("2. добавьте фильтр"), long("3. отсортируйте по показам")}
+	got := withChain("Лайфхак: как попасть в ответы ИИ\n1. откройте консоль", chain)
+	if !strings.Contains(got, "2. добавьте фильтр") || !strings.Contains(got, "3. отсортируйте") || strings.Contains(got, "🙂") {
+		t.Fatalf("chain: %s", got)
+	}
+	if withChain("другой текст", chain) != "другой текст" {
+		t.Fatal("a chain of another post must not be glued")
+	}
+	// the fetcher glues the author's parts of a page
+	page := `<html><head><meta property="og:title" content="A (@au.thor) on Threads"><meta property="og:description" content="` + chain[0] + `"></head><body><script>` +
+		`[{"user":{"username":"au.thor"},"caption":{"text":"Лайфхак: как попасть в ответы ИИ\n1. откройте консоль"}},` +
+		`{"user":{"username":"fan"},"caption":{"text":"` + long("Спасибо, полезно") + `"}},` +
+		`{"user":{"username":"au.thor"},"caption":{"text":"` + long("2. добавьте фильтр") + `"}}]</script></body></html>`
+	info, err := parseThreadsPage(page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := withChain(info.Text, threadsAuthorChain(page, info.Author))
+	if !strings.Contains(full, "2. добавьте фильтр") || strings.Contains(full, "Спасибо") {
+		t.Fatalf("page chain: %s", full)
 	}
 }

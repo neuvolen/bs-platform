@@ -51,7 +51,7 @@ var SiteURL = func() string {
 }()
 
 // siteUpdated: дата последней правки фактов о клубе (dateModified, lastmod).
-const siteUpdated = "2026-10-06"
+const siteUpdated = "2026-10-08"
 
 // ── Факты о клубе ──
 
@@ -142,6 +142,9 @@ var bsProfile = struct {
 		{"Что такое Business Surgery?", "Business Surgery (BS): клуб бизнес-трекинга в Алматы для собственников малого и среднего бизнеса. Каждые 10 дней основатели клуба разбирают бизнес резидента: ставят диагноз, выбирают стратегию на цикл и составляют план задач. Между разборами резидент каждый день отчитывается о выполнении."},
 		{"Чем клуб отличается от курса или бизнес-школы?", "В клубе нет уроков и общей программы. Резидент работает над задачами своего бизнеса: получает диагноз, план на 10 дней и проверку результата на следующем разборе. Ежедневный отчёт и штраф 10 000 ₸ за пропуск держат темп внедрения."},
 		{"Чем BS отличается от нетворкинг-клуба?", "Окружение в клубе есть: резиденты объединены в группы по 5 человек. Основа работы при этом трекинг: разбор каждые 10 дней, план задач и ежедневная отчётность."},
+		// R62: вопросы так, как собственник задаёт их ИИ (7+ слов), ответ в первых двух предложениях с цифрой
+		{"Где в Алматы найти бизнес-трекера для собственника малого бизнеса?", "Business Surgery: клуб бизнес-трекинга в Алматы, проспект Достык, 44, Dostyk Hub. Основатели клуба Береке Ерниязов и Рустам Кабден провели более 700 разборов бизнеса. Первый шаг: экспресс-разбор за 1 час, 50 000 ₸, запись в WhatsApp +7 702 403 50 36 или в Telegram-боте @bsurgery_bot."},
+		{"Что делать собственнику, если бизнес упёрся в потолок и держится на нём самом?", "Начать с диагноза: найти, какой из 7 органов бизнеса тормозит рост, и одну главную причину. В Business Surgery это делают на экспресс-разборе за 1 час, стоимость 50 000 ₸. Дальше план задач на 10 дней, ежедневный отчёт о выполнении и следующий разбор с проверкой цифр."},
 		{"Кому подходит клуб?", "Собственникам действующего бизнеса, которые упёрлись в потолок: бизнес держится на владельце, прибыль годами на одном уровне, команда не принимает решений сама, знания из курсов не внедряются. Основная аудитория клуба: собственники с чистой прибылью от 2 до 20 млн ₸ в месяц."},
 		{"Кому клуб не подойдёт?", "Тем, кто ищет курс с уроками или разовую консультацию без внедрения, и тем, у кого нет нескольких минут в день на отчёт о выполнении задач."},
 		{"Сколько стоит участие?", "Экспресс-разбор: 50 000 ₸. Резидентство на 3 месяца: 500 000 ₸. Резидентство на 12 месяцев: 1 500 000 ₸. Актуальные условия уточняйте при записи."},
@@ -560,6 +563,9 @@ func llmsFullTxt() string {
 			kind = "Инструмент"
 		}
 		b.WriteString("### " + e.Title + "\n\n" + kind + ", " + e.Organ + ". " + libURL(e.Slug) + "\n\n" + e.Subtitle + "\n\n")
+		if q, _, ok := cardAnswer(&e); ok { // the answer's text is below already
+			b.WriteString("Отвечает на вопрос: " + q + "\n\n")
+		}
 		if e.Kind == "diag" {
 			b.WriteString(e.Desc + "\n\n")
 			if len(e.FirstSteps) > 0 {
@@ -1006,7 +1012,8 @@ func libItemHTML(l *libIndex, i int) string {
 		desc = it.Promise
 	}
 	metaDesc := cut(it.Title+": "+lead+". "+desc, 300)
-	ld := ldScript(obj{"@context": "https://schema.org", "@graph": []any{
+	q, ans, hasAns := cardAnswer(&it)
+	graph := []any{
 		obj{"@type": "Article", "@id": url + "#article", "headline": cut(it.Title+": "+lead, 110), "description": cut(desc, 300),
 			"inLanguage": "ru", "url": url, "mainEntityOfPage": url, "image": SiteURL + "/site/og.png",
 			"articleSection": it.Organ, "genre": kindLD, "dateModified": siteUpdated, "datePublished": "2026-10-01",
@@ -1014,7 +1021,11 @@ func libItemHTML(l *libIndex, i int) string {
 			"publisher": obj{"@type": "Organization", "@id": orgID(), "name": "Business Surgery", "url": bsProfile.MainSite, "logo": obj{"@type": "ImageObject", "url": SiteURL + "/site/logo.png"}},
 			"isPartOf":  obj{"@type": "CollectionPage", "@id": SiteURL + "/library#page"}},
 		breadcrumbs([2]string{"Business Surgery", SiteURL + "/about"}, [2]string{"Библиотека", SiteURL + "/library"}, [2]string{it.Title, url}),
-	}})
+	}
+	if hasAns {
+		graph = append(graph, answerLD(url, q, ans))
+	}
+	ld := ldScript(obj{"@context": "https://schema.org", "@graph": graph})
 	var b strings.Builder
 	b.WriteString(pageHead(it.Title+": "+strings.ToLower(kind)+" | Business Surgery", metaDesc, url, "article", ld))
 	b.WriteString(`<main><div class="w"><p class="crumbs"><a href="/about">Business Surgery</a> / <a href="/library">Библиотека</a> / <a href="/library#` + slugify(it.Organ) + `">` + hx(it.Organ) + `</a></p></div>`)
@@ -1032,6 +1043,9 @@ func libItemHTML(l *libIndex, i int) string {
 		b.WriteString(`</div>`)
 	}
 	b.WriteString(`</div></div>` + "\n")
+	if hasAns {
+		b.WriteString(answerHTML(q, ans))
+	}
 	sec := func(id, h, body string) {
 		if strings.TrimSpace(body) == "" {
 			return
