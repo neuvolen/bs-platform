@@ -20,6 +20,7 @@ import (
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"github.com/bnursik/business_surgery_backend/internal/club"
+	"github.com/bnursik/business_surgery_backend/internal/content"
 	"github.com/gin-gonic/gin"
 )
 
@@ -230,6 +231,7 @@ func claimOffer(first string, price int64) string {
 	return upFirst(hiName(first)+"спасибо, что написали. Я сверил вас со списком резидентов Business Surgery и не нашёл в нём.") + "\n\n" +
 		"Доступ резидента открыт участникам клуба. Вход в клуб у всех один: экспресс-разбор с основателями BS. Час на ваших цифрах: находим, где бизнес теряет деньги, и составляем план на 10 дней. Стоимость " + tenge(price) + ".\n\n" +
 		"Пока бесплатно:\n📘 99 гайдов с чек-листами\n🔬 диагностика бизнеса за 5 минут\n💻 платформа app.bxclub.kz: вход через Telegram, экспресс-диагностика и часть библиотеки\n\n" +
+		"В библиотеке клуба " + content.ScaleText() + ": резиденты работают с ней на каждом разборе.\n\n" +
 		"Если вы уже в клубе, нажмите «Я уже в клубе», команда проверит вручную."
 }
 

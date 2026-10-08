@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
+	"github.com/bnursik/business_surgery_backend/internal/content"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
@@ -42,6 +43,7 @@ func RefLink(chatID int64) string {
 func refText(link string) string {
 	return "Привет! Делюсь находкой: Business Surgery, клуб бизнес-трекинга в Алматы.\n" +
 		"В их боте бесплатно открыты 99 гайдов по финансам, продажам, команде и маркетингу, с цифрами и пошаговыми планами.\n" +
+		"В библиотеке клуба " + content.ScaleText() + ".\n" +
 		"Если захочешь разобрать свой бизнес лично, там же можно записаться на разбор с основателями клуба.\n" +
 		"Ссылка: " + link
 }

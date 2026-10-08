@@ -13,8 +13,8 @@ import (
 func TestR40dLoginVoiceOverlay(t *testing.T) {
 	defer func() { LoginVoiceOverlay = nil }()
 	lines := LoginLines()
-	if len(lines) != 9 {
-		t.Fatalf("demo lines: %d, want 9", len(lines))
+	if len(lines) != 12 { // R60: the demo follows a разбор: 12 steps
+		t.Fatalf("demo lines: %d, want 12", len(lines))
 	}
 	read := func(p page, id string) map[string]string {
 		m := regexp.MustCompile(`<script type="application/json" id="` + id + `">(.*?)</script>`).FindStringSubmatch(string(p.plain))

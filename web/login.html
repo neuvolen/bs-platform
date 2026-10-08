@@ -34,7 +34,7 @@
   W.bsHttps = {up: up, pic: pic, html: html};
 })();
 </script>
-<meta name="description" content="Платформа клуба Business Surgery: разборы каждые 10 дней, задачи, отчёты, пятёрки и финансы. Вход для резидентов и команды через Telegram.">
+<meta name="description" content="Платформа клуба Business Surgery: разбор каждые 10 дней, 79 диагнозов, 122 инструмента с шаблонами, 1 059 бизнес-идей, замеры и трекинг. Вход для резидентов и команды через Telegram.">
 <!--ICONS-->
 <meta name="theme-color" content="#050505">
 <meta name="robots" content="noindex,nofollow">
@@ -286,6 +286,43 @@ body.dm-lock{overflow:hidden}
  .dm-dots{margin-top:16px}.dm-nav{margin-top:14px}.dm-nav button{height:44px}.dm-keys{display:none}
  .dm-cta{margin-top:14px}}
 @media (prefers-reduced-motion:reduce){.dm-cam,.dm-spot{transition:none!important}.demo-b .pl,.dm-spot::after{animation:none!important}}
+/* R60: первый экран: слева суть и главная кнопка «Посмотреть, как это работает», справа вход через Telegram. Оба без прокрутки на 1280×720 и на телефоне */
+main.wrap{overflow-x:clip}
+.first{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:56px;align-items:center;margin-top:20px}
+.first .hero{text-align:left;max-width:none;margin:0}
+.first h1{margin-top:22px;font-size:50px;line-height:1.06}
+.first h1 br{display:block}
+.first .sub{margin:18px 0 0;max-width:540px;font-size:17px;color:#A8A8A8}
+.hero-act{margin-top:28px}
+.demo-b.demo-p{height:56px;margin:0;padding:0 26px 0 8px;gap:14px;background:#fff;color:#050505;border:1px solid #fff;font-size:16px;font-weight:700;box-shadow:0 16px 48px -14px rgba(255,255,255,.4)}
+.demo-b.demo-p:hover{background:#E9E9E9;border-color:#E9E9E9}
+.demo-p .pl{width:40px;height:40px;background:#050505;animation:dmPingD 2.6s ease-out infinite}
+.demo-p .pl svg{fill:#fff}
+.demo-p em{color:#6A6A6A;font-weight:600}
+@keyframes dmPingD{0%{box-shadow:0 0 0 0 rgba(5,5,5,.3)}70%,100%{box-shadow:0 0 0 10px rgba(5,5,5,0)}}
+.scale{list-style:none;display:flex;flex-wrap:wrap;gap:12px 32px;margin-top:30px;padding-top:20px;border-top:1px solid var(--line);max-width:540px}
+.scale li{font-size:13px;line-height:1.35;color:#8E8E8E;font-weight:500}
+.scale b{display:block;margin-bottom:2px;font-size:26px;line-height:1.1;font-weight:800;letter-spacing:-.02em;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+.first .entry{margin-top:0}
+.first .card{width:100%;padding:26px 28px 20px}
+.first .card h2{margin-top:10px}
+/* виджет Telegram (data-size large) рисует кнопку 40 px: увеличиваем до 48 px, место под неё в #w */
+#w{min-height:56px}
+#w iframe{transform:scale(1.2);transform-origin:50% 50%;margin:4px 0}
+.first .note{margin-top:16px;padding-top:12px}
+.first .guest{margin-top:18px;gap:10px}
+.first .guest>span{width:100%;text-align:center;margin:0}
+.first .btn{height:48px}
+@media (max-width:1320px){.first h1{font-size:44px}}
+@media (max-width:1180px){.first{grid-template-columns:minmax(0,1fr) 400px;gap:40px}.first h1{font-size:40px}}
+@media (max-width:1000px){.first{grid-template-columns:minmax(0,1fr);justify-items:center;gap:32px;margin-top:12px}
+ .first .hero{text-align:center}.first .sub{margin-left:auto;margin-right:auto}.scale{justify-content:center;margin-left:auto;margin-right:auto}
+ .first .entry{width:min(520px,100%)}}
+@media (max-width:640px){.top{height:60px}.first{margin-top:4px;gap:22px}.first .pill{display:none}
+ .first h1{margin-top:0;font-size:31px;line-height:1.08}.first .sub{margin-top:12px;font-size:15px}
+ .hero-act{margin-top:18px}.demo-b.demo-p{width:100%;justify-content:center;padding:0 18px 0 8px;gap:12px;font-size:15.5px}.first h1 br{display:none}
+ .scale{margin-top:16px;padding-top:14px;gap:8px 18px;flex-wrap:nowrap;justify-content:space-between}.scale li{font-size:11.5px;text-align:left}.scale b{font-size:20px}
+ .first .card{padding:18px 16px 16px}.first .card h2{font-size:20px;margin-top:8px}.first .card p{font-size:13px;margin-top:6px}#w{margin-top:14px}}
 </style>
 </head>
 <body>
@@ -296,18 +333,21 @@ body.dm-lock{overflow:hidden}
 </header>
 
 <main class="wrap" id="top">
+  <div class="first">
   <section class="hero">
     <span class="pill"><i></i>Платформа BS <em>app.bxclub.kz</em></span>
-    <h1>Вся работа клуба<br> <span>живёт на этой платформе</span></h1>
-    <p class="sub">Разборы каждые 10 дней, задачи, отчёты, пятёрки и финансы.<br> Вы и трекер видите одну картину.</p>
-    <p class="hero-demo"><button type="button" class="demo-b" data-demo><span class="pl" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M5.5 3.8v8.4L12.2 8z"/></svg></span>Посмотреть, как это работает <em>1 мин</em></button></p>
+    <h1>Точная работа с&nbsp;бизнесом<br> <span>на&nbsp;уровне его ДНК</span></h1>
+    <p class="sub">Каждые 10&nbsp;дней разбор: диагнозы, цена бездействия, инструменты с&nbsp;шаблонами и&nbsp;трекинг до&nbsp;результата.</p>
+    <div class="hero-act"><button type="button" class="demo-b demo-p" data-demo><span class="pl" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M5.5 3.8v8.4L12.2 8z"/></svg></span>Посмотреть, как это работает <em>2 мин</em></button></div>
+    <!-- R60: счёт библиотеки клуба (web/r60_scale_test.go сверяет с internal/content: число не больше настоящего) -->
+    <ul class="scale" aria-label="Библиотека клуба"><li><b data-scale="diag">79</b>диагнозов</li><li><b data-scale="tools">122</b>инструмента с&nbsp;шаблонами</li><li><b data-scale="ideas">1&nbsp;059</b>бизнес-идей</li></ul>
   </section>
 
   <section class="entry" aria-labelledby="lt">
     <div class="card" id="login">
       <span class="tag"><svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="6" width="9" height="6.5" rx="1.6"/><path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6"/></svg>Вход в платформу</span>
       <h2 id="lt">Вход через Telegram</h2>
-      <p>Резиденты и команда попадают в&nbsp;свой кабинет. Гости клуба: на&nbsp;экспресс-диагностику бизнеса и&nbsp;часть библиотеки</p>
+      <p>Резиденты и команда попадают в&nbsp;свой кабинет. Гости: в&nbsp;экспресс-диагностику и&nbsp;часть библиотеки</p>
       <div id="w"><span class="wait" aria-hidden="true"><i></i><i></i><i></i></span></div>
       <div id="m" role="status" aria-live="polite"></div>
       <div class="note">Вы резидент, а видите страницу гостя? Напишите куратору, он проверит Chat ID</div>
@@ -318,19 +358,20 @@ body.dm-lock{overflow:hidden}
       <a class="btn" href="https://wa.me/77024035036?text=%D0%A5%D0%BE%D1%87%D1%83%20%D0%B7%D0%B0%D0%BF%D0%B8%D1%81%D0%B0%D1%82%D1%8C%D1%81%D1%8F%20%D0%BD%D0%B0%20%D1%80%D0%B0%D0%B7%D0%B1%D0%BE%D1%80" target="_blank" rel="noopener">Записаться на разбор <em>50&nbsp;000&nbsp;₸</em></a>
     </div>
   </section>
+  </div>
 
   <section class="sc" id="inside" aria-labelledby="scH">
     <div class="sc-head">
       <span class="eb">Кабинет резидента</span>
-      <h2 id="scH">Ваш бизнес под присмотром,<br> <span>а не в десяти таблицах</span></h2>
+      <h2 id="scH">Ваш бизнес под присмотром<br> <span>в одном кабинете</span></h2>
       <p>Так платформу видит резидент: <b>ваш бизнес, план лечения, инструменты и рост</b>. Трекер работает с теми же данными и видит ту же картину</p>
-      <button type="button" class="demo-b" data-demo><span class="pl" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M5.5 3.8v8.4L12.2 8z"/></svg></span>Посмотреть, как это работает <em>1 мин</em></button>
+      <button type="button" class="demo-b" data-demo><span class="pl" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M5.5 3.8v8.4L12.2 8z"/></svg></span>Посмотреть, как это работает <em>2 мин</em></button>
     </div>
     <div class="sc-grid">
       <ol class="sc-list" role="tablist" aria-label="Что внутри кабинета резидента">
-<li role="presentation"><button type="button" class="sc-t" role="tab" id="scTab0" aria-controls="scView" aria-selected="true" data-i="0" data-m="3<small>/10</small>" data-ml="финансы: слабое место, лечим в этом цикле"><span class="n">01</span><b>Карта здоровья</b><em>Диагнозы по семи органам бизнеса: стратегия, финансы, продажи, команда. Слабое место видно сразу</em><span class="pr"><i></i></span></button></li>
+<li role="presentation"><button type="button" class="sc-t" role="tab" id="scTab0" aria-controls="scView" aria-selected="true" data-i="0" data-m="3<small>/10</small>" data-ml="финансы: слабое место, лечим в этом цикле"><span class="n">01</span><b>Карта здоровья</b><em>Диагнозы по семи органам бизнеса: стратегия, финансы, продажи, команда. В библиотеке 79 диагнозов с&nbsp;кейсами</em><span class="pr"><i></i></span></button></li>
 <li role="presentation"><button type="button" class="sc-t" role="tab" id="scTab1" aria-controls="scView" aria-selected="false" data-i="1" data-m="10<small> дней</small>" data-ml="один цикл: разбор, задачи, отчёт трекеру"><span class="n">02</span><b>План лечения</b><em>Цели и задачи на 10 дней: от диагноза к инструменту и задаче со сроком. Трекер видит прогресс</em><span class="pr"><i></i></span></button></li>
-<li role="presentation"><button type="button" class="sc-t" role="tab" id="scTab2" aria-controls="scView" aria-selected="false" data-i="2" data-m="99" data-ml="интерактивных чек-листов с шагами и отметками"><span class="n">03</span><b>Инструменты и 99 чек-листов</b><em>Книги, шаблоны и пошаговые чек-листы под каждую задачу. Не нужно изобретать с нуля</em><span class="pr"><i></i></span></button></li>
+<li role="presentation"><button type="button" class="sc-t" role="tab" id="scTab2" aria-controls="scView" aria-selected="false" data-i="2" data-m="122" data-ml="инструмента: шаблон, инструкция и&nbsp;видео"><span class="n">03</span><b>Инструменты и шаблоны</b><em>Под каждый диагноз готовое лечение: шаблон, пошаговая инструкция, видео и&nbsp;чек-лист внедрения</em><span class="pr"><i></i></span></button></li>
 <li role="presentation"><button type="button" class="sc-t" role="tab" id="scTab3" aria-controls="scView" aria-selected="false" data-i="3" data-m="4,6 → 5,8" data-ml="средний балл колеса бизнеса за четыре цикла"><span class="n">04</span><b>Замеры и рост</b><em>Колесо бизнеса раз в цикл: пять минут, и видно, что реально выросло</em><span class="pr"><i></i></span></button></li>
 <li role="presentation"><button type="button" class="sc-t" role="tab" id="scTab4" aria-controls="scView" aria-selected="false" data-i="4" data-m="PDF" data-ml="итоги каждого разбора в одном файле"><span class="n">05</span><b>Саммари разборов</b><em>После каждой встречи: диагнозы, решения и задачи со сроками. Можно скачать в PDF</em><span class="pr"><i></i></span></button></li>
 <li role="presentation"><button type="button" class="sc-t" role="tab" id="scTab5" aria-controls="scView" aria-selected="false" data-i="5" data-m="34" data-ml="таланта в профиле, разбор под ваш бизнес"><span class="n">06</span><b>Gallup и таланты</b><em>Как ваши таланты помогают бизнесу и где мешают. Профиль на языке задач собственника</em><span class="pr"><i></i></span></button></li>
@@ -339,11 +380,11 @@ body.dm-lock{overflow:hidden}
       <div class="sc-stage">
         <div class="sc-frame">
           <div class="sc-bar" aria-hidden="true"><span class="sc-dots"><i></i><i></i><i></i></span><span class="sc-url"><span><svg viewBox="0 0 12 12"><rect x="2" y="5.2" width="8" height="5.8" rx="1.4"/><path d="M4 5.2V3.8a2 2 0 0 1 4 0v1.4"/></svg>app.bxclub.kz<b> · защищено</b></span></span><span class="sc-bar-r"></span></div>
-          <div class="sc-view" id="scView" role="tabpanel" aria-live="polite"><img style="--fx:0.42;--fy:0.17" src="/promo/health.webp" width="1600" height="1086" alt="Карта здоровья бизнеса: семь органов и оценки трекера" loading="eager" decoding="async" class="on"><img style="--fx:0.12;--fy:0.37" src="/promo/plan.webp" width="1600" height="1086" alt="Доска разбора: диагнозы, инструменты и задачи со сроками" loading="lazy" decoding="async"><img style="--fx:0;--fy:0.2" src="/promo/guides.webp" width="1600" height="1086" alt="Библиотека: 99 интерактивных чек-листов по органам бизнеса" loading="lazy" decoding="async"><img style="--fx:0.2;--fy:0.15" src="/promo/wheel.webp" width="1600" height="1086" alt="Колесо бизнеса: замер этого цикла и прошлого" loading="lazy" decoding="async"><img style="--fx:0;--fy:0.3" src="/promo/summary.webp" width="1600" height="1086" alt="Саммари разбора: проблемы, диагнозы, решения и задачи" loading="lazy" decoding="async"><img style="--fx:0;--fy:0.2" src="/promo/gallup.webp" width="1600" height="1086" alt="Профиль Gallup: пять сильных талантов, что помогает и что мешает" loading="lazy" decoding="async"><img style="--fx:0;--fy:0.12" src="/promo/community.webp" width="1600" height="1086" alt="Участники клуба: ваша пятёрка и весь клуб" loading="lazy" decoding="async"></div>
+          <div class="sc-view" id="scView" role="tabpanel" aria-live="polite"><img style="--fx:0.42;--fy:0.17" src="/promo/health.webp" width="1600" height="1086" alt="Карта здоровья бизнеса: семь органов и оценки трекера" loading="eager" decoding="async" class="on"><img style="--fx:0.12;--fy:0.37" src="/promo/plan.webp" width="1600" height="1086" alt="Доска разбора: диагнозы, инструменты и задачи со сроками" loading="lazy" decoding="async"><img style="--fx:0.27;--fy:0.04" src="/promo/tool.webp" width="1600" height="1086" alt="Инструмент «Платёжный календарь»: шаблон клуба для заполнения и PDF" loading="lazy" decoding="async"><img style="--fx:0.2;--fy:0.15" src="/promo/wheel.webp" width="1600" height="1086" alt="Колесо бизнеса: замер этого цикла и прошлого" loading="lazy" decoding="async"><img style="--fx:0;--fy:0.3" src="/promo/summary.webp" width="1600" height="1086" alt="Саммари разбора: проблемы, диагнозы, решения и задачи" loading="lazy" decoding="async"><img style="--fx:0;--fy:0.2" src="/promo/gallup.webp" width="1600" height="1086" alt="Профиль Gallup: пять сильных талантов, что помогает и что мешает" loading="lazy" decoding="async"><img style="--fx:0;--fy:0.12" src="/promo/community.webp" width="1600" height="1086" alt="Участники клуба: ваша пятёрка и весь клуб" loading="lazy" decoding="async"></div>
         </div>
         <div class="sc-m" id="scM" aria-hidden="true"><b>3<small>/10</small></b><span>финансы: слабое место, лечим в этом цикле</span></div>
       </div>
-      <p class="sc-desc" id="scDesc"><b>Карта здоровья.</b> Диагнозы по семи органам бизнеса: стратегия, финансы, продажи, команда. Слабое место видно сразу</p>
+      <p class="sc-desc" id="scDesc"><b>Карта здоровья.</b> Диагнозы по семи органам бизнеса: стратегия, финансы, продажи, команда. В библиотеке 79 диагнозов с&nbsp;кейсами</p>
       <p class="sc-note">Экраны кабинета резидента, данные демонстрационные</p>
     </div>
   </section>
@@ -361,17 +402,20 @@ body.dm-lock{overflow:hidden}
   <span><a href="/about">О клубе</a> · <a href="/library">Библиотека</a> · <a href="https://bxclub.kz" target="_blank" rel="noopener">bxclub.kz</a></span>
 </footer>
 
-<!-- R40c: обучение «Посмотреть, как это работает»: шаги, подписи и голос (tools/voice/build.sh --login делает web/voice/login/*.mp3 из поля v) -->
+<!-- R40c, R60: обучение «Посмотреть, как это работает» по порядку разбора (разбор, диагнозы, цена болезни, инструменты, помощь, замеры, Gallup, окружение, трекинг): шаги, подписи и голос (tools/voice/build.sh --login делает web/voice/login/*.mp3 из поля v) -->
 <script type="application/json" id="bsLoginTour">{"steps":[
- {"img":"health","t":"Кабинет резидента","d":"Так платформу видит собственник бизнеса. Покажу главное за минуту.","v":"Это ваш кабинет резидента. Покажу главное за минуту."},
- {"img":"health","spot":[0.705,0.212,0.272,0.65],"t":"Карта здоровья бизнеса","d":"Трекер оценивает семь органов бизнеса. Слабое место видно сразу: здесь это финансы.","v":"Карта здоровья. Трекер оценивает семь органов бизнеса. Слабое место видно сразу, здесь это финансы."},
- {"img":"plan","spot":[0.16,0.54,0.216,0.41],"t":"План лечения на 10 дней","d":"Диагноз превращается в инструмент и задачи со сроком. Трекер видит прогресс и держит темп.","v":"Затем план лечения. Каждый диагноз превращается в инструмент и задачи на десять дней. Трекер следит, чтобы всё было сделано."},
- {"img":"guides","spot":[0.022,0.25,0.956,0.275],"ms":[0.62,0.28,0.355,0.1],"t":"Инструменты и 99 чек-листов","d":"Под каждую задачу есть готовое решение: книги, шаблоны и пошаговые чек-листы.","v":"Для каждой задачи есть готовый инструмент. Книги, шаблоны и девяносто девять пошаговых чек-листов."},
- {"img":"wheel","spot":[0.022,0.18,0.956,0.11],"ms":[0.022,0.18,0.62,0.11],"t":"Замеры и рост","d":"Раз в цикл замер за пять минут. Видно, что выросло: было 4,6, стало 5,8.","v":"Раз в цикл вы делаете замер. Пять минут, и видно, что в бизнесе реально выросло."},
- {"img":"summary","spot":[0.036,0.595,0.44,0.345],"t":"Саммари после каждого разбора","d":"После встречи приходят диагнозы, решения и задачи со сроками. Можно скачать в PDF.","v":"После разбора приходит саммари. Диагнозы, решения и задачи со сроками. Итоги можно скачать одним файлом."},
- {"img":"gallup","spot":[0.043,0.408,0.913,0.245],"ms":[0.043,0.408,0.37,0.245],"t":"Gallup: таланты в бизнесе","d":"Какие ваши таланты помогают бизнесу, а какие мешают. Профиль на языке задач собственника.","v":"Профиль Гэ́ллап мы переводим на язык бизнеса. Какие таланты помогают, а какие мешают."},
- {"img":"community","spot":[0.022,0.18,0.956,0.255],"ms":[0.022,0.18,0.5,0.255],"t":"Сообщество собственников","d":"Ваша пятёрка и весь клуб. Рядом люди, которые решают похожие задачи.","v":"И главное, вы не один. Рядом ваша пятёрка и собственники, которые решают похожие задачи."},
- {"img":"community","end":true,"t":"Посмотрим на ваш бизнес?","d":"Резиденты входят через Telegram. Если вы ещё не в клубе, начните с экспресс-разбора.","v":"Если вы резидент, войдите через Телеграм. Если ещё нет, запишитесь на экспресс-разбор."}
+ {"img":"plan","t":"Как проходит разбор","d":"Каждые 10 дней основатели клуба разбирают ваш бизнес. Покажу весь путь за две минуты.","v":"Покажу, как проходит разбор в клубе. Каждые десять дней основатели клуба разбирают ваш бизнес, и всё, что нашли, остаётся здесь."},
+ {"img":"plan","spot":[0.165,0.21,0.68,0.73],"ms":[0.16,0.54,0.216,0.41],"t":"Доска разбора","d":"На разборе ставим диагнозы, к каждому подбираем инструмент и задачи со сроком.","v":"За час разбора мы ставим диагнозы, подбираем к каждому инструмент и раскладываем его на задачи со сроками."},
+ {"img":"health","spot":[0.705,0.212,0.272,0.65],"t":"Диагноз по семи органам","d":"Бизнес как организм: стратегия, маркетинг, продажи, команда, финансы, процессы и аналитика. Слабое место видно сразу.","v":"Сначала диагноз. Мы смотрим на бизнес как на организм из семи органов. Слабое место видно сразу, здесь это финансы."},
+ {"img":"diag","spot":[0.29,0.08,0.645,0.39],"ms":[0.29,0.08,0.41,0.39],"t":"79 диагнозов с реальными кейсами","d":"У каждого диагноза симптомы, причины, короткий тест и кейс собственника.","v":"В библиотеке клуба семьдесят девять диагнозов. У каждого симптомы, причины, короткий тест и реальный кейс собственника."},
+ {"img":"risk","spot":[0.465,0.575,0.46,0.245],"t":"Что будет, если не лечить","d":"Цена болезни в тенге и прогноз на год вперёд. Видно, сколько бизнес теряет каждый месяц.","v":"Дальше важное: что будет, если не лечить. Цена болезни в тенге и прогноз на год вперёд."},
+ {"img":"tool","spot":[0.465,0.065,0.46,0.835],"ms":[0.465,0.065,0.46,0.42],"t":"122 инструмента с шаблонами","d":"К каждому диагнозу готовое лечение: шаблон, пошаговая инструкция, как применить, дополнительные видео и чек-лист внедрения.","v":"Потом лечение. В клубе сто двадцать два инструмента. К каждому есть шаблон, пошаговая инструкция, как применить, и дополнительные видео."},
+ {"img":"tooltop","spot":[0.29,0.08,0.645,0.38],"ms":[0.29,0.08,0.41,0.38],"t":"Поможем внедрить","d":"Если нужна помощь, напишите нам. Команда клуба внедрит инструмент вместе с вами по лояльной цене клуба.","v":"Если самому сложно, напишите нам. Команда клуба поможет внедрить инструмент по лояльной цене."},
+ {"img":"wheel","spot":[0.022,0.18,0.956,0.11],"ms":[0.022,0.18,0.62,0.11],"t":"Колесо баланса и замеры","d":"Раз в цикл замер за пять минут. Видно, что выросло: было 4,6, стало 5,8.","v":"Чтобы видеть рост, раз в цикл вы делаете замер. Пять минут, и видно, что в бизнесе реально выросло."},
+ {"img":"gallup","spot":[0.043,0.408,0.913,0.245],"ms":[0.043,0.408,0.37,0.245],"t":"Тест Gallup: таланты в бизнесе","d":"Какие ваши таланты помогают бизнесу, а какие мешают. Профиль на языке задач собственника.","v":"Тест Гэ́ллап мы переводим на язык бизнеса. Какие таланты помогают, а какие мешают."},
+ {"img":"community","spot":[0.022,0.18,0.956,0.255],"ms":[0.022,0.18,0.5,0.255],"t":"Окружение: ваша пятёрка","d":"Группа из пяти собственников и весь клуб. Рядом люди, которые решают похожие задачи.","v":"Рядом окружение. Ваша пятёрка и собственники клуба, которые решают похожие задачи."},
+ {"img":"summary","spot":[0.036,0.595,0.44,0.345],"t":"Трекинг и отчёты","d":"Каждый день короткий отчёт, после разбора саммари с решениями и задачами. Через 10 дней проверяем результат.","v":"И трекинг. Каждый день короткий отчёт, после разбора саммари с задачами, а через десять дней проверяем результат."},
+ {"img":"health","end":true,"t":"Посмотрим на ваш бизнес?","d":"В библиотеке клуба 79 диагнозов, 122 инструмента и 1 059 бизнес-идей. Резиденты входят через Telegram, остальные начинают с экспресс-разбора.","v":"В клубе семьдесят девять диагнозов, сто двадцать два инструмента и больше тысячи бизнес-идей. Если вы резидент, войдите через Телеграм. Если ещё нет, запишитесь на экспресс-разбор."}
 ]}</script>
 <!--LOGINVOICE-->
 <div class="dm" id="demo" role="dialog" aria-modal="true" aria-labelledby="dmT" aria-describedby="dmD" hidden>

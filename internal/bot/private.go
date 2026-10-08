@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/club"
+	"github.com/bnursik/business_surgery_backend/internal/content"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 )
 
@@ -318,7 +319,7 @@ func (s *Service) private(ctx context.Context, body []byte) {
 				"Шаблон отчёта: /help · Ваш баланс: /status", kb(appBtn("📱 Открыть в BS", ""), s.platformBtn(ctx)))
 		default:
 			_ = s.SendMessageKB(ctx, m.ChatID, "🧬 Добро пожаловать в Business Surgery!\n\n"+
-				"В приложении: 99 чек-листов для владельца бизнеса и запись на разбор.",
+				"В приложении: библиотека клуба ("+content.ScaleText()+"), 99 чек-листов в подарок и запись на разбор.",
 				kb(appBtn("📱 Открыть приложение", "")))
 		}
 		return
