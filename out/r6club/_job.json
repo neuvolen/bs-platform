@@ -1,0 +1,109 @@
+{
+ "job": "r6club",
+ "job_sha256": "91070575ddf099a055640ed002e31e1b2b9acf22eb773011a944de27d06cb496",
+ "run_id": "37812243916",
+ "jobs_sha": "6c381535cb2a99871f7bc61849b7f2cb7e91e810",
+ "ok": true,
+ "lines": [
+  {
+   "id": "l01",
+   "chars": 65,
+   "words": 11,
+   "duration": 4.458
+  },
+  {
+   "id": "l02",
+   "chars": 59,
+   "words": 10,
+   "duration": 4.551
+  },
+  {
+   "id": "l03",
+   "chars": 62,
+   "words": 10,
+   "duration": 4.737
+  },
+  {
+   "id": "l04",
+   "chars": 64,
+   "words": 9,
+   "duration": 4.087
+  },
+  {
+   "id": "l05",
+   "chars": 42,
+   "words": 9,
+   "duration": 3.762
+  },
+  {
+   "id": "l06",
+   "chars": 60,
+   "words": 10,
+   "duration": 4.69
+  },
+  {
+   "id": "l07",
+   "chars": 66,
+   "words": 7,
+   "duration": 5.573
+  },
+  {
+   "id": "l08",
+   "chars": 48,
+   "words": 7,
+   "duration": 3.065
+  },
+  {
+   "id": "l09",
+   "chars": 70,
+   "words": 10,
+   "duration": 4.458
+  },
+  {
+   "id": "l10",
+   "chars": 37,
+   "words": 7,
+   "duration": 2.136
+  },
+  {
+   "id": "l11",
+   "chars": 33,
+   "words": 5,
+   "duration": 2.694
+  },
+  {
+   "id": "l12",
+   "chars": 53,
+   "words": 7,
+   "duration": 3.251
+  },
+  {
+   "id": "l13",
+   "chars": 61,
+   "words": 9,
+   "duration": 4.226
+  },
+  {
+   "id": "l14",
+   "chars": 67,
+   "words": 8,
+   "duration": 4.598
+  },
+  {
+   "id": "l15",
+   "chars": 67,
+   "words": 10,
+   "duration": 4.133
+  }
+ ],
+ "chars": 854,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.4,
+  "similarity_boost": 0.8,
+  "style": 0.38,
+  "use_speaker_boost": true,
+  "speed": 1.05
+ }
+}
