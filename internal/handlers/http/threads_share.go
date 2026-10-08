@@ -172,14 +172,63 @@ func (m *Trends) shareSelfTest(ctx context.Context) {
 	}
 	pg, _ := parseThreadsPage(page)
 	log.Printf("trends: self-test share link: %s author @%s, likes %d, replies %d: %s", ref.URL, pg.Author, pg.Likes, pg.Replies, oneLine(pg.Text, 1500))
-	for i, c := range threadsPageCaptions(page) {
-		if i >= 12 {
+	all := threadsPageCaptions(page)
+	chain := threadsAuthorChain(page, pg.Author)
+	log.Printf("trends: self-test share link: %d texts on the page, %d by the author", len(all), len(chain))
+	for i, c := range threadsCaptionsWho(page) {
+		if i >= 30 {
 			break
 		}
-		log.Printf("trends: self-test share link part %d: %s", i+1, oneLine(c, 700))
+		log.Printf("trends: self-test share link text %d (@%s|@%s): %s", i+1, c.Before, c.After, oneLine(c.Text, 900))
 	}
 }
 
 func oneLine(s string, n int) string {
 	return cutRunes(strings.ReplaceAll(s, "\n", " / "), n)
+}
+
+var thUsernameRe = regexp.MustCompile(`"username"\s*:\s*"([A-Za-z0-9._]+)"`)
+
+type thCaption struct{ Text, Before, After string }
+
+// threadsCaptionsWho: every post text on the page with the closest
+// "username" before and after it (Threads keeps the author in the post
+// object next to its caption).
+func threadsCaptionsWho(page string) []thCaption {
+	users := thUsernameRe.FindAllStringSubmatchIndex(page, -1)
+	var out []thCaption
+	for _, m := range thCaptionRe.FindAllStringSubmatchIndex(page, -1) {
+		var c thCaption
+		if json.Unmarshal([]byte(`"`+page[m[2]:m[3]]+`"`), &c.Text) != nil {
+			continue
+		}
+		for _, u := range users {
+			if u[0] < m[0] {
+				c.Before = page[u[2]:u[3]]
+			} else if c.After == "" {
+				c.After = page[u[2]:u[3]]
+			}
+		}
+		if c.Text = strings.TrimSpace(c.Text); c.Text != "" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// threadsAuthorChain: the author's own parts of a post (the post and its
+// thread continuation), without other people's replies.
+func threadsAuthorChain(page, author string) []string {
+	if author == "" {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, c := range threadsCaptionsWho(page) {
+		if strings.EqualFold(c.After, author) && !seen[c.Text] {
+			seen[c.Text] = true
+			out = append(out, c.Text)
+		}
+	}
+	return out
 }

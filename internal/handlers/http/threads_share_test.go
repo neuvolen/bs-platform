@@ -50,3 +50,16 @@ func TestThreadsPageCaptions(t *testing.T) {
 		t.Fatalf("captions: %q", got)
 	}
 }
+
+func TestThreadsAuthorChain(t *testing.T) {
+	page := `[{"post":{"caption":{"text":"Часть 1"},"user":{"username":"au.thor"}}},` +
+		`{"post":{"caption":{"text":"Спасибо!"},"user":{"username":"fan"}}},` +
+		`{"post":{"caption":{"text":"Часть 2"},"user":{"username":"au.thor"}}}]`
+	got := threadsAuthorChain(page, "au.thor")
+	if len(got) != 2 || got[0] != "Часть 1" || got[1] != "Часть 2" {
+		t.Fatalf("chain: %q", got)
+	}
+	if threadsAuthorChain(page, "") != nil {
+		t.Fatal("no author")
+	}
+}
