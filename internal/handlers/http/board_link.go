@@ -52,6 +52,11 @@ type BoardLinkStore interface {
 	Open(ctx context.Context, id string, now time.Time, day string) (int, bool, error)
 	Track(ctx context.Context, id string, seconds int, sections, clicks []string) error
 	Intent(ctx context.Context, id, intent string, now time.Time) (bool, error)
+	// R58: WhatsApp send and the owner's reminders (board_link_followup.go)
+	Sent(ctx context.Context, id, phone string, now, next time.Time) error
+	Due(ctx context.Context, now time.Time, limit int) ([]*pg.BoardLink, error)
+	Advance(ctx context.Context, id string, from, stage int, next *time.Time) (bool, error)
+	StopFollowups(ctx context.Context, id, boardID, reason string, now time.Time) (int64, error)
 }
 
 // BoardGetter: pg.PlatformRepo.
@@ -67,6 +72,8 @@ type BoardLinks struct {
 	Now    func() time.Time
 	// Notify: a message to the team (nil: S.team).
 	Notify func(ctx context.Context, text string)
+	// NotifyKB (R58): a message with buttons to the team (nil: Notify, then S.team).
+	NotifyKB func(ctx context.Context, text string, kb map[string]any)
 
 	rl *ipLimiter
 }
@@ -129,6 +136,8 @@ func (h *BoardLinks) Register(r *gin.Engine) {
 	g.GET("/:board", h.AdminGet)
 	g.POST("/:board", h.AdminCreate)
 	g.DELETE("/:board", h.AdminRevoke)
+	g.POST("/:board/sent", h.AdminSent)
+	g.DELETE("/:board/remind", h.AdminStopRemind)
 }
 
 // ── команда ──
@@ -149,6 +158,12 @@ type boardLinkView struct {
 	IntentAt  *time.Time     `json:"intentAt,omitempty"`
 	WA        string         `json:"wa"`
 	TG        string         `json:"tg"`
+	// R58: the client's WhatsApp, the prepared first message and the reminders
+	Phone    string             `json:"phone,omitempty"`
+	WAText   string             `json:"waText,omitempty"`
+	Resident bool               `json:"resident"`
+	LeadID   string             `json:"leadId,omitempty"`
+	Followup *boardLinkFollowup `json:"followup,omitempty"`
 }
 
 func (h *BoardLinks) view(l *pg.BoardLink, clientName string) *boardLinkView {
@@ -203,7 +218,11 @@ func (h *BoardLinks) AdminGet(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "link_failed"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"link": h.view(l, clientBoardOf(b).Name)})
+	if l == nil {
+		c.JSON(http.StatusOK, gin.H{"link": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"link": h.viewFor(c.Request.Context(), b, l, nil)})
 }
 
 // AdminCreate: POST /platform/clientlink/:board → the live link (made if there is none).
@@ -229,7 +248,7 @@ func (h *BoardLinks) AdminCreate(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "link_failed", "message": "Не получилось создать ссылку"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"link": h.view(l, clientBoardOf(b).Name)})
+	c.JSON(http.StatusOK, gin.H{"link": h.viewFor(ctx, b, l, nil)})
 }
 
 // AdminRevoke: DELETE /platform/clientlink/:board → every live link of the board stops working.
@@ -243,9 +262,14 @@ func (h *BoardLinks) AdminRevoke(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "revoke_failed"})
 		return
 	}
+	_, _ = h.Store.StopFollowups(ctx, "", b.ID, "revoked", h.now())
 	h.linkLead(ctx, b, "", h.now())
 	l, _ := h.Store.Latest(ctx, b.ID)
-	c.JSON(http.StatusOK, gin.H{"link": h.view(l, clientBoardOf(b).Name)})
+	if l == nil {
+		c.JSON(http.StatusOK, gin.H{"link": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"link": h.viewFor(ctx, b, l, nil)})
 }
 
 // ── CRM: the lead of the board's client ──
@@ -472,6 +496,7 @@ func (h *BoardLinks) IntentHTTP(c *gin.Context) {
 	}
 	switch in.Intent {
 	case "join":
+		_, _ = h.Store.StopFollowups(ctx, l.ID, "", "join", now) // R58: прогрев не нужен
 		if first {
 			h.notify(ctx, "🔥 "+name+" нажал «Хочу в клуб» на своей доске.\nСвяжитесь сегодня: договор и оплата.\n"+boardLinkURL(l.ID))
 			h.mutateLeadOf(ctx, b, func(ld map[string]any) bool {

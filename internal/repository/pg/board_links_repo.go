@@ -27,6 +27,13 @@ type BoardLink struct {
 	Intent     string         `json:"intent"`
 	IntentAt   *time.Time     `json:"intentAt,omitempty"`
 	JoinNotify *time.Time     `json:"joinNotified,omitempty"`
+	// R58: WhatsApp send and the owner's follow-up reminders (migrations/0025)
+	WAPhone  string     `json:"waPhone"`
+	SentAt   *time.Time `json:"sentAt,omitempty"`
+	FuStage  int        `json:"fuStage"`
+	FuNextAt *time.Time `json:"fuNextAt,omitempty"`
+	FuStop   string     `json:"fuStop"`
+	FuStopAt *time.Time `json:"fuStopAt,omitempty"`
 }
 
 type BoardLinksRepo struct{ db *DB }
@@ -34,13 +41,13 @@ type BoardLinksRepo struct{ db *DB }
 func NewBoardLinksRepo(db *DB) *BoardLinksRepo { return &BoardLinksRepo{db: db} }
 
 const boardLinkCols = `id, board_id, created_by, created_at, expires_at, revoked, opens, first_open_at, last_open_at,
-	seconds, sections, clicks, intent, intent_at, join_notified_at`
+	seconds, sections, clicks, intent, intent_at, join_notified_at, wa_phone, sent_at, fu_stage, fu_next_at, fu_stop, fu_stop_at`
 
 func scanBoardLink(row pgx.Row) (*BoardLink, error) {
 	var l BoardLink
 	var sec, clk []byte
 	if err := row.Scan(&l.ID, &l.BoardID, &l.CreatedBy, &l.CreatedAt, &l.ExpiresAt, &l.Revoked, &l.Opens, &l.FirstOpen, &l.LastOpen,
-		&l.Seconds, &sec, &clk, &l.Intent, &l.IntentAt, &l.JoinNotify); err != nil {
+		&l.Seconds, &sec, &clk, &l.Intent, &l.IntentAt, &l.JoinNotify, &l.WAPhone, &l.SentAt, &l.FuStage, &l.FuNextAt, &l.FuStop, &l.FuStopAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
@@ -149,4 +156,52 @@ func (r *BoardLinksRepo) Intent(ctx context.Context, id, intent string, now time
 		return false, nil
 	}
 	return err == nil && intent == "join" && was == nil, err
+}
+
+// ── R58: WhatsApp и напоминания владельцу ──
+
+// Sent marks the link as sent to WhatsApp (phone may be empty) and starts the
+// reminders from stage 0 with the first check at next. A second send restarts them.
+func (r *BoardLinksRepo) Sent(ctx context.Context, id, phone string, now, next time.Time) error {
+	_, err := r.db.Pool.Exec(ctx, `UPDATE board_links SET wa_phone = CASE WHEN $2 <> '' THEN $2 ELSE wa_phone END,
+		sent_at=$3, fu_stage=0, fu_next_at=$4, fu_stop='', fu_stop_at=NULL WHERE id=$1`, id, phone, now, next)
+	return err
+}
+
+// Due: links whose reminder check is due (oldest first).
+func (r *BoardLinksRepo) Due(ctx context.Context, now time.Time, limit int) ([]*BoardLink, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT `+boardLinkCols+` FROM board_links
+		WHERE fu_next_at IS NOT NULL AND fu_next_at <= $1 AND fu_stop = '' ORDER BY fu_next_at LIMIT $2`, now, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*BoardLink
+	for rows.Next() {
+		l, err := scanBoardLink(rows)
+		if err != nil {
+			return nil, err
+		}
+		if l != nil {
+			out = append(out, l)
+		}
+	}
+	return out, rows.Err()
+}
+
+// Advance moves the reminders to stage; next nil: no more checks. It only
+// applies when the link is still at stage `from` and not stopped (two servers
+// never send the same reminder twice).
+func (r *BoardLinksRepo) Advance(ctx context.Context, id string, from, stage int, next *time.Time) (bool, error) {
+	t, err := r.db.Pool.Exec(ctx, `UPDATE board_links SET fu_stage=$3, fu_next_at=$4
+		WHERE id=$1 AND fu_stage=$2 AND fu_stop=''`, id, from, stage, next)
+	return t.RowsAffected() > 0, err
+}
+
+// StopFollowups ends the reminders of one link (id) or of every link of a
+// board (boardID) with a reason; links already stopped keep their reason.
+func (r *BoardLinksRepo) StopFollowups(ctx context.Context, id, boardID, reason string, now time.Time) (int64, error) {
+	t, err := r.db.Pool.Exec(ctx, `UPDATE board_links SET fu_stop=$3, fu_stop_at=$4, fu_next_at=NULL
+		WHERE (($1 <> '' AND id=$1) OR ($2 <> '' AND board_id=$2)) AND fu_stop='' AND sent_at IS NOT NULL`, id, boardID, reason, now)
+	return t.RowsAffected(), err
 }

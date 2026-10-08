@@ -121,6 +121,16 @@ func WireSales(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team, j
 	var bl *httpapi.BoardLinks
 	if d.PlatformRepo != nil && d.DB != nil {
 		bl = httpapi.NewBoardLinks(pg.NewBoardLinksRepo(d.DB), d.PlatformRepo, s, []byte(jwtSecret))
+		// R58: «Не напоминать» в напоминании владельцу и сам прогрев (+1, +2, +5 дней)
+		if botSvc != nil && botSvc.Enabled() {
+			botSvc.SetTeamCallbackHook("blr:", bl.RemindCallback)
+		}
+		if os.Getenv("SALES_LOOP") != "off" {
+			go func() {
+				time.Sleep(40 * time.Second)
+				bl.Loop(context.Background())
+			}()
+		}
 	}
 	return &httpapi.SalesModule{S: s, G: appGW, Secret: []byte(jwtSecret), FV: fv, BL: bl}
 }

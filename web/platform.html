@@ -379,7 +379,7 @@ body.light .ct-l{color:#141414}
  background-image:radial-gradient(circle,rgba(255,255,255,.07) 1px,transparent 1px);background-size:26px 26px}
 #links{position:absolute;top:0;left:0;pointer-events:none;z-index:1;overflow:visible}
 #draw{position:absolute;top:0;left:0;z-index:3;pointer-events:none}
-#draw.on{pointer-events:auto;cursor:crosshair}
+#draw.on{pointer-events:auto;cursor:crosshair;touch-action:none;-webkit-user-select:none;user-select:none}
 
 .node{position:absolute;border-radius:14px;background:var(--card);border:1px solid var(--bd);
  cursor:move;box-shadow:0 8px 26px rgba(0,0,0,.5);z-index:2;transition:border-color .15s,box-shadow .15s}
@@ -6324,14 +6324,13 @@ function applyState(s){
   undoLock = false;
 }
 function undo(){
-  if(drawMode && strokes.length){
-    redoStack.push(snapState());
-    strokes.pop(); redraw(); toast('Штрих убран'); return;
-  }
   if(!undoStack.length){ toast('Нечего отменять'); return; }
   redoStack.push(snapState());
   if(redoStack.length > 60) redoStack.shift();
+  // R58: штрихи кладут снимок в общую историю, поэтому отмена в режиме рисования идёт тем же путём и сохраняется
+  var s0 = strokes.length;
   applyState(undoStack.pop());
+  if(drawMode || strokes.length !== s0){ drawDirty = true; drawEnd(); toast(drawMode ? 'Штрих убран' : 'Отменено'); return; }
   toast('Отменено');
 }
 function redo(){
@@ -6397,7 +6396,8 @@ function startEdit(el, id, field, e){
   });
   el.setAttribute('contenteditable', 'true');
   el.classList.add('editing');
-  el.focus();
+  // R58: фокус без прокрутки сцены: новый узел у края больше не сдвигает доску
+  try{ el.focus({preventScroll: true}); }catch(err){ el.focus(); }
   var r = document.createRange();
   r.selectNodeContents(el);
   var s = window.getSelection();
@@ -7025,10 +7025,13 @@ function toggleDraw(){
   document.getElementById('drawBtn').classList.toggle('on',drawMode);
   document.getElementById('drawTools').classList.toggle('on',drawMode);
   dcv.classList.toggle('on',drawMode);
+  // R58: пустой холст скрыт (R15, display:none), и включение рисования его не показывало: перо ничего не ловило
+  try{ viewWrite(); }catch(e){ dcv.style.display = ''; }
+  if(!drawMode && curStroke){ curStroke = null; drawEnd(); }
 }
 function setTool(t){ tool=t; document.querySelectorAll('.dt[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool===t)); }
 function setColor(c,el){ color=c; document.querySelectorAll('.dcol').forEach(b=>b.classList.remove('on')); el.classList.add('on'); }
-function clearDraw(){ strokes=[]; redraw(); }
+function clearDraw(){ if(strokes.length) pushUndo(); strokes=[]; redraw(); drawDirty=true; drawEnd(); }
 // R45: холст рисования 6000×4000; чистить его целиком на каждый показ доски и каждое движение пера
 // стоило 60-80 мс. Чистится только прямоугольник, где была краска (все штрихи рисует только redraw)
 var dcvInk = null;
@@ -7042,34 +7045,64 @@ function redraw(){
     if(!bx) bx = [x0, y0, x1, y1]; else { if(x0 < bx[0]) bx[0] = x0; if(y0 < bx[1]) bx[1] = y0; if(x1 > bx[2]) bx[2] = x1; if(y1 > bx[3]) bx[3] = y1; }
   }); });
   dcvInk = bx ? [Math.max(0, Math.floor(bx[0])), Math.max(0, Math.floor(bx[1])), Math.min(dcv.width, Math.ceil(bx[2])), Math.min(dcv.height, Math.ceil(bx[3]))] : null;
+  var lt = document.body.classList.contains('light');
   strokes.forEach(function(s){
-    dctx.strokeStyle=s.c; dctx.lineWidth=s.w||3; dctx.lineCap='round'; dctx.lineJoin='round';
+    // R58: белое перо на светлой теме невидимо, чёрное на тёмной тоже: рисуется цветом текста темы
+    var sc = String(s.c || '#FFFFFF').toUpperCase();
+    dctx.strokeStyle = (lt && (sc === '#FFFFFF' || sc === '#FFF')) ? '#111111' : (!lt && (sc === '#000000' || sc === '#000')) ? '#F2F2F2' : s.c;
+    dctx.lineWidth=s.w||3; dctx.lineCap='round'; dctx.lineJoin='round';
     dctx.beginPath();
     s.p.forEach((pt,i)=> i? dctx.lineTo(pt[0],pt[1]) : dctx.moveTo(pt[0],pt[1]));
     dctx.stroke();
   });
 }
-var curStroke=null;
-dcv.addEventListener('mousedown', function(e){
-  if(!drawMode) return;
-  var r=dcv.getBoundingClientRect();
-  var x=(e.clientX-r.left)/view.k, y=(e.clientY-r.top)/view.k;
+var curStroke=null, drawPid=null, drawDirty=false;
+// R58: рисование на Pointer Events: мышь, палец и стилус (iPad, Apple Pencil). Штрих сохраняется в доску сразу
+function drawPt(e){ var r=dcv.getBoundingClientRect(); return [(e.clientX-r.left)/view.k, (e.clientY-r.top)/view.k]; }
+function drawEnd(){
+  if(!drawDirty) return; drawDirty=false;
+  try{ if(!viewingArchive && curBoard) saveBoardSilent(); }catch(e){}
+}
+dcv.addEventListener('pointerdown', function(e){
+  if(!drawMode || !e.isPrimary || (e.pointerType==='mouse' && e.button!==0)) return;
+  e.preventDefault(); e.stopPropagation();
+  if(viewingArchive){ toast('Архив цикла: рисовать нельзя'); return; }
+  var pt=drawPt(e), x=pt[0], y=pt[1];
+  try{ dcv.setPointerCapture(e.pointerId); }catch(er){}
   if(tool==='erase'){
-    strokes=strokes.filter(s=>!s.p.some(p=>Math.hypot(p[0]-x,p[1]-y)<22));
-    redraw(); return;
+    var n0=strokes.length, st=strokes.filter(s=>!s.p.some(p=>Math.hypot(p[0]-x,p[1]-y)<22/Math.max(view.k,.4)));
+    if(st.length!==n0){ pushUndo(); strokes=st; drawDirty=true; redraw(); }
+    drawPid=e.pointerId; curStroke={erase:1}; return;
   }
+  pushUndo();
+  drawPid=e.pointerId;
   curStroke={c:color, w:tool==='line'?2.5:3, p:[[x,y]], line:tool==='line'};
-  strokes.push(curStroke);
+  strokes.push(curStroke); drawDirty=true;
 });
-dcv.addEventListener('mousemove', function(e){
-  if(!curStroke) return;
-  var r=dcv.getBoundingClientRect();
-  var x=(e.clientX-r.left)/view.k, y=(e.clientY-r.top)/view.k;
+dcv.addEventListener('pointermove', function(e){
+  if(!curStroke || e.pointerId!==drawPid) return;
+  e.preventDefault();
+  var pt=drawPt(e), x=pt[0], y=pt[1];
+  if(curStroke.erase){
+    var n0=strokes.length, st=strokes.filter(s=>!s.p.some(p=>Math.hypot(p[0]-x,p[1]-y)<22/Math.max(view.k,.4)));
+    if(st.length!==n0){ strokes=st; drawDirty=true; redraw(); }
+    return;
+  }
   if(curStroke.line) curStroke.p=[curStroke.p[0],[x,y]];
-  else curStroke.p.push([x,y]);
+  else {
+    var evs = (e.getCoalescedEvents && e.pointerType!=='mouse') ? e.getCoalescedEvents() : null;
+    if(evs && evs.length > 1) evs.forEach(function(ce){ curStroke.p.push(drawPt(ce)); }); else curStroke.p.push([x,y]);
+  }
   redraw();
 });
-window.addEventListener('mouseup', function(){ curStroke=null; });
+function drawUp(e){
+  if(!curStroke || (e && e.pointerId!==drawPid)) return;
+  if(!curStroke.erase && curStroke.p.length===1){ var q=curStroke.p[0]; curStroke.p.push([q[0]+.5,q[1]+.5]); redraw(); }
+  curStroke=null; drawPid=null; drawEnd();
+}
+dcv.addEventListener('pointerup', drawUp);
+dcv.addEventListener('pointercancel', drawUp);
+dcv.addEventListener('lostpointercapture', drawUp);
 
 // ═══ Панели ═══
 function openSheet(id){
@@ -15122,7 +15155,8 @@ function tickTask(id, e){
 // ═══ Тесты и замеры ═══
 var TESTS = [
   {id:'wheel', name:'Колесо баланса', icon:'⚖️',
-   axes:['Здоровье','Финансы','Семья','Дело','Развитие','Отдых','Окружение','Смысл']},
+   // R58: названия как в колесе приложения (WHEEL_LIFE): «Финансы», «Дело», «Развитие» там переименовывались, и цифры трекера пропадали
+   axes:['Здоровье','Личные финансы','Семья','Бизнес','Личностное развитие','Отдых','Окружение','Смысл']},
   {id:'diag', name:'Диагностика бизнеса', icon:'🧬',
    axes:['Стратегия','Маркетинг','Продажи','Команда','Финансы','Процессы','Аналитика']},
   {id:'gallup', name:'Gallup', icon:'🎯', axes:[]},
@@ -25027,7 +25061,7 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') toggleD
 var R21_WHEEL_MAP = {'деньги':'Личные финансы', 'финансы':'Личные финансы', 'личные финансы':'Личные финансы',
   'развитие':'Личностное развитие', 'саморазвитие':'Личностное развитие', 'личностное развитие':'Личностное развитие',
   'карьера':'Бизнес', 'работа':'Бизнес', 'бизнес':'Бизнес', 'карьера/бизнес':'Бизнес', 'друзья':'Окружение', 'окружение':'Окружение',
-  'духовность':'Смысл', 'смысл':'Смысл', 'здоровье':'Здоровье', 'спорт':'Спорт', 'семья':'Семья', 'хобби':'Хобби', 'энергия':'Энергия', 'отдых':'Отдых'};
+  'дело':'Бизнес', 'духовность':'Смысл', 'смысл':'Смысл', 'здоровье':'Здоровье', 'спорт':'Спорт', 'семья':'Семья', 'хобби':'Хобби', 'энергия':'Энергия', 'отдых':'Отдых'};
 function r21MigrateWheel(b){
   if(!b || !b.tests || !b.tests.wheel) return false;
   var w = b.tests.wheel, out = {}, ch = false;
@@ -37815,6 +37849,521 @@ window.r52 = {colorOf: colorOf, render: render, people: people, when: when, stam
 })();
 </script>
 <!-- /R52 -->
+<!-- R58: живой разбор с клиентом рядом (ноутбук и iPad). 1) панель резидента: выезжает поверх доски (доска не сжимается),
+     вкладки списком слева, Esc и × закрывают, последняя вкладка помнится; 2) «Замеры» карточками, без прокрутки вбок;
+     3) «Пройти с клиентом»: колесо баланса и диагностика бизнеса на весь экран, по одной сфере, автосохранение, итог на доску;
+     4) «+ заметка» встаёт рядом с родителем наружу от центра, вид не прыгает; 5) iPad: меню слева прячется на доске, цели касания от 40 px -->
+<style id="r58Style">
+:root{--rpw:460px}
+@media(max-width:1280px){:root{--rpw:420px}}
+/* панель поверх доски */
+.rpanel{display:none;grid-template-columns:84px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);padding:0;gap:0;overflow:hidden}
+html.rp-open.onboard .rpanel{display:grid}
+@media(min-width:901px){
+  html.rp-open.onboard{--rp:0px}
+  .rpanel{top:calc(var(--r32h, 0px) + var(--th));width:var(--rpw);z-index:99;border-left:1px solid var(--pi);box-shadow:-28px 0 70px rgba(0,0,0,.5)}
+  body.light .rpanel{box-shadow:-28px 0 70px rgba(0,0,0,.14)}
+  html.rp-open.onboard .rpanel{animation:r58in .18s ease-out}
+  html.rp-open.onboard .zoom{right:calc(var(--rpw) + 16px)}
+  html.rp-open.onboard .draw-tools{right:calc(var(--rpw) + 14px)}
+  html.rp-open.onboard .pill{left:calc(var(--sw) + (100vw - var(--sw) - var(--rpw)) / 2)}
+  html.rp-open.onboard .peerbar,html.rp-open.onboard .callban{left:calc(var(--sw) + (100vw - var(--sw) - var(--rpw)) / 2)}
+  html.rp-open.onboard .dxp{right:calc(var(--rpw) + 14px)}
+}
+/* палитра рисования под шапкой доски (была под ней: кнопка «перо» не нажималась) */
+.draw-tools{top:calc(var(--r32h, 0px) + var(--th) + 14px);max-height:calc(100vh - var(--r32h, 0px) - var(--th) - 120px);overflow-y:auto}
+@keyframes r58in{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
+.rpanel .rp-tabs{grid-column:1;grid-row:1 / span 2;display:flex;flex-direction:column;flex-wrap:nowrap;gap:4px;padding:12px 8px;border-right:1px solid var(--pi);overflow-y:auto;overflow-x:hidden}
+.rpanel .rp-t{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:58px;padding:8px 2px;border:0;border-radius:11px;font-size:11px;font-weight:800;line-height:1.15;text-align:center;color:var(--pm)}
+.rpanel .rp-t svg{width:20px;height:20px;flex-shrink:0}
+.rpanel .rp-t:hover{color:var(--ptx);background:rgba(255,255,255,.05)}
+body.light .rpanel .rp-t:hover{background:rgba(0,0,0,.05)}
+.rpanel .rp-t.on{background:var(--pon);color:var(--pontx)}
+.rpanel .rp-h{grid-column:2;grid-row:1;padding:16px 14px 12px 18px;min-width:0}
+.rpanel .rp-body{grid-column:2;grid-row:2;margin:0;padding:2px 18px 22px;overflow-y:auto;overflow-x:hidden;min-width:0;-webkit-overflow-scrolling:touch}
+.rpanel .rp-x{width:40px;height:40px;border-radius:10px;align-items:center;justify-content:center;flex-shrink:0}
+.rpanel .rp-x:hover{background:rgba(255,255,255,.06)}
+.rp-esc{font-size:10.5px;font-weight:800;color:var(--pdim);border:1px solid var(--pi);border-radius:5px;padding:1px 5px;margin-right:2px}
+@media(pointer:coarse){.rp-esc{display:none}}
+@media(max-width:900px){.rpanel{grid-template-columns:72px minmax(0,1fr)}}
+/* «Замеры»: все разделы сразу, карточками */
+#testTabs.r58-tg{display:flex;flex-direction:column;gap:8px;overflow:visible;padding:0 0 16px}
+.r58-c{border:1px solid var(--pi);border-radius:14px;padding:12px;background:var(--pc);display:flex;flex-direction:column;gap:10px;min-width:0;cursor:pointer}
+.r58-c.on{border-color:var(--ptx)}
+.r58-ch{display:flex;align-items:center;gap:12px;min-width:0}
+.r58-ch svg{flex-shrink:0;color:var(--ptx)}
+.r58-cn{font-size:14px;font-weight:800;color:var(--ptx);line-height:1.2}
+.r58-cs{font-size:12px;color:var(--pm);font-weight:600;margin-top:3px;line-height:1.35}
+.r58-cb{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:6px}
+.r58-b{min-height:40px;border-radius:10px;border:1px solid var(--pi);background:transparent;color:var(--ptx);font:800 12.5px 'Manrope',sans-serif;cursor:pointer;padding:0 8px;display:flex;align-items:center;justify-content:center;gap:6px;text-align:center;white-space:nowrap}
+.r58-b:hover{border-color:var(--ptx)}
+.r58-b.p{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r58-sec{font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--pdim);margin:2px 0 10px}
+/* «Пройти с клиентом» */
+.r58w{position:fixed;inset:0;z-index:9500;background:#000;color:#fff;display:none;flex-direction:column;font-family:'Manrope',-apple-system,sans-serif;-webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none}
+.r58w.on{display:flex}
+.r58w-top{display:flex;align-items:center;gap:16px;padding:18px 24px;border-bottom:1px solid rgba(255,255,255,.08)}
+.r58w-tt{flex:1;min-width:0}
+.r58w-tt b{display:block;font-size:18px;font-weight:800;letter-spacing:-.2px}
+.r58w-tt span{display:block;font-size:13px;color:rgba(255,255,255,.55);font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r58w-dots{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:46vw}
+.r58w-dot{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.6);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;background:none;font-family:inherit;padding:0}
+.r58w-dot.done{background:rgba(255,255,255,.18);color:#fff;border-color:transparent}
+.r58w-dot.cur{background:#fff;color:#000;border-color:#fff}
+.r58w-ta{display:flex;gap:8px}
+.r58w-btn{min-height:44px;min-width:44px;padding:0 16px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#fff;font:800 14px 'Manrope',sans-serif;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.r58w-btn:hover{border-color:#fff}
+.r58w-btn.p{background:#fff;color:#000;border-color:#fff}
+.r58w-btn[disabled]{opacity:.3;pointer-events:none}
+.r58w-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:32px;padding:20px 40px 28px;overflow:auto}
+.r58w-wheel{display:flex;align-items:center;justify-content:center;min-height:0;height:100%}
+.r58w-wheel svg{width:100%;height:100%;max-width:min(780px,80vh);max-height:80vh}
+.r58w-q{display:flex;flex-direction:column;gap:18px;max-width:640px}
+.r58w-step{font-size:13px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.r58w-name{font-size:clamp(34px,5vw,58px);font-weight:800;letter-spacing:-1.2px;line-height:1.02}
+.r58w-hint{font-size:clamp(17px,1.9vw,22px);line-height:1.45;color:rgba(255,255,255,.78);font-weight:600}
+.r58w-scale{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:8px;margin-top:6px}
+.r58w-n{min-height:64px;border-radius:14px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.03);color:#fff;font:800 24px 'Manrope',sans-serif;cursor:pointer;touch-action:manipulation;padding:0}
+.r58w-n:hover{border-color:#fff}
+.r58w-n.on{background:#fff;color:#000;border-color:#fff}
+.r58w-sl{display:flex;justify-content:space-between;font-size:13px;color:rgba(255,255,255,.5);font-weight:700}
+.r58w-nav{display:flex;gap:10px;margin-top:8px}
+.r58w-nav .r58w-btn{min-height:56px;flex:1;font-size:16px}
+.r58w-saved{font-size:12.5px;color:rgba(255,255,255,.45);font-weight:700;min-height:18px}
+.r58w-avg{font-size:clamp(48px,7vw,84px);font-weight:800;letter-spacing:-2px;line-height:1}
+.r58w-avg small{font-size:.35em;letter-spacing:0;color:rgba(255,255,255,.5);margin-left:6px}
+.r58w-rows{display:flex;flex-direction:column;gap:7px}
+.r58w-row{display:grid;grid-template-columns:minmax(0,230px) minmax(0,1fr) 34px;gap:12px;align-items:center;font-size:15px;font-weight:700;color:rgba(255,255,255,.7)}
+.r58w-row i{display:block;height:8px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden}
+.r58w-row i u{display:block;height:100%;background:rgba(255,255,255,.55)}
+.r58w-row b{text-align:right;color:#fff}
+.r58w-row.low{color:#fff}
+.r58w-row.low i u{background:#fff}
+.r58w-row em{font-style:normal;font-size:10.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;border:1px solid #fff;border-radius:5px;padding:1px 5px;margin-left:8px}
+.r58w-acts{display:flex;gap:10px;flex-wrap:wrap}
+.r58w-acts .r58w-btn{min-height:52px;font-size:15px}
+.r58w.client .r58w-tr{display:none}
+@media(max-width:1100px),(orientation:portrait){
+  .r58w-main{grid-template-columns:1fr;align-items:start;padding:14px 22px 24px;gap:18px}
+  .r58w-wheel{height:auto}
+  .r58w-wheel svg{max-height:44vh;max-width:min(520px,90vw)}
+  .r58w-q{max-width:none}
+  .r58w-dots{max-width:none}
+}
+@media(max-width:700px){.r58w-scale{grid-template-columns:repeat(5,minmax(0,1fr))}.r58w-top{flex-wrap:wrap}.r58w-dots{order:3;width:100%}}
+/* iPad и сенсорные экраны: меню слева прячется на доске, доска во всю ширину; цели касания от 40 px */
+@media(max-width:1180px) and (pointer:coarse){
+  html.onboard{--sw:0px}
+  html.onboard .side{width:260px;transform:translateX(-100%);transition:transform .2s;box-shadow:0 0 60px rgba(0,0,0,.6)}
+  html.onboard.side-open .side{transform:none}
+  html.onboard .side-btn{display:flex;position:fixed;left:10px;top:7px;z-index:115;width:40px;height:40px;border-radius:10px;background:var(--pc);border:1px solid var(--pi);color:var(--ptx);align-items:center;justify-content:center;cursor:pointer}
+  html.onboard body.r32t #r32Tabs{left:58px;padding-left:4px}
+  html.onboard body:not(.r32t) .top{padding-left:62px}
+}
+@media(pointer:coarse){
+  .top .tbar .ic{width:40px;height:40px}
+  .top .rp-btn{height:40px}
+  .zoom .zb{width:44px;height:44px}
+  .pill .pb{height:44px}
+  .draw-tools .dt{width:44px;height:44px}
+  .draw-tools .dcol{width:26px;height:26px}
+  .cl57-b,.cl57-u input{min-height:44px}
+  .cl57-x{min-width:40px;min-height:40px;display:flex;align-items:center;justify-content:center}
+  #testTabs .tb{min-height:40px}
+  .rpanel .axin{min-height:40px}
+  .node .n-tools .nt{min-width:34px;min-height:34px}
+}
+@media(max-width:1300px){.top .cl57-btn span,.top #rpBtn span{display:none}html.rp-open.onboard .pill .pb{padding:0 10px}}
+@media(pointer:coarse){.top .dx-btn,.top #dxBtn{min-height:40px}}
+</style>
+<script id="r58Script">
+(function(){
+  function E(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function say(t){ try{ toast(t); }catch(e){} }
+  var html = document.documentElement;
+  function boardOn(){ try{ return section === 'board'; }catch(e){ return false; } }
+  // ширина панели поверх доски (0: закрыта, телефон или не доска)
+  var overW = function(){
+    if(!html.classList.contains('rp-open') || !boardOn() || window.innerWidth <= 900) return 0;
+    var p = document.getElementById('rpanel'); return p ? p.getBoundingClientRect().width : 0;
+  };
+  window.r58OverW = overW;
+
+  // ── 1. Панель: вкладки списком с иконками, последняя вкладка помнится, Esc закрывает ──
+  var IC = {
+    data: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/>',
+    tests: '<circle cx="12" cy="12" r="8"/><path d="M12 4v8l5.6 5.6M12 12L4.6 9"/>',
+    prep: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6M9 10h6M9 14h4"/>',
+    sum: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
+    tasks: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12.2l2.4 2.4 4.8-5"/>',
+    reps: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    calls: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>'
+  };
+  var paintTabs = function(){
+    var t = document.getElementById('rpTabs'); if(!t || typeof PF_RP_TABS === 'undefined') return;
+    t.innerHTML = PF_RP_TABS.map(function(x){
+      return '<div class="rp-t' + (x[2] ? ' admin-only' : '') + (x[0] === rpTab ? ' on' : '') + '" data-t="' + x[0] + '" role="tab" onclick="openRP(\'' + x[0] + '\')">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (IC[x[0]] || '') + '</svg>' + E(x[1]) + '</div>';
+    }).join('');
+    var x = document.querySelector('#rpanel .rp-x');
+    if(x && !x.querySelector('.rp-esc')){ x.title = 'Закрыть (Esc)'; }
+  };
+  paintTabs();
+  try{ var t0 = localStorage.getItem('bs_rp_tab'); if(t0 && PF_RP_TABS.some(function(x){ return x[0] === t0; })) rpTab = t0; }catch(e){}
+  // поверх доски: если центр разбора уходит под панель, доска плавно сдвигается влево
+  var panOut = function(){
+    var w = overW(); if(!w || typeof nodes === 'undefined') return;
+    var t = (selId && nodes.find(function(n){ return n.id === selId; })) || nodes.find(function(n){ return n.type === 'root'; });
+    if(!t) return;
+    var el = document.getElementById('n' + t.id), ew = (el ? el.offsetWidth : 240) * view.k;
+    var vis = stage.clientWidth - w - 32, sx = t.x * view.k + view.x;
+    if(sx + ew <= vis) return;
+    var d = Math.min(sx + ew - vis, w, Math.max(0, sx - 40));
+    if(d < 8) return;
+    var cv = document.getElementById('canvas');
+    if(cv){ cv.style.transition = 'transform .25s ease'; setTimeout(function(){ cv.style.transition = ''; }, 320); }
+    view.x -= d; applyView();
+  };
+  if(typeof openRP === 'function'){
+    var o0 = openRP;
+    openRP = window.openRP = function(tab){
+      var was = html.classList.contains('rp-open');
+      var r = o0.apply(this, arguments);
+      try{ localStorage.setItem('bs_rp_tab', tab || rpTab); }catch(e){}
+      if(!was) setTimeout(panOut, 30);
+      return r;
+    };
+  }
+  window.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    // листы (база диагнозов, карточки, редакторы) закрываются по Esc, верхний первым
+    var sh = [].slice.call(document.querySelectorAll('.sheet.on'));
+    if(sh.length && !document.querySelector('.r58w.on, .cmdk.on')){
+      var a0 = document.activeElement;
+      if(!(a0 && a0.isContentEditable)){ var top = sh[sh.length - 1]; if(top.id && typeof closeSheet === 'function'){ closeSheet(top.id); e.preventDefault(); return; } }
+    }
+    if(!html.classList.contains('rp-open') || !boardOn()) return;
+    if(document.querySelector('.sheet.on, .cmdk.on, #cl57.on, .r58w.on, #tr16, .ovl.on, .modal.on')) return;
+    var a = document.activeElement;
+    if(a && a.isContentEditable) return;
+    toggleRP(false);
+  });
+  // «Вся доска на экране» с открытой панелью: в видимую часть
+  if(typeof fitAll === 'function'){
+    var f0 = fitAll;
+    fitAll = window.fitAll = function(){
+      var w = overW();
+      if(!w || !nodes.length) return f0.apply(this, arguments);
+      var xs = nodes.map(function(n){ return n.x; }), ys = nodes.map(function(n){ return n.y; });
+      var minX = Math.min.apply(null, xs) - 170, maxX = Math.max.apply(null, xs) + 400, minY = Math.min.apply(null, ys) - 150, maxY = Math.max.apply(null, ys) + 300;
+      var cw = stage.clientWidth - w, ch = stage.clientHeight, bw = maxX - minX, bh = maxY - minY;
+      view.k = Math.max(.02, Math.min(cw / bw, ch / bh, 1.3) * .9);
+      view.x = cw / 2 - (minX + bw / 2) * view.k; view.y = ch / 2 - (minY + bh / 2) * view.k;
+      applyView();
+    };
+  }
+
+  // ── 2. «Замеры» карточками ──
+  var PROMPT = {
+    wheel: {'Здоровье':'Сон, энергия, спорт. Как вы себя чувствуете последний месяц?', 'Личные финансы':'Доход, подушка, долги. Насколько спокойно вам с деньгами?',
+      'Семья':'Отношения с близкими. Хватает ли времени и тепла?', 'Бизнес':'Бизнес или работа. Насколько вы довольны тем, куда он движется?',
+      'Личностное развитие':'Учёба, книги, новые навыки. Растёте ли вы сейчас?', 'Отдых':'Отпуск, хобби, выходные без телефона. Успеваете восстановиться?',
+      'Окружение':'Друзья и люди рядом. Заряжают или забирают силы?', 'Смысл':'Понимаете ли, зачем всё это? Есть ли ощущение своего пути?'},
+    diag: {'Стратегия':'Есть ли цель на год и понятный план, как к ней прийти?', 'Маркетинг':'Знаете ли, откуда приходят клиенты и сколько стоит один клиент?',
+      'Продажи':'Продажи идут по понятному скрипту и без вашего участия?', 'Команда':'Команда принимает решения и держит результат без вас?',
+      'Финансы':'Видите ли прибыль и деньги по дням, без сюрпризов в конце месяца?', 'Процессы':'Ключевые процессы описаны, и их можно повторить без вас?',
+      'Аналитика':'Решения принимаются по цифрам, а не по ощущениям?'}
+  };
+  var testOf = function(id){ try{ return TESTS.find(function(t){ return t.id === id; }); }catch(e){ return null; } };
+  var valsOf = function(id){ return (curBoard && curBoard.tests && curBoard.tests[id]) || {}; };
+  var avgOf = function(id){
+    var t = testOf(id), d = valsOf(id); if(!t || !t.axes.length) return null;
+    var f = t.axes.filter(function(a){ return Number(d[a]) > 0; });
+    return f.length ? {avg: f.reduce(function(s, a){ return s + Number(d[a]); }, 0) / f.length, n: f.length, of: t.axes.length} : {avg: 0, n: 0, of: t.axes.length};
+  };
+  // колесо: сектор на сферу, радиус = оценка; cur: текущая сфера, low: зоны роста
+  var wheelSVG = function(axes, vals, o){
+    o = o || {};
+    var S = o.size || 600, c = S / 2, R = S * (o.labels === false ? .47 : .38), n = axes.length, h = '';
+    var pt = function(r, a){ return [c + r * Math.cos(a), c + r * Math.sin(a)]; };
+    var arc = function(r, a0, a1){
+      if(r <= 0) return '';
+      var p0 = pt(r, a0), p1 = pt(r, a1);
+      return 'M' + c + ' ' + c + 'L' + p0[0].toFixed(1) + ' ' + p0[1].toFixed(1) + 'A' + r.toFixed(1) + ' ' + r.toFixed(1) + ' 0 0 1 ' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + 'Z';
+    };
+    var stroke = o.ink || '#fff';
+    for(var k = 2; k <= 10; k += 2) h += '<circle cx="' + c + '" cy="' + c + '" r="' + (R * k / 10).toFixed(1) + '" fill="none" stroke="' + stroke + '" stroke-opacity="' + (k === 10 ? .22 : .08) + '"/>';
+    axes.forEach(function(ax, i){
+      var a0 = -Math.PI / 2 + i * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n, v = Math.max(0, Math.min(10, Number(vals[ax]) || 0));
+      var isCur = o.cur === i, isLow = o.low && o.low.indexOf(ax) >= 0;
+      var op = o.low ? (isLow ? .92 : .28) : (isCur ? .9 : .4);
+      h += '<path d="' + arc(R, a0 + .012, a1 - .012) + '" fill="' + stroke + '" fill-opacity="' + (isCur ? .07 : .025) + '" stroke="' + stroke + '" stroke-opacity="' + (isCur ? .55 : .1) + '" stroke-width="' + (isCur ? 2 : 1) + '"/>';
+      if(v) h += '<path d="' + arc(R * v / 10, a0 + .012, a1 - .012) + '" fill="' + stroke + '" fill-opacity="' + op + '"/>';
+      if(o.labels !== false){
+        var am = (a0 + a1) / 2, lp = pt(R + S * .07, am), cs = Math.cos(am), anc = Math.abs(cs) < .25 ? 'middle' : (cs > 0 ? 'start' : 'end');
+        var fw = (isCur || isLow) ? 800 : 600, fo = (isCur || isLow || o.cur == null) ? 1 : .6;
+        // длинное название в две строки («Личностное / развитие»)
+        var wd = String(ax).split(' '), ln = (wd.length > 1 && ax.length > 11) ? [wd[0], wd.slice(1).join(' ')] : [ax], fz = S * .036, y0 = lp[1] - (ln.length - 1) * fz * .55;
+        h += ln.map(function(t, li){ return '<text x="' + lp[0].toFixed(1) + '" y="' + (y0 + li * fz * 1.12).toFixed(1) + '" text-anchor="' + anc + '" font-size="' + fz.toFixed(1) + '" font-weight="' + fw + '" fill="' + stroke + '" fill-opacity="' + fo + '" font-family="Manrope,sans-serif">' + E(t) + '</text>'; }).join('') +
+          '<text x="' + lp[0].toFixed(1) + '" y="' + (y0 + (ln.length - 1) * fz * 1.12 + S * .045).toFixed(1) + '" text-anchor="' + anc + '" font-size="' + (S * .034).toFixed(1) + '" font-weight="800" fill="' + stroke + '" fill-opacity="' + (v ? fo : .35) + '" font-family="Manrope,sans-serif">' + (v ? v : '·') + '</text>';
+      }
+    });
+    // подписи сфер по бокам: поле шире круга, чтобы «Окружение» и «Финансы» не обрезались
+    var px = o.labels === false ? 0 : Math.round(S * .2), py = o.labels === false ? 0 : Math.round(S * .02);
+    return '<svg viewBox="' + (-px) + ' ' + (-py) + ' ' + (S + 2 * px) + ' ' + (S + 2 * py) + '" role="img" aria-label="' + E(o.title || 'Колесо') + '" style="overflow:visible">' + h + '</svg>';
+  };
+  window.r58WheelSVG = wheelSVG;
+  var ink = function(){ return document.body.classList.contains('light') ? '#141414' : '#fff'; };
+  var cardsHTML = function(){
+    var adm = typeof MODE === 'undefined' || MODE === 'admin', out = [];
+    ['wheel', 'diag'].forEach(function(id){
+      var t = testOf(id); if(!t) return;
+      var a = avgOf(id), d = valsOf(id);
+      var st = a && a.n ? 'Средний ' + a.avg.toFixed(1).replace('.', ',') + ' · ' + a.n + ' из ' + a.of : 'Ещё не проходили · ' + t.axes.length + ' вопросов';
+      out.push('<div class="r58-c' + (curTest === id ? ' on' : '') + '" data-t="' + id + '" onclick="if(!event.target.closest(\'button\'))setTest(\'' + id + '\')">' +
+        '<div class="r58-ch">' + wheelSVG(t.axes, d, {size: 120, labels: false, ink: ink()}).replace('<svg ', '<svg width="44" height="44" ') +
+        '<div style="min-width:0"><div class="r58-cn">' + E(t.name) + '</div><div class="r58-cs">' + st + '</div></div></div>' +
+        '<div class="r58-cb">' + (adm ? '<button type="button" class="r58-b p" onclick="r58Wiz(\'' + id + '\')">Пройти с клиентом</button>' : '') +
+        '<button type="button" class="r58-b" onclick="setTest(\'' + id + '\')">' + (a && a.n ? 'Цифры и динамика' : 'Заполнить вручную') + '</button></div></div>');
+    });
+    var g = null, top = [];
+    try{ g = window.G16 && G16.savedGallup ? G16.savedGallup() : null; top = g && G16.talentList ? G16.talentList(g).slice(0, 3).map(function(x){ return x.ru; }) : []; }catch(e){}
+    if(!top.length){ try{ top = ((curBoard && curBoard.tests && curBoard.tests.gallup && curBoard.tests.gallup.talents) || []).slice(0, 3); }catch(e){} }
+    out.push('<div class="r58-c' + (curTest === 'gallup' ? ' on' : '') + '" data-t="gallup" onclick="if(!event.target.closest(\'button\'))setTest(\'gallup\')">' +
+      '<div class="r58-ch"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>' +
+      '<div style="min-width:0"><div class="r58-cn">Gallup</div><div class="r58-cs">' + (top.length ? 'Топ: ' + E(top.join(', ')) : 'Отчёта ещё нет') + '</div></div></div>' +
+      '<div class="r58-cb">' + (adm ? '<button type="button" class="r58-b' + (top.length ? '' : ' p') + '" onclick="r58Gallup()">' + (top.length ? 'Загрузить заново' : 'Загрузить отчёт') + '</button>' : '') +
+      '<button type="button" class="r58-b" onclick="setTest(\'gallup\')">' + (top.length ? 'Разбор талантов' : 'Отметить вручную') + '</button></div></div>');
+    var labs = (curBoard && curBoard.labs) || [];
+    out.push('<div class="r58-c' + (curTest === 'health' ? ' on' : '') + '" data-t="health" onclick="if(!event.target.closest(\'button\'))setTest(\'health\')">' +
+      '<div class="r58-ch"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>' +
+      '<div style="min-width:0"><div class="r58-cn">Анализы</div><div class="r58-cs">' + (labs.length ? labs.length + ' в истории' : 'Пока нет') + '</div></div></div>' +
+      '<div class="r58-cb"><button type="button" class="r58-b" onclick="setTest(\'health\')">Открыть</button></div></div>');
+    return out.join('');
+  };
+  window.r58Gallup = function(){
+    try{ setTest('gallup'); }catch(e){}
+    setTimeout(function(){ var f = document.getElementById('r52gFile') || document.querySelector('#testBody input[type=file]'); if(f) f.click(); }, 60);
+  };
+  var paintCards = function(){
+    var tt = document.getElementById('testTabs'); if(!tt) return;
+    tt.className = 'r58-tg'; tt.innerHTML = cardsHTML();
+    var body = document.getElementById('testBody');
+    if(body && !document.getElementById('r58Sec')){ var s = document.createElement('div'); s.className = 'r58-sec'; s.id = 'r58Sec'; body.parentNode.insertBefore(s, body); }
+    var sec = document.getElementById('r58Sec'), t = testOf(curTest);
+    if(sec) sec.textContent = t ? t.name : '';
+  };
+  if(typeof renderTests === 'function'){
+    var rt0 = renderTests;
+    renderTests = window.renderTests = function(){ try{ if(typeof r21MigrateWheel === 'function') r21MigrateWheel(curBoard); }catch(e){} var r = rt0.apply(this, arguments); try{ paintCards(); }catch(e){} return r; };
+  }
+
+  // ── 3. «Пройти с клиентом»: одна сфера за шаг, большие кнопки, автосохранение, итог ──
+  var W = null;
+  var box = function(){
+    var b = document.getElementById('r58w');
+    if(!b){ b = document.createElement('div'); b.id = 'r58w'; b.className = 'r58w'; b.setAttribute('role', 'dialog'); b.setAttribute('aria-modal', 'true'); document.body.appendChild(b); }
+    return b;
+  };
+  var who = function(){
+    var n = ''; try{ n = ((val('fName') + ' ' + val('fLast')).trim()) || (curBoard && curBoard.info && curBoard.info.res) || (curBoard && curBoard.name) || ''; }catch(e){}
+    return n;
+  };
+  var put = function(tid, ax, v){
+    if(!curBoard){ try{ saveBoard(); }catch(e){} }
+    if(!curBoard) return false;
+    curBoard.tests = curBoard.tests || {};
+    curBoard.tests[tid] = curBoard.tests[tid] || {};
+    curBoard.tests[tid][ax] = v;
+    try{ saveBoardSilent(); }catch(e){ return false; }
+    return true;
+  };
+  var lowest = function(){
+    var t = testOf(W.tid), d = valsOf(W.tid);
+    // 2-3 самые низкие сферы ниже 8
+    return t.axes.filter(function(a){ return Number(d[a]) > 0 && Number(d[a]) < 8; }).sort(function(a, b){ return d[a] - d[b]; }).slice(0, 3);
+  };
+  var paintW = function(){
+    var b = box(), t = testOf(W.tid), d = valsOf(W.tid), n = t.axes.length, sum = W.i >= n;
+    var dots = t.axes.map(function(a, i){ return '<button type="button" class="r58w-dot' + (i === W.i ? ' cur' : (Number(d[a]) > 0 ? ' done' : '')) + '" onclick="r58WGo(' + i + ')" title="' + E(a) + '">' + (i + 1) + '</button>'; }).join('') +
+      '<button type="button" class="r58w-dot' + (sum ? ' cur' : '') + '" onclick="r58WGo(' + n + ')" title="Итог">✓</button>';
+    var fs = document.fullscreenEnabled || document.webkitFullscreenEnabled;
+    var h = '<div class="r58w-top"><div class="r58w-tt"><b>' + E(t.name) + '</b><span>' + E(who() || 'Разбор') + '</span></div><div class="r58w-dots">' + dots + '</div>' +
+      '<div class="r58w-ta">' + (fs ? '<button type="button" class="r58w-btn" onclick="r58WFull()" title="Показать клиенту на весь экран">' + (W.full ? 'Свернуть' : 'На весь экран') + '</button>' : '') +
+      '<button type="button" class="r58w-btn" onclick="r58WClose()" aria-label="Закрыть" title="Закрыть (Esc)">✕</button></div></div>';
+    if(!sum){
+      var ax = t.axes[W.i], v = Number(d[ax]) || 0;
+      h += '<div class="r58w-main"><div class="r58w-wheel">' + wheelSVG(t.axes, d, {cur: W.i, title: t.name}) + '</div><div class="r58w-q">' +
+        '<div class="r58w-step">' + (W.tid === 'wheel' ? 'Сфера' : 'Орган') + ' ' + (W.i + 1) + ' из ' + n + '</div>' +
+        '<div class="r58w-name">' + E(ax) + '</div>' +
+        '<div class="r58w-hint">' + E((PROMPT[W.tid] || {})[ax] || 'Насколько довольны этой сферой сейчас?') + '</div>' +
+        '<div class="r58w-scale">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function(k){ return '<button type="button" class="r58w-n' + (k === v ? ' on' : '') + '" onclick="r58WSet(' + k + ')">' + k + '</button>'; }).join('') + '</div>' +
+        '<div class="r58w-sl"><span>1 · совсем плохо</span><span>10 · лучше не бывает</span></div>' +
+        '<div class="r58w-nav"><button type="button" class="r58w-btn" onclick="r58WGo(' + (W.i - 1) + ')"' + (W.i ? '' : ' disabled') + '>← Назад</button>' +
+        '<button type="button" class="r58w-btn p" onclick="r58WGo(' + (W.i + 1) + ')">' + (W.i === n - 1 ? 'Итог →' : (v ? 'Далее →' : 'Пропустить →')) + '</button></div>' +
+        '<div class="r58w-saved">' + (W.saved ? 'Сохранено на доске' : '') + '</div></div></div>';
+    } else {
+      var low = lowest(), a = avgOf(W.tid);
+      var rows = t.axes.slice().sort(function(x, y){ return (Number(d[x]) || 99) - (Number(d[y]) || 99); }).map(function(x){
+        var v2 = Number(d[x]) || 0, lo = low.indexOf(x) >= 0;
+        return '<div class="r58w-row' + (lo ? ' low' : '') + '"><span>' + E(x) + (lo ? '<em>зона роста</em>' : '') + '</span><i><u style="width:' + (v2 * 10) + '%"></u></i><b>' + (v2 || '·') + '</b></div>';
+      }).join('');
+      h += '<div class="r58w-main"><div class="r58w-wheel">' + wheelSVG(t.axes, d, {low: low, title: t.name}) + '</div><div class="r58w-q">' +
+        '<div class="r58w-step">Итог · ' + (a && a.n ? a.n + ' из ' + a.of + ' ' + (W.tid === 'wheel' ? 'сфер' : 'органов') : 'ответов нет') + '</div>' +
+        '<div class="r58w-avg">' + (a && a.n ? a.avg.toFixed(1).replace('.', ',') : '0') + '<small>средний из 10</small></div>' +
+        (low.length ? '<div class="r58w-hint">Зоны роста: ' + E(low.map(function(x){ return x + ' ' + d[x]; }).join(', ')) + '. С них начинаем.</div>' : '') +
+        '<div class="r58w-rows">' + rows + '</div>' +
+        '<div class="r58w-acts r58w-tr">' + (a && a.n ? '<button type="button" class="r58w-btn p" onclick="r58WCard()">' + (W.card ? 'Обновить карточку на доске' : 'Положить на доску') + '</button>' : '') +
+        '<button type="button" class="r58w-btn" onclick="r58WGo(0)">Изменить ответы</button><button type="button" class="r58w-btn" onclick="r58WClose()">Готово</button></div>' +
+        '<div class="r58w-saved">' + (W.cardMsg || 'Ответы уже сохранены в замерах ' + (W.lead ? 'лида' : 'резидента')) + '</div></div></div>';
+    }
+    b.innerHTML = h;
+  };
+  window.r58Wiz = function(tid){
+    var t = testOf(tid || 'wheel'); if(!t || !t.axes.length) return;
+    try{ if(t.id === 'wheel' && typeof r21MigrateWheel === 'function') r21MigrateWheel(curBoard); }catch(e){}
+    if(typeof viewingArchive !== 'undefined' && viewingArchive){ say('Это архив цикла. Откройте текущий разбор'); return; }
+    var d = valsOf(t.id), first = t.axes.findIndex(function(a){ return !(Number(d[a]) > 0); });
+    W = {tid: t.id, i: first < 0 ? t.axes.length : first, saved: false, card: null, full: false, lead: false};
+    try{ W.lead = !!(window.cl57Kind && cl57Kind() === 'lead'); }catch(e){}
+    var b = box(); b.classList.add('on'); b.classList.remove('client'); paintW();
+    try{ html.classList.add('r58w-open'); }catch(e){}
+  };
+  window.r58WSet = function(v){
+    if(!W) return;
+    var t = testOf(W.tid), ax = t.axes[W.i]; if(!ax) return;
+    W.saved = put(W.tid, ax, v); paintW();
+    clearTimeout(W.adv);
+    W.adv = setTimeout(function(){ if(W && W.i < t.axes.length && t.axes[W.i] === ax){ W.i++; W.saved = false; paintW(); } }, 420);
+  };
+  window.r58WGo = function(i){ if(!W) return; clearTimeout(W.adv); var n = testOf(W.tid).axes.length; W.i = Math.max(0, Math.min(n, i)); W.saved = false; W.cardMsg = ''; paintW(); };
+  window.r58WClose = function(){
+    if(!W) return; clearTimeout(W.adv);
+    var b = box(); b.classList.remove('on'); html.classList.remove('r58w-open');
+    try{ if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); else if(document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen(); }catch(e){}
+    var tid = W.tid; W = null;
+    try{ if(typeof curTest !== 'undefined') curTest = tid; if(html.classList.contains('rp-open') && rpTab === 'tests') renderTests(); }catch(e){}
+  };
+  window.r58WFull = function(){
+    if(!W) return;
+    var b = box();
+    try{
+      if(document.fullscreenElement || document.webkitFullscreenElement){ (document.exitFullscreen || document.webkitExitFullscreen).call(document); W.full = false; }
+      else { (b.requestFullscreen || b.webkitRequestFullscreen).call(b); W.full = true; }
+    }catch(e){}
+    setTimeout(paintW, 80);
+  };
+  // итог карточкой на доске рядом с центром разбора
+  window.r58WCard = function(){
+    if(!W) return;
+    var t = testOf(W.tid), d = valsOf(W.tid), a = avgOf(W.tid), low = lowest();
+    if(!a || !a.n) return;
+    var strong = t.axes.filter(function(x){ return Number(d[x]) >= 8; });
+    var title = t.name + ': ' + a.avg.toFixed(1).replace('.', ',') + ' из 10';
+    var desc = (low.length ? 'Зоны роста: ' + low.map(function(x){ return x + ' ' + d[x]; }).join(', ') + '.' : '') +
+      (strong.length ? (low.length ? ' ' : '') + 'Опора: ' + strong.map(function(x){ return x + ' ' + d[x]; }).join(', ') + '.' : '');
+    var ex = W.card && nodes.find(function(n){ return n.id === W.card; });
+    if(!ex) ex = nodes.find(function(n){ return n.r58t === W.tid && n.r58v === ((curBoard && curBoard.version) || 1); });
+    if(ex){
+      if(typeof pushUndo === 'function') pushUndo();
+      ex.title = title; ex.desc = desc;
+      var el = document.getElementById('n' + ex.id); if(el){ el.remove(); renderNode(ex); }
+      W.card = ex.id;
+    } else {
+      var root = nodes.find(function(n){ return n.type === 'root'; });
+      var pos = root ? place(root, 260, 120) : null;
+      var n = addNode(Object.assign({type: 'note', title: title, desc: desc, r58t: W.tid, r58v: (curBoard && curBoard.version) || 1}, pos ? {x: pos.x, y: pos.y} : {}));
+      if(!n) return;
+      try{ stopEditing(); if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
+      if(root){ links.push({a: root.id, b: n.id}); drawLinks(); }
+      W.card = n.id;
+    }
+    try{ saveBoardSilent(); }catch(e){}
+    W.cardMsg = 'Карточка на доске рядом с центром разбора'; paintW();
+  };
+  window.addEventListener('keydown', function(e){
+    if(!W || !box().classList.contains('on')) return;
+    var k = e.key, n = testOf(W.tid).axes.length;
+    if(k === 'Escape'){ e.preventDefault(); e.stopImmediatePropagation(); if(document.fullscreenElement || document.webkitFullscreenElement) return; r58WClose(); return; }
+    if(/^[0-9]$/.test(k) && W.i < n){ e.preventDefault(); e.stopImmediatePropagation(); r58WSet(k === '0' ? 10 : Number(k)); return; }
+    if(k === 'ArrowRight' || k === 'Enter'){ e.preventDefault(); e.stopImmediatePropagation(); if(W.i < n) r58WGo(W.i + 1); return; }
+    if(k === 'ArrowLeft'){ e.preventDefault(); e.stopImmediatePropagation(); r58WGo(W.i - 1); return; }
+    if(k === 'Tab' || k === 'Delete' || k === 'Backspace' || (k.length === 1 && !e.metaKey && !e.ctrlKey)) e.stopImmediatePropagation();
+  }, true);
+  document.addEventListener('fullscreenchange', function(){ if(W){ W.full = !!document.fullscreenElement; paintW(); } });
+
+  // ── 4. «+ заметка»: рядом с родителем, наружу от центра разбора, на первом свободном месте ──
+  var boxOf = function(n){
+    var el = document.getElementById('n' + n.id);
+    return {x: n.x, y: n.y, w: (el && el.offsetWidth) || n.w || 230, h: (el && el.offsetHeight) || n.h || 110};
+  };
+  var place = function(p, W0, H0){
+    var Wd = W0 || 240, Hd = H0 || 110, GAP = 28;
+    var boxes = nodes.filter(function(n){ return n !== p; }).map(boxOf);
+    var free = function(x, y){
+      for(var i = 0; i < boxes.length; i++){ var b = boxes[i]; if(x < b.x + b.w + GAP && x + Wd + GAP > b.x && y < b.y + b.h + GAP && y + Hd + GAP > b.y) return false; }
+      return true;
+    };
+    var a = boxOf(p), root = nodes.find(function(n){ return n.type === 'root'; });
+    var dx = 1, dy = 0;
+    if(root && root !== p){ var rb = boxOf(root); dx = (a.x + a.w / 2) - (rb.x + rb.w / 2); dy = (a.y + a.h / 2) - (rb.y + rb.h / 2); }
+    else {
+      // центр: туда, где меньше соседей
+      var r = 0, l = 0; nodes.forEach(function(n){ if(n !== p){ if(n.x > a.x) r++; else l++; } });
+      dx = r <= l ? 1 : -1; dy = 0;
+    }
+    var ks = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5];
+    if(Math.abs(dx) >= Math.abs(dy) * .6){
+      var sx = dx < 0 ? -1 : 1;
+      for(var c = 0; c < 6; c++){
+        var x = sx > 0 ? a.x + a.w + GAP * 2 + c * (Wd + GAP) : a.x - Wd - GAP * 2 - c * (Wd + GAP);
+        for(var i = 0; i < ks.length; i++){ var y = a.y + ks[i] * (Hd + GAP); if(free(x, y)) return {x: Math.round(x), y: Math.round(y)}; }
+      }
+    } else {
+      var sy = dy < 0 ? -1 : 1;
+      for(var rr = 0; rr < 6; rr++){
+        var y2 = sy > 0 ? a.y + a.h + GAP * 2 + rr * (Hd + GAP) : a.y - Hd - GAP * 2 - rr * (Hd + GAP);
+        for(var j = 0; j < ks.length; j++){ var x2 = a.x + ks[j] * (Wd + GAP); if(free(x2, y2)) return {x: Math.round(x2), y: Math.round(y2)}; }
+      }
+    }
+    try{ return freeSpot(p); }catch(e){ return {x: a.x + a.w + 60, y: a.y}; }
+  };
+  window.r58Place = place;
+  // узел за краем видимой части: вид сдвигается ровно настолько, чтобы его показать (без прыжка к центру)
+  var reveal = function(n){
+    var b = boxOf(n), k = view.k, vw = stage.clientWidth - overW(), vh = stage.clientHeight, m = 24;
+    var sx = b.x * k + view.x, sy = b.y * k + view.y, ex = sx + b.w * k, ey = sy + b.h * k, mx = 0, my = 0;
+    if(ex > vw - m) mx = (vw - m) - ex; if(sx + mx < m) mx = m - sx;
+    if(ey > vh - 90) my = (vh - 90) - ey; if(sy + my < m) my = m - sy;
+    if(!mx && !my) return;
+    var cv = document.getElementById('canvas');
+    if(cv){ cv.style.transition = 'transform .22s ease'; setTimeout(function(){ cv.style.transition = ''; }, 300); }
+    view.x += mx; view.y += my; applyView();
+  };
+  addChild = window.addChild = function(id, e){
+    if(e) e.stopPropagation();
+    var p = nodes.find(function(x){ return x.id === id; }); if(!p) return;
+    var keep = {x: view.x, y: view.y, k: view.k};
+    var pos = place(p, 240, 110);
+    var n = addNode({type: 'note', title: 'Заметка', desc: '', parent: id, x: pos.x, y: pos.y});
+    if(!n) return;
+    links.push({a: id, b: n.id});
+    drawLinks();
+    if(view.x !== keep.x || view.y !== keep.y || view.k !== keep.k){ view.x = keep.x; view.y = keep.y; view.k = keep.k; applyView(); }
+    stage.scrollLeft = 0; stage.scrollTop = 0;
+    setTimeout(function(){ stage.scrollLeft = 0; stage.scrollTop = 0; reveal(n); }, 80);
+    return n;
+  };
+
+  // ── 5. iPad: меню слева закрывается касанием по доске ──
+  document.addEventListener('pointerdown', function(e){
+    if(!html.classList.contains('side-open') || !html.classList.contains('onboard')) return;
+    if(e.target.closest('.side, #sideBtn')) return;
+    html.classList.remove('side-open');
+  }, true);
+})();
+</script>
+<!-- /R58 -->
 <!-- R52c: Маркетинг → «Креативы»: галерея с превью (слайды карусели, Reels, посты, сторис), формат, статус, канал, лиды по метке,
      действия при наведении (открыть, скачать, текст, в календарь), фильтры, загрузка файлов, просмотр слайдов с подписью -->
 <style id="r52cStyle">
@@ -38486,8 +39035,10 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
     if(!l){ h += '<p class="cl57-k">' + (S.busy ? 'Создаю ссылку…' : e(S.msg || 'Нет ссылки')) + '</p>'; b.innerHTML = h; return; }
     if(l.live){
       h += '<p class="cl57-k">Клиент увидит доску без входа и регистрации: только просмотр, только эту доску. Действует до ' + e(new Date(l.expiresAt).toLocaleDateString('ru')) + '.</p>' +
-        '<div class="cl57-u"><input readonly value="' + e(l.url) + '" onclick="this.select()"><button type="button" class="cl57-b pri" onclick="cl57Copy()">Копировать</button></div>' +
-        '<div class="cl57-row"><a class="cl57-b" href="' + e(l.wa) + '" target="_blank" rel="noopener">Отправить в WhatsApp</a><a class="cl57-b" href="' + e(l.tg) + '" target="_blank" rel="noopener">Отправить в Telegram</a></div>';
+        '<div class="cl57-u"><input readonly value="' + e(l.url) + '" onclick="this.select()"><button type="button" class="cl57-b" onclick="cl57Copy()">Копировать</button></div>' +
+        waBlock(l) +
+        '<div class="cl57-row"><a class="cl57-b pri" id="cl57Wa" href="' + e(waHref(l)) + '" target="_blank" rel="noopener" onclick="cl57Wa(event)">Отправить в WhatsApp</a><a class="cl57-b" href="' + e(l.tg) + '" target="_blank" rel="noopener">Отправить в Telegram</a></div>' +
+        fuBlock(l);
     } else {
       h += '<p class="cl57-k">Ссылка ' + (l.state === 'expired' ? 'истекла' : 'отключена') + ': клиент видит страницу «ссылка не действует».</p>' +
         '<div class="cl57-row"><button type="button" class="cl57-b pri" onclick="cl57Make()">Создать новую ссылку</button></div>';
@@ -38502,13 +39053,75 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
     if(S.msg) h += '<p class="cl57-k">' + e(S.msg) + '</p>';
     b.innerHTML = h;
   }
+  // R58: WhatsApp клиента (из CRM или вписанный), отправка запускает напоминания владельцу
+  function nn(t){ return String(t || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim(); }
+  function crmLeads(){ try{ if(typeof CRM === 'undefined' || !CRM){ if(typeof loadCRM === 'function') loadCRM(); } return (typeof CRM !== 'undefined' && CRM && CRM.leads) || []; }catch(err){ return []; } }
+  function boardWho(){ var b = window.curBoard; if(!b) return ''; var i = b.info || {}; return (i.res || ((i.name || '') + ' ' + (i.last || '')).trim() || b.name || '').trim(); }
+  function leadOf(){ var w = nn(boardWho()); if(!w) return null; return crmLeads().find(function(l){ return l && nn(l.name) === w; }) || null; }
+  // «lead»: доска лида или нового человека; «res»: действующего резидента (ссылка для клиента ему не нужна)
+  window.cl57Kind = function(){
+    var b = window.curBoard; if(!b) return 'none';
+    var ld = leadOf(); if(ld) return ld.col === 'won' ? 'res' : 'lead';
+    var w = nn(boardWho()), f = w.split(' ')[0];
+    var R = (typeof RESIDENTS !== 'undefined' && RESIDENTS) || [];
+    if(w && R.some(function(r){ if(!r || !r.name || r.former) return false; var rn = nn(r.name); return rn === w || rn.split(' ')[0] === f; })) return 'res';
+    return 'lead';
+  };
+  window.cl57Sync = function(){
+    var btn = document.getElementById('cl57Btn'); if(!btn) return;
+    var show = window.cl57Kind() === 'lead';
+    btn.style.display = show ? '' : 'none';
+    if(!show){ var x = document.getElementById('cl57'); if(x) x.classList.remove('on'); }
+  };
+  ['openBoard', 'saveBoard', 'saveBoardSilent', 'newBoard'].forEach(function(fn){
+    var o = window[fn]; if(typeof o !== 'function') return;
+    window[fn] = function(){ var r = o.apply(this, arguments); try{ window.cl57Sync(); }catch(err){} return r; };
+  });
+  setInterval(function(){ if(!document.hidden) try{ window.cl57Sync(); }catch(err){} }, 3000);
+  setTimeout(function(){ try{ window.cl57Sync(); }catch(err){} }, 0);
+  function digits(t){ var d = String(t || '').replace(/[^0-9]/g, ''); if(d.length === 11 && d[0] === '8') d = '7' + d.slice(1); if(d.length === 10 && d[0] === '7') d = '7' + d; return d; }
+  function phoneNow(l){ if(S.phone !== undefined) return S.phone; if(l && l.phone) return l.phone; var ld = leadOf(); return (ld && ld.phone) || ''; }
+  function waHref(l){
+    var d = digits(phoneNow(l)), t = (l && l.waText) || '';
+    if(!t) return l.wa;
+    return 'https://wa.me/' + (d.length >= 10 ? d : '') + '?text=' + encodeURIComponent(t);
+  }
+  function waBlock(l){
+    var ph = phoneNow(l), opts = crmLeads().filter(function(x){ return x && x.phone; }).slice(0, 60).map(function(x){ return '<option value="' + e(x.phone) + '">' + e(x.name || '') + '</option>'; }).join('');
+    return '<label class="cl57-ph"><span>WhatsApp клиента</span><input id="cl57Ph" type="tel" inputmode="tel" autocomplete="off" list="cl57PhL" placeholder="+7 701 000 00 00 или выберите в WhatsApp" value="' + e(ph) + '" oninput="cl57Ph(this.value)"></label><datalist id="cl57PhL">' + opts + '</datalist>';
+  }
+  var FU_STOP = {join:'клиент нажал «Хочу в клуб»', resident:'клиент уже резидент', owner:'вы выключили', revoked:'ссылка отключена', expired:'ссылка истекла', done:'все напоминания отправлены'};
+  var FU_NEXT = ['если клиент не откроет доску', 'если откроет, но не решит', 'последнее'];
+  function fuBlock(l){
+    var f = l.followup;
+    if(!f) return '<p class="cl57-k cl57-fu">После отправки бот напомнит вам: через 1 день, если клиент не откроет доску; через 2 дня, если откроет, но не решит; через 5 дней последний раз. С цифрами доски и готовым текстом.</p>';
+    if(f.stop) return '<p class="cl57-k cl57-fu"><span>Напоминания выключены:</span> ' + e(FU_STOP[f.stop] || f.stop) + '</p>';
+    var nx = f.nextAt ? new Date(f.nextAt) : null;
+    return '<div class="cl57-fu on"><div><b>Напоминание ' + (nx ? e(nx.toLocaleString('ru', {day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'})) : 'скоро') + '</b><span>' + e(FU_NEXT[f.stage] || '') + '</span></div>' +
+      '<button type="button" class="cl57-b" onclick="cl57NoRemind()">Не напоминать</button></div>';
+  }
+  window.cl57Ph = function(v){ S.phone = v; var a = document.getElementById('cl57Wa'); if(a && S.link) a.href = waHref(S.link); };
+  window.cl57Wa = function(ev){
+    var l = S.link; if(!l || !l.live){ if(ev) ev.preventDefault(); return; }
+    var a = document.getElementById('cl57Wa'), inp = document.getElementById('cl57Ph'), typed = inp ? inp.value.trim() : '';
+    var d = digits(typed);
+    if(typed && (d.length < 10 || d.length > 15)){ if(ev) ev.preventDefault(); S.msg = 'Проверьте номер: нужен номер WhatsApp с кодом страны'; paint(); return; }
+    if(a) a.href = waHref(l); // ссылка открывается сразу (без блокировки всплывающих окон), отметка уходит следом
+    api('POST', '/clientlink/' + encodeURIComponent(bid()) + '/sent', {phone: typed}).then(function(j){
+      if(j && j.link){ S.link = j.link; S.phone = undefined; S.msg = d.length >= 10 ? '' : 'Без номера WhatsApp предложит выбрать контакт'; paint(); toast('Отправлено. Бот напомнит, если клиент пропадёт'); }
+      else if(j && j.error){ S.msg = j.message || 'Отметка не сохранилась'; paint(); }
+    });
+  };
+  window.cl57NoRemind = function(){
+    api('DELETE', '/clientlink/' + encodeURIComponent(bid()) + '/remind').then(function(j){ if(j && j.link){ S.link = j.link; paint(); toast('Больше не напомню об этой доске'); } });
+  };
   function copy(t){
     try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(function(){ toast('Ссылка скопирована'); }, function(){ if(typeof r6CopyOld === 'function') r6CopyOld(t); }); return; } }catch(err){}
     if(typeof r6CopyOld === 'function') r6CopyOld(t);
   }
   function got(j){
     if(!j || j.error){ S.msg = (j && (j.message || j.error)) || 'Нет связи с сервером'; S.busy = false; paint(); return false; }
-    S.link = j.link; S.msg = ''; S.busy = false; paint(); return true;
+    S.link = j.link; S.msg = ''; S.busy = false; S.phone = undefined; paint(); return true;
   }
   window.cl57Make = function(){
     var id = bid(); if(!id){ toast('Сначала откройте доску клиента'); return; }
@@ -38544,6 +39157,13 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
 .cl57-st{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0 4px}.cl57-st div{border:1px solid var(--pi,#2A2A2A);border-radius:10px;padding:8px}
 .cl57-st span{display:block;font-size:11px;opacity:.6}.cl57-st b{font-size:13px}
 .cl57-int{margin:8px 0;font-weight:800}
+.cl57-ph{display:block;margin:10px 0 2px}.cl57-ph span{display:block;font-size:11.5px;opacity:.65;margin-bottom:5px;font-weight:700}
+.cl57-ph input{width:100%;box-sizing:border-box;background:transparent;border:1px solid var(--pi,#2A2A2A);border-radius:10px;padding:10px 11px;color:inherit;font:inherit;font-size:14px}
+.cl57-ph input:focus{outline:none;border-color:var(--ptx,#F5F5F5)}
+.cl57-fu{font-size:12.5px}
+.cl57-fu.on{display:flex;align-items:center;gap:10px;justify-content:space-between;border:1px solid var(--pi,#2A2A2A);border-radius:12px;padding:10px 10px 10px 12px;margin-top:10px}
+.cl57-fu.on b{display:block;font-size:13px}.cl57-fu.on span{display:block;opacity:.65;font-size:12px;margin-top:2px}
+.cl57-fu.on .cl57-b{flex-shrink:0}
 @media(max-width:700px){.cl57-btn span{display:none}.cl57{top:auto;bottom:12px;right:12px;left:12px;width:auto}}
 </style>
 </body>
