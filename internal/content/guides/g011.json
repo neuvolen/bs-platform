@@ -171,5 +171,19 @@
   ]
  },
  "time": "1 вечер на расчёт, 10-12 месяцев на накопление",
- "level": "система"
+ "level": "система",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=ELVSMkD0MGc",
+   "title": "How much cash reserves should you keep in your business?",
+   "why": "Сколько держать резерва в бизнесе",
+   "lang": "en"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=ng86nDJxQGk",
+   "title": "Что такое финансовый резерв и зачем он нужен?",
+   "why": "Зачем бизнесу резерв",
+   "lang": "ru"
+  }
+ ]
 }

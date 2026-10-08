@@ -161,5 +161,19 @@
   ]
  },
  "time": "60 дней",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=wNsskQTBVEc",
+   "title": "Как начать продавать на Каспи: советы эксперта Гульжан Бекжановой",
+   "why": "Старт продаж на Kaspi",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=tiTmJK-hUIA",
+   "title": "Как начать продавать на маркетплейсе Kaspi.kz. Особенности торговли, комиссии и логистика на Каспи",
+   "why": "Комиссии и логистика Kaspi",
+   "lang": "ru"
+  }
+ ]
 }

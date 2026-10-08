@@ -152,5 +152,19 @@
   ]
  },
  "time": "90 дней",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=Kc3xyn2ANn4",
+   "title": "Базовые навыки управления коллективом",
+   "why": "Навыки, которые нужны руководителю",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=xlyRm_UYTYU",
+   "title": "How to Train and Develop Middle Managers",
+   "why": "Как растить руководителей среднего звена",
+   "lang": "en"
+  }
+ ]
 }

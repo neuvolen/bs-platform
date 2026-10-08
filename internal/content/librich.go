@@ -7,6 +7,8 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -62,6 +64,38 @@ type richLib struct {
 	etag  string
 	tools []RichTool
 	byID  map[string]int
+	vids  map[string][]Video // R62: "tool:"/"diag:" + normalized title
+}
+
+// Video (R62): a YouTube link on a rich card (field "videos" of a tool,
+// diagnosis or guide), found by search and checked against the result.
+type Video struct {
+	URL     string `json:"url"`
+	Title   string `json:"title"`
+	Channel string `json:"channel,omitempty"`
+	Why     string `json:"why,omitempty"`
+	Lang    string `json:"lang,omitempty"`
+	Dur     string `json:"dur,omitempty"`
+}
+
+var richNormRe = regexp.MustCompile(`[^0-9a-zа-я]+`)
+
+// richNorm: the page's lib2N (lower case, ё → е, punctuation → space).
+func richNorm(s string) string {
+	s = strings.ReplaceAll(strings.ToLower(s), "ё", "е")
+	return strings.TrimSpace(richNormRe.ReplaceAllString(s, " "))
+}
+
+// RichVideos: the videos of a rich tool ("tool") or diagnosis ("diag")
+// found by its title; nil when there are none.
+func RichVideos(kind, title string) []Video {
+	richOnce.Do(loadRich)
+	richMu.RLock()
+	defer richMu.RUnlock()
+	if kind != "diag" {
+		kind = "tool"
+	}
+	return rich.vids[kind+":"+richNorm(title)]
 }
 
 var (
@@ -135,9 +169,25 @@ func buildRich() error {
 	if err := json.Unmarshal(tb, &parsed); err != nil {
 		return err
 	}
-	next := richLib{tools: parsed, byID: make(map[string]int, len(parsed))}
+	next := richLib{tools: parsed, byID: make(map[string]int, len(parsed)), vids: map[string][]Video{}}
 	for i, t := range parsed {
 		next.byID[t.ID] = i
+	}
+	var vt, vd []struct {
+		Title  string  `json:"title"`
+		Videos []Video `json:"videos"`
+	}
+	_ = json.Unmarshal(tb, &vt)
+	_ = json.Unmarshal(db, &vd)
+	for k, l := range map[string][]struct {
+		Title  string  `json:"title"`
+		Videos []Video `json:"videos"`
+	}{"tool": vt, "diag": vd} {
+		for _, x := range l {
+			if len(x.Videos) > 0 {
+				next.vids[k+":"+richNorm(x.Title)] = x.Videos
+			}
+		}
 	}
 	sum := sha256.New()
 	sum.Write(tb)

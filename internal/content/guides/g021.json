@@ -301,5 +301,19 @@
   ]
  },
  "time": "21 день на первую цепочку, 2 месяца до стабильного результата",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=FEgVmn2hjYc",
+   "title": "Техники и приёмы продаж: дожим клиента",
+   "why": "Приёмы дожима после первого контакта",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=cafM4xvVhYQ",
+   "title": "Sales Follow Up: 5 Scripts That Will Double Your Close Rate Today",
+   "why": "Сообщения для повторных касаний",
+   "lang": "en"
+  }
+ ]
 }

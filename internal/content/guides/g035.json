@@ -269,5 +269,19 @@
   ]
  },
  "time": "60 дней",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=S1ALf7zviXw",
+   "title": "Как правильно анализировать рекламу в Ads Manager? CPM, CTR, CR и другие метрики",
+   "why": "Как читать метрики таргета",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=aRZafX9EzvY",
+   "title": "CTR: что это в рекламе и какой CTR хороший",
+   "why": "Что показывает CTR",
+   "lang": "ru"
+  }
+ ]
 }

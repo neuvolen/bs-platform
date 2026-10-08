@@ -274,5 +274,19 @@
   ]
  },
  "time": "45 дней",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=-xkzyxWdA0o",
+   "title": "Как увеличить средний чек: три этапа допродажи",
+   "why": "Этапы допродажи",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=0JON8rEFDNo",
+   "title": "Кросс-продажи: как повысить средний чек в рознице за счет допродаж (cross sell)",
+   "why": "Кросс-продажи в рознице",
+   "lang": "ru"
+  }
+ ]
 }

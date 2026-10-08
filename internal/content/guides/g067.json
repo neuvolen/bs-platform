@@ -269,5 +269,19 @@
   ]
  },
  "time": "60 дней",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=iGPin0fP6sA",
+   "title": "CJM: карта пути клиента. Как правильно построить?",
+   "why": "Построение карты пути клиента",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=HXOcsWPhkls",
+   "title": "Путь клиента (Customer Journey Map): что это такое и как составить?",
+   "why": "Что такое CJM и зачем она",
+   "lang": "ru"
+  }
+ ]
 }

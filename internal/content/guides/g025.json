@@ -157,5 +157,19 @@
   ]
  },
  "time": "60 дней",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=mN5CGzRJrZs",
+   "title": "Правила больших длинных продаж. Как ускорить цикл сделки?",
+   "why": "Как ускорить длинную сделку",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=vGtYoYqbyTc",
+   "title": "Специфика современных сложных продаж B2B",
+   "why": "Особенности сложных B2B продаж",
+   "lang": "ru"
+  }
+ ]
 }

@@ -166,5 +166,19 @@
   ]
  },
  "time": "60 дней: 2 недели на подготовку и 4 цикла распределения",
- "level": "старт"
+ "level": "старт",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=BbER1WrtI2A",
+   "title": "Майк Микаловиц: Сначала заплати себе. Превратите ваш бизнес в машину, производящую деньги",
+   "why": "Разбор книги Profit First о распределении денег по счетам",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=al98UKNKBBk",
+   "title": "Profit First: Practical Steps for Small Business Financial Success",
+   "why": "Практические шаги системы Profit First",
+   "lang": "en"
+  }
+ ]
 }

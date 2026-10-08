@@ -388,7 +388,7 @@ func (h *BoardLinks) Data(c *gin.Context) {
 }
 
 var boardSections = map[string]bool{"top": true, "diag": true, "cause": true, "strat": true, "plan": true, "tools": true, "club": true, "cases": true, "price": true, "pay": true}
-var boardClicks = map[string]bool{"join": true, "ask": true, "think": true, "kaspi": true, "wa": true, "tg": true, "sticky_join": true, "sticky_ask": true}
+var boardClicks = map[string]bool{"join": true, "ask": true, "think": true, "kaspi": true, "wa": true, "tg": true, "sticky_join": true, "sticky_ask": true, "video": true}
 
 // Event: POST /b/:token/ev {open, s, sec[], click[]} (the page's beacons).
 func (h *BoardLinks) Event(c *gin.Context) {

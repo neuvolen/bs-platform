@@ -153,7 +153,7 @@ var bsProfile = struct {
 		{"Что значит «7 органов бизнеса»?", "Метод клуба рассматривает бизнес как живой организм из семи органов: стратегия, маркетинг, продажи, команда, финансы, процессы и аналитика. На разборе находят самый слабый орган и причину его проблем, с них и начинается план."},
 		{"Кто ведёт разборы?", "Основатели клуба Береке Ерниязов и Рустам Кабден. На каждом разборе присутствуют оба."},
 		{"Где проходят встречи и можно ли участвовать из другого города?", "Клуб базируется в Алматы, встречи проходят по адресу: проспект Достык, 44, Dostyk Hub. Ежедневная отчётность идёт в Telegram, задачи и прогресс резидента собраны на платформе app.bxclub.kz и в Telegram-приложении. Формат участия из другого города уточняйте при записи."},
-		{"Есть ли бесплатные материалы?", "Да. В Telegram-боте @bsurgery_bot можно бесплатно получить 99 чек-листов и пройти диагностику бизнеса. На app.bxclub.kz/library открыта часть библиотеки клуба: всего в ней 173 диагноза, 259 инструментов с шаблонами и 1 059 бизнес-идей."},
+		{"Есть ли бесплатные материалы?", "Да. В Telegram-боте @bsurgery_bot можно бесплатно получить 99 чек-листов и пройти диагностику бизнеса. На app.bxclub.kz/library открыта часть библиотеки клуба: всего в ней 278 диагнозов, 310 инструментов с шаблонами и 1 059 бизнес-идей."},
 		{"Сколько разборов провёл клуб?", "По данным клуба, основатели провели более 700 разборов бизнеса. В клубе около 20 резидентов."},
 		{"Гарантирует ли клуб рост прибыли?", "Нет. Клуб даёт диагноз, план и ежедневный контроль. Результат зависит от того, насколько последовательно собственник выполняет план."},
 		{"Как записаться?", "Напишите в WhatsApp +7 702 403 50 36 или в Telegram-бот @bsurgery_bot. Первый шаг всегда один: экспресс-разбор."},
@@ -567,16 +567,13 @@ func llmsFullTxt() string {
 			b.WriteString("Отвечает на вопрос: " + q + "\n\n")
 		}
 		if e.Kind == "diag" {
-			b.WriteString(e.Desc + "\n\n")
-			if len(e.FirstSteps) > 0 {
-				b.WriteString("Первые шаги:\n")
-				for _, s := range e.FirstSteps {
-					b.WriteString("- " + s + "\n")
-				}
-				b.WriteString("\n")
+			// R62: the full description is on the card page; here a short lead keeps the file under its budget
+			b.WriteString(cut(e.Desc, 140) + "\n\n")
+			if len(e.FirstSteps) > 0 { // R62: the first step only, the rest is on the card page
+				b.WriteString("Первый шаг: " + e.FirstSteps[0] + "\n\n")
 			}
 		} else {
-			b.WriteString(e.Promise + "\n\n")
+			b.WriteString(cut(e.Promise, 140) + "\n\n")
 			if len(e.Steps) > 0 {
 				b.WriteString("Шаги:\n")
 				for i, s := range e.Steps {
@@ -940,6 +937,7 @@ func libraryHTML() string {
 	b.WriteString(`<main><div class="hero"><div class="w"><span class="pill">Открыто без регистрации</span><h1>Библиотека Business Surgery <span>диагнозы и инструменты для собственника</span></h1>`)
 	b.WriteString(`<p class="lead">Карточки, по которым клуб работает на разборах. Диагноз: признаки, причины, самопроверка и первые шаги. Инструмент: шаги, частые ошибки, метрики и рабочий лист в PDF.</p>` + ctaButtons("site") + `</div></div>` + "\n")
 	// R61: the library doubled; a short subtitle keeps the index under the page budget
+	// R62: 278 diagnoses and 310 tools: the subtitle is cut shorter again
 	b.WriteString(`<section class="ix"><div class="w">`)
 	for _, o := range l.organs {
 		b.WriteString(`<h2 id="` + slugify(o) + `">` + hx(o) + `</h2>`)
@@ -948,7 +946,7 @@ func libraryHTML() string {
 			for _, i := range l.byOrgan[o] {
 				it := l.items[i]
 				if it.Kind == kind {
-					li.WriteString(`<li><a href="/library/` + it.Slug + `"><b>` + hx(it.Title) + `</b><span>` + hx(cut(it.Subtitle, 64)) + `</span></a></li>`)
+					li.WriteString(`<li><a href="/library/` + it.Slug + `"><b>` + hx(it.Title) + `</b><span>` + hx(cut(it.Subtitle, 34)) + `</span></a></li>`)
 				}
 			}
 			if li.Len() == 0 {

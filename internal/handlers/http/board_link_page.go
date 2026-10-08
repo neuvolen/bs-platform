@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
+	"github.com/bnursik/business_surgery_backend/internal/content"
 
 	"github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/bnursik/business_surgery_backend/web"
@@ -29,6 +30,17 @@ type cbItem struct {
 	Desc    string   `json:"desc,omitempty"`
 	Organ   string   `json:"organ,omitempty"`
 	Effects []string `json:"effects,omitempty"`
+	// R62: YouTube links of the library card with this title (2 at most)
+	Videos []content.Video `json:"videos,omitempty"`
+}
+
+// cbVideos: up to two library videos for a diagnosis or a tool.
+func cbVideos(kind, title string) []content.Video {
+	v := content.RichVideos(kind, title)
+	if len(v) > 2 {
+		v = v[:2]
+	}
+	return v
 }
 
 type cbTask struct {
@@ -98,7 +110,7 @@ func clientBoardOf(b *pg.PlatformBoard) clientBoard {
 		switch n.Type {
 		case "diag":
 			if t != "" && len(out.Diagnoses) < 12 {
-				out.Diagnoses = append(out.Diagnoses, cbItem{Title: t, Desc: ds, Organ: cl(n.Organ, 40)})
+				out.Diagnoses = append(out.Diagnoses, cbItem{Title: t, Desc: ds, Organ: cl(n.Organ, 40), Videos: cbVideos("diag", n.Title)})
 			}
 		case "dna":
 			if t != "" && len(out.Causes) < 12 {
@@ -118,7 +130,7 @@ func clientBoardOf(b *pg.PlatformBoard) clientBoard {
 			}
 		case "tool":
 			if t != "" && len(out.Tools) < 16 {
-				out.Tools = append(out.Tools, cbItem{Title: t, Desc: ds})
+				out.Tools = append(out.Tools, cbItem{Title: t, Desc: ds, Videos: cbVideos("tool", n.Title)})
 			}
 		case "task":
 			if t != "" && len(out.Tasks) < 30 {
@@ -320,6 +332,11 @@ h2 .n{font-size:13px;color:var(--dim);font-weight:700}
 .due{font-size:13px;color:var(--mut);white-space:nowrap;margin-top:2px}
 .tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
 .tools .c h3{font-size:15px}
+.vids{display:grid;gap:6px;margin-top:12px}
+.vid{display:flex;gap:10px;align-items:flex-start;text-decoration:none;color:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px;line-height:1.35}
+.vid:hover{border-color:#5A5A5A}
+.vid svg{flex:0 0 22px;width:22px;height:22px;color:#FF3B30;margin-top:1px}
+.vid b{display:block;font-weight:600}.vid i{display:block;font-style:normal;color:var(--mut);font-size:12px;margin-top:2px}
 .empty{color:var(--dim);font-size:15px}
 aside.side{position:sticky;top:20px}
 .offer{background:#F5F5F5;color:#0A0A0A;border-radius:22px;padding:24px}
@@ -410,7 +427,7 @@ var cbPageTpl = template.Must(template.New("cb").Funcs(cbFuncs).Parse(`<!doctype
 <div class="grid">
 <main>
   <section class="s" data-sec="diag"><h2>Диагнозы <span class="n">{{len .B.Diagnoses}}</span></h2><p class="sub">Что сейчас мешает бизнесу расти</p>
-    {{if .B.Diagnoses}}<div class="cards">{{range .B.Diagnoses}}<div class="c dx">{{if .Organ}}<span class="og">{{.Organ}}</span>{{end}}<h3>{{.Title}}</h3>{{if .Desc}}<p>{{.Desc}}</p>{{end}}</div>{{end}}</div>{{else}}<p class="empty">Диагнозы появятся здесь после разбора.</p>{{end}}
+    {{if .B.Diagnoses}}<div class="cards">{{range .B.Diagnoses}}<div class="c dx">{{if .Organ}}<span class="og">{{.Organ}}</span>{{end}}<h3>{{.Title}}</h3>{{if .Desc}}<p>{{.Desc}}</p>{{end}}{{if .Videos}}<div class="vids">{{range .Videos}}<a class="vid" href="{{.URL}}" target="_blank" rel="noopener noreferrer" data-click="video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12 31 31 0 0 0 1 16.8a3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8z" fill="currentColor"/><path d="M9.8 15.1 15.5 12 9.8 8.9z" fill="var(--bg,#0B0B0B)"/></svg><span><b>{{.Title}}</b>{{if .Channel}}<i>{{.Channel}}{{if .Dur}} · {{.Dur}}{{end}}</i>{{else}}{{if .Dur}}<i>{{.Dur}}</i>{{end}}{{end}}</span></a>{{end}}</div>{{end}}</div>{{end}}</div>{{else}}<p class="empty">Диагнозы появятся здесь после разбора.</p>{{end}}
   </section>
   {{if .B.Causes}}<section class="s" data-sec="cause"><h2>Причины <span class="n">{{len .B.Causes}}</span></h2><p class="sub">Корень проблем: то, что даёт симптомы</p>
     <div class="cards">{{range .B.Causes}}<div class="c"><span class="og">ДНК причина</span><h3>{{.Title}}</h3>{{if .Desc}}<p>{{.Desc}}</p>{{end}}{{if .Effects}}<ul class="fx">{{range .Effects}}<li>{{.}}</li>{{end}}</ul>{{end}}</div>{{end}}</div>
@@ -423,7 +440,7 @@ var cbPageTpl = template.Must(template.New("cb").Funcs(cbFuncs).Parse(`<!doctype
     {{if .B.Tasks}}<ul class="tasks">{{range .B.Tasks}}<li{{if .Done}} class="done"{{end}}><span class="ck">{{if .Done}}✓{{end}}</span><span class="tt">{{.Title}}</span>{{if .Due}}<span class="due">до {{.Due}}</span>{{end}}</li>{{end}}</ul>{{else}}<p class="empty">Задачи появятся здесь, когда план будет готов.</p>{{end}}
   </section>
   {{if .B.Tools}}<section class="s" data-sec="tools"><h2>Инструменты <span class="n">{{len .B.Tools}}</span></h2><p class="sub">Чем закрываем диагнозы</p>
-    <div class="tools">{{range .B.Tools}}<div class="c"><h3>{{.Title}}</h3>{{if .Desc}}<p>{{.Desc}}</p>{{end}}</div>{{end}}</div>
+    <div class="tools">{{range .B.Tools}}<div class="c"><h3>{{.Title}}</h3>{{if .Desc}}<p>{{.Desc}}</p>{{end}}{{if .Videos}}<div class="vids">{{range .Videos}}<a class="vid" href="{{.URL}}" target="_blank" rel="noopener noreferrer" data-click="video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12 31 31 0 0 0 1 16.8a3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8z" fill="currentColor"/><path d="M9.8 15.1 15.5 12 9.8 8.9z" fill="var(--bg,#0B0B0B)"/></svg><span><b>{{.Title}}</b>{{if .Channel}}<i>{{.Channel}}{{if .Dur}} · {{.Dur}}{{end}}</i>{{else}}{{if .Dur}}<i>{{.Dur}}</i>{{end}}{{end}}</span></a>{{end}}</div>{{end}}</div>{{end}}</div>
   </section>{{end}}
 
   <section class="club dark" id="club" data-sec="club">

@@ -22061,6 +22061,7 @@ function gdPaint(){
     gdTable(epi.table, 'ba') +
     gdQuote(epi.quote, pro.name ? pro.name + (pro.business ? ', ' + pro.business : '') : '') +
   '</section>';
+  secs += lib2Vids(f, toc, 'gdS-');
   secs += '<div class="gu-end"><b>' + (t && d >= t ? 'Чек-лист внедрён полностью' : 'Внедрено ' + d + ' из ' + t + ' ' + gdPl(t, 'пункта', 'пунктов', 'пунктов')) + '</b>' +
     '<span>Отметки сохраняются на этом устройстве. PDF удобно держать под рукой или отправить команде</span>' + gdActs(g) + '</div>';
   body.innerHTML = cover + gdMinute(g, f, steps, on, t, d) +
@@ -26169,6 +26170,16 @@ body.light .lb2-paper{box-shadow:0 18px 40px rgba(0,0,0,.12),0 0 0 1px rgba(0,0,
 .d8-kb{font:inherit;font-size:12px;line-height:1.35;text-align:left;padding:6px 10px;border-radius:8px;border:1px solid var(--pb);background:transparent;color:var(--ptx);cursor:pointer}
 .d8-kb span{opacity:.6}
 .d8-kb.on{background:var(--pon);color:var(--pontx);border-color:transparent}
+/* R62: видео YouTube в карточках библиотеки */
+.lb2-vids{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.lb2-vid{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--pb);border-radius:12px;color:var(--ptx);text-decoration:none;min-width:0}
+.lb2-vid:hover{border-color:var(--ptx)}
+.lb2-vid svg{flex:0 0 26px;width:26px;height:26px;color:#FF3B30}
+.lb2-vid .lb2-vt{display:block;font-weight:600;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+.lb2-vid .lb2-vm{display:block;font-size:12px;opacity:.65;margin-top:3px}
+.lb2-vid .lb2-vw{display:block;font-size:12.5px;opacity:.8;margin-top:5px;line-height:1.4}
+.lb2-vnote{font-size:12px;opacity:.55;margin-top:8px}
+@media(max-width:700px){.lb2-vids{grid-template-columns:1fr}}
 @media(max-width:1100px){.lb2-sh .gu-cover{grid-template-columns:1fr}}
 @media(max-width:700px){.lb2-ba,.lb2-met,.lb2-cure,.lb2-signs{grid-template-columns:1fr}.lb2-q{grid-template-columns:22px minmax(0,1fr)}.lb2-yn{grid-column:2}.lb2-res{grid-template-columns:1fr}
   .lb2-pp-band{padding:16px 16px 14px}.lb2-pp-in{padding:14px 16px 18px}.lb2-pp-t{font-size:19px}.lb2-pp-f{grid-template-columns:1fr}.lb2-doc{flex-wrap:wrap}.lb2-dn{width:100%}
@@ -26413,6 +26424,25 @@ function lib2Sec(k, label, title, inner){
   return '<section class="gu-sec" id="lb2S-' + k + '" data-k="' + k + '"><div class="gu-sk">' + esc(label) + '</div>' +
     (title ? '<h2 class="gu-h2">' + gdE(title) + '</h2>' : '') + inner + '</section>';
 }
+// R62: блок «Видео»: ссылки YouTube из карточки (поле videos), открываются в новой вкладке
+var LIB2_YT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8z"/><path fill="#fff" d="M9.8 15.1 15.5 12 9.8 8.9z"/></svg>';
+var LIB2_VL = {ru:'', kk:'на казахском', en:'на английском'};
+function lib2VidsHTML(list){
+  list = (Array.isArray(list) ? list : []).filter(function(x){ return x && /^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(String(x.url || '')); });
+  if(!list.length) return '';
+  return '<div class="lb2-vids">' + list.map(function(x){
+    var meta = [x.channel, x.dur, LIB2_VL[x.lang] || ''].filter(Boolean).join(' · ');
+    return '<a class="lb2-vid" href="' + escA(x.url) + '" target="_blank" rel="noopener noreferrer">' + LIB2_YT +
+      '<span><b class="lb2-vt">' + gdE(x.title || 'Видео на YouTube') + '</b>' + (meta ? '<span class="lb2-vm">' + gdE(meta) + '</span>' : '') +
+      (x.why ? '<span class="lb2-vw">' + gdE(x.why) + '</span>' : '') + '</span></a>';
+  }).join('') + '</div><div class="lb2-vnote">Видео открываются на YouTube в новой вкладке</div>';
+}
+function lib2Vids(r, toc, kp){
+  var h = lib2VidsHTML(r && r.videos);
+  if(!h) return '';
+  toc.push({k:'vid', n:'▶', t:'Видео'});
+  return '<section class="gu-sec" id="' + (kp || 'lb2S-') + 'vid" data-k="vid"><div class="gu-sk">Видео</div><h2 class="gu-h2">Посмотреть по теме</h2>' + h + '</section>';
+}
 function lib2Paint(){
   var c = LIB2.cur; if(!c) return;
   var r = LIB2.byId[c.id]; if(!r) return;
@@ -26510,6 +26540,7 @@ function lib2ToolHTML(v, r, d, i, adm){
     toc.push({k:'mat', n:'М', t:'Материалы'});
     secs += '<section class="gu-sec" id="lb2S-mat" data-k="mat">' + matsHTML(d) + '</section>';
   }
+  secs += lib2Vids(r, toc);
   secs += lib2KsSec(r, toc);
   secs += '<div class="gu-end"><b>Шаблон Business Surgery</b><span>Каждый шаблон оформлен в стиле клуба: логотип, bxclub.kz и подпись на каждой странице. Его можно распечатать, заполнить и отправить команде</span>' +
     '<div class="lb2-acts">' + (r.template ? '<button class="btn pf-b pf-p" data-act="tpl3" onclick="lib2Download(\'' + escA(r.id) + '\')">' + LIB2_IC.dl + 'Скачать шаблон PDF</button>' : '') + file + '</div></div>';
@@ -26670,6 +26701,7 @@ function lib2DiagHTML(v, r, d, i, adm){
   if(v.risk){ toc.push({k:'risk', n:'Р', t:'Если не лечить'});
     secs += lib2Sec('risk', 'Прогноз', 'Если не лечить', '<div class="lb2-risk"><div class="gu-lbl">Через год</div>' + gdE(v.risk) + '</div>'); }
   if(d && (d.link || d.video || d.sample)){ toc.push({k:'mat', n:'М', t:'Материалы'}); secs += '<section class="gu-sec" id="lb2S-mat" data-k="mat">' + matsHTML(d) + '</section>'; }
+  secs += lib2Vids(r, toc);
   secs += lib2KsSec(r, toc);
   return cover + lib2Cols(toc, secs);
 }
@@ -39156,7 +39188,7 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
   function dur(s){ s = s || 0; if(s < 60) return s + ' с'; var m = Math.round(s / 60); return m < 60 ? m + ' мин' : Math.floor(m / 60) + ' ч ' + (m % 60) + ' мин'; }
   function when(v){ if(!v) return ''; if(typeof r6Time === 'function') return r6Time(v); var d = new Date(v); return d.toLocaleString('ru'); }
   var SEC = {top:'Начало', diag:'Диагнозы', cause:'Причины', strat:'Стратегия', plan:'План на 10 дней', tools:'Инструменты', club:'Клуб', cases:'Кейсы', price:'Цены', pay:'Оплата'};
-  var CLK = {join:'«Хочу в клуб»', ask:'«Есть вопрос»', think:'«Пока подумаю»', kaspi:'Kaspi', wa:'WhatsApp', tg:'Telegram'};
+  var CLK = {join:'«Хочу в клуб»', ask:'«Есть вопрос»', think:'«Пока подумаю»', kaspi:'Kaspi', wa:'WhatsApp', tg:'Telegram', video:'видео'};
   var INT = {join:'Хочет в клуб', ask:'Есть вопрос', think:'Пока думает'};
   function paint(){
     var b = box(), l = S.link, h = '<div class="cl57-h"><b>Ссылка для клиента</b><span class="cl57-x" onclick="cl57Close()">×</span></div>';

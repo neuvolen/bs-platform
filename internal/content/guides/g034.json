@@ -259,5 +259,19 @@
   ]
  },
  "time": "60-90 дней",
- "level": "старт"
+ "level": "старт",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=pQkbCGZ8boc",
+   "title": "Как использовать Threads для бизнеса: лиды и продажи в B2C",
+   "why": "Threads как источник заявок",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=kESpSX5WN-0",
+   "title": "Threads. Как продвигаться в новой соцсети за 20 минут в день?",
+   "why": "Ритм ведения Threads",
+   "lang": "ru"
+  }
+ ]
 }

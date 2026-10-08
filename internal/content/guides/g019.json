@@ -272,5 +272,19 @@
   ]
  },
  "time": "14 дней на запуск, ещё 30 дней на привычку",
- "level": "старт"
+ "level": "старт",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=OZpbDT8ES4M",
+   "title": "Внедрение CRM: как внедрить и не забросить через месяц",
+   "why": "Как CRM приживается в отделе",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=3TLx_zjvG-o",
+   "title": "Внедрение CRM: основные ошибки",
+   "why": "Ошибки при внедрении CRM",
+   "lang": "ru"
+  }
+ ]
 }

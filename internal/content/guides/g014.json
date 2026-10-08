@@ -167,5 +167,19 @@
   ]
  },
  "time": "2 недели на сборку, дальше 40 минут в месяц",
- "level": "система"
+ "level": "система",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=7Gz8v-_UMXk",
+   "title": "Бюджеты БДР и БДДС",
+   "why": "Два главных бюджета компании",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=6Nlk71GJOCg",
+   "title": "Бюджет предприятия в Excel. Часть 1",
+   "why": "Как собрать бюджет в Excel",
+   "lang": "ru"
+  }
+ ]
 }

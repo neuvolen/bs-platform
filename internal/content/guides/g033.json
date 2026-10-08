@@ -258,5 +258,19 @@
   ]
  },
  "time": "60 дней",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=rdD3nJROZug",
+   "title": "Клиенты из Reels и Shorts. Как снимать продающие видео в YouTube и Instagram",
+   "why": "Короткие видео, которые приводят клиентов",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=7kIPCaDv8Lo",
+   "title": "Как писать сценарии для Reels? 12 способов написать сценарий",
+   "why": "Сценарии для Reels",
+   "lang": "ru"
+  }
+ ]
 }

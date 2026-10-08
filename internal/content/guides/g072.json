@@ -273,5 +273,19 @@
   ]
  },
  "time": "1 вечер на таблицу, 2-3 месяца на рост удержания",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=BKKxfzX4m58",
+   "title": "LTV, Retention и возвращаемость в интернет-маркетинге",
+   "why": "Как считать удержание и возврат клиентов",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=D6dIUf4chCA",
+   "title": "Юнит-экономика простыми словами: LTV, CAC",
+   "why": "Ценность клиента за всё время",
+   "lang": "ru"
+  }
+ ]
 }
