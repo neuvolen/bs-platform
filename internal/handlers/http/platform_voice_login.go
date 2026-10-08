@@ -105,22 +105,11 @@ func (p *PremiumVoice) loginVoice() premiumVoice {
 func loginSig(v premiumVoice) string { return v.ID + "|" + v.Model + "|" + v.Settings.Sig() }
 
 // loginHave: which demo lines of voice v are kept (line → URL).
+// R62: the normalized copy first (lookup); a line made before the
+// pronunciation dictionary is not ready until it is read again.
 func (p *PremiumVoice) loginHave(ctx context.Context, v premiumVoice, texts []string) (map[string]string, error) {
-	keys := make([]string, len(texts))
-	for i, t := range texts {
-		keys[i] = premiumKey(v, t)
-	}
-	got, err := p.repo.TTSHave(ctx, keys)
-	if err != nil {
-		return nil, err
-	}
-	m := map[string]string{}
-	for i, t := range texts {
-		if got[keys[i]] {
-			m[t] = loginURLPath + keys[i] + ".mp3"
-		}
-	}
-	return m, nil
+	m, _, err := p.lookup(ctx, v, texts, loginURLPath, false)
+	return m, err
 }
 
 func loginChars(texts []string) int {
@@ -142,7 +131,8 @@ func (p *PremiumVoice) refreshLoginOverlay(ctx context.Context) {
 		p.loginOver.Store(nil)
 		return
 	}
-	m, err := p.loginHave(ctx, v, texts)
+	// R62: a line read again keeps its earlier file meanwhile (withOld)
+	m, _, err := p.lookup(ctx, v, texts, loginURLPath, true)
 	if err != nil || len(m) < len(texts) {
 		return
 	}
@@ -256,7 +246,8 @@ func (p *PremiumVoice) readLogin(ctx context.Context, v premiumVoice, sig string
 			}
 		}
 		actx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-		audio, err := p.EL.Speak(actx, v.ID, v.Model, t, v.Settings)
+		say := SpeakText(t) // R62: the stress marks go to the voice only
+		audio, err := p.EL.Speak(actx, v.ID, v.Model, say, v.Settings)
 		cancel()
 		if err != nil {
 			why := "net"
@@ -276,9 +267,13 @@ func (p *PremiumVoice) readLogin(ctx context.Context, v premiumVoice, sig string
 			stop(why, ai.ElevenMessage(err))
 			return
 		}
-		if err := p.repo.PutTTSMime(ctx, premiumKey(v, t), "elevenlabs:"+v.ID, loginStyle, t, "audio/mpeg", audio); err != nil {
+		raw := premiumKey(v, say)
+		if err := p.repo.PutTTSMime(ctx, raw, "elevenlabs:"+v.ID, loginStyle, t, "audio/mpeg", audio); err != nil {
 			stop("net", "Запись не сохранилась в базе")
 			return
+		}
+		if ff := p.ffBin(ctx); ff != "" {
+			p.normalize(ctx, ff, raw, "elevenlabs:"+v.ID, loginStyle, t, "login line", audio)
 		}
 		p.mu.Lock()
 		if p.login.VoiceID == sig {

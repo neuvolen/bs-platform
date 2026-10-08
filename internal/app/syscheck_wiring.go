@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
@@ -26,6 +27,21 @@ func WireSysCheck(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team
 			all := web.TourTexts()
 			return len(all) - len(web.TourTextsUnvoiced()), len(all)
 		},
+	}
+	// R62: the server opens its own public address daily: http→https, HSTS, certificate
+	if os.Getenv("HTTPS_SELFCHECK") != "off" {
+		pub := os.Getenv("PUBLIC_URL")
+		if strings.TrimSpace(pub) == "" {
+			pub = "https://app.bxclub.kz"
+		}
+		if hc := httpapi.NewHTTPSSelfCheck(pub); hc != nil {
+			hc.Meta, hc.Owner, hc.NoQuiet = s.Meta, s.Owner, os.Getenv("SYSCHECK_QUIET") == "off"
+			if botSvc != nil && botSvc.Enabled() {
+				hc.Send = botSvc.SendMessage
+			}
+			s.HTTPS = hc
+			go hc.Loop(context.Background(), 3*time.Minute)
+		}
 	}
 	SysCheckRef = s // R51: the weekly report calls this check (sales_wiring.go)
 	if pm != nil && pm.AI != nil {

@@ -55,6 +55,10 @@ func HTTPS() gin.HandlerFunc {
 	}
 }
 
+// WantsHSTS: whether answers for this host carry HSTS (R62: the server's
+// own https self-check expects it only there).
+func WantsHSTS(host string) bool { return hostMatches(host, hstsHosts(os.Getenv("HSTS_HOSTS"))) }
+
 // forwardedProto: the first value of X-Forwarded-Proto (proxies may chain them), lower case.
 func forwardedProto(r *http.Request) string {
 	v := r.Header.Get("X-Forwarded-Proto")

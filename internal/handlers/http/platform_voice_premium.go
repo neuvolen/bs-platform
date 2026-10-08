@@ -139,6 +139,9 @@ type PremiumVoice struct {
 	overlayTry atomic.Int64
 	// R57: the start probes the chosen voice at once (recheckTarget)
 	probeNow atomic.Bool
+	// R62: ffmpeg brings every file to one loudness (platform_voice_norm.go)
+	ffmpeg func(ctx context.Context) (string, error)
+	ffErr  string
 }
 
 // NewPremiumVoice: the ElevenLabs client reads ELEVENLABS_API_KEY, else the saved key.
@@ -405,26 +408,56 @@ func putServerDoc(ctx context.Context, repo *pg.PlatformRepo, key, val string, d
 	return false
 }
 
-// have: which phrases of voice v are kept.
+// have: which phrases of voice v are kept (phrase → URL, the normalized
+// copy when there is one).
 func (p *PremiumVoice) have(ctx context.Context, v premiumVoice, texts []string) (map[string]string, int, error) {
 	if p.repo == nil {
 		return map[string]string{}, 0, errors.New("no database")
 	}
-	keys := make([]string, len(texts))
-	for i, t := range texts {
-		keys[i] = premiumKey(v, t)
+	return p.lookup(ctx, v, texts, premiumURLPath, false)
+}
+
+// voiceKeys: the files of a phrase, best first: the normalized copy and the
+// file of the spoken text (SpeakText, R62), then the ones made before the
+// pronunciation dictionary (keyed by the shown text).
+func voiceKeys(v premiumVoice, t string) []string {
+	k := premiumKey(v, SpeakText(t))
+	ks := []string{normKey(k), k}
+	if old := premiumKey(v, t); old != k {
+		ks = append(ks, normKey(old), old)
+	}
+	return ks
+}
+
+// lookup: phrase → URL of the kept files and how many phrases are ready (a
+// file of the spoken text). withOld: a phrase not read again yet keeps its
+// earlier file in the map (the page never falls back to another voice).
+func (p *PremiumVoice) lookup(ctx context.Context, v premiumVoice, texts []string, base string, withOld bool) (map[string]string, int, error) {
+	var keys []string
+	for _, t := range texts {
+		keys = append(keys, voiceKeys(v, t)...)
 	}
 	got, err := p.repo.TTSHave(ctx, keys)
 	if err != nil {
 		return nil, 0, err
 	}
-	m := map[string]string{}
-	for i, t := range texts {
-		if got[keys[i]] {
-			m[t] = premiumURLPath + keys[i] + ".mp3"
+	m, n := map[string]string{}, 0
+	for _, t := range texts {
+		ks := voiceKeys(v, t)
+		ready := got[ks[0]] || got[ks[1]]
+		if ready {
+			n++
+		} else if !withOld {
+			continue
+		}
+		for _, k := range ks {
+			if got[k] {
+				m[t] = base + k + ".mp3"
+				break
+			}
 		}
 	}
-	return m, len(m), nil
+	return m, n, nil
 }
 
 // refreshOverlay: the page's phrase → file map of the active voice.
@@ -440,11 +473,11 @@ func (p *PremiumVoice) refreshOverlay(ctx context.Context) {
 		// app.go sets TourTexts): keep the last map, look again later
 		return
 	}
-	m, n, err := p.have(ctx, c.Active, texts)
+	m, _, err := p.lookup(ctx, c.Active, texts, premiumURLPath, true)
 	if err != nil {
 		return // keep the last map
 	}
-	if n == 0 {
+	if len(m) == 0 {
 		p.overlay.Store(nil)
 		return
 	}
@@ -556,6 +589,7 @@ func (p *PremiumVoice) Start(ctx context.Context) {
 			}
 			p.maybeRunAuto(ctx) // R39: no new try right after a quota or plan stop
 			p.maybeRunLogin(ctx) // R40d: the login demo after the tour
+			p.normalizeKept(ctx) // R62: one loudness for every kept file
 			select {
 			case <-ctx.Done():
 				return
@@ -642,7 +676,8 @@ func (p *PremiumVoice) read(ctx context.Context, v premiumVoice, texts []string)
 			}
 		}
 		actx, acancel := context.WithTimeout(ctx, 3*time.Minute)
-		audio, err := p.EL.Speak(actx, v.ID, v.Model, t, v.Settings)
+		say := SpeakText(t) // R62: the stress marks go to the voice only
+		audio, err := p.EL.Speak(actx, v.ID, v.Model, say, v.Settings)
 		acancel()
 		if err != nil {
 			why := "net"
@@ -672,11 +707,15 @@ func (p *PremiumVoice) read(ctx context.Context, v premiumVoice, texts []string)
 			}
 			return
 		}
-		if err := p.repo.PutTTSMime(context.WithoutCancel(ctx), premiumKey(v, t), "elevenlabs:"+v.ID, premiumStyle, t, "audio/mpeg", audio); err != nil {
+		raw := premiumKey(v, say)
+		if err := p.repo.PutTTSMime(context.WithoutCancel(ctx), raw, "elevenlabs:"+v.ID, premiumStyle, t, "audio/mpeg", audio); err != nil {
 			p.progress(func(j *premiumJob) {
 				j.Running, j.Error, j.Stopped = false, "Запись не сохранилась в базе", "net"
 			})
 			return
+		}
+		if ff := p.ffBin(ctx); ff != "" {
+			p.normalize(ctx, ff, raw, "elevenlabs:"+v.ID, premiumStyle, t, "tour", audio)
 		}
 		made++
 		p.progress(func(j *premiumJob) {

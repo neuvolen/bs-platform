@@ -323,6 +323,20 @@ main.wrap{overflow-x:clip}
  .hero-act{margin-top:18px}.demo-b.demo-p{width:100%;justify-content:center;padding:0 18px 0 8px;gap:12px;font-size:15.5px}.first h1 br{display:none}
  .scale{margin-top:16px;padding-top:14px;gap:8px 18px;flex-wrap:nowrap;justify-content:space-between}.scale li{font-size:11.5px;text-align:left}.scale b{font-size:20px}
  .first .card{padding:18px 16px 16px}.first .card h2{font-size:20px;margin-top:8px}.first .card p{font-size:13px;margin-top:6px}#w{margin-top:14px}}
+/* R62: телефон: вырезы и полоса «домой», кнопки обучения под палец (44 px), точки шагов с большой зоной нажатия */
+@media (max-width:640px){
+ .wrap{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+ .top{padding-top:env(safe-area-inset-top);height:calc(60px + env(safe-area-inset-top))}
+ .foot{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+ input,select,textarea{font-size:16px}}
+@media (max-width:860px){
+ .dm{padding-top:calc(12px + env(safe-area-inset-top));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+ .dm-ic{width:44px;height:44px}.dm-ic svg{width:18px;height:18px}
+ .dm-dots{gap:4px;margin-top:6px}
+ .dm-dots button{height:28px;background:none;border-radius:0}
+ .dm-dots button::before{content:"";position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;background:rgba(255,255,255,.14)}
+ .dm-dots button::after{top:12px;bottom:12px;border-radius:2px}
+ .dm-nav{margin-top:8px}.dm-nav button{height:48px}}
 </style>
 </head>
 <body>
@@ -593,7 +607,7 @@ main.wrap{overflow-x:clip}
     if(!r || s.end){ k = fit; tx = (vw - W * k) / 2; ty = (vh - H * k) / 2; }
     else {
       var rx = r[0] * W, ry = r[1] * H, rw = r[2] * W, rh = r[3] * H;
-      k = Math.min(vw * .9 / rw, vh * .82 / rh, vw / W * 2.6);
+      k = Math.min(vw * .9 / rw, vh * .82 / rh, vw / W * (vw < vh ? 3.4 : 2.6)); // R62: на телефоне (портрет) зона шага крупнее
       k = Math.max(k, fit);
       tx = vw / 2 - (rx + rw / 2) * k; ty = vh / 2 - (ry + rh / 2) * k;
       // картинка не уезжает от края, если она больше кадра

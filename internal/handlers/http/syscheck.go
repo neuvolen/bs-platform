@@ -142,6 +142,8 @@ type SysCheck struct {
 	Threads func(ctx context.Context) (state, text, sig string)
 	// NoQuiet: send at any hour (SYSCHECK_QUIET=off, test stands).
 	NoQuiet bool
+	// HTTPS: the daily self-check of the public address (R62); nil: no line.
+	HTTPS *HTTPSSelfCheck
 
 	mu      sync.Mutex
 	running bool
@@ -193,6 +195,9 @@ func (s *SysCheck) Run(ctx context.Context) CheckResult {
 		if it.Key == "export" && it.State == "off" {
 			continue // R51: the export line only while it is on
 		}
+		r.Items = append(r.Items, it)
+	}
+	if it, ok := httpsItem(s.HTTPS); ok { // R62: https_selfcheck.go
 		r.Items = append(r.Items, it)
 	}
 	r.Items = append(r.Items, CheckItem{Key: "version", Title: "Версия", State: "ok", Text: r.Version})

@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Business Surgery</title>
 <script id="r52Https">
 // R52: «Не защищено» при действительном сертификате: адрес http из данных (картинка, звук, рамка, форма).
@@ -3658,6 +3658,68 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
 .aiw-acts .btn{flex:1;padding:10px;font-size:12.5px}
 .aiw-gh{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin:6px 0 10px}
 @media(max-width:700px){.aiw-h{flex-direction:column}.aiw-list{grid-template-columns:1fr}}
+</style>
+<style id="r62Mobile">
+/* R62: телефон. Внизу панель разделов (4 главных и «Ещё»), листы снизу, доска для просмотра,
+   кнопки не меньше 44 px, поля ввода 16 px (iOS не увеличивает страницу), вырезы и полоса «домой» */
+:root{--r62nb:0px}
+.r62nb{display:none}
+.zb.r62-ed{display:none}
+@media(max-width:700px){
+  :root{--r62nb:calc(62px + env(safe-area-inset-bottom))}
+  .r62nb{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:108;height:var(--r62nb);padding:0 max(4px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(4px,env(safe-area-inset-left));
+    background:rgba(5,5,5,.96);border-top:1px solid var(--pi,rgba(255,255,255,.12));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+  .r62nb button{all:unset;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:62px;
+    color:var(--pm,#8A8A8A);font:700 11px/1.1 Manrope,system-ui,sans-serif;letter-spacing:.01em;cursor:pointer;-webkit-tap-highlight-color:transparent;position:relative}
+  .r62nb button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+  .r62nb button svg{width:22px;height:22px}
+  .r62nb button.on{color:var(--ptx,#fff)}
+  .r62nb button.on::before{content:"";position:absolute;top:0;left:30%;right:30%;height:2px;border-radius:0 0 2px 2px;background:currentColor}
+  .r62nb button:focus-visible{outline:2px solid #fff;outline-offset:-4px;border-radius:10px}
+  body.light .r62nb{background:rgba(255,255,255,.96);border-top-color:rgba(0,0,0,.1)}
+  body.light .r62nb button{color:rgba(20,20,22,.5)}
+  body.light .r62nb button.on{color:#141414}
+  /* содержимое не уходит под панель */
+  .page{padding-bottom:calc(var(--r62nb) + 28px)!important}
+  .side{padding-bottom:calc(var(--r62nb) + 8px)}
+  /* доска: кнопки масштаба и панель добавления над панелью разделов */
+  .zoom{bottom:calc(var(--r62nb) + 12px)!important}
+  #quickBar{bottom:calc(var(--r62nb) + 12px)!important}
+  html.r62-edit .zoom{bottom:calc(var(--r62nb) + 76px)!important}
+  /* доска на телефоне: просмотр и перемещение; правка по кнопке ✎ */
+  html:not(.r62-edit) #quickBar,html:not(.r62-edit) #drawBtn,html:not(.r62-edit) #undoBtn,html:not(.r62-edit) #callBtn,
+  html:not(.r62-edit) #presBtn,html:not(.r62-edit) #cl57Btn,html:not(.r62-edit) #thBtn,html:not(.r62-edit) #drawTools{display:none!important}
+  .zb.r62-ed{display:flex}
+  html.r62-edit .zb.r62-ed{background:#fff;color:#050505}
+  /* шапка доски: название своей строкой, кнопки строкой ниже (не наезжают при любом их числе) */
+  .top .top-l{flex:1 0 100%}
+  /* листы и окна: снизу, с ручкой, до 92% высоты */
+  .sheet{align-items:flex-end!important;justify-content:center!important}
+  .sheet>.si{max-width:none!important;width:100%!important;height:auto!important;max-height:calc(100dvh - 40px - env(safe-area-inset-top));border-radius:20px 20px 0 0!important;
+    border:1px solid var(--pi,rgba(255,255,255,.12))!important;border-bottom:none!important;animation:up .22s ease!important;padding-bottom:env(safe-area-inset-bottom);position:relative}
+  .sheet>.si::before{content:"";position:absolute;top:7px;left:50%;width:40px;height:4px;margin-left:-20px;border-radius:2px;background:rgba(255,255,255,.22)}
+  body.light .sheet>.si::before{background:rgba(0,0,0,.18)}
+  .sheet>.si .sb{overflow-y:auto;-webkit-overflow-scrolling:touch}
+  /* поля 16 px: iOS не приближает страницу при вводе */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea{font-size:16px!important}
+  /* ряды KPI и фильтров: прокрутка вбок одной строкой, без лишней высоты */
+  .page .cx-pipes,.page .cx-srcs{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-right:-16px;padding-right:16px}
+  .page .cx-pipe,.page .cx-fl{flex-shrink:0;min-height:40px}
+  /* значок синхронизации, меню и подсказки над панелью разделов */
+  #bsxPill{bottom:calc(var(--r62nb) + 10px)!important}
+  #bsxMenu{bottom:calc(var(--r62nb) + 48px)!important}
+  .toast{bottom:calc(var(--r62nb) + 16px)!important}
+  /* вкладки раздела сверху: крупнее для пальца */
+  .bk-tab,.r32-tab{min-height:44px;display:inline-flex;align-items:center}
+  /* таблицы шире экрана: прокрутка внутри своего блока, не всей страницы */
+  .page table{max-width:none}
+  .page .tw,.page .table-wrap,.page .fx-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+@media(max-width:700px) and (pointer:coarse){
+  .zb,.ic,.side-btn{min-width:44px!important;min-height:44px!important}
+  .side .nv,.side .sv{min-height:44px;display:flex;align-items:center}
+  .x,.sh .x{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+}
 </style>
 </head>
 <body>
@@ -39330,5 +39392,96 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
 })();
 </script>
 <!-- /R59 -->
+<script id="r62Script">
+/* R62: телефон. Панель разделов внизу: четыре главных раздела режима (в порядке меню) и «Ещё» (всё меню).
+   Доска на телефоне открывается целиком в кадре, для просмотра; кнопка ✎ включает правку. */
+(function(){
+  var mq = window.matchMedia ? window.matchMedia('(max-width:700px)') : {matches:false};
+  var html = document.documentElement, bar = null, sig = '', raf = 0;
+  var MORE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>';
+  var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var navNow = function(){ try{ return typeof navOfMode === 'function' ? navOfMode() : null; }catch(e){ return null; } };
+  var cur = function(){ try{ return curBlock; }catch(e){ return ''; } };
+  var items = function(nav){
+    return [].filter.call(nav.querySelectorAll('.nv'), function(x){ return x.dataset.b && getComputedStyle(x).display !== 'none'; });
+  };
+  var paint = function(){
+    raf = 0;
+    if(!mq.matches){ if(bar) bar.hidden = true; return; }
+    var nav = navNow(); if(!nav) return;
+    if(!bar){
+      bar = document.createElement('nav'); bar.className = 'r62nb'; bar.id = 'r62Nav'; bar.setAttribute('aria-label', 'Разделы');
+      document.body.appendChild(bar);
+      bar.addEventListener('click', function(e){
+        var b = e.target.closest('button'); if(!b) return;
+        var k = b.getAttribute('data-b');
+        if(k === 'more'){ html.classList.toggle('side-open'); schedule(); return; }
+        html.classList.remove('side-open');
+        if(k === cur()){ window.scrollTo({top:0, behavior:'smooth'}); return; }
+        try{ goBlock(k); }catch(err){}
+        window.scrollTo(0, 0); schedule();
+      });
+    }
+    bar.hidden = false;
+    var all = items(nav), shown = all.slice(0, all.length > 5 ? 4 : Math.min(all.length, 4));
+    var s = shown.map(function(x){ return x.dataset.b + ':' + x.textContent.trim(); }).join('|');
+    if(s !== sig){
+      sig = s;
+      bar.innerHTML = shown.map(function(x){
+        var ic = x.querySelector('.nv-i svg');
+        return '<button type="button" data-b="' + esc(x.dataset.b) + '">' + (ic ? ic.outerHTML : '') + '<span>' + esc(x.textContent.trim()) + '</span></button>';
+      }).join('') + '<button type="button" data-b="more" aria-label="Ещё: всё меню">' + MORE + '<span>Ещё</span></button>';
+    }
+    var c = cur(), open = html.classList.contains('side-open'), hit = false;
+    [].forEach.call(bar.children, function(b){
+      var k = b.getAttribute('data-b'), on = k === 'more' ? open : (!open && k === c);
+      if(k !== 'more' && k === c) hit = true;
+      b.classList.toggle('on', on);
+      if(on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    if(!hit && !open && bar.lastChild) bar.lastChild.classList.add('on');
+  };
+  var schedule = function(){ if(!raf) raf = requestAnimationFrame(paint); };
+  // доска: целиком в кадре при входе на телефоне; правка по кнопке
+  var fit = function(){
+    if(!mq.matches || !html.classList.contains('onboard')) return;
+    try{
+      if(typeof fitAll !== 'function') return;
+      fitAll();
+      // вся доска мельче, чем читается: крупнее, сверху по центру (дальше пальцем)
+      if(typeof view === 'object' && view && view.k < .5 && typeof nodes !== 'undefined' && nodes.length && typeof stage !== 'undefined'){
+        var x0 = Infinity, x1 = -Infinity, y0 = Infinity;
+        nodes.forEach(function(n){ var el = document.getElementById('n' + n.id), w = el ? el.offsetWidth : 200;
+          x0 = Math.min(x0, n.x); x1 = Math.max(x1, n.x + w); y0 = Math.min(y0, n.y); });
+        if(isFinite(x0) && isFinite(y0)){ view.k = .5; view.x = stage.clientWidth / 2 - (x0 + x1) / 2 * .5; view.y = 24 - y0 * .5; }
+      }
+      if(typeof applyView === 'function') applyView();
+    }catch(e){}
+  };
+  var edBtn = function(){
+    var z = document.querySelector('.zoom'); if(!z || z.querySelector('.r62-ed')) return;
+    var b = document.createElement('div'); b.className = 'zb r62-ed'; b.title = 'Править доску'; b.setAttribute('role', 'button'); b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>';
+    b.addEventListener('click', function(){ var on = html.classList.toggle('r62-edit'); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    z.appendChild(b);
+  };
+  var wasBoard = html.classList.contains('onboard');
+  var start = function(){
+    edBtn(); paint();
+    var side = document.getElementById('side');
+    if(side && window.MutationObserver){
+      new MutationObserver(schedule).observe(side, {subtree:true, childList:true, attributes:true, attributeFilter:['class','style']});
+    }
+    if(window.MutationObserver) new MutationObserver(function(){
+      var b = html.classList.contains('onboard');
+      if(b && !wasBoard) setTimeout(fit, 450);
+      wasBoard = b; schedule();
+    }).observe(html, {attributes:true, attributeFilter:['class']});
+    if(mq.addEventListener) mq.addEventListener('change', schedule);
+    setTimeout(fit, 1500);
+  };
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+</script>
 </body>
 </html>

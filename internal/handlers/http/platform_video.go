@@ -462,6 +462,10 @@ func RegisterVideo(r *gin.Engine, g *gin.RouterGroup, m *PlatformModule) {
 	}
 	v.Start(context.Background())
 	v.Routes(r, g)
+	if m.AI != nil && m.AI.Premium != nil {
+		// R62: the same ffmpeg brings the voice files to one loudness
+		m.AI.Premium.SetFFmpeg(v.ffmpeg)
+	}
 }
 
 // Routes: the public signed files and the team's API.
