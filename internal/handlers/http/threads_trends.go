@@ -416,6 +416,7 @@ func (m *Trends) add(c *gin.Context) {
 	}
 	var in trendIn
 	_ = c.ShouldBindJSON(&in)
+	in.Links = m.Fetch.ResolveShareLinks(c.Request.Context(), in.Links)
 	refs := ThreadsLinks(in.Links)
 	if len(refs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Не вижу ссылок на посты Threads: нужна ссылка вида threads.com/@автор/post/…"})
@@ -1805,6 +1806,7 @@ func (e *ContentEngine) AddTrendPost(ctx context.Context, text, title string, tr
 
 // BotLinks answers the team's message with Threads links (false: none).
 func (m *Trends) BotLinks(ctx context.Context, chatID int64, text string) (string, bool) {
+	text = m.Fetch.ResolveShareLinks(ctx, text)
 	refs := ThreadsLinks(text)
 	if len(refs) == 0 {
 		return "", false
@@ -1847,4 +1849,5 @@ func (m *Trends) SelfTest(ctx context.Context) {
 		oe = "fail (" + oerr.Error() + ")"
 	}
 	log.Printf("trends: self-test threads fetch: oembed %s, page %s, text %v, likes %v", oe, pageState, text, likes)
+	m.shareSelfTest(ctx)
 }

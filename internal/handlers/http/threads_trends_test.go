@@ -54,6 +54,12 @@ func newFakeThreads(t *testing.T) *fakeThreads {
 				h = strings.ReplaceAll(h, "my.twinkles", ref.User)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"version": "1.0", "type": "rich", "provider_name": "Threads", "provider_url": "https://www.threads.com/", "width": 658, "html": h})
+		case r.URL.Path == "/share/BBr-UwA_Ka/":
+			http.Redirect(w, r, "https://www.threads.com/@my.twinkles/post/DcObaXSjPe_?xmt=abc", http.StatusFound)
+		case r.URL.Path == "/share/OgOnly1/":
+			_, _ = w.Write([]byte(`<html><head><meta property="og:url" content="https://www.threads.com/@a.b/post/XYZ123abc_"></head></html>`))
+		case strings.HasPrefix(r.URL.Path, "/share/"):
+			_, _ = w.Write([]byte(`<html><head><title>Threads</title></head></html>`))
 		case strings.Contains(r.URL.Path, "/post/"):
 			if strings.Contains(r.URL.Path, "Gone") {
 				w.WriteHeader(404)
