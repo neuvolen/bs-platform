@@ -174,6 +174,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/insights", m.AI.Insights)                // r32_insights.go: «Идеи и заметки» → «Аналитика»
 	g.POST("/ai/gallup", m.AI.Gallup)                // platform_gallup.go: 34 talents from a Gallup report
 	g.POST("/gallup/pdf", GallupPDF)                 // platform_gallup_pdf.go: the analysis as a PDF (R29)
+	g.POST("/razbor/pdf", RazborPrintPDF)            // platform_razbor_print.go: «Печать разбора», A4 checklist (R69)
 	g.POST("/gallup/fix/send", m.AI.GallupFixSend)   // platform_gallup_fix.go: the corrected analysis to the resident (R68)
 	g.POST("/gallup/fix/audit", m.AI.GallupFixAudit) // R68: who got an analysis not from their own report
 	g.POST("/ai/health", m.AI.Health)                // platform_health.go: organ scores for «Здоровье бизнеса»

@@ -5189,6 +5189,40 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     }
     return mine;
   }
+  // R69: два устройства (онлайн-разбор: трекер и резидент на одной доске) добавили узлы одновременно и выдали им
+  // один номер: слияние по номеру склеивало два разных узла в один (заметка пропадала, лечение уезжало к чужому
+  // диагнозу). Мои новые узлы с занятым номером получают свободный номер, связи и ссылки на них тоже; seq выше всех
+  function mergeBoard(b, m, t){
+    try{
+      if(isObj(m) && isObj(t) && Array.isArray(m.nodes) && Array.isArray(t.nodes)){
+        var inB = {}, tBy = {}, max = 0, ren = {}, hit = false;
+        ((isObj(b) && Array.isArray(b.nodes)) ? b.nodes : []).forEach(function(n){ if(n) inB[n.id] = 1; });
+        t.nodes.forEach(function(n){ if(n){ tBy[n.id] = n; max = Math.max(max, +n.id || 0); } });
+        m.nodes.forEach(function(n){ if(n) max = Math.max(max, +n.id || 0); });
+        m.nodes.forEach(function(n){ if(n && !inB[n.id] && tBy[n.id] && !eq(n, tBy[n.id])){ ren[n.id] = ++max; hit = true; } });
+        if(hit){
+          m = clone(m);
+          var R = function(v){ return (v != null && ren[v] !== undefined) ? ren[v] : v; };
+          m.nodes.forEach(function(n){
+            if(!n) return;
+            if(ren[n.id] !== undefined) n.id = ren[n.id];
+            if(n.parent != null) n.parent = R(n.parent);
+            if(n.fcOf != null) n.fcOf = R(n.fcOf);
+            if(Array.isArray(n.fcLinks)) n.fcLinks = n.fcLinks.map(R);
+            if(n.task){ if(n.task.fromTool != null) n.task.fromTool = R(n.task.fromTool); if(n.task.fromDiag != null) n.task.fromDiag = R(n.task.fromDiag); }
+          });
+          m.links = (m.links || []).map(function(l){ return isObj(l) ? Object.assign({}, l, {a: R(l.a), b: R(l.b)}) : l; });
+        }
+        var out = merge3(b, m, t);
+        if(isObj(out) && Array.isArray(out.nodes)){
+          var mx = 0; out.nodes.forEach(function(n){ if(n) mx = Math.max(mx, +n.id || 0); });
+          if(!(+out.seq > mx)) out.seq = mx + 1;
+        }
+        return out;
+      }
+    }catch(e){}
+    return merge3(b, m, t);
+  }
   // R32b: порядок меню (bs_order) не сливается по пунктам: побеждает последняя перестановка (поле at),
   // иначе старый порядок с другого устройства возвращался поверх нового
   function mergeFor(k, base, mine, theirs){
@@ -5331,7 +5365,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
           st.boards[id] = {v: cur.version, h: '', deleted: true};
           return putBoard(id, data, depth + 1);
         }
-        var merged = merge3(base.boards[id], data, cur.data);
+        var merged = mergeBoard(base.boards[id], data, cur.data);
         st.boards[id] = {v: cur.version, h: hb(cur.data)};
         base.boards[id] = clone(cur.data);
         replaceLocalBoard(id, merged, true);
@@ -5470,7 +5504,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
           if(mine !== undefined && !pending) removed[rb.id] = 1;
           return;
         }
-        var next = pending ? merge3(s ? oldBase : undefined, mine, rb.data) : rb.data;
+        var next = pending ? mergeBoard(s ? oldBase : undefined, mine, rb.data) : rb.data;
         st.boards[rb.id] = {v: rb.version, h: hb(rb.data)};
         base.boards[rb.id] = rb.data;
         if(li === undefined){ list.unshift(next); idx = {}; list.forEach(function(b, i){ idx[b.id] = i; }); }
@@ -5542,6 +5576,8 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
             document.querySelectorAll('.node,.sticker-node').forEach(function(el){ el.remove(); });
             window.nodes = clone(nb.nodes || []);
             window.links = clone(nb.links || []);
+            // R69: номер следующего узла выше всех пришедших, иначе новый узел получал номер чужого
+            try{ window.seq = Math.max(+window.seq || 1, +nb.seq || 1, window.nodes.reduce(function(m, n){ return Math.max(m, +n.id || 0); }, 0) + 1); }catch(e){}
             window.nodes.forEach(window.renderNode);
             window.drawLinks();
             var inf = nb.info || {}, map = {fName:'name', fLast:'last', fBirth:'birth', fCity:'city', fBiz:'biz', fFam:'fam', fA:'a', fQ:'q', fB:'b'};
@@ -5963,6 +5999,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
       });
     },
     online: function(){ return !!token; },
+    mergeBoard: mergeBoard,   // R69: слияние разбора (проверка в тестах)
     // Данные с сервера уже на месте: страница запущена и первая сверка прошла.
     // До этого код страницы не должен переписывать документы bs_* (кеш может быть старым)
     ready: function(){ return booted && pulled; },
@@ -38986,6 +39023,682 @@ body.light .rpanel .rp-t:hover{background:rgba(0,0,0,.05)}
 })();
 </script>
 <!-- /R58 -->
+<!-- R69: 1) «Цикл» без разлёта и потерь: архив прошлого цикла целиком, в новый переходит всё, кроме выполненных разовых задач
+     и штрафов (заметки остаются у своих узлов), доска раскладывается по порядку (резидент в центре, точка А слева, точка Б справа,
+     диагнозы столбцом, лечение рядом с диагнозом), без наложений; отмена цикла (Ctrl Z и кнопка); «Упорядочить» для любой доски;
+     «Восстановить заметки из истории» (архив цикла или копии доски на сервере). 2) «Печать разбора»: чек-лист A4 чёрным по белому,
+     живой предпросмотр сбоку (обновляется, пока идёт разбор), печать из браузера и PDF «Разбор Имя ДД.ММ.ГГГГ.pdf».
+     3) Перетаскивание и размер узла отменяются Ctrl Z -->
+<style id="r69Style">
+.top .r69-btn,html.rp-open .top .r69-btn{background:var(--pc);color:var(--ptx);border-color:var(--pi)}
+.top .r69-btn.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+@media(max-width:1280px){.top .r69-btn span{display:none}}
+.r69-bar{position:fixed;left:50%;top:calc(var(--r32h, 0px) + var(--th, 56px) + 12px);transform:translateX(-50%);z-index:130;display:flex;align-items:center;gap:10px;
+  max-width:calc(100vw - 32px);padding:10px 12px 10px 16px;border-radius:12px;background:var(--pc, #161616);color:var(--ptx, #fff);border:1px solid var(--pi, #333);
+  box-shadow:0 18px 50px rgba(0,0,0,.45);font:600 13px/1.35 'Manrope',sans-serif}
+.r69-bar span{flex:1;min-width:0}
+.r69-bar button{display:inline-flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;min-height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--pi, #333);background:transparent;color:inherit;font:700 12.5px 'Manrope',sans-serif;cursor:pointer}
+.r69-bar button.pr{background:var(--pon, #fff);color:var(--pontx, #000);border-color:var(--pon, #fff)}
+@media(max-width:700px){.r69-bar{flex-wrap:wrap;left:16px;right:16px;transform:none;max-width:none}}
+.r69-pv{position:fixed;right:0;top:calc(var(--r32h, 0px) + var(--th, 56px));bottom:0;width:min(480px, 100vw);z-index:120;display:none;flex-direction:column;
+  background:var(--pd, #0E0E0E);border-left:1px solid var(--pi, #2a2a2a);box-shadow:-28px 0 70px rgba(0,0,0,.45)}
+.r69-pv.on{display:flex}
+.r69-pv .h{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--pi, #2a2a2a);color:var(--ptx, #fff)}
+.r69-pv .h b{flex:1;font:800 14px 'Manrope',sans-serif}
+.r69-pv .h small{display:block;font:600 11px 'Manrope',sans-serif;color:var(--pm, #8a8a8a);margin-top:2px}
+.r69-pv .h button{display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1;min-height:36px;padding:0 13px;border-radius:9px;border:1px solid var(--pi, #333);background:transparent;color:inherit;font:700 12.5px 'Manrope',sans-serif;cursor:pointer}
+.r69-pv .h button.pr{background:var(--pon, #fff);color:var(--pontx, #000);border-color:var(--pon, #fff)}
+.r69-pv .h button.x{width:36px;padding:0;font-size:16px}
+.r69-pv .b{flex:1;overflow-x:hidden;overflow-y:auto;padding:14px}
+.r69-pv .fit{transform-origin:0 0}
+.r69-pv .r69s{box-shadow:0 10px 40px rgba(0,0,0,.35)}
+@media(max-width:700px){.r69-pv{width:100vw}.r69-pv .h button span{display:none}}
+/* лист разбора: чёрным по белому, для принтера */
+.r69s{font-family:'Manrope',-apple-system,sans-serif;color:#111;background:#fff;width:794px;min-height:1123px;padding:52px 60px 56px;box-sizing:border-box;font-size:13px;line-height:1.45;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.r69s *{box-sizing:border-box}
+.r69s .r69hd{display:flex;justify-content:space-between;align-items:center;font:700 10px 'Manrope',sans-serif;letter-spacing:.12em;color:#666;text-transform:uppercase;position:static;height:auto;background:none;border:0;padding:0}
+.r69s h1{font:800 28px/1.15 'Manrope',sans-serif;margin:18px 0 4px;color:#000;letter-spacing:-.01em}
+.r69s .r69mt{font-weight:600;color:#555;padding-bottom:12px;border-bottom:2px solid #000;margin-bottom:18px}
+.r69s .r69sc{margin:0 0 18px}
+.r69s .r69st,.r69s .r69sb{break-after:avoid}.r69s tr,.r69s .r69pt{break-inside:avoid}
+.r69s .r69st{display:flex;align-items:center;gap:10px;font:800 16px 'Manrope',sans-serif;color:#000;margin-bottom:2px}
+.r69s .r69st i{font-style:normal;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1.5px solid #000;border-radius:6px;font-size:11px}
+.r69s .r69sb{color:#666;font-size:11px;margin:0 0 9px 32px}
+.r69s .r69ps{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.r69s .r69pt{border:1.5px solid #000;border-radius:10px;padding:10px 14px;font-weight:600;min-height:64px}
+.r69s .r69pt small{display:block;font:700 9.5px 'Manrope',sans-serif;letter-spacing:.1em;color:#666;margin-bottom:4px}
+.r69s .r69dg{display:grid;grid-template-columns:26px 1fr;padding:6px 0 7px;border-bottom:1px solid #ddd;break-inside:avoid}
+.r69s .r69dg b{font-weight:800}
+.r69s .r69dg ul{margin:3px 0 0;padding:0 0 0 14px;color:#333}
+.r69s .r69dg li{margin:1px 0}
+.r69s table{width:100%;border-collapse:collapse}
+.r69s th{font:700 9.5px 'Manrope',sans-serif;letter-spacing:.1em;color:#666;text-align:left;padding:0 6px 5px 0;border-bottom:1.5px solid #000}
+.r69s td{padding:7px 6px 7px 0;border-bottom:1px solid #ccc;vertical-align:top}
+.r69s td.r69c{width:28px}
+.r69s td.r69o{width:120px;font-weight:700}.r69s td.r69d{width:90px;font-weight:700}
+.r69s .r69bx{display:inline-block;width:15px;height:15px;border:1.5px solid #000;border-radius:3px;position:relative;top:2px}
+.r69s .r69bx.r69on:after{content:'';position:absolute;left:4px;top:0;width:5px;height:9px;border:solid #000;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.r69s tr.r69e td{height:30px}
+.r69s .r69tl{display:grid;grid-template-columns:26px 1fr;padding:5px 0;break-inside:avoid}
+.r69s .r69tl b{font-weight:700}.r69s .r69tl div div{color:#333}.r69s .r69tl small{color:#666}
+.r69s .r69nx{border:1.5px solid #000;border-radius:10px;padding:10px 14px;display:flex;gap:18px;align-items:center}
+.r69s .r69nx small{font:700 9.5px 'Manrope',sans-serif;letter-spacing:.1em;color:#666}
+.r69s .r69nx b{font:800 15px 'Manrope',sans-serif}
+.r69s .r69nx .r69ln{flex:1;border-bottom:1px solid #999;height:18px}
+.r69s .r69nt{color:#333;margin:2px 0 4px}
+.r69s .r69rl{border-bottom:1px solid #bbb;height:30px}
+.r69s .r69sg{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:30px}
+.r69s .r69sg div{border-top:1.5px solid #000;padding-top:5px;font:700 9.5px 'Manrope',sans-serif;letter-spacing:.1em;color:#666;text-transform:uppercase}
+.r69s .r69ft{margin-top:26px;padding-top:8px;border-top:1px solid #ddd;color:#888;font-size:10px}
+.r69s .r69nw{animation:r69new 2.4s ease-out}
+@keyframes r69new{from{background:#e9e9e9}to{background:transparent}}
+#r69PrintRoot{display:none}
+@media print{
+  html.r69-pr body>*:not(#r69PrintRoot){display:none!important}
+  html.r69-pr #r69PrintRoot{display:block!important}
+  html.r69-pr,html.r69-pr body{background:#fff!important;overflow:visible!important;height:auto!important}
+  html.r69-pr .r69s{width:auto;min-height:0;padding:0;box-shadow:none}
+  @page{size:A4;margin:14mm 16mm}
+}
+</style>
+<script id="r69Script">
+(function(){
+var R69 = window.R69 = {};
+var clone = function(v){ return JSON.parse(JSON.stringify(v)); };
+var H = function(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+var norm = function(s){ return String(s || '').replace(/\s+/g, ' ').trim().toLowerCase(); };
+var noDash = function(s){ return String(s == null ? '' : s).replace(/[\u2014\u2013]/g, '-'); };
+var PLACEHOLDER = {'': 1, 'заметка': 1, 'подтема': 1, 'новый узел': 1, 'вопрос': 1};
+
+// ── 1. Раскладка: дерево от резидента ──────────────────────────────────────────
+var ORDER = {point: 0, strat: 1, diag: 2, dna: 3, fc: 4, tool: 5, task: 6, goal: 7, quest: 8, cont: 9, note: 10, fine: 11, meme: 12, sticker: 13};
+var GX = 64, GXR = 96, GY = 22;
+function ordOf(n){ var o = ORDER[n.type]; return o === undefined ? 9 : o; }
+function sizeOf(n){
+  var el = document.getElementById('n' + n.id);
+  return {w: (el && el.offsetWidth) || n.w || 230, h: (el && el.offsetHeight) || n.h || 110};
+}
+function rootOf(ns){ return ns.find(function(n){ return n.role === 'center'; }) || ns.find(function(n){ return n.type === 'root'; }); }
+function adjOf(ns, ls){
+  var ids = {}, A = {};
+  ns.forEach(function(n){ ids[n.id] = 1; A[n.id] = []; });
+  (ls || []).forEach(function(l){
+    if(!l || !ids[l.a] || !ids[l.b] || l.a === l.b) return;
+    if(A[l.a].indexOf(l.b) < 0) A[l.a].push(l.b);
+    if(A[l.b].indexOf(l.a) < 0) A[l.b].push(l.a);
+  });
+  // заметка без линии, но с родителем: держится родителя
+  ns.forEach(function(n){
+    if(n.parent != null && ids[n.parent] && n.parent !== n.id && !A[n.id].length){ A[n.id].push(n.parent); A[n.parent].push(n.id); }
+  });
+  return A;
+}
+// Лес: дерево резидента первым, затем отдельные куски (голова: диагноз, потом инструмент, выше на доске)
+function forestOf(ns, ls){
+  var by = {}, A = adjOf(ns, ls), par = {}, kids = {}, seen = {}, order = [], heads = [];
+  ns.forEach(function(n){ by[n.id] = n; });
+  var cmp = function(a, b){ var A0 = by[a], B0 = by[b]; return (ordOf(A0) - ordOf(B0)) || (A0.y - B0.y) || (A0.x - B0.x) || (A0.id - B0.id); };
+  var grow = function(h){
+    seen[h] = 1; heads.push(h); var q = [h];
+    while(q.length){
+      var c = q.shift(); order.push(c);
+      var nb = (A[c] || []).filter(function(i){ return !seen[i]; }).sort(cmp);
+      nb.forEach(function(i){ seen[i] = 1; par[i] = c; });
+      kids[c] = nb; q = q.concat(nb);
+    }
+  };
+  var root = rootOf(ns);
+  if(root) grow(root.id);
+  ns.map(function(n){ return n.id; }).sort(cmp).forEach(function(id){ if(!seen[id]) grow(id); });
+  return {by: by, par: par, kids: kids, order: order, heads: heads, root: root ? root.id : null};
+}
+function tidy(ns, ls){
+  if(!ns.length) return 0;
+  var F = forestOf(ns, ls), by = F.by, kids = F.kids, S = {}, HT = {};
+  ns.forEach(function(n){ S[n.id] = sizeOf(n); });
+  var ht = function(id){
+    if(HT[id] != null) return HT[id];
+    var ks = kids[id] || [], s = 0;
+    ks.forEach(function(k, i){ s += ht(k) + (i ? GY : 0); });
+    return (HT[id] = Math.max(S[id].h, s));
+  };
+  var place = function(id, side, edge, top){
+    var n = by[id], z = S[id], H0 = ht(id);
+    n.x = Math.round(side > 0 ? edge : edge - z.w);
+    n.y = Math.round(top + (H0 - z.h) / 2);
+    var ks = kids[id] || []; if(!ks.length) return;
+    var sum = 0; ks.forEach(function(k, i){ sum += ht(k) + (i ? GY : 0); });
+    var y = top + (H0 - sum) / 2, e = side > 0 ? n.x + z.w + GX : n.x - GX;
+    ks.forEach(function(k){ place(k, side, e, y); y += ht(k) + GY; });
+  };
+  var placed = {};
+  var mark = function(id){ placed[id] = 1; (kids[id] || []).forEach(mark); };
+  var ext = null;
+  var grow = function(id){ var n = by[id], z = S[id]; if(!ext) ext = {x0: n.x, y0: n.y, x1: n.x + z.w, y1: n.y + z.h};
+    ext.x0 = Math.min(ext.x0, n.x); ext.y0 = Math.min(ext.y0, n.y); ext.x1 = Math.max(ext.x1, n.x + z.w); ext.y1 = Math.max(ext.y1, n.y + z.h);
+    (kids[id] || []).forEach(grow); };
+  if(F.root != null){
+    var r = by[F.root], rz = S[F.root], cx = r.x + rz.w / 2, cy = r.y + rz.h / 2;
+    var cure = function(id){ var n = by[id]; if(n.type === 'diag' || n.type === 'tool' || n.type === 'dna' || n.role === 'strategy') return true; return (kids[id] || []).some(cure); };
+    var L = [], R = [], others = [];
+    (kids[F.root] || []).forEach(function(id){
+      var n = by[id];
+      if(n.role === 'pointA') L.unshift(id); else if(n.role === 'pointB') R.unshift(id);
+      else if(cure(id)) R.push(id); else others.push(id);
+    });
+    var tot = function(a){ var s = 0; a.forEach(function(id, i){ s += ht(id) + (i ? GY : 0); }); return s; };
+    others.forEach(function(id){ (tot(L) <= tot(R) ? L : R).push(id); });
+    var side = function(a, sg){
+      var y = cy - tot(a) / 2, e = sg > 0 ? r.x + rz.w + GXR : r.x - GXR;
+      a.forEach(function(id){ place(id, sg, e, y); y += ht(id) + GY; });
+    };
+    side(R, 1); side(L, -1);
+    mark(F.root); grow(F.root);
+  }
+  // Куски без связи с резидентом: полосой под деревом, слева направо
+  var rest = F.heads.filter(function(h){ return h !== F.root; });
+  if(rest.length){
+    var x0 = ext ? ext.x0 : 0, y = ext ? ext.y1 + 140 : 0, x = x0, rowH = 0;
+    var maxW = Math.max(ext ? ext.x1 - ext.x0 : 0, 1400);
+    rest.forEach(function(h){
+      place(h, 1, 0, 0);
+      var e0 = ext; ext = null; grow(h); var b = ext; ext = e0;
+      var w = b.x1 - b.x0, hh = b.y1 - b.y0;
+      if(x > x0 && x + w - x0 > maxW){ x = x0; y += rowH + 100; rowH = 0; }
+      var dx = x - b.x0, dy = y - b.y0;
+      var mv = function(id){ by[id].x += dx; by[id].y += dy; (kids[id] || []).forEach(mv); };
+      mv(h);
+      x += w + 100; rowH = Math.max(rowH, hh);
+    });
+  }
+  return ns.length;
+}
+function paintPos(){
+  nodes.forEach(function(n){ var el = document.getElementById('n' + n.id); if(el){ el.style.left = n.x + 'px'; el.style.top = n.y + 'px'; } });
+  try{ drawLinks(); }catch(e){}
+}
+R69.tidy = tidy; R69.forest = forestOf;
+// Наложения карточек (для проверки и подсказки)
+R69.overlaps = function(){
+  var bx = nodes.map(function(n){ var s = sizeOf(n); return {id: n.id, x: n.x, y: n.y, w: s.w, h: s.h}; }), out = [];
+  for(var i = 0; i < bx.length; i++) for(var j = i + 1; j < bx.length; j++){
+    var a = bx[i], b = bx[j];
+    if(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) out.push([a.id, b.id]);
+  }
+  return out;
+};
+// «Упорядочить»: любая доска, с отменой
+R69.arrange = function(){
+  if(typeof viewingArchive !== 'undefined' && viewingArchive){ toast('Архив цикла: только просмотр'); return; }
+  if(!nodes.length){ toast('На доске пока пусто'); return; }
+  pushUndo();
+  tidy(nodes, links); paintPos();
+  try{ fitAll(); }catch(e){}
+  try{ saveBoardSilent(); }catch(e){}
+  toast('Доска упорядочена. Вернуть как было: Ctrl Z');
+};
+
+// ── 2. Новый цикл ───────────────────────────────────────────────────────────────
+// Что остаётся в архиве: выполненные разовые задачи и штрафы (вместе с их заметками). Остальное переходит,
+// постоянные и повторяющиеся задачи с обнулёнными отметками. Узел, чей родитель остался в архиве, цепляется к деду
+function carry(ns, ls){
+  var F = forestOf(ns, ls), drop = {}, n0 = 0;
+  ns.forEach(function(n){
+    if(n.type === 'fine') drop[n.id] = 1;
+    else if(n.type === 'task' && n.task && n.task.kind !== 'always' && n.task.kind !== 'repeat' && n.task.completed) drop[n.id] = 1;
+  });
+  F.order.forEach(function(id){
+    var n = F.by[id], p = F.par[id];
+    if(p != null && drop[p] && (n.type === 'note' || n.type === 'quest')) drop[id] = 1;
+  });
+  var keep = ns.filter(function(n){ return !drop[n.id]; }).map(function(n){
+    var c = clone(n);
+    if(c.task && (c.task.kind === 'always' || c.task.kind === 'repeat')){ c.task.done = 0; c.task.completed = false; }
+    return c;
+  });
+  var kid = {}; keep.forEach(function(n){ kid[n.id] = n; });
+  var out = (ls || []).filter(function(l){ return l && kid[l.a] && kid[l.b]; }).map(clone);
+  keep.forEach(function(n){
+    var p = F.par[n.id]; if(p == null || !drop[p]) return;
+    var a = F.par[p]; while(a != null && drop[a]) a = F.par[a];
+    if(a != null && kid[a]){ out.push({a: a, b: n.id}); if(n.parent != null) n.parent = a; }
+    else if(n.parent != null && !kid[n.parent]) delete n.parent;
+  });
+  Object.keys(drop).forEach(function(){ n0++; });
+  return {nodes: keep, links: out, dropped: n0};
+}
+R69.carry = carry;
+var bar = null;
+function showBar(text, acts){
+  hideBar();
+  bar = document.createElement('div'); bar.className = 'r69-bar'; bar.setAttribute('role', 'status');
+  bar.innerHTML = '<span>' + H(text) + '</span>' + acts.map(function(a, i){ return '<button type="button" data-i="' + i + '" class="' + (a[2] ? 'pr' : '') + '">' + H(a[0]) + '</button>'; }).join('');
+  bar.addEventListener('click', function(e){ var b = e.target.closest('button'); if(!b) return; var a = acts[+b.getAttribute('data-i')]; hideBar(); if(a && a[1]) a[1](); });
+  document.body.appendChild(bar);
+  clearTimeout(bar._t);
+  return bar;
+}
+function hideBar(){ if(bar){ bar.remove(); bar = null; } }
+R69.hideBar = hideBar;
+function maxId(ns){ return ns.reduce(function(m, n){ return Math.max(m, +n.id || 0); }, 0); }
+function cycleNew(){
+  if(typeof viewingArchive !== 'undefined' && viewingArchive){ toast('Это архив цикла. Откройте текущий разбор'); return; }
+  if(!curBoard) saveBoard();
+  var snap = snapshot(), before = clone(snap);
+  snap.history = (snap.history || []).concat([clone({version: snap.version || 1, date: snap.updated, nodes: snap.nodes, links: snap.links,
+    strokes: snap.strokes || [], tests: snap.tests || {}, health: snap.health || {}, info: snap.info || {}, carry: 69})]);
+  var c = carry(snap.nodes, snap.links);
+  document.querySelectorAll('.node,.sticker-node').forEach(function(el){ el.remove(); });
+  nodes = c.nodes; links = c.links; strokes = [];
+  nodes.forEach(renderNode);
+  tidy(nodes, links); paintPos();
+  try{ redraw(); }catch(e){}
+  seq = Math.max(+seq || 1, maxId(nodes) + 1);
+  snap.nodes = clone(nodes); snap.links = clone(links); snap.strokes = []; snap.seq = seq;
+  snap.version = (snap.version || 1) + 1;
+  snap.updated = new Date().toISOString();
+  var bn0 = document.getElementById('bName'); if(bn0 && snap.name) bn0.value = snap.name;
+  var i = boards.findIndex(function(b){ return b.id === snap.id; });
+  if(i >= 0) boards[i] = snap; else boards.unshift(snap);
+  curBoard = snap; saveAll();
+  try{ markSaved(); }catch(e){}
+  try{ updateVer(); renderHist(); pfCrumb(); }catch(e){}
+  setTimeout(function(){ try{ if(section === 'board' && document.documentElement.classList.contains('rp-open')) openRP(rpTab); }catch(e){} }, 0);
+  try{ fitAll(); }catch(e){}
+  R69.cyc = {before: before, id: snap.id, v: snap.version};
+  undoStack.push('R69C'); if(undoStack.length > 60) undoStack.shift();
+  redoStack = [];
+  var prev = snap.version - 1;
+  showBar('Цикл ' + snap.version + ' начат. Цикл ' + prev + ' целиком в архиве' + (c.dropped ? ', там же выполненные задачи и штрафы: ' + c.dropped : '') + '. Доска разложена по порядку',
+    [['Отменить', cycleUndo, 1], ['Понятно', null]]);
+  return snap;
+}
+function cycleUndo(){
+  var u = R69.cyc;
+  if(!u || !curBoard || curBoard.id !== u.id || (curBoard.version || 1) !== u.v){ toast('Этот цикл уже не отменить. Удалите его в «Истории циклов»'); return; }
+  var b = clone(u.before); b.updated = new Date().toISOString();
+  var i = boards.findIndex(function(x){ return x.id === b.id; });
+  if(i >= 0) boards[i] = b; else boards.unshift(b);
+  curBoard = b; saveAll();
+  R69.cyc = null;
+  undoStack = undoStack.filter(function(x){ return x !== 'R69C'; }); redoStack = [];
+  hideBar();
+  openBoard(b.id);
+  toast('Цикл отменён: доска как до нажатия «Цикл»');
+}
+R69.cycleUndo = cycleUndo;
+doNewCycle = window.doNewCycle = cycleNew;
+var undo0 = undo;
+undo = window.undo = function(){
+  if(undoStack.length && undoStack[undoStack.length - 1] === 'R69C'){ undoStack.pop(); cycleUndo(); return; }
+  return undo0.apply(this, arguments);
+};
+var redo0 = redo;
+redo = window.redo = function(){
+  undoStack = undoStack.filter(function(x){ return x !== 'R69C' || (R69.cyc && curBoard && curBoard.id === R69.cyc.id); });
+  return redo0.apply(this, arguments);
+};
+
+// ── 3. Перетаскивание и размер: отмена Ctrl Z (раньше ветка, сдвинутая случайно, не возвращалась) ──
+var pre = null;
+window.addEventListener('mousedown', function(e){
+  pre = null;
+  if(e.button !== 0 || !e.target || !e.target.closest) return;
+  if((typeof drawMode !== 'undefined' && drawMode) || (typeof viewingArchive !== 'undefined' && viewingArchive)) return;
+  var t = e.target;
+  if(!t.closest('.node, .sticker-node') || t.isContentEditable) return;
+  if(t.closest('.nt') || t.closest('.n-more')) return;
+  try{ pre = snapState(); }catch(x){ pre = null; }
+}, true);
+window.addEventListener('mouseup', function(){
+  if(!pre) return;
+  var p = pre; pre = null;
+  try{
+    var st = JSON.parse(p), by = {};
+    nodes.forEach(function(n){ by[n.id] = n; });
+    var moved = st.nodes.some(function(o){ var n = by[o.id]; return n && (Math.round(n.x) !== Math.round(o.x) || Math.round(n.y) !== Math.round(o.y) || (n.w || 0) !== (o.w || 0) || (n.h || 0) !== (o.h || 0)); });
+    if(moved && !undoLock){ undoStack.push(p); if(undoStack.length > 60) undoStack.shift(); redoStack = []; }
+  }catch(x){}
+}, true);
+
+// ── 4. Номер следующего узла всегда выше всех на доске ──
+var ob0 = openBoard;
+openBoard = window.openBoard = function(){
+  var r = ob0.apply(this, arguments);
+  try{ seq = Math.max(+seq || 1, maxId(nodes) + 1); }catch(e){}
+  try{ if(R69.cyc && (!curBoard || curBoard.id !== R69.cyc.id)) R69.cyc = null; }catch(e){}
+  setTimeout(lostCheck, 400);
+  return r;
+};
+
+// ── 5. Заметки, которые прошлый «Цикл» не перенёс: из архива цикла или из копий доски на сервере ──
+function isAdmin(){ return typeof MODE !== 'undefined' && MODE === 'admin'; }
+function lostFrom(src){
+  var cur = {}, curT = {};
+  nodes.forEach(function(n){ cur[n.id] = n; if(n.type === 'note' || n.type === 'quest') curT[norm(n.title)] = 1; });
+  return ((src && src.nodes) || []).filter(function(n){
+    if(!n || (n.type !== 'note' && n.type !== 'quest')) return false;
+    var t = norm(n.title); if(PLACEHOLDER[t] || curT[t]) return false;
+    var c = cur[n.id]; return !(c && (c.type === n.type) && norm(c.title) === t);
+  });
+}
+function lostLocal(){
+  var h = (curBoard && curBoard.history) || [];
+  var last = h[h.length - 1];
+  if(!last || last.carry) return {src: null, list: []};
+  return {src: last, list: lostFrom(last)};
+}
+R69.lostLocal = lostLocal;
+function hideKey(){ return 'r69hide:' + (curBoard ? curBoard.id + ':' + (curBoard.version || 1) : ''); }
+function lostCheck(){
+  try{
+    if(!isAdmin() || !curBoard || (typeof viewingArchive !== 'undefined' && viewingArchive) || typeof section === 'undefined' || section !== 'board') return;
+    var L = lostLocal(); if(!L.list.length) return;
+    var hid = ''; try{ hid = localStorage.getItem(hideKey()) || ''; }catch(e){}
+    if(hid) return;
+    showBar('Прошлый «Цикл» не перенёс заметки: ' + L.list.length + '. Они целы в архиве цикла ' + (L.src.version || ''),
+      [['Восстановить заметки из истории', function(){ restore(L.list, L.src); }, 1],
+       ['Скрыть', function(){ try{ localStorage.setItem(hideKey(), '1'); }catch(e){} }]]);
+  }catch(e){}
+}
+function restore(list, src){
+  if(!list.length){ toast('В истории нет потерянных заметок'); return 0; }
+  pushUndo();
+  var F = forestOf(src.nodes || [], src.links || []), by = {}, idMap = {}, root = rootOf(nodes), n0 = 0;
+  nodes.forEach(function(n){ by[n.id] = n; });
+  var top = maxId(nodes);
+  ((curBoard && curBoard.history) || []).forEach(function(h){ top = Math.max(top, maxId(h.nodes || [])); });
+  var pos = {}; F.order.forEach(function(id, i){ pos[id] = i; });
+  list.slice().sort(function(a, b){ return (pos[a.id] || 0) - (pos[b.id] || 0); }).forEach(function(o){
+    var p = F.par[o.id], anchor = null;
+    while(p != null){
+      if(idMap[p] != null){ anchor = idMap[p]; break; }
+      var sn = F.by[p], cn = by[p];
+      if(cn && sn && cn.type === sn.type){ anchor = p; break; }
+      if(sn){ var m = nodes.find(function(x){ return x.type === sn.type && norm(x.title) === norm(sn.title); }); if(m){ anchor = m.id; break; } }
+      p = F.par[p];
+    }
+    if(anchor == null && root) anchor = root.id;
+    var n = clone(o);
+    n.id = by[o.id] ? ++top : o.id;
+    if(anchor != null) n.parent = anchor; else delete n.parent;
+    var a = anchor != null ? by[anchor] : null, xy = null;
+    try{ xy = a && window.r58Place ? window.r58Place(a, 240, 110) : freeSpot(a); }catch(e){ xy = {x: (a ? a.x + 300 : 0), y: a ? a.y : 0}; }
+    n.x = xy.x; n.y = xy.y;
+    nodes.push(n); renderNode(n); by[n.id] = n; idMap[o.id] = n.id;
+    if(anchor != null) links.push({a: anchor, b: n.id});
+    n0++;
+  });
+  seq = Math.max(+seq || 1, maxId(nodes) + 1, top + 1);
+  try{ drawLinks(); }catch(e){}
+  try{ saveBoardSilent(); }catch(e){}
+  try{ localStorage.setItem(hideKey(), '1'); }catch(e){}
+  toast('Заметки восстановлены: ' + n0 + '. Каждая у своего узла');
+  return n0;
+}
+R69.restore = restore;
+// Копии доски на сервере (каждое сохранение): последняя копия прошлого цикла
+function lostServer(){
+  if(!window.BSSync || !BSSync.api || !curBoard) return Promise.resolve(null);
+  var id = curBoard.id, cur = curBoard.version || 1;
+  var get = function(v){ return Promise.resolve(BSSync.api('GET', '/boards/' + encodeURIComponent(id) + '/versions/' + v)).then(function(r){ return r && r.ok ? r.json() : null; }).catch(function(){ return null; }); };
+  return Promise.resolve(BSSync.api('GET', '/boards/' + encodeURIComponent(id) + '/versions')).then(function(r){ return r && r.ok ? r.json() : []; }).then(function(list){
+    list = Array.isArray(list) ? list : [];
+    // новые первыми; номер цикла в копии не растёт к концу списка: ищем первую копию прошлого цикла
+    var lo = 0, hi = list.length - 1, hit = null;
+    var step = function(){
+      if(lo > hi) return hit;
+      var mid = (lo + hi) >> 1;
+      return get(list[mid].version).then(function(d){
+        if(d && (d.version || 1) < cur){ hit = d; hi = mid - 1; } else lo = mid + 1;
+        return step();
+      });
+    };
+    return step();
+  }).catch(function(){ return null; });
+}
+R69.recover = function(){
+  var L = lostLocal();
+  if(L.list.length) return Promise.resolve(restore(L.list, L.src));
+  toast('Ищу заметки в копиях доски на сервере…');
+  return lostServer().then(function(d){
+    var list = d ? lostFrom(d) : [];
+    if(!list.length){ toast('В истории нет заметок, которых нет на доске'); return 0; }
+    return restore(list, d);
+  });
+};
+if(typeof openCycles === 'function'){
+  var oc0 = openCycles;
+  openCycles = window.openCycles = function(){
+    var r = oc0.apply(this, arguments);
+    try{
+      if(isAdmin() && !viewingArchive && curBoard && (curBoard.history || []).length){
+        var b = document.getElementById('cycBody');
+        if(b && !b.querySelector('.r69-rec')) b.insertAdjacentHTML('afterbegin', '<button type="button" class="btn pf-b r69-rec" style="width:100%;margin-bottom:10px" onclick="closeSheet(\'cycSheet\');R69.recover()">Восстановить заметки из истории</button>');
+      }
+    }catch(e){}
+    return r;
+  };
+}
+
+// ── 6. «Печать разбора»: чек-лист из доски ──────────────────────────────────────
+var DD = function(d){ return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear(); };
+var fv = function(id){ var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+function dueOf(t){
+  if(!t) return '';
+  if(t.kind === 'always') return 'постоянно';
+  if(t.kind === 'repeat') return (t.times || 3) + ' раз за цикл';
+  var m = String(t.date || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[3] + '.' + m[2] : '';
+}
+function libTool(title){ try{ var k = norm(title); return (TOOLS || []).find(function(t){ return norm(t.title) === k; }); }catch(e){ return null; } }
+function libDiag(title){ try{ var k = norm(title); return (DIAG || []).find(function(t){ return norm(t.title) === k; }); }catch(e){ return null; } }
+function nextMeet(res){
+  try{
+    var first = norm(String(res || '').split(' ')[0]); if(!first) return '';
+    var now = new Date(); now.setHours(0, 0, 0, 0);
+    var all = ((window.SDATA && SDATA.schedule) || []).map(function(s){
+      var m = String(s.date || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/); if(!m) return null;
+      var d = new Date(+m[3], +m[2] - 1, +m[1]);
+      return d >= now && norm(s.res).indexOf(first) >= 0 ? {d: d, s: s} : null;
+    }).filter(Boolean).sort(function(a, b){ return a.d - b.d; });
+    if(!all.length) return '';
+    var s = all[0].s;
+    return [DD(all[0].d), s.time, s.place || (s.format === 'online' ? 'онлайн' : '')].filter(Boolean).join(' · ');
+  }catch(e){ return ''; }
+}
+function me(){ try{ var u = window.BSSync && BSSync.user && BSSync.user(); return (u && u.name) || ''; }catch(e){ return ''; } }
+function printData(){
+  var b = curBoard || {}, inf = b.info || {};
+  var res = (fv('fName') + ' ' + fv('fLast')).trim() || inf.res || b.name || '';
+  var F = forestOf(nodes, links), by = F.by;
+  var ptN = function(role){ var n = nodes.find(function(x){ return x.role === role; }); if(!n) return ''; var t = String(n.title || '').trim(); return /^Точка [АБ]$/i.test(t) ? String(n.desc || '').trim() : [t, n.desc].filter(Boolean).join('. '); };
+  var near = function(id, type){ var out = []; var p = F.par[id]; if(p != null && by[p].type === type) out.push(by[p]); (F.kids[id] || []).forEach(function(k){ if(by[k].type === type) out.push(by[k]); }); return out; };
+  var subs = function(id){ return (F.kids[id] || []).map(function(k){ return by[k]; }).filter(function(n){ return (n.type === 'note' || n.type === 'quest') && !PLACEHOLDER[norm(n.title)]; }); };
+  var used = {};
+  var diags = F.order.map(function(id){ return by[id]; }).filter(function(n){ return n.type === 'diag'; }).map(function(n){
+    var sy = subs(n.id).map(function(x){ used[x.id] = 1; return [x.title, x.desc].filter(Boolean).join(': '); });
+    var lib = libDiag(n.title);
+    if(!sy.length && n.desc && !(lib && norm(lib.desc) === norm(n.desc))) sy = [n.desc];
+    if(!sy.length && lib && lib.signs) sy = lib.signs.slice(0, 2);
+    return {title: noDash(n.title), symptoms: sy.map(noDash)};
+  });
+  var first = res.split(' ')[0] || 'Резидент';
+  var tasks = F.order.map(function(id){ return by[id]; }).filter(function(n){ return n.type === 'task'; }).map(function(n){
+    var t = n.task || {};
+    return {text: noDash(n.title), owner: t.owner || (t.team ? 'Трекер' : first), due: dueOf(t), done: !!(t.completed || (t.kind === 'repeat' && (t.done || 0) >= (t.times || 3)))};
+  });
+  var tools = F.order.map(function(id){ return by[id]; }).filter(function(n){ return n.type === 'tool'; }).map(function(n){
+    var lib = libTool(n.title), how = '';
+    if(n.desc && !(lib && norm(lib.short) === norm(n.desc))) how = n.desc;
+    else if(lib) how = (lib.how && lib.how[0]) || lib.short || '';
+    var d = near(n.id, 'diag')[0];
+    subs(n.id).forEach(function(x){ used[x.id] = 1; });
+    return {title: noDash(n.title), how: noDash(String(how).split(/\n/)[0]), diag: d ? noDash(d.title) : ''};
+  });
+  var notes = F.order.map(function(id){ return by[id]; }).filter(function(n){ return (n.type === 'note' || n.type === 'quest') && !used[n.id] && !PLACEHOLDER[norm(n.title)]; })
+    .map(function(n){ return noDash([n.title, n.desc].filter(Boolean).join(': ')); });
+  return {resident: noDash(res), business: noDash(fv('fBiz') || inf.biz || ''), date: DD(new Date()), cycle: b.version || 1, tracker: isAdmin() ? noDash(me()) : '',
+    pointA: noDash(fv('fA') || inf.a || ptN('pointA')), pointB: noDash(fv('fB') || inf.b || ptN('pointB')),
+    diags: diags, tasks: tasks, tools: tools, next: noDash(nextMeet(res)), notes: notes};
+}
+R69.printData = printData;
+function sheet(d, was){
+  was = was || {};
+  var nw = function(k){ return was[k] ? '' : ' r69nw'; };
+  var sec = function(i, t, sub){ return '<div class="r69st"><i>' + i + '</i>' + H(t) + '</div>' + (sub ? '<div class="r69sb">' + H(sub) + '</div>' : ''); };
+  var n = 0, h = '<div class="r69s"><div class="r69hd"><span>Business Surgery</span><span>Чек-лист разбора</span></div>' +
+    '<h1>Разбор: ' + H(d.resident || 'резидент') + '</h1>' +
+    '<div class="r69mt">' + H([d.business, d.date, d.cycle ? 'цикл ' + d.cycle : '', d.tracker ? 'трекер ' + d.tracker : ''].filter(Boolean).join(' · ')) + '</div>';
+  if(d.pointA || d.pointB) h += '<div class="r69sc">' + sec(++n, 'Точка А и точка Б', 'Где бизнес сейчас и куда идём за цикл') +
+    '<div class="r69ps"><div class="r69pt"><small>ТОЧКА А · СЕЙЧАС</small>' + H(d.pointA || '________________') + '</div><div class="r69pt"><small>ТОЧКА Б · ЦЕЛЬ</small>' + H(d.pointB || '________________') + '</div></div></div>';
+  if(d.diags.length) h += '<div class="r69sc">' + sec(++n, 'Диагнозы', 'Что болит и по каким признакам это видно') + d.diags.map(function(g, i){
+    return '<div class="r69dg' + nw('d:' + g.title) + '"><b>' + (i + 1) + '.</b><div><b>' + H(g.title) + '</b>' + (g.symptoms.length ? '<ul>' + g.symptoms.map(function(s){ return '<li>' + H(s) + '</li>'; }).join('') + '</ul>' : '') + '</div></div>';
+  }).join('') + '</div>';
+  var empty = d.tasks.length ? 3 : 5, er = '';
+  for(var i = 0; i < empty; i++) er += '<tr class="r69e"><td class="r69c"><span class="r69bx"></span></td><td></td><td class="r69o"></td><td class="r69d"></td></tr>';
+  h += '<div class="r69sc">' + sec(++n, 'План на 10 дней', 'Отмечайте сделанное галочкой. Пустые строки для того, что добавим на встрече') +
+    '<table><thead><tr><th></th><th>ЗАДАЧА</th><th>КТО</th><th>СРОК</th></tr></thead><tbody>' + d.tasks.map(function(t){
+      return '<tr class="' + nw('t:' + t.text) + '"><td class="r69c"><span class="r69bx' + (t.done ? ' r69on' : '') + '"></span></td><td>' + H(t.text) + '</td><td class="r69o">' + H(t.owner) + '</td><td class="r69d">' + H(t.due) + '</td></tr>';
+    }).join('') + er + '</tbody></table></div>';
+  if(d.tools.length) h += '<div class="r69sc">' + sec(++n, 'Инструменты', 'Чем лечим и как применить') + d.tools.map(function(t){
+    return '<div class="r69tl' + nw('l:' + t.title) + '"><span class="r69bx"></span><div><b>' + H(t.title) + '</b>' + (t.how ? '<div>Как применить: ' + H(t.how) + '</div>' : '') + (t.diag ? '<small>Лечит: ' + H(t.diag) + '</small>' : '') + '</div></div>';
+  }).join('') + '</div>';
+  h += '<div class="r69sc">' + sec(++n, 'Следующая встреча') + '<div class="r69nx"><small>КОГДА</small>' + (d.next ? '<b>' + H(d.next) + '</b>' : '<span class="r69ln"></span>') + '</div></div>';
+  var rl = ''; for(var j = 0; j < (d.notes.length ? 3 : 4); j++) rl += '<div class="r69rl"></div>';
+  h += '<div class="r69sc">' + sec(++n, 'Заметки') + d.notes.map(function(s){ return '<div class="r69nt' + nw('n:' + s) + '">· ' + H(s) + '</div>'; }).join('') + rl + '</div>';
+  h += '<div class="r69sg"><div>Резидент · подпись</div><div>Трекер · подпись</div></div>';
+  h += '<div class="r69ft">Business Surgery · bxclub.kz · разбор бизнеса</div></div>';
+  return h;
+}
+R69.sheet = sheet;
+function keysOf(d){
+  var k = {};
+  d.diags.forEach(function(g){ k['d:' + g.title] = 1; }); d.tasks.forEach(function(t){ k['t:' + t.text] = 1; });
+  d.tools.forEach(function(t){ k['l:' + t.title] = 1; }); d.notes.forEach(function(s){ k['n:' + s] = 1; });
+  return k;
+}
+var PV = {el: null, sig: '', keys: null, t: 0};
+var ICON_PR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>';
+function pvPaint(force){
+  if(!PV.el || !PV.el.classList.contains('on')) return;
+  var d; try{ d = printData(); }catch(e){ return; }
+  var sig = JSON.stringify(d);
+  if(!force && sig === PV.sig) return;
+  var b = PV.el.querySelector('.b'), first = !PV.keys;
+  var top0 = b.scrollTop;
+  b.innerHTML = '<div class="fitw"><div class="fit">' + sheet(d, first ? keysOf(d) : PV.keys) + '</div></div>';
+  PV.sig = sig; PV.keys = keysOf(d);
+  var w = b.firstChild, f = w.firstChild, s = f.firstChild, k = Math.min(1, (b.clientWidth - 28) / 794);
+  f.style.transform = 'scale(' + k + ')'; f.style.width = '794px';
+  w.style.width = Math.floor(794 * k) + 'px'; w.style.height = Math.ceil(s.offsetHeight * k) + 'px'; w.style.overflow = 'hidden';
+  b.scrollTop = top0;
+  var sm = PV.el.querySelector('.h small');
+  if(sm) sm.textContent = 'Обновляется сам: диагнозов ' + d.diags.length + ', задач ' + d.tasks.length + ', инструментов ' + d.tools.length;
+}
+R69.open = function(){
+  if(!PV.el){
+    PV.el = document.createElement('div'); PV.el.className = 'r69-pv'; PV.el.id = 'r69Pv';
+    PV.el.innerHTML = '<div class="h"><b>Чек-лист разбора<small></small></b>' +
+      '<button type="button" class="pr" data-a="print" title="Печать на принтере">' + ICON_PR + ' <span>Печать</span></button>' +
+      '<button type="button" data-a="pdf" title="Скачать PDF">PDF</button><button type="button" class="x" data-a="close" aria-label="Закрыть">✕</button></div><div class="b"></div>';
+    PV.el.addEventListener('click', function(e){
+      var b = e.target.closest('[data-a]'); if(!b) return;
+      var a = b.getAttribute('data-a');
+      if(a === 'print') R69.print(); else if(a === 'pdf') R69.pdf(); else if(a === 'close') R69.close();
+    });
+    document.body.appendChild(PV.el);
+    window.addEventListener('resize', function(){ pvPaint(true); });
+  }
+  PV.el.classList.add('on'); PV.keys = null; PV.sig = '';
+  var bt = document.getElementById('r69Btn'); if(bt) bt.classList.add('on');
+  pvPaint(true);
+  clearInterval(PV.t);
+  PV.t = setInterval(function(){ if(document.hidden) return; if(typeof section !== 'undefined' && section !== 'board') return; pvPaint(false); }, 900);
+};
+R69.close = function(){ if(PV.el) PV.el.classList.remove('on'); clearInterval(PV.t); var bt = document.getElementById('r69Btn'); if(bt) bt.classList.remove('on'); };
+R69.toggle = function(){ if(PV.el && PV.el.classList.contains('on')) R69.close(); else R69.open(); };
+function printRoot(){
+  var r = document.getElementById('r69PrintRoot');
+  if(!r){ r = document.createElement('div'); r.id = 'r69PrintRoot'; document.body.appendChild(r); }
+  r.innerHTML = sheet(printData(), null).replace(/ r69nw"/g, '"');
+  return r;
+}
+R69.print = function(){
+  try{ printRoot(); }catch(e){ toast('Чек-лист не собрался'); return; }
+  var html = document.documentElement;
+  html.classList.add('r69-pr');
+  var off = function(){ html.classList.remove('r69-pr'); window.removeEventListener('afterprint', off); };
+  window.addEventListener('afterprint', off);
+  setTimeout(function(){ try{ window.print(); }catch(e){} setTimeout(off, 1500); }, 60);
+};
+// Ctrl P при открытом предпросмотре печатает чек-лист, а не доску
+window.addEventListener('beforeprint', function(){
+  try{ if(PV.el && PV.el.classList.contains('on') && !document.documentElement.classList.contains('r69-pr')){ printRoot(); document.documentElement.classList.add('r69-pr');
+    var off = function(){ document.documentElement.classList.remove('r69-pr'); window.removeEventListener('afterprint', off); }; window.addEventListener('afterprint', off); } }catch(e){}
+});
+R69.fileName = function(d){
+  return ('Разбор ' + (d.resident || '') + ' ' + (d.date || '')).replace(/[\\/:*?"<>|«»]/g, '').replace(/\s+/g, ' ').trim() + '.pdf';
+};
+R69.pdf = function(){
+  var d = printData();
+  if(!window.BSSync || !BSSync.api || !(BSSync.online && BSSync.online())){ toast('PDF собирает сервер, связи нет. Нажмите «Печать» и выберите «Сохранить как PDF»'); return Promise.resolve(null); }
+  toast('Готовим PDF…');
+  return Promise.resolve(BSSync.api('POST', '/razbor/pdf', d)).then(function(r){
+    if(!r) throw new Error('нет связи с сервером');
+    if(!r.ok) return r.json().then(function(j){ throw new Error((j && (j.detail || j.error)) || ('сервер ответил ' + r.status)); }, function(){ throw new Error('сервер ответил ' + r.status); });
+    var cd = (r.headers && r.headers.get && r.headers.get('Content-Disposition')) || '', fm = cd.match(/filename\*=utf-8''([^;]+)/i), fn = '';
+    try{ fn = fm ? decodeURIComponent(fm[1]) : ''; }catch(x){ fn = ''; }
+    return r.blob().then(function(bl){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(bl); a.download = fn || R69.fileName(d); a.rel = 'noopener'; a.style.display = 'none';
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ a.remove(); URL.revokeObjectURL(a.href); }, 60000);
+      return a.download;
+    });
+  }).catch(function(e){ toast('PDF не получился: ' + ((e && e.message) || 'ошибка')); return null; });
+};
+
+// ── 7. Кнопки: «Печать» в шапке доски, «Упорядочить» рядом с отменой, «Чек-лист» в созвоне ──
+function buttons(){
+  try{
+    var rp = document.getElementById('rpBtn');
+    if(rp && !document.getElementById('r69Btn')){
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'btn rp-btn r69-btn'; b.id = 'r69Btn';
+      b.title = 'Печать разбора: чек-лист A4, обновляется по ходу разбора'; b.innerHTML = ICON_PR + '<span>Печать</span>';
+      b.addEventListener('click', R69.toggle);
+      rp.parentNode.insertBefore(b, rp);
+    }
+    var ub = document.getElementById('undoBtn');
+    if(ub && !document.getElementById('r69Arr')){
+      var a = document.createElement('div'); a.className = 'ic admin-only'; a.id = 'r69Arr'; a.title = 'Упорядочить доску: резидент в центре, диагнозы столбцом, лечение рядом';
+      a.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="6" height="4" rx="1"/><rect x="15" y="3" width="6" height="4" rx="1"/><rect x="15" y="10" width="6" height="4" rx="1"/><rect x="15" y="17" width="6" height="4" rx="1"/><path d="M9 12h3M12 5v14M12 5h3M12 12h3M12 19h3"/></svg>';
+      a.addEventListener('click', R69.arrange);
+      ub.parentNode.insertBefore(a, ub.nextSibling);
+    }
+  }catch(e){}
+}
+buttons();
+document.addEventListener('DOMContentLoaded', buttons);
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('#r65Dock [data-a="r69print"]');
+  if(b) R69.toggle();
+});
+var dockSeen = 0;
+setInterval(function(){
+  if(document.hidden) return;
+  var d = document.getElementById('r65Dock');
+  if(!d || !d.firstChild || d.querySelector('[data-a="r69print"]') || !isAdmin()) return;
+  var lv = d.querySelector('[data-a="leave"]');
+  var bt = document.createElement('button'); bt.type = 'button'; bt.setAttribute('data-a', 'r69print'); bt.title = 'Чек-лист разбора: собирается по ходу созвона, печать и PDF';
+  bt.innerHTML = '<span class="r65-lbl">Чек-лист</span>';
+  if(lv) d.insertBefore(bt, lv); else d.appendChild(bt);
+  dockSeen++;
+}, 700);
+})();
+</script>
+<!-- /R69 -->
 <!-- R52c: Маркетинг → «Креативы»: галерея с превью (слайды карусели, Reels, посты, сторис), формат, статус, канал, лиды по метке,
      действия при наведении (открыть, скачать, текст, в календарь), фильтры, загрузка файлов, просмотр слайдов с подписью -->
 <style id="r52cStyle">
