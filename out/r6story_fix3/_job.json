@@ -1,0 +1,31 @@
+{
+ "job": "r6story_fix3",
+ "job_sha256": "eb32a85220f4ee220c155f95ea0aca79f59968139b021d5393d757b0762fb937",
+ "run_id": "37891237837",
+ "jobs_sha": "837e6adbb3cfe8c9260ea2a282b3cfdbe783eacc",
+ "ok": true,
+ "lines": [
+  {
+   "id": "v02",
+   "chars": 59,
+   "words": 9,
+   "duration": 4.83
+  },
+  {
+   "id": "v11",
+   "chars": 72,
+   "words": 9,
+   "duration": 4.18
+  }
+ ],
+ "chars": 131,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.4,
+  "similarity_boost": 0.8,
+  "style": 0.38,
+  "use_speaker_boost": true,
+  "speed": 1.05
+ }
+}
