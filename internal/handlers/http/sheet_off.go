@@ -755,7 +755,7 @@ func (g *AppGateway) callOff(c *gin.Context, u *platformTgUser, action string, i
 		body := g.Writes.Do(ctx, "app", u, action, q, team)
 		g.dropBundles()
 		g.logOp(ctx, "app", u, action, q, body)
-		if action == "confirmMeeting" || action == "markAttendance" {
+		if action == "confirmMeeting" || action == "markAttendance" || action == "missMeeting" {
 			g.noteDone(action, map[string]string{"res": in.Get("res"), "date": in.Get("date"), "time": in.Get("time"), "names": in.Get("names")})
 		}
 		g.note(true, u.ID)

@@ -26,7 +26,11 @@ func TestPlatformNav(t *testing.T) {
 			t.Errorf("block %s missing", k)
 		}
 	}
-	for _, id := range []string{"fines", "aSched", "pl", "leads", "events", "aiRec", "rFines"} {
+	// R69: «Штрафы» left the Club for «Учёт → Долги и штрафы» (inside the pl tab)
+	if ids["fines"] {
+		t.Error("tab fines should be in Учёт now")
+	}
+	for _, id := range []string{"aSched", "pl", "leads", "events", "aiRec", "rFines"} {
 		if !ids[id] {
 			t.Errorf("tab %s missing", id)
 		}

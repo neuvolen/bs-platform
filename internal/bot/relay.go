@@ -454,7 +454,9 @@ type TickResult struct {
 	Onboarding []string `json:"onboarding,omitempty"`
 	// MeetAsks: R67: «встреча прошла?» to the team, from the server's own marks
 	MeetAsks []MeetAsk `json:"meetAsks,omitempty"`
-	Errors   []string  `json:"errors,omitempty"`
+	// NoShows: R69: residents told about the no-show fine
+	NoShows []string `json:"noShows,omitempty"`
+	Errors  []string `json:"errors,omitempty"`
 }
 
 // Tick runs the timed jobs once: every minute from housekeeping, or on demand.
@@ -485,6 +487,8 @@ func (s *Service) Tick(ctx context.Context, now time.Time) TickResult {
 		fail("onboarding", err)
 		r.MeetAsks, err = s.maybeMeetDoneAsks(ctx, now)
 		fail("meeting asks", err)
+		r.NoShows, err = s.maybeNoShowNotes(ctx)
+		fail("no-show notes", err)
 	}
 	return r
 }

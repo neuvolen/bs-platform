@@ -47,7 +47,7 @@ var reapplyAfterSend = map[string]bool{"setPartner": true, "setMeetings": true, 
 var ErrNothingToApply = errors.New("nothing to apply")
 
 var undoTables = map[string]bool{"club_fines": true, "club_payments": true, "club_meetings": true,
-	"club_meeting_log": true, "club_residents": true}
+	"club_meeting_log": true, "club_residents": true, "club_pay_alloc": true}
 
 // undoStep brings one row back: Prev is the row before (null: it was inserted).
 type undoStep struct {
@@ -193,12 +193,13 @@ func tariffMonths(sum int64) int64 {
 type resRow struct {
 	id                         int64
 	name, partner, format      string
+	aliases                    string
 	tariff, granted, done      int64
 	former, exception, archive bool
 }
 
 func (a *applier) residents() ([]resRow, error) {
-	rows, err := a.tx.Query(a.ctx, `SELECT id, name, partner, format, tariff, meetings_granted, meetings_done, former, exception, archived
+	rows, err := a.tx.Query(a.ctx, `SELECT id, name, partner, format, tariff, meetings_granted, meetings_done, former, exception, archived, aliases
 		FROM club_residents ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -207,7 +208,7 @@ func (a *applier) residents() ([]resRow, error) {
 	var out []resRow
 	for rows.Next() {
 		var r resRow
-		if err := rows.Scan(&r.id, &r.name, &r.partner, &r.format, &r.tariff, &r.granted, &r.done, &r.former, &r.exception, &r.archive); err != nil {
+		if err := rows.Scan(&r.id, &r.name, &r.partner, &r.format, &r.tariff, &r.granted, &r.done, &r.former, &r.exception, &r.archive, &r.aliases); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -225,6 +226,11 @@ func (a *applier) resident(name string) (*resRow, error) {
 		if !list[i].archive && strings.TrimSpace(list[i].name) == strings.TrimSpace(name) {
 			return &list[i], nil
 		}
+	}
+	// R69: «Азамат» for «Азамат TV», another case, ё/е or a kept alias: the
+	// same resident, if only one fits (a missed match lost a meeting before)
+	if r, err := a.matchResident(name); err == nil {
+		return r, nil
 	}
 	return nil, fmt.Errorf("резидент «%s» не найден", name)
 }
@@ -302,6 +308,9 @@ func (a *applier) deleteFines(gone []fineRow) error {
 	var rows []int
 	for _, f := range gone {
 		if err := a.delete("club_fines", f.id); err != nil {
+			return err
+		}
+		if err := a.fineGone(f.id); err != nil { // R69: его оплаты идут на другие штрафы
 			return err
 		}
 		if f.row > 0 {
@@ -395,25 +404,12 @@ func (a *applier) deleteMeeting(m *meetRow) error {
 	return nil
 }
 
-// meetingHappened: one more meeting done, a line in «Лог встреч» (once per
-// day and person) and the schedule's row marked «Проведена».
+// meetingHappened: a line in «Лог встреч» (once per day and person), the
+// counter recomputed from the log (R69) and the schedule's row marked
+// «Проведена».
 func (a *applier) meetingHappened(name, date, tm string, matchTime bool) error {
 	r, err := a.resident(name)
 	if err != nil {
-		return err
-	}
-	// R59: пакет закончился (3/3): тариф один раз уходит в долг продления, счётчик
-	// начинается заново (0/3). Встречи сверх пакета (4/3, 5/3) больше не копятся,
-	// история остаётся в «Логе встреч»
-	renew, done := int64(0), r.done+1
-	if r.granted > 0 && done >= r.granted {
-		done = 0
-		if r.tariff > 0 {
-			renew = r.tariff
-		}
-	}
-	if err := a.update("club_residents", r.id, `meetings_done = $3, renew_debt = renew_debt + $2,
-		updated_at = now(), updated_by = 'server'`, renew, done); err != nil {
 		return err
 	}
 	d := a.day()
@@ -422,14 +418,40 @@ func (a *applier) meetingHappened(name, date, tm string, matchTime bool) error {
 			d = x
 		}
 	}
-	var n int
-	if err := a.tx.QueryRow(a.ctx, `SELECT count(*) FROM club_meeting_log WHERE date = $1 AND btrim(resident) = btrim($2)`,
-		d.Format("2006-01-02"), name).Scan(&n); err != nil {
+	day := d.Format("2006-01-02")
+	if err := a.ensureBase(r, d); err != nil {
 		return err
 	}
-	if n == 0 {
+	log, err := a.logDays()
+	if err != nil {
+		return err
+	}
+	fresh := true
+	for _, x := range meetDays(log, r, day) {
+		if x == day {
+			fresh = false
+		}
+	}
+	if fresh {
 		if _, err := a.insert("club_meeting_log", `INSERT INTO club_meeting_log (date, resident, time_cell) VALUES ($1,$2,$3)`,
-			d.Format("2006-01-02"), name, a.at.In(club.Almaty).Format("02.01.2006 15:04")); err != nil {
+			day, r.name, a.at.In(club.Almaty).Format("02.01.2006 15:04")); err != nil {
+			return err
+		}
+	}
+	done, err := a.countDone(r)
+	if err != nil {
+		return err
+	}
+	// R59: пакет закончился (3/3): тариф один раз уходит в долг продления, новый
+	// пакет считается со следующего дня (0/3). Встреча, уже отмеченная в этот день,
+	// пакет второй раз не закрывает
+	if fresh && r.granted > 0 && done >= r.granted {
+		if r.tariff > 0 {
+			if err := a.update("club_residents", r.id, `renew_debt = renew_debt + $2, updated_at = now(), updated_by = 'server'`, r.tariff); err != nil {
+				return err
+			}
+		}
+		if err := a.newPackage(r, d.AddDate(0, 0, 1)); err != nil {
 			return err
 		}
 	}
@@ -438,13 +460,13 @@ func (a *applier) meetingHappened(name, date, tm string, matchTime bool) error {
 		return err
 	}
 	for _, m := range list {
-		if strings.TrimSpace(m.res) != strings.TrimSpace(name) || !sameDay(m.date, date) {
+		if (club.NormName(m.res) != club.NormName(name) && club.NormName(m.res) != club.NormName(r.name)) || !sameDay(m.date, d.Format("02.01.2006")) {
 			continue
 		}
 		if matchTime && strings.TrimSpace(tm) != "" && m.time != "" && appTime(m.time, "00:00") != appTime(tm, "00:00") {
 			continue
 		}
-		if err := a.update("club_meetings", m.id, `done = true, sent_3d = true`); err != nil {
+		if err := a.update("club_meetings", m.id, `done = true, sent_3d = true, status = 'done'`); err != nil {
 			return err
 		}
 		if matchTime {
@@ -498,9 +520,11 @@ func (a *applier) apply(action string, p map[string]string) error {
 		if d, ok := a.appDate(p["date"]); ok { // the daily check fines the day checked
 			fineDay = d.Format("2006-01-02")
 		}
-		_, err := a.insert("club_fines", `INSERT INTO club_fines (resident, type, amount, date, paid, status, created_by)
-			VALUES ($1,$2,$3,$4,false,'Не оплатил','server')`, name, typ, amount, fineDay)
-		return err
+		if _, err := a.insert("club_fines", `INSERT INTO club_fines (resident, type, amount, date, paid, status, created_by, note)
+			VALUES ($1,$2,$3,$4,false,'Не оплатил','server',$5)`, name, typ, amount, fineDay, strings.TrimSpace(p["note"])); err != nil {
+			return err
+		}
+		return a.finePrepaid(name) // R69: оплата, внесённая раньше штрафа, гасит его
 
 	case "updateFine":
 		f, err := a.findFine(p)
@@ -511,7 +535,13 @@ func (a *applier) apply(action string, p map[string]string) error {
 		if st == "" {
 			st = "Оплатил"
 		}
-		return a.update("club_fines", f.id, `status = $2, paid = ($2 = 'Оплатил'), paid_at = CASE WHEN $2 = 'Оплатил' THEN now() END`, st)
+		if err := a.update("club_fines", f.id, `status = $2, paid = ($2 = 'Оплатил'), paid_at = CASE WHEN $2 = 'Оплатил' THEN now() END`, st); err != nil {
+			return err
+		}
+		if st == "Оплатил" { // отмечен оплаченным вручную: его оплаты из журнала идут на другие штрафы
+			return a.fineGone(f.id)
+		}
+		return a.finePrepaid(f.name)
 
 	case "deleteFine":
 		f, err := a.findFine(p)
@@ -541,52 +571,40 @@ func (a *applier) apply(action string, p map[string]string) error {
 		if err != nil {
 			return err
 		}
-		// Оплата штрафа закрывает неоплаченные штрафы резидента: строки удаляются
-		if res != "" && strings.Contains(src, "Штраф") {
-			list, err := a.fines()
-			if err != nil {
-				return err
-			}
-			remain := amount
-			var gone []fineRow
-			for _, f := range list {
-				if remain <= 0 {
-					break
-				}
-				if f.name == res && f.status != "Оплатил" && f.amount > 0 && remain >= f.amount {
-					gone = append(gone, f)
-					remain -= f.amount
-				}
-			}
-			return a.deleteFines(gone)
+		// R69: одна модель для всех мест ввода (club_alloc.go): оплата штрафа гасит
+		// старые неоплаченные штрафы (и частично), членство: остаток входа, затем долг
+		// продления; разовые услуги (экспресс-разбор, МК) долг не гасят
+		if strings.TrimSpace(res) == "" {
+			return nil
 		}
-		// R59: оплата резидента сначала гасит его долг (остаток входа, затем долг
-		// продления), как bsApplyPaymentsFromDDS скрипта: строка ДДС отмечается «учтено».
-		// Раньше сервер этого не делал, и оплата не уменьшала долг.
-		// R67: экспресс-разбор, МК и другие разовые услуги не про членство: такая оплата
-		// (часто записанная на имя Рустама, его статистика) долг резидента не гасит
-		if res != "" && !club.NonMembershipCat(src) {
-			r, err := a.matchResident(res)
-			if err != nil {
-				return nil // не нашли резидента: строка останется «не учтено», её привяжут вручную
-			}
-			paid, err := a.payDebt(payID, r, amount)
-			if err != nil {
-				return err
-			}
-			// Что сверх долга, продлевает пакет встреч (addMeetingsOnPayment): за каждый
-			// оплаченный период пакет по тарифу, остаток (или перебор) переносится
-			extra := amount - paid
-			if r.tariff <= 0 || extra/r.tariff < 1 {
-				return nil
-			}
-			total := tariffMonths(r.tariff)*3*(extra/r.tariff) + r.granted - r.done
-			if total < 0 {
-				total = 0
-			}
-			return a.update("club_residents", r.id, `meetings_done = 0, meetings_granted = $2`, total)
+		out, err := a.autoAllocate(payID, false, "server")
+		if err != nil || out == nil || out.ResidentID == 0 || out.Kind != "debt" {
+			return err
 		}
-		return nil
+		r, err := a.residentByID(out.ResidentID)
+		if err != nil {
+			return nil
+		}
+		// Что сверх долга, продлевает пакет встреч (addMeetingsOnPayment): за каждый
+		// оплаченный период пакет по тарифу; эта часть тоже записывается в журнал
+		if r.tariff <= 0 || out.Left/r.tariff < 1 {
+			return nil
+		}
+		periods := out.Left / r.tariff
+		total := tariffMonths(r.tariff)*3*periods + r.granted - r.done
+		if total < 0 {
+			total = 0
+		}
+		if _, err := a.addLine(payID, r.id, AllocPackage, 0, periods*r.tariff, "server"); err != nil {
+			return err
+		}
+		if err := a.update("club_payments", payID, `applied = true`); err != nil {
+			return err
+		}
+		if err := a.update("club_residents", r.id, `meetings_granted = $2`, total); err != nil {
+			return err
+		}
+		return a.resetToday(r)
 
 	case "addSchedule":
 		res := strings.TrimSpace(p["res"])
@@ -709,7 +727,13 @@ func (a *applier) apply(action string, p map[string]string) error {
 			return err
 		}
 		done, granted := pint(p["done"]), pint(p["granted"])
-		return a.update("club_residents", r.id, `meetings_done = GREATEST($2::bigint, 0), meetings_granted = GREATEST($3::bigint, 0)`, done, granted)
+		if done < 0 {
+			done = 0
+		}
+		if err := a.update("club_residents", r.id, `meetings_granted = GREATEST($2::bigint, 0)`, granted); err != nil {
+			return err
+		}
+		return a.setDone(r, done) // R69: правка вручную: поправка к журналу
 
 	case "renewMeetings":
 		// Новый пакет, неиспользованные встречи переносятся
@@ -723,7 +747,10 @@ func (a *applier) apply(action string, p map[string]string) error {
 		if total < 0 {
 			total = 0
 		}
-		return a.update("club_residents", r.id, `meetings_done = 0, meetings_granted = $2`, total)
+		if err := a.update("club_residents", r.id, `meetings_granted = $2`, total); err != nil {
+			return err
+		}
+		return a.resetToday(r)
 
 	case "addResident", "convertToResident":
 		name := strings.TrimSpace(p["name"])

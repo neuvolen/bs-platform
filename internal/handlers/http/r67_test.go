@@ -28,13 +28,8 @@ func TestR67ExpressReviewIsNotMembership(t *testing.T) {
 	if r := e.call(offOwner, "addPayment", "type", "income", "amount", "50000", "src", "БХ Экспресс разбор", "resident", "Рустам", "isCash", "true"); r["ok"] != true {
 		t.Fatalf("payment 2 %v", r)
 	}
-	a := time.Now().In(club.Almaty)
-	done, left, err := e.repo.AutoCountPayments(ctx, time.Date(a.Year(), a.Month(), a.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(done) != 0 || len(left) != 0 {
-		t.Fatalf("express reviews counted %v or reported «не учтено» %v", done, left)
+	if n := e.n(`SELECT count(*) FROM club_pay_alloc`); n != 0 {
+		t.Fatalf("express reviews went to the ledger: %d lines", n)
 	}
 	// a membership payment still pays the debt
 	if r := e.call(offOwner, "addPayment", "type", "income", "amount", "50000", "src", "БХ Трекинг продление", "resident", "Альтаир", "isCash", "true"); r["ok"] != true {

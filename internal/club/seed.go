@@ -91,6 +91,8 @@ func SeedFines(fines []Fine) []SeedFine {
 		st := "Не оплатил"
 		if f.Paid {
 			st = "Оплатил"
+		} else if strings.TrimSpace(f.Status) == "Списан" {
+			st = "Списан" // R69
 		}
 		d := f.Date
 		out = append(out, SeedFine{Res: f.Name, Type: f.Type, Amount: f.Amount, Date: day(&d), Status: st, Row: f.Row})

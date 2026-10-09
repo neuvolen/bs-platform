@@ -47,7 +47,7 @@ func TestAppTeamDocAndNav(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/app/nav", nil))
 	body := w.Body.String()
-	if w.Code != 200 || !strings.Contains(body, `"id":"fines"`) || strings.Contains(body, `"gdoc"`) || strings.Contains(body, `"gsheet"`) {
+	if w.Code != 200 || !strings.Contains(body, `"id":"pl"`) || strings.Contains(body, `"id":"fines"`) /* R69: штрафы в «Учёте» */ || strings.Contains(body, `"gdoc"`) || strings.Contains(body, `"gsheet"`) {
 		t.Fatalf("nav: %d %.300s", w.Code, body)
 	}
 }

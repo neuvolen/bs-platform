@@ -4,7 +4,10 @@
 // without a database.
 package club
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Resident is one row of «BS - резиденты дебет» (or «Бывшие резиденты»).
 type Resident struct {
@@ -61,6 +64,25 @@ type Fine struct {
 	Row int `json:"row,omitempty"`
 	// Status is the «Статус» cell as is ("Не оплатил" when empty).
 	Status string `json:"status,omitempty"`
+	// Owed: R69: what is still owed by the payments ledger (a part paid);
+	// nil when not known (the sheet's data): then the whole amount.
+	Owed *int64 `json:"-"`
+}
+
+// Due: what the resident still owes on the fine: nothing when it is paid or
+// written off («Списан»), else what the ledger leaves of the amount.
+func (f Fine) Due() int64 {
+	st := strings.TrimSpace(f.Status)
+	if f.Paid || st == "Оплатил" || st == "Списан" {
+		return 0
+	}
+	if f.Owed != nil {
+		if *f.Owed < 0 {
+			return 0
+		}
+		return *f.Owed
+	}
+	return f.Amount
 }
 
 // Meeting is one row of «Расписание».
@@ -76,6 +98,8 @@ type Meeting struct {
 	Sent1h   bool      `json:"sent1h"`
 	Done     bool      `json:"done"`
 	EventID  string    `json:"eventId"`
+	// Status: R69: "done", "noshow" (не пришёл без предупреждения) or "".
+	Status string `json:"status,omitempty"`
 	// The sheet's row and its cells E, F and H as they are: the app's bundle
 	// shows them so, without the clean-up done for Place and Link.
 	Row      int    `json:"row,omitempty"`

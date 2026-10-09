@@ -25,6 +25,72 @@ func registerDDS(g *gin.RouterGroup, h *ClubHandler) {
 	g.GET("/dds", h.DDS)
 	g.POST("/dds", h.DDSSave)
 	g.POST("/dds/link", h.DDSLink)
+	g.GET("/debts", h.Debts)                    // R69: «Учёт → Долги и штрафы»
+	g.POST("/fines/writeoff", h.FineWriteOff) // R69: «Списать штраф» с причиной
+}
+
+// Debts godoc
+// @Summary  «Долги и штрафы»: debts, fines and payments of every resident
+// @Description  Per resident: the debt (rest of the entry fee, renewal), the fines (open with what is paid on each, paid, written off), the payments with what each paid by the ledger and the remainder; income rows without a resident to link.
+// @Tags     club
+// @Security BearerAuth
+// @Router   /api/v1/club/debts [get]
+func (h *ClubHandler) Debts(c *gin.Context) {
+	ctx := c.Request.Context()
+	rep, err := h.repo.Debts(ctx)
+	if err != nil {
+		log.Printf("debts: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	_, editable := ddsMaster(ctx, h.repo)
+	c.JSON(http.StatusOK, gin.H{"editable": editable, "report": rep})
+}
+
+type fineWriteOffReq struct {
+	ID     int64  `json:"id"`
+	Reason string `json:"reason"`
+}
+
+// FineWriteOff godoc
+// @Summary  «Списать штраф»: the fine is no longer owed, with the reason
+// @Tags     club
+// @Security BearerAuth
+// @Router   /api/v1/club/fines/writeoff [post]
+func (h *ClubHandler) FineWriteOff(c *gin.Context) {
+	var req fineWriteOffReq
+	if err := c.ShouldBindJSON(&req); err != nil || req.ID <= 0 || strings.TrimSpace(req.Reason) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_params", "detail": "нужны штраф и причина"})
+		return
+	}
+	ctx := c.Request.Context()
+	if _, editable := ddsMaster(ctx, h.repo); !editable {
+		c.JSON(http.StatusConflict, gin.H{"error": "sheet_is_master", "detail": "штрафы пока только для просмотра"})
+		return
+	}
+	reason := strings.TrimSpace(req.Reason)
+	if len([]rune(reason)) > 300 {
+		reason = string([]rune(reason)[:300])
+	}
+	who := platformUser(c)
+	if err := h.repo.WriteOffFine(ctx, req.ID, reason, ""); err != nil {
+		var in *pg.ErrLinkInput
+		if errors.As(err, &in) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "bad_params", "detail": in.Msg})
+			return
+		}
+		log.Printf("fine write-off: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	p := map[string]string{"id": strconv.FormatInt(req.ID, 10), "reason": reason}
+	if err := h.repo.LogOp(ctx, pg.ClubOp{Source: "platform", Who: who, Action: "writeOffFine", Params: p, OK: true}); err != nil {
+		log.Printf("fine write-off log: %v", err)
+	}
+	if err := RefreshPlatformSeed(ctx, h.repo, h.platform, h.StaticSeed); err != nil {
+		log.Printf("platform seed: %v", err)
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 type ddsLinkReq struct {
@@ -68,7 +134,7 @@ func (h *ClubHandler) DDSLink(c *gin.Context) {
 	if err := RefreshPlatformSeed(ctx, h.repo, h.platform, h.StaticSeed); err != nil {
 		log.Printf("platform seed: %v", err)
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "resident": res.Resident, "paid": res.Paid, "applied": res.Applied})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "resident": res.Resident, "paid": res.Paid, "applied": res.Applied, "left": res.Left, "kind": res.Kind, "why": res.Why})
 }
 
 type ddsPLInfo struct {
@@ -115,15 +181,36 @@ func (h *ClubHandler) DDS(c *gin.Context) {
 	}
 	names := []string{}
 	seen := map[string]bool{}
+	// R69: the pickers group residents «Онлайн», then «Офлайн», alphabetically within
+	type resInfo struct {
+		Name   string `json:"name"`
+		Format string `json:"format"`
+		Former bool   `json:"former,omitempty"`
+	}
+	infos := []resInfo{}
 	for _, r := range s.Residents {
 		n := strings.TrimSpace(r.Name)
 		if n != "" && !r.Admin && !seen[n] {
 			seen[n] = true
 			names = append(names, n)
+			f := "Офлайн"
+			if strings.TrimSpace(r.Format) == "Онлайн" {
+				f = "Онлайн"
+			}
+			infos = append(infos, resInfo{Name: n, Format: f, Former: r.Former || r.Archived})
 		}
 	}
 	sort.Strings(names)
-	c.JSON(http.StatusOK, gin.H{"master": master, "editable": editable, "mode": club.SheetMode(), "pl": info, "residents": names, "rows": rows})
+	sort.SliceStable(infos, func(i, j int) bool {
+		if infos[i].Former != infos[j].Former {
+			return !infos[i].Former
+		}
+		if infos[i].Format != infos[j].Format {
+			return infos[i].Format == "Онлайн"
+		}
+		return club.NormName(infos[i].Name) < club.NormName(infos[j].Name)
+	})
+	c.JSON(http.StatusOK, gin.H{"master": master, "editable": editable, "mode": club.SheetMode(), "pl": info, "residents": names, "residentsInfo": infos, "rows": rows})
 }
 
 // ddsMaster: who keeps the journal and whether the platform edits it. After

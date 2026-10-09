@@ -25,9 +25,7 @@ type DebetRow struct {
 func Debet(residents []Resident, fines []Fine) []DebetRow {
 	unpaid := map[string]int64{}
 	for _, f := range fines {
-		if !f.Paid {
-			unpaid[NormName(f.Name)] += f.Amount
-		}
+		unpaid[NormName(f.Name)] += f.Due() // R69: written off is not owed, a part paid is less
 	}
 	var out []DebetRow
 	for _, r := range residents {

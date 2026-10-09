@@ -491,14 +491,10 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		httpapi.DebtFixAtStart(ctx, clubRepo, repo, writes.Tables)
-		if lines, err := clubRepo.R69Audit(ctx); err != nil {
-			log.Printf("r69 audit: %v", err)
-		} else {
-			for _, l := range lines {
-				log.Printf("r69 audit: %s", l)
-			}
+		if d, err := time.ParseDuration(os.Getenv("R69_APPLY_DELAY")); err == nil && d >= 0 {
+			httpapi.R69ApplyDelay = d // tests: no 10 minutes between the dry run and the real run
 		}
+		httpapi.ClubR69AtStart(ctx, clubRepo, writes.Tables) // R69: ledger of payments, meetings from the log
 	}()
 	var docs interface {
 		PutServerDoc(ctx context.Context, key, value string) error

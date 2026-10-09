@@ -1708,6 +1708,7 @@ body.light .rpanel{background:#FAFAFA}
 .pf-tr{display:grid;grid-template-columns:minmax(180px,2.2fr) 1fr 1fr .8fr .9fr 1fr;gap:12px;align-items:center;
   padding:12px 18px;border-bottom:1px solid var(--ph);font-size:13px;font-variant-numeric:tabular-nums;cursor:pointer}
 .pf-tr:last-child{border-bottom:none}
+.rs-tbl .pf-tr{grid-template-columns:minmax(180px,2.2fr) 1fr 1fr .8fr .8fr}
 .pf-tr:not(.pf-th):hover{background:rgba(255,255,255,.03)}
 .pf-th{cursor:default;padding:12px 18px;font-size:11px;font-weight:800;letter-spacing:1.6px;color:var(--pl);text-transform:uppercase}
 .pf-tr .r{text-align:right}
@@ -1783,6 +1784,7 @@ body.light .side .sv.on{color:#141414}
   html.rp-open.onboard .rpanel{display:flex;z-index:120}
   .pf-tr{grid-template-columns:minmax(140px,1.6fr) 1fr .8fr;}
   .pf-tr>:nth-child(2),.pf-tr>:nth-child(3),.pf-tr>:nth-child(5){display:none}
+  .rs-tbl .pf-tr{grid-template-columns:minmax(140px,1.6fr) .8fr}
 }
 /* Светлая тема: белые кнопки становятся чёрными с белым текстом */
 body.light .bg{color:#fff}
@@ -7590,7 +7592,6 @@ var BLOCKS = {
     {id:'sRes',     n:'Резиденты'},
     {id:'aSched',   n:'Встречи'},
     {id:'aReports', n:'Отчёты'},
-    {id:'fines',    n:'Штрафы'},
     {id:'sFive',    n:'Пятёрки'},
     {id:'nps',      n:'NPS'}]},         // R34b: оценка резидентов живёт в «Клубе», ссылка #nps та же
   // R39: вкладки «Экспорт» в Клубе нет (просьба владельца); адрес dataExport открывается как раньше,
@@ -7873,6 +7874,8 @@ window.bsRerenderLive = function(){
 };
 function goSection(s){
   if(s === 'checklists') s = 'guides';
+  // R69: штрафы и долги резидентов переехали из Клуба в «Учёт → Долги и штрафы»
+  if(s === 'fines' && typeof MODE !== 'undefined' && MODE === 'admin'){ s = 'pl'; if(window.FX) FX.tab = 'debts'; try{ localStorage.setItem('bs_fx_tab', 'debts'); }catch(e){} }
   s = mktRoute(s);
   section = s;
   pfSideSync(s);
@@ -8123,7 +8126,20 @@ function bsPLCats(kind){
   });
   return out;
 }
-function bsResNames(){ return (RESIDENTS||[]).map(function(r){ return r.name; }); }
+// R69: резиденты в выборе: сначала онлайн, потом офлайн, внутри по алфавиту (бывшие в конце)
+function bsResSorted(){
+  var on = function(r){ return /онлайн/i.test(String(r.format || '')); };
+  return (RESIDENTS||[]).filter(function(r){ return r && r.name; }).slice().sort(function(a, b){
+    return (!!a.former - !!b.former) || (on(b) - on(a)) || String(a.name).localeCompare(String(b.name), 'ru');
+  });
+}
+function bsResNames(){ return bsResSorted().map(function(r){ return r.name; }); }
+// Группы для <select>: «Онлайн», «Офлайн», «Бывшие»
+function bsResGroups(){
+  var g = {'Онлайн': [], 'Офлайн': [], 'Бывшие': []};
+  bsResSorted().forEach(function(r){ g[r.former ? 'Бывшие' : (/онлайн/i.test(String(r.format || '')) ? 'Онлайн' : 'Офлайн')].push(r.name); });
+  return Object.keys(g).filter(function(k){ return g[k].length; }).map(function(k){ return {label: k, items: g[k]}; });
+}
 function bsTodayStr(){ var d = new Date(); return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear(); }
 // Небольшая форма поверх страницы. fields: [{k, label, type:'select'|'text'|'number', options, value}]
 function bsForm(title, fields, onSubmit){
@@ -8137,10 +8153,14 @@ function bsForm(title, fields, onSubmit){
     box += '<div style="font-size:11px;color:var(--t3);margin:10px 0 4px">'+esc(f.label)+'</div>';
     var st = 'width:100%;box-sizing:border-box;background:#0c0c0c;border:1px solid rgba(255,255,255,.14);border-radius:10px;color:#fff;padding:10px;font-size:14px;font-family:inherit';
     if(f.type === 'select'){
-      box += '<select data-k="'+f.k+'" style="'+st+'">' + f.options.map(function(o){
-        return '<option'+(o===f.value?' selected':'')+'>'+esc(o)+'</option>'; }).join('') + '</select>';
+      var opt = function(o){ return '<option'+(o===f.value?' selected':'')+'>'+esc(o)+'</option>'; };
+      box += '<select data-k="'+f.k+'" style="'+st+'">' + (f.groups ? (f.empty ? '<option></option>' : '') + f.groups.map(function(g){
+        return '<optgroup label="'+esc(g.label)+'">' + g.items.map(opt).join('') + '</optgroup>'; }).join('') : f.options.map(opt).join('')) + '</select>';
     } else {
-      box += '<input data-k="'+f.k+'" type="'+(f.type||'text')+'" value="'+esc(f.value||'')+'" placeholder="'+esc(f.ph||'')+'" style="'+st+'">';
+      // R69: суммы с пробелами между тысячами прямо при вводе («1 500 000»)
+      var mny = f.money || /сумм|тенге|₸|тариф|цена|стоимост/i.test(f.label || '');
+      var fv = mny && /^\d+$/.test(String(f.value || '')) ? String(f.value).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : (f.value || '');
+      box += '<input data-k="'+f.k+'" type="'+(mny ? 'text' : (f.type||'text'))+'"'+(mny ? ' inputmode="numeric" data-money="1"' : '')+' value="'+esc(fv)+'" placeholder="'+esc(f.ph||'')+'" style="'+st+'">';
     }
   });
   box += '<div id="bsFormMsg" style="color:#FF4D4D;font-size:12px;min-height:16px;margin-top:10px"></div>' +
@@ -8168,17 +8188,17 @@ window.bsAddPayment = function(type){
   var cats = bsPLCats(type === 'income' ? 'inc' : 'exp');
   var fields = [{k:'src', label: type === 'income' ? 'Статья дохода' : 'Статья расхода', type:'select', options: cats, value: cats[0]},
                 {k:'amount', label:'Сумма, тенге', type:'text', ph:'100 000'}];
-  if(type === 'income') fields.push({k:'resident', label:'Резидент', type:'select', options: [''].concat(bsResNames())});
+  if(type === 'income') fields.push({k:'resident', label:'Резидент', type:'select', options: [''].concat(bsResNames()), groups: bsResGroups(), empty: true});
   fields.push({k:'isCash', label:'Способ', type:'select', options:['Kaspi','Наличные'], value:'Kaspi'});
   bsForm(type === 'income' ? '+ ПРИХОД' : '+ РАСХОД', fields, function(v){
     return BSSync.club('addPayment', {type: type, src: v.src, amount: bsMoneyIn(v.amount), resident: v.resident || '', isCash: v.isCash === 'Наличные' ? 'true' : 'false'});
   });
 };
 window.bsAddFine = function(){
-  var types = ['Не сдан отчёт','Опоздание','Штраф'];
+  var types = ['Не сдан отчёт','Опоздание','Неявка без предупреждения','Штраф'];
   (FINES||[]).forEach(function(f){ if(f.type && types.indexOf(f.type) < 0) types.push(f.type); });
   bsForm('+ ШТРАФ', [
-    {k:'name', label:'Резидент', type:'select', options: bsResNames()},
+    {k:'name', label:'Резидент', type:'select', options: bsResNames(), groups: bsResGroups()},
     {k:'type', label:'За что', type:'select', options: types, value:'Штраф'},
     {k:'amount', label:'Сумма, тенге', type:'text', value:'10000'}
   ], function(v){ return BSSync.club('addFine', {name: v.name, type: v.type, amount: bsMoneyIn(v.amount)}); });
@@ -8413,7 +8433,6 @@ function topDiag(){
 // ═══ ПРОДАЖИ ═══
 function openResident(i){
   var r = RESIDENTS[i]; if(!r) return;
-  var fines = FINES.filter(f=>f.res===r.name);
   var board = boards.find(b=>b.info && b.info.res && b.info.res.indexOf(r.name.split(' ')[0])>=0);
   var left = (r.granted||0)-(r.done||0);
   document.getElementById('cardTitle').textContent = r.name;
@@ -8421,20 +8440,16 @@ function openResident(i){
   function cell(k, v, sub, red){
     return '<div><div class="bs-l">'+k+'</div><div class="sum-v'+(red?' pf-red':'')+'">'+v+'</div>'+(sub?'<div class="pf-sub">'+sub+'</div>':'')+'</div>';
   }
+  // R69: долги, штрафы и оплаты резидента живут в «Учёт → Долги и штрафы», в Клубе только встречи
   var chips = [];
-  if(r.total) chips.push('<span class="pf-chip red">Долг '+money(String(r.total))+'</span>');
   chips.push('<span class="pf-chip">'+(left<0?'Встречи сверх оплаты':'Осталось встреч: '+left)+'</span>');
-  if(fines.length) chips.push('<span class="pf-chip">Штрафов: '+fines.length+'</span>');
   var h = '<div class="pf-card pf-hero"><div class="pf-av">'+esc((r.name||'?').charAt(0).toUpperCase())+'</div>' +
-    '<div style="min-width:0"><div class="pf-ld">'+esc([r.format, r.start ? 'с ' + r.start : '', r.tariff ? 'тариф ' + money(String(r.tariff)) : ''].filter(Boolean).join(' · '))+'</div>' +
+    '<div style="min-width:0"><div class="pf-ld">'+esc([r.format, r.start ? 'с ' + r.start : ''].filter(Boolean).join(' · '))+'</div>' +
     '<div class="pf-chips">'+chips.join('')+'</div></div></div>';
   h += '<div class="card-sum pf-grid2"><div class="sum-row">' +
-    cell('Долг', money(String(r.total||0))||'0', r.debtRenew ? 'продление ' + money(String(r.debtRenew)) : '', !!r.total) +
     cell('Встречи', (r.done||0)+' из '+(r.granted||0), left>=0 ? 'осталось ' + left : 'сверх оплаты ' + (-left)) +
-    '</div><div class="sum-row">' +
-    cell('Оплачено', money(String(r.paid||0))||'0', r.tariff ? 'тариф ' + money(String(r.tariff)) : '') +
-    cell('Штрафы', money(String(r.fines||0))||'0', fines.length ? fines.length + ' начислений' : '', !!r.fines) +
     '</div></div>';
+  if(bsIsTeam()) h += '<div class="pf-acts r69-go"><button class="btn pf-b" onclick="closeSheet(\'cardSheet\');r69OpenDebts(' + JSON.stringify(String(r.name||'')).replace(/"/g, '&quot;') + ')">Долги и штрафы в Учёте</button></div>';
   // R30: пакет встреч, как в приложении («Посещения»): поправить счётчик или продлить
   if(bsIsTeam()){
     var ri = (RESIDENTS || []).indexOf(r);
@@ -8456,12 +8471,6 @@ function openResident(i){
       (st && st.title && st.title!=='Как дойдём' ? '<div class="pf-quote">'+esc(st.title)+'</div>' : '') +
       (tk.length ? '<div class="pf-ld" style="margin-top:12px">Задач на доске: '+tk.length+'</div>' : '') +
       '</div>';
-  }
-  if(fines.length){
-    h += '<div class="pf-card"><div class="pf-lbl">Штрафы</div>' + fines.map(function(f){
-      return '<div class="pf-li pf-row3"' + (bsIsTeam() ? ' style="cursor:pointer" onclick="bsFineOpen(' + FINES.indexOf(f) + ')"' : '') + '><span class="pf-ld">'+esc(f.date||'')+'</span><span class="pf-lt">'+esc(f.type||'Штраф')+
-        (f.status?' <span class="pf-ld">· '+esc(f.status)+'</span>':'')+'</span><b class="pf-red">'+money(String(f.amount||0))+'</b></div>';
-    }).join('') + '</div>';
   }
   h += '<div class="cd-acts">';
   if(board){
@@ -8495,18 +8504,16 @@ function renderSalesRes(){
   if(window.r23ResWarm) r23ResWarm(); // R26: настройки резидентов подтягиваются заранее
   var pg = document.getElementById('pg-stub');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-  var totalDebt = RESIDENTS.reduce((a,r)=>a+(r.total||0),0);
-  var debtors = RESIDENTS.filter(r=>r.total).length;
   pg.querySelector('.pt').textContent = 'Резиденты';
   pg.querySelector('.psub').textContent = 'Клуб · ' + RESIDENTS.length + ' резидентов · данные из BS - Finance';
-  var F = [['all','Все',RESIDENTS.length],['debt','Должники',debtors],
+  var F = [['all','Все',RESIDENTS.length],
     ['on','Онлайн',RESIDENTS.filter(r=>srFmt(r,'онлайн')).length],['off','Офлайн',RESIDENTS.filter(r=>srFmt(r,'офлайн')).length]];
   pg.querySelector('#stubBody').innerHTML = bsTeamBar([['+ Резидент','bsAddResident()']]) +
     '<div class="pf-tools"><div class="search pf-search"><input id="srSearch" placeholder="Имя резидента" oninput="srRender()"></div>' +
     '<div class="pf-filters">' + F.filter(f=>f[0]==='all'||f[2]).map(function(f){
       return '<div class="pf-fl'+(srF===f[0]?' on':'')+'" data-f="'+f[0]+'" onclick="srF=\''+f[0]+'\';document.querySelectorAll(\'.pf-fl\').forEach(x=>x.classList.toggle(\'on\',x.dataset.f===srF));srRender()">'+f[1]+' · '+f[2]+'</div>';
     }).join('') + '</div>' + bslBar('residents', ['az','fmt','new'], bslMode('residents', ['az','fmt','new']), 'srRender') + '</div>' +
-    '<div class="pf-note" style="margin-bottom:12px">Общий долг: <b class="'+(totalDebt?'pf-red':'')+'">'+(money(String(totalDebt))||'0')+'</b> · оплачено '+(money(String(RESIDENTS.reduce((a,r)=>a+(r.paid||0),0)))||'0')+'</div>' +
+    (bsIsTeam() ? '<div class="pf-note" style="margin-bottom:12px">Долги, штрафы и оплаты: <span class="pf-link" onclick="r69OpenDebts()">Учёт → Долги и штрафы</span></div>' : '') +
     '<div id="srTbl"></div>';
   srRender();
   pg.classList.add('on');
@@ -8516,7 +8523,6 @@ function srRender(){
   var q = ((document.getElementById('srSearch')||{}).value||'').toLowerCase();
   var list = RESIDENTS.filter(function(r){
     if(q && String(r.name||'').toLowerCase().indexOf(q) < 0) return false;
-    if(srF==='debt') return !!r.total;
     if(srF==='on') return srFmt(r,'онлайн');
     if(srF==='off') return srFmt(r,'офлайн');
     return true;
@@ -8524,7 +8530,7 @@ function srRender(){
   var md = bslMode('residents', ['az','fmt','new']);
   var gr = bslApply(list, md, {t:function(r){ return r.name; }, g:function(r){ return r.format || 'Формат не указан'; }, n:function(r){ return bslDate(r.start); }});
   box.innerHTML = '<div class="pf-tbl rs-tbl"><div class="pf-tr pf-th"><span>Резидент</span><span>Формат</span><span>В клубе с</span>' +
-    '<span>Встречи</span><span class="r">Штрафы</span><span class="r">Долг</span></div>' +
+    '<span>Встречи</span><span class="r">Осталось</span></div>' +
     (list.length ? bslRender(gr, function(r){
       var left = (r.granted||0) - (r.done||0);
       return '<div class="pf-tr" onclick="openResident('+RESIDENTS.indexOf(r)+')">' +
@@ -8532,8 +8538,7 @@ function srRender(){
         '<span class="m">'+esc(r.format||'-')+'</span>' +
         '<span>'+esc(r.start||'-')+'</span>' +
         '<span'+(left<0?' class="pf-red"':'')+'>'+(r.done||0)+'/'+(r.granted||0)+'</span>' +
-        '<span class="r'+(r.fines?' pf-red':' m')+'">'+(r.fines?money(String(r.fines)):'0')+'</span>' +
-        '<span class="r b'+(r.total?' pf-red':' m')+'">'+(r.total?money(String(r.total)):'0')+'</span></div>';
+        '<span class="r m">'+(left<0?'сверх '+(-left):left)+'</span></div>';
     }) : '<div class="pf-empty">Никого не нашлось</div>') + '</div>';
 }
 
@@ -9126,7 +9131,7 @@ function renderDiagPage(){ renderBizWheel(); }
 // ═══ РАЗДЕЛЫ РЕЗИДЕНТА ═══
 // Журнал операций: каждое изменение денег, штрафов, встреч и резидентов из приложения и платформы
 var OPS_NAMES = {addPayment:'Оплата', addFine:'Штраф', updateFine:'Штраф: статус', deleteFine:'Штраф удалён',
-  addSchedule:'Встреча', deleteSchedule:'Встреча удалена', updateMeeting:'Встреча перенесена', confirmMeeting:'Встреча прошла',
+  addSchedule:'Встреча', deleteSchedule:'Встреча удалена', updateMeeting:'Встреча перенесена', confirmMeeting:'Встреча прошла', missMeeting:'Не пришёл без предупреждения',
   markAttendance:'Посещение', addResident:'Новый резидент', saveProfile:'Профиль', addOfflineGroup:'Офлайн-день', createEvent:'Мероприятие'};
 function renderOps(){
   var el = pgSet('Журнал операций', 'Все изменения данных клуба из приложения и платформы');
@@ -9436,6 +9441,7 @@ var BS_RULES = [
     'Встреча с обоими основателями: диагностика, стратегия, задачи',
     'Приходите с цифрами и подготовленными вопросами',
     'Отмена позже чем за 24 часа: встреча сгорает',
+    'Не пришли на встречу, не предупредив: штраф 50 000 ₸',
     'Опоздание больше 15 минут: штраф 10 000 ₸']},
   {num:'03', title:'Задачи выполняются', items:[
     'После трекинга вы уходите с конкретным планом на 10 дней',
@@ -9747,6 +9753,7 @@ function mtDetailHTML(s, compact){
       b('В Google Calendar', 'mtGcal(' + i + ')') +
       (adm && isMeet(s) ? b('Начать разбор', 'closeSheet(\'editSheet\');startSession(' + i + ')') : '') +
       (adm && !done ? b(k === 'offline' ? 'Отметить посещение' : 'Встреча прошла', 'mtAct(\'done\',' + i + ')') : '') +
+      (adm && !done && s.status !== 'noshow' ? b('Не пришёл без предупреждения', 'mtAct(\'miss\',' + i + ')', 'bs mt-del') : '') + // R69: штраф 50 000 по правилам клуба
       (adm ? b('Перенести', 'mtAct(\'move\',' + i + ')') + b('Удалить', 'mtAct(\'del\',' + i + ')', 'bs mt-del') : '') +
     '</div></div>';
 }
@@ -9777,6 +9784,13 @@ function mtAct(kind, i){
         if(r && (r.ok || r.alreadyDone)){ s.done = true; toast(off ? 'Посещение отмечено' : 'Встреча отмечена'); mtRefresh(); } else fail(r);
       });
     });
+  } else if(kind === 'miss'){
+    // R69: правило клуба: не пришёл и не предупредил: штраф 50 000 ₸ (один раз), резиденту одно сообщение бота
+    askConfirm('Не пришёл без предупреждения?', s.res + ', ' + s.date + (tm ? ' ' + tm : '') + '. Штраф 50 000 ₸ по правилам клуба, резидент получит сообщение', function(){
+      BSSync.club('missMeeting', {res:s.res, date:s.date, time:tm}).then(function(r){
+        if(r && r.ok){ s.status = 'noshow'; toast('Отмечено: штраф 50 000 ₸ записан'); mtRefresh(); } else fail(r);
+      });
+    }, 'Штраф 50 000');
   } else if(kind === 'move'){
     closeSheet('editSheet');
     bsForm('ПЕРЕНЕСТИ ВСТРЕЧУ', [
@@ -30176,7 +30190,10 @@ function load(force){
     FX._sig = sig; FX._same = false;
     var keepSel = curKey();
     FX.info = j.pl || {year: new Date().getFullYear(), upTo: new Date().getMonth() + 1, cashStart: 4, incomeRows: [], expenseRows: []};
-    FX.residents = j.residents || []; FX.master = j.master || ''; FX.mode = j.mode || ''; FX.editable = !!j.editable;
+    FX.residents = j.residents || [];
+    // R69: в выборе резидента сначала онлайн, потом офлайн, по алфавиту (порядок даёт сервер)
+    FX.resInfo = j.residentsInfo || [];
+    if(FX.resInfo.length) FX.residents = FX.resInfo.filter(function(x){ return !x.former; }).map(function(x){ return x.name; }); FX.master = j.master || ''; FX.mode = j.mode || ''; FX.editable = !!j.editable;
     // Свои несохранённые правки и черновики поверх свежих данных
     var local = FX.rows.filter(function(r){ return !r.id || FX.pend[r.key]; });
     FX.byKey = {}; FX.rows = (j.rows || []).map(function(x){ return addRow(cleanRow(x)); });
@@ -30437,7 +30454,7 @@ function headerTools(){
   if(FX.st === 'ready'){
     h += '<span id="fxSt">' + statusHTML() + '</span>';
     // «В цифрах» не зависят от периода: выбор периода там не показываем
-    if(FX.tab !== 'num' && FX.tab !== 'fc') h += '<select class="fx-sel" id="fxPer" onchange="fxSetPeriod(this.value)" aria-label="Период">' + periods().map(function(p){
+    if(FX.tab !== 'num' && FX.tab !== 'fc' && FX.tab !== 'debts') h += '<select class="fx-sel" id="fxPer" onchange="fxSetPeriod(this.value)" aria-label="Период">' + periods().map(function(p){
       return '<option value="' + p.k + '"' + (FX.per && FX.per.k === p.k ? ' selected' : '') + '>' + E(p.n) + '</option>'; }).join('') + '</select>';
     // R36a: «+ Приход», «+ Расход» и «+ Строка» открывают форму операции (как в приложении); без правки ДДС форма пишет через сервер клуба
     if(FX.tab === 'dds' && (FX.editable || (typeof bsIsTeam === 'function' && bsIsTeam())))
@@ -30448,7 +30465,7 @@ function headerTools(){
   return '<div class="fx-tools">' + h + '</div>';
 }
 function tabsHTML(){
-  var t = [['dds', 'ДДС', FX.st === 'ready' ? '<small id="fxTabN">' + nf(FX.rows.length) + '</small>' : ''], ['pl', 'P&L', ''], ['odds', 'ОДДС', ''], ['an', 'Анализ', ''], ['num', 'В цифрах', ''], ['fc', 'Прогноз', '']]; // R48: прогноз
+  var t = [['dds', 'ДДС', FX.st === 'ready' ? '<small id="fxTabN">' + nf(FX.rows.length) + '</small>' : ''], ['pl', 'P&L', ''], ['odds', 'ОДДС', ''], ['an', 'Анализ', ''], ['num', 'В цифрах', ''], ['fc', 'Прогноз', ''], ['debts', 'Долги и штрафы', '']]; // R48: прогноз; R69: долги и штрафы резидентов
   return '<div class="fx-tabs" role="tablist">' + t.map(function(x){
     return '<button class="fx-tab' + (FX.tab === x[0] ? ' on' : '') + '" role="tab" data-t="' + x[0] + '" onclick="fxTab(\'' + x[0] + '\')">' + x[1] + x[2] + '</button>'; }).join('') + '</div>';
 }
@@ -30468,15 +30485,17 @@ function paint(){
     else if(FX.tab === 'odds') body = oddsHTML();
     else if(FX.tab === 'num') body = numHTML();
     else if(FX.tab === 'fc') body = window.fxFcHTML ? fxFcHTML() : ''; // R48
+    else if(FX.tab === 'debts') body = '<div id="r69Debts"></div>'; // R69: рисует r69Script
     else body = anHTML();
-  } else body = legacyHTML();
+  } else body = FX.tab === 'debts' ? '<div id="r69Debts"></div>' : legacyHTML();
   // R34b: показатели периода сверху (кроме «В цифрах»)
-  var kp = FX.st === 'ready' && FX.tab !== 'num' && FX.tab !== 'fc' ? '<div id="fxKpi">' + kpiHTML() + '</div>' : '';
+  var kp = FX.st === 'ready' && FX.tab !== 'num' && FX.tab !== 'fc' && FX.tab !== 'debts' ? '<div id="fxKpi">' + kpiHTML() + '</div>' : '';
   el.innerHTML = '<div id="fxRoot">' + kp + tabsHTML() + '<div id="fxBody">' + body + '</div></div>';
   if(kp) fxMonScroll();
   if(FX.st === 'ready' && FX.tab === 'dds') mountGrid();
   if(FX.st === 'ready' && FX.tab === 'an') mountChart();
   if(FX.st === 'ready' && FX.tab === 'fc' && window.fxFcMount) fxFcMount();
+  if(FX.tab === 'debts' && window.r69Debts) r69Debts.mount();
 }
 function kpiPaint(){
   var k = document.getElementById('fxKpi'); if(!k || FX.st !== 'ready') return;
@@ -30562,7 +30581,7 @@ window.fxTab = function(t){
   try{ localStorage.setItem('bs_fx_tab', t); }catch(e){}
   paint();
 };
-try{ var _t = localStorage.getItem('bs_fx_tab'); if(_t === 'dds' || _t === 'pl' || _t === 'odds' || _t === 'an' || _t === 'num' || _t === 'fc') FX.tab = _t; }catch(e){}
+try{ var _t = localStorage.getItem('bs_fx_tab'); if(_t === 'dds' || _t === 'pl' || _t === 'odds' || _t === 'an' || _t === 'num' || _t === 'fc' || _t === 'debts') FX.tab = _t; }catch(e){}
 
 // Без сервера (вход не выполнен, старый сервер): прежний P&L по строкам из таблицы
 function legacyHTML(){
@@ -30881,7 +30900,10 @@ function listFor(k){
   function add(v, hint){ v = S(v).trim(); if(!v || seen[v.toLowerCase()]) return; seen[v.toLowerCase()] = 1; out.push({v: v, h: hint || ''}); }
   if(k === 'incomeCat') (i.incomeRows || []).forEach(function(n){ add(n, 'P&L'); });
   if(k === 'expenseCat'){ (i.expenseRows || []).forEach(function(n){ add(n, 'P&L'); }); add('Дивиденды', 'ниже прибыли'); }
-  if(k === 'resident') FX.residents.forEach(function(n){ add(n, 'резидент'); });
+  if(k === 'resident'){
+    var fm = {}; (FX.resInfo || []).forEach(function(x){ fm[x.name] = x.format; });
+    FX.residents.forEach(function(n){ add(n, fm[n] ? fm[n].toLowerCase() : 'резидент'); });
+  }
   if(k === 'account'){ add('Kaspi'); add('Наличные'); }
   var cnt = {};
   FX.rows.forEach(function(r){ var v = S(r[k]).trim(); if(v) cnt[v] = (cnt[v] || 0) + 1; });
@@ -31966,7 +31988,7 @@ function clubKpi(){
   var F = (typeof FINES !== 'undefined' && FINES) || [];
   var fm = function(y, m){ return F.filter(function(f){ var d = dOf(f.date); return d && d.getFullYear() === y && d.getMonth() === m; }); };
   var cur = fm(now.getFullYear(), now.getMonth()), sum = cur.reduce(function(a, f){ return a + (Number(f.amount) || 0); }, 0);
-  var unpaid = cur.filter(function(f){ return !/^оплатил/i.test(String(f.status || '').trim()); }).reduce(function(a, f){ return a + (Number(f.amount) || 0); }, 0);
+  var unpaid = cur.filter(function(f){ return !/^(оплатил|списан)/i.test(String(f.status || '').trim()); }).reduce(function(a, f){ return a + (Number(f.amount) || 0); }, 0);
   var ser = []; for(var i = 5; i >= 0; i--){ var d = new Date(now.getFullYear(), now.getMonth() - i, 1); ser.push(fm(d.getFullYear(), d.getMonth()).reduce(function(a, f){ return a + (Number(f.amount) || 0); }, 0)); }
   return [
     {k: 'res', c: 'c-in', l: 'Активные резиденты', v: nf(act.length), s: 'онлайн ' + on + ' · офлайн ' + (act.length - on), go: "goSection('sRes')"},
@@ -32021,13 +32043,13 @@ function mktKpi(){
 var KPI = {club: clubKpi, sales: salesKpi, mkt: mktKpi};
 // R38a: «BS» и «Трекинг» добавляются своим блоком (r38aScript): разделы, вкладки-объединения, показатели, счётчики, кнопки
 window.BK_EXT = window.BK_EXT || {}; BK_EXT.G = GROUPED; BK_EXT.M = MERGE; BK_EXT.K = KPI;
-window.bkDebtors = function(){ try{ srF = 'debt'; }catch(e){} goSection('sRes'); };
+window.bkDebtors = function(){ if(window.r69OpenDebts) r69OpenDebts(); else goSection('sRes'); };
 // Счётчики у вкладок
 function badge(id){
   if(window.BK_EXT && BK_EXT.badge){ try{ var bx = BK_EXT.badge(id); if(bx !== undefined) return bx; }catch(e){} } // R38a
   try{
     if(id === 'sRes') return {n: RESIDENTS.length};
-    if(id === 'fines'){ var u = (FINES || []).filter(function(f){ return !/^оплатил/i.test(String(f.status || '').trim()); }).length; return u ? {n: u, red: 1} : null; }
+    if(id === 'fines'){ var u = (FINES || []).filter(function(f){ return !/^(оплатил|списан)/i.test(String(f.status || '').trim()); }).length; return u ? {n: u, red: 1} : null; }
     if(id === 'leads'){ if(!CRM) loadCRM(); var a = CRM.leads.filter(function(l){ return ['won', 'lost'].indexOf(l.col) < 0; }).length; return a ? {n: a} : null; }
     if(id === 'aReports'){ var y0 = new Date(); y0 = new Date(y0.getFullYear(), y0.getMonth(), y0.getDate() - 1).getTime(); var no = (boards || []).filter(function(b){ return !(b.report && b.report.sentAt && Date.parse(b.report.sentAt) >= y0); }).length; return no ? {n: no, red: 1} : null; }
     if(id === 'sCreo'){ var cr = r8Groups('creo').length; return cr ? {n: cr} : null; } // R36a
@@ -32298,6 +32320,7 @@ body.light .fxo-in{color-scheme:light}
 .fxo-k kbd{all:unset;display:inline-block;font:800 10.5px 'Manrope',sans-serif;border:1px solid var(--pi);border-bottom-width:2px;border-radius:5px;padding:1px 5px;color:var(--ptx);line-height:1.3}
 .fxo-k u{cursor:pointer;text-underline-offset:3px}
 .fxo-k u:hover{color:var(--ptx)}
+.fxo-dd .fxo-dg{padding:8px 12px 4px;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--pm);cursor:default}
 @media (max-width:640px){
   .fxo-cats{max-height:210px}
   .fxo{top:auto;left:0;width:100vw;max-height:94vh;border-left:none;border-top:1px solid var(--pb);border-radius:18px 18px 0 0;transform:translateY(105%);box-shadow:0 -20px 50px rgba(0,0,0,.45)}
@@ -32417,10 +32440,20 @@ function setCat(v){
   F.cat = v; err('Cat', '');
   paintCats(); paintRes(false); sum();
 }
+// R69: сначала онлайн, потом офлайн (по алфавиту), затем другие имена из ДДС
+function resGroupOf(n){
+  var x = ((window.FX && FX.resInfo) || []).filter(function(r){ return r.name === n && !r.former; })[0];
+  if(x) return x.format === 'Онлайн' ? 'Онлайн' : 'Офлайн';
+  var r = (typeof RESIDENTS !== 'undefined' && RESIDENTS || []).filter(function(r){ return r && r.name === n && !r.former; })[0];
+  return r ? (/онлайн/i.test(String(r.format || '')) ? 'Онлайн' : 'Офлайн') : 'Другие';
+}
 function resList(){
   var src = typeof fxListFor === 'function' ? fxListFor('resident').map(function(x){ return x.v; }) : [];
   if(typeof RESIDENTS !== 'undefined' && RESIDENTS) RESIDENTS.forEach(function(r){ if(r && r.name && !r.former && src.indexOf(r.name) < 0) src.push(r.name); });
-  return src;
+  var rank = {'Онлайн': 0, 'Офлайн': 1, 'Другие': 2};
+  return src.map(function(n, i){ return {n: n, g: resGroupOf(n), i: i}; }).sort(function(a, b){
+    return rank[a.g] - rank[b.g] || (a.g === 'Другие' ? a.i - b.i : a.n.localeCompare(b.n, 'ru'));
+  }).map(function(x){ return x.n; });
 }
 function paintRes(open){
   var w = document.getElementById('fxoResW'); if(!w) return;
@@ -32430,7 +32463,10 @@ function paintRes(open){
   var list = (q ? all.filter(function(n){ return nc(n).indexOf(q) >= 0; }) : all).slice(0, 30);
   if(list.length === 1 && nc(list[0]) === q) list = [];
   F._rl = list; if(F.rhi == null || F.rhi >= list.length) F.rhi = -1;
-  d.innerHTML = list.map(function(n, i){ return '<div data-v="' + E(n) + '" class="' + (i === F.rhi ? 'on' : '') + '">' + E(n) + '</div>'; }).join('');
+  var lastG = '';
+  d.innerHTML = list.map(function(n, i){
+    var g = resGroupOf(n), h = g !== lastG ? '<div class="fxo-dg">' + g + '</div>' : ''; lastG = g;
+    return h + '<div data-v="' + E(n) + '" class="' + (i === F.rhi ? 'on' : '') + '">' + E(n) + '</div>'; }).join('');
   d.classList.toggle('on', !!open && list.length > 0 && document.activeElement === document.getElementById('fxoRes'));
 }
 function setRes(n){ F.res = n; var r = document.getElementById('fxoRes'); r.value = n; err('Res', ''); paintRes(false); sum(); }
@@ -32495,7 +32531,12 @@ function close(){
   var g = document.getElementById('fxGrid');
   try{ if(g && !('ontouchstart' in window)) g.focus({preventScroll: true}); else if(F.prev && F.prev.focus) F.prev.focus(); }catch(e){}
 }
-window.fxOpForm = open;
+// R69: «Записать оплату» из «Долги и штрафы»: форма прихода сразу с резидентом и статьёй
+window.fxOpForm = function(type, preset){
+  open(type);
+  if(preset && F.open){ if(preset.cat) setCat(preset.cat); if(preset.res) setRes(preset.res); }
+};
+window.fxOpIsOpen = function(){ return !!F.open; };
 window.fxOpClose = close;
 
 // ═══ Сохранение ═══
@@ -39858,32 +39899,375 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
     var host = b.closest('#r59Pay'); if(!host) return;
     link(b.dataset.r59l, host.dataset.name, b.dataset.r59a, b.dataset.r59d, b);
   });
-  if(typeof OPS_NAMES !== 'undefined') OPS_NAMES.linkPayment = 'Оплата учтена в долге';
-  if(typeof openResident === 'function'){
-    var or0 = openResident;
-    openResident = window.openResident = function(i){
-      var out = or0.apply(this, arguments);
-      try{
-        var res = (window.RESIDENTS || [])[i];
-        if(res && typeof bsIsTeam === 'function' && bsIsTeam()){
-          var cb = document.getElementById('cardBody'), old = document.getElementById('r59Pay');
-          if(old) old.remove();
-          if(cb){
-            var d = document.createElement('div'); d.id = 'r59Pay'; d.className = 'pf-card r59p'; d.dataset.name = res.name;
-            d.innerHTML = '<div class="pf-lbl">Оплаты</div><div class="r59-h">Загружаю…</div>';
-            // сразу под долгом и пакетом встреч, чтобы оплаты были рядом с суммой долга
-            var pk = document.getElementById('resPack'), acts = cb.querySelector(':scope > .cd-acts');
-            if(pk && pk.parentNode === cb) cb.insertBefore(d, pk.nextSibling); else cb.insertBefore(d, acts || null);
-            paint(res.name);
-          }
-        }
-      }catch(x){}
-      return out;
-    };
-  }
+  if(typeof OPS_NAMES !== 'undefined') OPS_NAMES.linkPayment = 'Оплата привязана к резиденту';
+  // R69: оплаты резидента больше не в карточке Клуба: «Учёт → Долги и штрафы»
   window.r59Pay = {load: load, paint: paint};
 })();
 </script>
+<!-- R69: «Учёт → Долги и штрафы» (долги, штрафы, оплаты и разнесение по журналу), суммы с пробелами при вводе везде -->
+<style id="r69Style">
+#r69Debts{--r69-ok:#3DD68C}
+.r69-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:4px 0 14px}
+.r69-k{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:12px 14px;min-width:0}
+.r69-k span{display:block;font-size:11.5px;color:var(--pm);font-weight:700}
+.r69-k b{display:block;font-size:20px;font-weight:900;color:var(--ptx);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r69-k b.red{color:var(--pred)}
+.r69-k small{display:block;font-size:11px;color:var(--pm);margin-top:2px}
+.r69-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.r69-q{flex:1;min-width:180px;max-width:320px;background:var(--pc);border:1px solid var(--pb);border-radius:10px;color:var(--ptx);padding:9px 12px;font:inherit;font-size:13.5px}
+.r69-ch{padding:7px 12px;border-radius:999px;border:1px solid var(--pb);background:none;color:var(--pm);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;min-height:34px}
+.r69-ch.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r69-tbl{background:var(--pc);border:1px solid var(--pb);border-radius:14px;overflow:hidden}
+.r69-tr{display:grid;grid-template-columns:minmax(170px,2fr) repeat(4,minmax(80px,1fr)) minmax(120px,1.2fr) 28px;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--pb);font-size:13.5px;color:var(--ptx)}
+.r69-tr:last-child{border-bottom:none}
+.r69-th{font-size:11px;font-weight:800;color:var(--pm);text-transform:uppercase;letter-spacing:.04em;cursor:default}
+.r69-th span{cursor:pointer;user-select:none}
+.r69-row{cursor:pointer}
+.r69-row:hover{background:rgba(255,255,255,.03)}
+.r69-tr .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.r69-tr .red{color:var(--pred);font-weight:800}
+.r69-tr .m{color:var(--pm)}
+.r69-nm{display:flex;align-items:center;gap:8px;min-width:0;font-weight:800}
+.r69-nm em{font-style:normal;font-size:10.5px;font-weight:800;color:var(--pm);border:1px solid var(--pb);border-radius:6px;padding:1px 6px;flex-shrink:0}
+.r69-nm i{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r69-ar{color:var(--pm);text-align:center;transition:transform .15s}
+.r69-row.open .r69-ar{transform:rotate(90deg)}
+.r69-tot{font-weight:900;background:rgba(255,255,255,.02)}
+.r69-det{padding:6px 14px 16px;border-bottom:1px solid var(--pb);background:rgba(255,255,255,.015)}
+.r69-sec{margin-top:12px}
+.r69-sh{font-size:11px;font-weight:800;color:var(--pm);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.r69-li{display:grid;grid-template-columns:86px minmax(0,1fr) auto;gap:10px;align-items:start;padding:8px 0;border-top:1px solid var(--pb);font-size:13px;color:var(--ptx)}
+.r69-li:first-of-type{border-top:none}
+.r69-li .d{color:var(--pm);font-variant-numeric:tabular-nums}
+.r69-li .t{min-width:0}
+.r69-li .t small{display:block;color:var(--pm);font-size:12px;margin-top:2px;line-height:1.45}
+.r69-li .v{text-align:right;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+.r69-st{display:inline-block;font-size:11px;font-weight:800;border-radius:6px;padding:1px 6px;margin-left:6px;border:1px solid var(--pb);color:var(--pm)}
+.r69-st.no{color:var(--pred);border-color:var(--pred)}
+.r69-st.ok{color:var(--r69-ok);border-color:var(--r69-ok)}
+.r69-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.r69-b{padding:8px 14px;border-radius:10px;border:1px solid var(--pb);background:none;color:var(--ptx);font:inherit;font-size:13px;font-weight:800;cursor:pointer;min-height:38px}
+.r69-b.pri{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r69-b.sm{padding:4px 10px;font-size:12px;min-height:30px}
+.r69-b:disabled{opacity:.5;cursor:default}
+.r69-in{background:var(--pd);border:1px solid var(--pb);border-radius:10px;color:var(--ptx);padding:8px 10px;font:inherit;font-size:13.5px;min-height:38px;box-sizing:border-box}
+.r69-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:10px;border:1px solid var(--pb);border-radius:12px}
+.r69-form .r69-in{flex:1;min-width:140px}
+.r69-msg{font-size:12px;color:var(--pred);width:100%}
+.r69-empty{padding:28px 14px;text-align:center;color:var(--pm);font-size:13.5px}
+.r69-hint{font-size:12.5px;color:var(--pm);line-height:1.5;margin:-4px 0 12px}
+.r69-un .r69-li{grid-template-columns:86px minmax(0,1fr) auto}
+.r69-un select{max-width:220px}
+@media (max-width:900px){
+  .r69-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .r69-tr{grid-template-columns:minmax(120px,1.6fr) minmax(76px,1fr) 22px}
+  .r69-tr>:nth-child(2),.r69-tr>:nth-child(3),.r69-tr>:nth-child(5),.r69-tr>:nth-child(6){display:none}
+  .r69-li{grid-template-columns:70px minmax(0,1fr) auto}
+}
+</style>
+<script id="r69Script">
+(function(){
+'use strict';
+function E(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function nf(v){ v = Math.round(Number(v) || 0); return (v < 0 ? '−' : '') + String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+function tg(v){ return nf(v) + ' ₸'; }
+function dmy(d){ var p = String(d || '').split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : String(d || ''); }
+function nm(s){ return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim(); }
+function toastS(t){ try{ toast(t); }catch(e){} }
+function api(method, path, body){
+  if(!window.BSSync || !BSSync.clubApi) return Promise.resolve({ok: false, j: {detail: 'Нет связи с сервером'}});
+  return BSSync.clubApi(method, path, body).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return {ok: r.ok && j && j.ok !== false, st: r.status, j: j}; }); },
+    function(){ return {ok: false, j: {detail: 'Нет связи с сервером'}}; });
+}
+var KIND = {fine: 'штраф', rest: 'остаток входа', renew: 'долг продления', package: 'пакет встреч'};
+var D = {st: 'idle', rep: null, editable: false, q: '', f: 'all', sort: 'total', open: {}, form: {}, at: 0};
+try{ var sv = JSON.parse(localStorage.getItem('r69_debts') || '{}'); if(sv.f) D.f = sv.f; if(sv.sort) D.sort = sv.sort; }catch(e){}
+function remember(){ try{ localStorage.setItem('r69_debts', JSON.stringify({f: D.f, sort: D.sort})); }catch(e){} }
+
+function load(force){
+  if(!force && D.rep && Date.now() - D.at < 15000){ paint(); return; }
+  if(!D.rep) D.st = 'loading';
+  paint();
+  api('GET', '/debts').then(function(x){
+    if(x.ok && x.j.report){
+      D.rep = x.j.report; D.editable = !!x.j.editable; D.st = 'ready'; D.at = Date.now();
+      if(D._openName){ D.rep.residents.forEach(function(r){ if(r.name === D._openName) D.open[r.id] = true; }); delete D._openName; }
+    }
+    else if(!D.rep){ D.st = 'error'; D.err = (x.j && (x.j.detail || x.j.error)) || ('сервер ответил ' + (x.st || 'ошибкой')); }
+    paint();
+  });
+}
+function host(){ return document.getElementById('r69Debts'); }
+
+function rows(){
+  var list = (D.rep && D.rep.residents) || [], q = nm(D.q);
+  list = list.filter(function(r){
+    if(q && nm(r.name).indexOf(q) < 0) return false;
+    if(D.f === 'debt') return r.debt > 0;
+    if(D.f === 'fines') return r.finesOpen > 0;
+    if(D.f === 'on') return !r.former && r.format === 'Онлайн';
+    if(D.f === 'off') return !r.former && r.format !== 'Онлайн';
+    if(D.f === 'former') return r.former;
+    return D.f === 'all' ? !r.former || r.total > 0 : true;
+  });
+  var by = {
+    total: function(a, b){ return b.total - a.total || a.name.localeCompare(b.name, 'ru'); },
+    az: function(a, b){ return a.name.localeCompare(b.name, 'ru'); },
+    fmt: function(a, b){ return ((a.format === 'Онлайн') ? 0 : 1) - ((b.format === 'Онлайн') ? 0 : 1) || a.name.localeCompare(b.name, 'ru'); },
+    last: function(a, b){ return String(b.lastPayDay || '').localeCompare(String(a.lastPayDay || '')); }
+  };
+  return list.slice().sort(by[D.sort] || by.total);
+}
+function kpiHTML(){
+  var all = (D.rep && D.rep.residents) || [], s = {debt: 0, fines: 0, n: 0, paid: 0};
+  all.forEach(function(r){ s.debt += r.debt; s.fines += r.finesOpen; if(r.total > 0) s.n++; });
+  var un = (D.rep && D.rep.unlinked) || [], unSum = un.reduce(function(a, p){ return a + p.left; }, 0);
+  var k = function(l, v, red, sub){ return '<div class="r69-k"><span>' + l + '</span><b' + (red ? ' class="red"' : '') + '>' + v + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>'; };
+  return '<div class="r69-kpis">' + k('Долг по членству', tg(s.debt), s.debt > 0) + k('Штрафы к оплате', tg(s.fines), s.fines > 0) +
+    k('Итого к оплате', tg(s.debt + s.fines), s.debt + s.fines > 0) + k('Должников', nf(s.n), false, 'из ' + nf(all.filter(function(r){ return !r.former; }).length) + ' резидентов') +
+    k('Оплаты без резидента', nf(un.length), un.length > 0, un.length ? tg(unSum) + ' не разнесено' : 'всё разнесено') + '</div>';
+}
+function toolsHTML(){
+  var F = [['all', 'Все'], ['debt', 'С долгом'], ['fines', 'Со штрафами'], ['on', 'Онлайн'], ['off', 'Офлайн'], ['former', 'Бывшие']];
+  return '<div class="r69-tools"><input class="r69-q" id="r69Q" placeholder="Найти резидента" value="' + E(D.q) + '" aria-label="Найти резидента">' +
+    F.map(function(f){ return '<button type="button" class="r69-ch' + (D.f === f[0] ? ' on' : '') + '" data-r69f="' + f[0] + '">' + f[1] + '</button>'; }).join('') +
+    '<select class="r69-in" id="r69Sort" aria-label="Сортировка" style="min-height:34px">' +
+    [['total', 'Больше долг сверху'], ['az', 'По алфавиту'], ['fmt', 'Онлайн, потом офлайн'], ['last', 'Последняя оплата']].map(function(o){
+      return '<option value="' + o[0] + '"' + (D.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+    '<button type="button" class="r69-b sm" data-r69="reload">Обновить</button></div>';
+}
+function lineText(l){
+  var f = l.kind === 'fine' && l.fineId ? fineByID(l.fineId) : null;
+  return KIND[l.kind] + (f ? ' «' + f.type + '» от ' + dmy(f.date) : '') + ': ' + tg(l.amount) + (l.by === 'r69-legacy' ? ' (учтено до журнала)' : '');
+}
+var FIDX = {};
+function fineByID(id){ return FIDX[id]; }
+function detHTML(r){
+  var h = '<div class="r69-det" data-det="' + r.id + '">';
+  h += '<div class="r69-sec"><div class="r69-sh">Долг по членству: ' + tg(r.debt) + (r.debt ? ' · остаток входа ' + tg(r.rest) + ' · продление ' + tg(r.renew) : '') + (r.tariff ? ' · тариф ' + tg(r.tariff) : '') + '</div></div>';
+  var open = r.fines.filter(function(f){ return f.status === 'Не оплатил'; }), done = r.fines.filter(function(f){ return f.status !== 'Не оплатил'; });
+  h += '<div class="r69-sec"><div class="r69-sh">Штрафы' + (open.length ? ': к оплате ' + tg(r.finesOpen) : '') + '</div>';
+  if(!r.fines.length) h += '<div class="r69-hint" style="margin:0">Штрафов нет</div>';
+  open.concat(done.slice().reverse()).forEach(function(f){
+    var st = f.status === 'Не оплатил' ? '<span class="r69-st no">' + (f.paid ? 'оплачено ' + tg(f.paid) + ', осталось ' + tg(f.left) : 'не оплачен') + '</span>' :
+      (f.status === 'Списан' ? '<span class="r69-st">списан</span>' : '<span class="r69-st ok">оплачен</span>');
+    h += '<div class="r69-li"><span class="d">' + E(dmy(f.date)) + '</span><span class="t">' + E(f.type || 'Штраф') + st + (f.note ? '<small>' + E(f.note) + '</small>' : '') +
+      (f.status === 'Не оплатил' && D.editable ? '<div style="margin-top:6px"><button type="button" class="r69-b sm" data-r69="wo" data-id="' + f.id + '">Списать</button></div>' : '') +
+      (D.form.wo === f.id ? '<div class="r69-form"><input class="r69-in" id="r69WoR" placeholder="Причина: например, предупредил заранее" maxlength="300"><button type="button" class="r69-b sm pri" data-r69="wo-ok" data-id="' + f.id + '">Списать штраф</button><button type="button" class="r69-b sm" data-r69="wo-x">Отмена</button><div class="r69-msg" id="r69WoM"></div></div>' : '') +
+      '</span><span class="v' + (f.status === 'Не оплатил' ? ' red' : '') + '">' + tg(f.amount) + '</span></div>';
+  });
+  h += '</div>';
+  h += '<div class="r69-sec"><div class="r69-sh">Оплаты и что они погасили' + (r.left ? ' · не разнесено ' + tg(r.left) : '') + '</div>';
+  if(!r.payments.length) h += '<div class="r69-hint" style="margin:0">Оплат в ДДС нет</div>';
+  r.payments.forEach(function(p){
+    var lines = p.lines.map(lineText);
+    if(p.legacy) lines.push('учтено таблицей до переноса');
+    if(p.left > 0) lines.push('остаток ' + tg(p.left) + (p.kind === 'fine' ? ': погасит следующий штраф' : ''));
+    if(!lines.length) lines.push(p.date < (D.rep.from || '') ? 'история таблицы' : 'не разнесено');
+    h += '<div class="r69-li"><span class="d">' + E(dmy(p.date)) + '</span><span class="t">' + E(p.cat || 'Приход') + (p.account ? ' · ' + E(p.account) : '') + '<small>' + E(lines.join(' · ')) + '</small></span><span class="v">' + tg(p.amount) + '</span></div>';
+  });
+  h += '</div>';
+  if(D.editable){
+    h += '<div class="r69-acts"><button type="button" class="r69-b pri" data-r69="pay" data-n="' + E(r.name) + '" data-k="debt">Записать оплату</button>' +
+      '<button type="button" class="r69-b" data-r69="pay" data-n="' + E(r.name) + '" data-k="fine">Оплата штрафа</button>' +
+      '<button type="button" class="r69-b" data-r69="fine" data-id="' + r.id + '">Начислить штраф</button></div>';
+    if(D.form.fine === r.id){
+      var types = ['Неявка без предупреждения', 'Не сдан отчёт', 'Опоздание', 'Цена слова', 'Нарушение'];
+      ((D.rep && D.rep.fineTypes) || []).forEach(function(t){ if(types.indexOf(t) < 0) types.push(t); });
+      h += '<div class="r69-form"><select class="r69-in" id="r69FT">' + types.map(function(t){ return '<option>' + E(t) + '</option>'; }).join('') + '</select>' +
+        '<input class="r69-in" id="r69FA" inputmode="numeric" data-money="1" value="50 000" aria-label="Сумма штрафа">' +
+        '<button type="button" class="r69-b sm pri" data-r69="fine-ok" data-n="' + E(r.name) + '">Начислить</button><button type="button" class="r69-b sm" data-r69="fine-x">Отмена</button><div class="r69-msg" id="r69FM"></div></div>';
+    }
+  }
+  return h + '</div>';
+}
+function unlinkedHTML(){
+  var un = (D.rep && D.rep.unlinked) || [];
+  if(!un.length) return '';
+  var opts = (typeof bsResGroups === 'function' ? bsResGroups() : []).map(function(g){
+    return '<optgroup label="' + E(g.label) + '">' + g.items.map(function(n){ return '<option>' + E(n) + '</option>'; }).join('') + '</optgroup>'; }).join('');
+  return '<div class="r69-sec r69-un" style="margin-top:18px"><div class="r69-sh">Оплаты без резидента</div>' +
+    '<div class="r69-hint">Имя в ДДС не совпало ни с одним резидентом. Привяжите оплату: сумма сразу погасит его штрафы или долг, а это написание имени запомнится</div>' +
+    '<div class="r69-tbl" style="padding:4px 14px">' + un.map(function(p){
+      return '<div class="r69-li"><span class="d">' + E(dmy(p.date)) + '</span><span class="t">' + E(p.cat) + '<small>не разнесено ' + tg(p.left) + '</small>' +
+        (D.editable ? '<div class="r69-form" style="border:none;padding:6px 0 0"><select class="r69-in" data-r69sel="' + p.id + '"><option value="">Чья оплата?</option>' + opts + '</select>' +
+          '<button type="button" class="r69-b sm pri" data-r69="link" data-id="' + p.id + '">Привязать платёж</button></div>' : '') +
+        '</span><span class="v">' + tg(p.amount) + '</span></div>';
+    }).join('') + '</div></div>';
+}
+function tableHTML(){
+  var list = rows();
+  FIDX = {};
+  ((D.rep && D.rep.residents) || []).forEach(function(r){ r.fines.forEach(function(f){ FIDX[f.id] = f; }); });
+  var tot = {debt: 0, fines: 0, total: 0, paid: 0};
+  list.forEach(function(r){ tot.debt += r.debt; tot.fines += r.finesOpen; tot.total += r.total; tot.paid += r.paidTotal; });
+  var h = '<div class="r69-tbl"><div class="r69-tr r69-th"><span data-r69s="az">Резидент</span><span class="n" data-r69s="total">Долг</span><span class="n">Штрафы</span><span class="n" data-r69s="total">Итого</span><span class="n">Оплачено</span><span data-r69s="last">Последняя оплата</span><span></span></div>';
+  if(!list.length) h += '<div class="r69-empty">' + (D.q ? 'Никого не нашлось' : 'Долгов и штрафов нет') + '</div>';
+  list.forEach(function(r){
+    var o = !!D.open[r.id];
+    h += '<div class="r69-tr r69-row' + (o ? ' open' : '') + '" data-r69row="' + r.id + '" tabindex="0" role="button" aria-expanded="' + o + '">' +
+      '<span class="r69-nm"><i>' + E(r.name) + '</i><em>' + (r.former ? 'бывший' : (r.format === 'Онлайн' ? 'онлайн' : 'офлайн')) + '</em></span>' +
+      '<span class="n' + (r.debt ? ' red' : ' m') + '">' + nf(r.debt) + '</span>' +
+      '<span class="n' + (r.finesOpen ? ' red' : ' m') + '">' + nf(r.finesOpen) + '</span>' +
+      '<span class="n' + (r.total ? ' red' : ' m') + '">' + nf(r.total) + '</span>' +
+      '<span class="n m">' + nf(r.paidTotal) + '</span>' +
+      '<span class="m">' + (r.lastPayDay ? E(dmy(r.lastPayDay)) + ' · ' + nf(r.lastPaySum) : 'нет') + '</span><span class="r69-ar">›</span></div>';
+    if(o) h += detHTML(r);
+  });
+  if(list.length > 1) h += '<div class="r69-tr r69-tot"><span>Итого: ' + nf(list.length) + '</span><span class="n">' + nf(tot.debt) + '</span><span class="n">' + nf(tot.fines) + '</span><span class="n">' + nf(tot.total) + '</span><span class="n">' + nf(tot.paid) + '</span><span></span><span></span></div>';
+  return h + '</div>';
+}
+function paint(){
+  var el = host(); if(!el) return;
+  if(D.st === 'loading' || D.st === 'idle'){ el.innerHTML = '<div class="fx-empty"><b>Загружаем долги и штрафы…</b>Резиденты, штрафы и оплаты с сервера</div>'; return; }
+  if(D.st === 'error'){ el.innerHTML = '<div class="fx-empty"><b>Не загрузилось</b>' + E(D.err || '') + '<div style="margin-top:14px"><button class="fx-btn" data-r69="reload">Обновить</button></div></div>'; return; }
+  el.innerHTML = kpiHTML() + '<div class="r69-hint">Каждая оплата из ДДС (приложение, бот, форма «Приход», таблица) сама гасит долг резидента по статье: штраф гасит самые старые неоплаченные штрафы, членство гасит остаток входа, затем продление. Правка или удаление строки ДДС пересчитывает всё.</div>' +
+    toolsHTML() + '<div id="r69Body">' + tableHTML() + unlinkedHTML() + '</div>';
+}
+// Поиск и фильтры перерисовывают только таблицу: поле поиска не теряет курсор
+function paintBody(){
+  var b = document.getElementById('r69Body'); if(!b){ paint(); return; }
+  b.innerHTML = tableHTML() + unlinkedHTML();
+  document.querySelectorAll('#r69Debts [data-r69f]').forEach(function(x){ x.classList.toggle('on', x.dataset.r69f === D.f); });
+}
+function reloadSoon(){ setTimeout(function(){ load(true); try{ if(window.BSSync && BSSync.refresh) BSSync.refresh(); }catch(e){} }, 300); }
+
+// Оплата из формы «Приход»: когда форма закрылась, данные перечитываются
+function payForm(name, kind){
+  if(typeof fxOpForm !== 'function'){ toastS('Форма прихода не загрузилась'); return; }
+  var cats = typeof fxCatList === 'function' ? fxCatList('incomeCat').map(function(x){ return x.v; }) : [];
+  var want = kind === 'fine' ? /штраф/i : /трекинг.*продлен|продлен/i;
+  var cat = cats.filter(function(c){ return want.test(c); })[0] || (kind === 'fine' ? 'БХ Штраф' : 'БХ Трекинг продление');
+  fxOpForm('income', {res: name, cat: cat});
+  var t = setInterval(function(){ if(typeof fxOpIsOpen === 'function' && !fxOpIsOpen()){ clearInterval(t); reloadSoon(); } }, 800);
+}
+function act(b){
+  var a = b.dataset.r69;
+  if(a === 'reload'){ load(true); return; }
+  if(a === 'pay'){ payForm(b.dataset.n, b.dataset.k); return; }
+  if(a === 'fine'){ D.form = {fine: +b.dataset.id}; paintBody(); setTimeout(function(){ var x = document.getElementById('r69FA'); if(x) x.focus(); }, 30); return; }
+  if(a === 'fine-x' || a === 'wo-x'){ D.form = {}; paintBody(); return; }
+  if(a === 'fine-ok'){
+    var amount = String((document.getElementById('r69FA') || {}).value || '').replace(/\D/g, ''), type = (document.getElementById('r69FT') || {}).value || 'Штраф';
+    var m = document.getElementById('r69FM');
+    if(!(+amount > 0)){ if(m) m.textContent = 'Введите сумму'; return; }
+    b.disabled = true;
+    BSSync.club('addFine', {name: b.dataset.n, type: type, amount: amount}).then(function(r){
+      b.disabled = false;
+      if(r && r.ok){ D.form = {}; toastS('Штраф начислен: ' + tg(+amount)); reloadSoon(); } else if(m) m.textContent = (r && (r.detail || r.error)) || 'Не получилось';
+    });
+    return;
+  }
+  if(a === 'wo'){ D.form = {wo: +b.dataset.id}; paintBody(); setTimeout(function(){ var x = document.getElementById('r69WoR'); if(x) x.focus(); }, 30); return; }
+  if(a === 'wo-ok'){
+    var reason = String((document.getElementById('r69WoR') || {}).value || '').trim(), mm = document.getElementById('r69WoM');
+    if(!reason){ if(mm) mm.textContent = 'Напишите причину: она останется в истории штрафа'; return; }
+    b.disabled = true;
+    api('POST', '/fines/writeoff', {id: +b.dataset.id, reason: reason}).then(function(x){
+      b.disabled = false;
+      if(x.ok){ D.form = {}; toastS('Штраф списан'); reloadSoon(); } else if(mm) mm.textContent = (x.j && (x.j.detail || x.j.error)) || 'Не получилось';
+    });
+    return;
+  }
+  if(a === 'link'){
+    var sel = document.querySelector('[data-r69sel="' + b.dataset.id + '"]'), who = sel && sel.value;
+    if(!who){ toastS('Выберите резидента'); if(sel) sel.focus(); return; }
+    b.disabled = true;
+    api('POST', '/dds/link', {id: +b.dataset.id, resident: who}).then(function(x){
+      b.disabled = false;
+      if(!x.ok){ toastS((x.j && x.j.detail) || 'Не получилось привязать'); return; }
+      toastS(x.j.paid ? 'Привязано к ' + who + ', погашено ' + tg(x.j.paid) : 'Привязано к ' + who + (x.j.why ? ': ' + x.j.why : ''));
+      reloadSoon();
+    });
+  }
+}
+document.addEventListener('click', function(ev){
+  if(!ev.target.closest || !ev.target.closest('#r69Debts')) return;
+  var b = ev.target.closest('[data-r69]'); if(b){ ev.preventDefault(); act(b); return; }
+  var f = ev.target.closest('[data-r69f]'); if(f){ D.f = f.dataset.r69f; remember(); paintBody(); return; }
+  var s = ev.target.closest('[data-r69s]'); if(s){ D.sort = s.dataset.r69s; remember(); var so = document.getElementById('r69Sort'); if(so) so.value = D.sort; paintBody(); return; }
+  if(ev.target.closest('.r69-det')) return;
+  var r = ev.target.closest('[data-r69row]'); if(r){ var id = r.dataset.r69row; D.open[id] = !D.open[id]; D.form = {}; paintBody(); }
+});
+document.addEventListener('keydown', function(ev){
+  var r = ev.target.closest && ev.target.closest('[data-r69row]');
+  if(r && (ev.key === 'Enter' || ev.key === ' ')){ ev.preventDefault(); var id = r.dataset.r69row; D.open[id] = !D.open[id]; paintBody(); }
+});
+document.addEventListener('input', function(ev){ if(ev.target && ev.target.id === 'r69Q'){ D.q = ev.target.value; paintBody(); } });
+document.addEventListener('change', function(ev){ if(ev.target && ev.target.id === 'r69Sort'){ D.sort = ev.target.value; remember(); paintBody(); } });
+
+window.r69Debts = {mount: function(){ load(false); }, reload: function(){ load(true); }};
+// Из Клуба (карточка резидента, список): «Учёт → Долги и штрафы», сразу с поиском по имени
+window.r69OpenDebts = function(name){
+  D.q = name || ''; if(name){ D.f = 'all'; }
+  if(window.FX) FX.tab = 'debts';
+  try{ localStorage.setItem('bs_fx_tab', 'debts'); }catch(e){}
+  if(D.rep && name){ D.rep.residents.forEach(function(r){ if(r.name === name) D.open[r.id] = true; }); }
+  else if(name) D._openName = name;
+  try{ if(typeof goBlock === 'function') goBlock('fin'); }catch(e){}
+  goSection('pl');
+  try{ if(typeof fxTab === 'function') fxTab('debts'); }catch(e){}
+};
+})();
+</script>
+<script id="r69Money">
+// R69: «Добавь везде, чтобы цифры были раздельные». Любое поле суммы (data-money, ₸/тенге/сумма/тариф/цена
+// в подписи или подсказке) показывает тысячи через пробел прямо при вводе: «1 500 000». Код, который читает
+// такое поле, получает цифры без пробелов (value поля отдаёт «1500000»), курсор остаётся у той же цифры.
+(function(){
+'use strict';
+var P = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+if(!P || !P.get || !P.set) return;
+var SKIP = /^(fxoAmt|r23|lhPh|cl57Ph|r51sBD)/;
+function labelOf(inp){
+  var t = (inp.getAttribute('placeholder') || '') + ' ' + (inp.getAttribute('aria-label') || '');
+  var prev = inp.previousElementSibling; if(prev && prev.tagName !== 'INPUT') t += ' ' + (prev.textContent || '').slice(0, 60);
+  var lb = inp.closest('label'); if(lb) t += ' ' + (lb.textContent || '').slice(0, 60);
+  return t;
+}
+function isMoney(inp){
+  if(!inp || inp.tagName !== 'INPUT' || inp._r69m === 0) return false;
+  if(inp._r69m) return true;
+  var ty = (inp.getAttribute('type') || 'text').toLowerCase();
+  if(inp.dataset.money === '1' || inp.dataset.money === 'true') return true;
+  if(inp.dataset.money === '0' || inp.classList.contains('fx-ed') || SKIP.test(inp.id || '') || inp.closest('.fxo')) return false;
+  if(ty !== 'text' && ty !== 'number' && ty !== '') return false;
+  if(inp.classList.contains('gsh-in') || (inp.classList.contains('fc-in') && inp.classList.contains('m'))) return true;
+  if(/^(fnAmount|glFrom|glTo|tkPrice|spSum|slsPrice|r51sYP|r51sQP|r38cSPr_)/.test(inp.id || '') || inp.dataset.k === 'razborPrice') return true;
+  var t = labelOf(inp);
+  return /₸|тенге|сумм|тариф|цена|стоимост|оплачено|выручк|бюджет|\d{1,3} \d{3}/i.test(t) && !/телефон|chat|дней|дня|встреч|минут|процент|%/i.test(t);
+}
+function fmt(raw){
+  var neg = /^\s*[−-]/.test(raw), s = String(raw).replace(/[\s  ]/g, ''), m = s.match(/^[−-]?(\d*)([.,]\d*)?$/);
+  if(!m) return null;
+  var int = m[1].replace(/^0+(?=\d)/, '');
+  return (neg ? '−' : '') + int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (m[2] || '');
+}
+function install(inp){
+  if(inp._r69m) return;
+  inp._r69m = 1;
+  if((inp.getAttribute('type') || '').toLowerCase() === 'number'){ inp.setAttribute('type', 'text'); if(!inp.getAttribute('inputmode')) inp.setAttribute('inputmode', 'numeric'); }
+  Object.defineProperty(inp, 'value', {configurable: true,
+    get: function(){ return P.get.call(this).replace(/[\s  ]/g, '').replace(/^−/, '-'); },
+    set: function(v){ var f = fmt(v == null ? '' : String(v)); P.set.call(this, f == null ? String(v == null ? '' : v) : f); }});
+  var f = fmt(P.get.call(inp)); if(f != null && f !== P.get.call(inp)) P.set.call(inp, f);
+}
+function live(inp){
+  var v = P.get.call(inp), pos = inp.selectionStart == null ? v.length : inp.selectionStart;
+  var clean = v.replace(/[^\d\s  ,.−-]/g, ''), dig = v.slice(0, pos).replace(/[^\d,.]/g, '').length;
+  var f = fmt(clean); if(f == null) f = clean;
+  if(f === v) return;
+  P.set.call(inp, f);
+  var p = 0, seen = 0; while(p < f.length && seen < dig){ if(/[\d,.]/.test(f[p])) seen++; p++; }
+  try{ inp.setSelectionRange(p, p); }catch(e){}
+}
+document.addEventListener('focusin', function(ev){ var t = ev.target; if(isMoney(t)) install(t); else if(t && t.tagName === 'INPUT' && t._r69m == null) t._r69m = 0; }, true);
+document.addEventListener('input', function(ev){ var t = ev.target; if(t && t._r69m === 1) live(t); }, true);
+window.r69MoneyFmt = fmt;
+window.r69IsMoney = isMoney;
+})();
+</script>
+<!-- /R69 -->
 <!-- /R59 -->
 <!-- R63: удалить саммари и запись разбора (подтверждение на карточке, задачи по галочке), «короткая запись» до 3 минут, «Отправить в WhatsApp» -->
 <style id="r63Style">

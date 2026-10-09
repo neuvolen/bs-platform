@@ -91,6 +91,10 @@ func (r *ClubRepo) ReplaceAllThen(ctx context.Context, s *club.Snapshot, by stri
 	if master == "server" && !forcedReplace(ctx) {
 		return ErrServerIsMaster
 	}
+	// R69: the ledger belongs to the rows the import replaces
+	if _, err := tx.Exec(ctx, `TRUNCATE club_pay_alloc`); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `TRUNCATE club_residents, club_payments, club_fines, club_meetings,
 		club_reports, club_meeting_log, club_settings, club_pl_rows RESTART IDENTITY`); err != nil {
 		return err
@@ -254,26 +258,30 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 	}
 	rows.Close()
 
-	rows, err = r.db.Pool.Query(ctx, `SELECT resident, type, amount, date, paid, COALESCE(sheet_row,0), status FROM club_fines ORDER BY id`)
+	rows, err = r.db.Pool.Query(ctx, `SELECT resident, type, amount, date, paid, COALESCE(sheet_row,0), status,
+		amount - COALESCE((SELECT sum(x.amount) FROM club_pay_alloc x WHERE x.fine_id = club_fines.id), 0)
+		FROM club_fines ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		var f club.Fine
 		var d *time.Time
-		if err := rows.Scan(&f.Name, &f.Type, &f.Amount, &d, &f.Paid, &f.Row, &f.Status); err != nil {
+		var owed int64
+		if err := rows.Scan(&f.Name, &f.Type, &f.Amount, &d, &f.Paid, &f.Row, &f.Status, &owed); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		if d != nil {
 			f.Date = *d2t(d)
 		}
+		f.Owed = &owed // R69: the ledger's part paid
 		s.Fines = append(s.Fines, f)
 	}
 	rows.Close()
 
 	rows, err = r.db.Pool.Query(ctx, `SELECT resident, date, time, place, link, online, sent_3d, sent_1d, sent_1h, done, event_id,
-		COALESCE(sheet_row,0), addr_cell, link_cell, h_cell
+		COALESCE(sheet_row,0), addr_cell, link_cell, h_cell, status
 		FROM club_meetings ORDER BY date, time, id`)
 	if err != nil {
 		return nil, err
@@ -282,7 +290,7 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 		var m club.Meeting
 		var d time.Time
 		if err := rows.Scan(&m.Resident, &d, &m.Time, &m.Place, &m.Link, &m.Online, &m.Sent3d, &m.Sent1d, &m.Sent1h, &m.Done, &m.EventID,
-			&m.Row, &m.AddrCell, &m.LinkCell, &m.HCell); err != nil {
+			&m.Row, &m.AddrCell, &m.LinkCell, &m.HCell, &m.Status); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -334,7 +342,7 @@ type DoneMeeting struct {
 func (r *ClubRepo) DoneMeetings(ctx context.Context) ([]DoneMeeting, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT resident, to_char(date, 'DD.MM'), time FROM club_meetings
-		 WHERE done AND date >= current_date - 7
+		 WHERE (done OR status = 'noshow') AND date >= current_date - 7
 		UNION ALL
 		SELECT resident, to_char(date, 'DD.MM'), '*' FROM club_meeting_log
 		 WHERE date >= current_date - 7`)

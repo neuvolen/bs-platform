@@ -408,7 +408,7 @@ func (g *AppGateway) Call(c *gin.Context) {
 		body := g.Writes.Do(c.Request.Context(), "app", u, action, q, team)
 		g.dropBundles()
 		g.logOp(c.Request.Context(), "app", u, action, q, body)
-		if action == "confirmMeeting" || action == "markAttendance" {
+		if action == "confirmMeeting" || action == "markAttendance" || action == "missMeeting" {
 			g.noteDone(action, map[string]string{"res": in.Get("res"), "date": in.Get("date"), "time": in.Get("time"), "names": in.Get("names")})
 		}
 		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
@@ -426,7 +426,7 @@ func (g *AppGateway) Call(c *gin.Context) {
 		g.dropBundles()
 		g.logOp(c.Request.Context(), "app", u, action, q, body)
 	}
-	if action == "confirmMeeting" || action == "markAttendance" {
+	if action == "confirmMeeting" || action == "markAttendance" || action == "missMeeting" {
 		g.noteDone(action, map[string]string{"res": in.Get("res"), "date": in.Get("date"), "time": in.Get("time"), "names": in.Get("names")})
 	}
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)

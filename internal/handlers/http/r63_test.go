@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
@@ -154,54 +153,4 @@ func TestR63DeleteAndShareCall(t *testing.T) {
 	if w := do("DELETE", "/ai/calls/"+id, nil); w.Code != 404 {
 		t.Fatalf("second delete: %d", w.Code)
 	}
-}
-
-// R63: Альтаир's 07.10 payment (entered before R59) is counted at the start,
-// once; the other payments since the cutover are counted when clear.
-func TestR63DebtFixAtStart(t *testing.T) {
-	e := newOffEnv(t, "server", nil)
-	ctx := context.Background()
-	meta := pg.NewBotRepo(e.db)
-	if _, err := e.db.Pool.Exec(ctx, `UPDATE club_residents SET renew_debt = 50000, rest_entry = 0 WHERE name = 'Альтаир'`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.db.Pool.Exec(ctx, `UPDATE club_residents SET renew_debt = 40000, rest_entry = 0 WHERE name = 'Асет'`); err != nil {
-		t.Fatal(err)
-	}
-	_ = meta.SetMeta(ctx, metaCutover, "done:2026-10-04T10:00:00Z")
-	_, _ = e.db.Pool.Exec(ctx, `DELETE FROM club_payments WHERE date >= '2026-10-01'`)
-	ins := func(date string, amount int64, cat, res string) {
-		if _, err := e.db.Pool.Exec(ctx, `INSERT INTO club_payments (date, income, income_cat, resident, source) VALUES ($1,$2,$3,$4,'server')`, date, amount, cat, res); err != nil {
-			t.Fatal(err)
-		}
-	}
-	ins("2026-10-07", 50000, "БХ Трекинг продление", "Альтаир")
-	ins("2026-10-06", 40000, "БХ Трекинг продление", "асет")    // clear: counted
-	ins("2026-10-06", 15000, "БХ Экспресс разбор", "Асет")      // not membership: left
-	ins("2026-10-05", 10000, "БХ Трекинг", "Никто Неизвестный") // no resident: left
-	ins("2026-09-20", 30000, "БХ Трекинг продление", "Асет")    // before the cutover: not touched
-	debt := func(name string) int {
-		return e.n(`SELECT rest_entry + renew_debt FROM club_residents WHERE name = $1`, name)
-	}
-	refreshed := 0
-	DebtFixAtStart(ctx, e.repo, meta, func() { refreshed++ })
-	if d := debt("Альтаир"); d != 0 {
-		t.Fatalf("Альтаир debt %d", d)
-	}
-	if d := debt("Асет"); d != 0 {
-		t.Fatalf("Асет debt %d", d)
-	}
-	if n := e.n(`SELECT count(*) FROM club_payments WHERE date >= '2026-10-01' AND applied`); n != 2 || refreshed != 1 {
-		t.Fatalf("applied %d, refreshed %d", n, refreshed)
-	}
-	if n := e.n(`SELECT count(*) FROM club_payments WHERE date = '2026-09-20' AND applied`); n != 0 {
-		t.Fatal("a payment before the cutover was counted")
-	}
-	// again (a restart): nothing more, even with a new debt
-	_, _ = e.db.Pool.Exec(ctx, `UPDATE club_residents SET renew_debt = 50000 WHERE name = 'Альтаир'`)
-	DebtFixAtStart(ctx, e.repo, meta, func() { refreshed++ })
-	if d := debt("Альтаир"); d != 50000 || refreshed != 1 {
-		t.Fatalf("second start changed the debt: %d (%d)", d, refreshed)
-	}
-	_ = time.Now
 }

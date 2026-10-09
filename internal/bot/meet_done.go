@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/club"
+	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 )
 
 // R67: «Я в приложении отметил встречу, а бот спустя время спросил
@@ -73,7 +74,7 @@ func MeetDoneAsks(meetings []club.Meeting, logged map[string]bool, now time.Time
 	var order []string
 	for _, m := range meetings {
 		name := strings.TrimSpace(m.Resident)
-		if m.Done || name == "" || club.ClockTime(m.Time) == "" {
+		if m.Done || m.Status != "" || name == "" || club.ClockTime(m.Time) == "" {
 			continue
 		}
 		d := m.Date.In(club.Almaty)
@@ -154,4 +155,34 @@ func (s *Service) calendarHook() CalendarHook {
 		return v.(CalendarHook)
 	}
 	return nil
+}
+
+// maybeNoShowNotes: R69: a resident marked «не пришёл без предупреждения»
+// gets one message about the 50 000 fine (claimed before sending: never twice).
+func (s *Service) maybeNoShowNotes(ctx context.Context) ([]string, error) {
+	if club.SheetLegacy() {
+		return nil, nil
+	}
+	cr := s.repo.Club()
+	list, err := cr.NoShowPending(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var sent []string
+	for _, n := range list {
+		if n.TgID == 0 && s.WhatsAppPhone(ctx, n.Resident) == "" {
+			continue // nobody to tell: stays pending for 3 days (the chat may be added)
+		}
+		ok, err := cr.ClaimNoShowNote(ctx, n.ID)
+		if err != nil || !ok {
+			continue
+		}
+		txt := pg.NoShowText(n.Resident, n.Amount, n.Note, KaspiLink)
+		if err := s.SendResident(ctx, "noshow", fmt.Sprint(n.ID), n.Resident, n.TgID, txt, appButton("fines")); err != nil {
+			log.Printf("bot no-show note to %s: %v", n.Resident, err)
+			continue
+		}
+		sent = append(sent, n.Resident)
+	}
+	return sent, nil
 }

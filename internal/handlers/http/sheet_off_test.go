@@ -338,7 +338,8 @@ func TestSheetOffDayWithoutScript(t *testing.T) {
 	if n := e.n(`SELECT count(*) FROM club_payments WHERE resident = 'Альтаир' AND income = 10000`); n != 1 {
 		t.Fatalf("payment rows %d", n)
 	}
-	if n := e.n(`SELECT count(*) FROM club_fines WHERE resident = 'Альтаир' AND date = $1`, day.Format("2006-01-02")); n != 0 {
+	// R69: a paid fine stays in the history as «Оплатил» (the ledger has the payment)
+	if n := e.n(`SELECT count(*) FROM club_fines WHERE resident = 'Альтаир' AND date = $1 AND status <> 'Оплатил'`, day.Format("2006-01-02")); n != 0 {
 		t.Fatalf("the paid fine is still open")
 	}
 

@@ -491,9 +491,9 @@ func (s *Service) finesText(ctx context.Context) string {
 	sum := map[string]int64{}
 	var total int64
 	for _, f := range snap.Fines {
-		if !f.Paid {
-			sum[f.Name] += f.Amount
-			total += f.Amount
+		if d := f.Due(); d > 0 { // R69: a part paid or written off
+			sum[f.Name] += d
+			total += d
 		}
 	}
 	if len(sum) == 0 {

@@ -41,6 +41,7 @@ var clubActions = map[string][]string{
 	"deleteSchedule":  {"res", "date", "time"},
 	"updateMeeting":   {"oldRes", "oldDate", "oldTime", "newDate", "newTime"},
 	"confirmMeeting":  {"res", "date", "time"},
+	"missMeeting":     {"res", "date", "time"}, // R69: не пришёл без предупреждения: штраф 50 000
 	"markAttendance":  {"names", "date"},
 	"addOfflineGroup": {"date", "time"},
 	"setMeetings":     {"name", "done", "granted"},
@@ -189,7 +190,7 @@ func validateClubAction(action string, p map[string]string) string {
 		if action == "updateFine" && p["status"] == "" {
 			p["status"] = "Оплатил"
 		}
-	case "deleteSchedule", "confirmMeeting":
+	case "deleteSchedule", "confirmMeeting", "missMeeting":
 		if p["res"] == "" || p["date"] == "" {
 			return "нужны резидент и дата встречи"
 		}

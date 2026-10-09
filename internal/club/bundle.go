@@ -210,9 +210,7 @@ func AppBundle(s *Snapshot, now time.Time) (map[string]any, []string) {
 	// ═══ РЕЗИДЕНТЫ: только лист дебета, как в таблице ═══
 	unpaid := map[string]int64{}
 	for _, f := range s.Fines {
-		if !f.Paid {
-			unpaid[NormName(f.Name)] += f.Amount
-		}
+		unpaid[NormName(f.Name)] += f.Due() // R69
 	}
 	residents := []BundleResident{}
 	formats := map[string]string{}
@@ -283,8 +281,8 @@ func AppBundle(s *Snapshot, now time.Time) (map[string]any, []string) {
 				b.Status = "Оплатил"
 			}
 		}
-		if b.Status != "Оплатил" {
-			unpaidSum += b.Amount
+		if b.Status != "Оплатил" && b.Status != "Списан" {
+			unpaidSum += f.Due() // R69: a part paid by the ledger is not owed
 			unpaidCnt++
 		}
 		fines = append(fines, b)

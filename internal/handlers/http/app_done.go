@@ -53,7 +53,7 @@ func (g *AppGateway) noteDone(action string, p map[string]string) {
 	}
 	now := g.now()
 	switch action {
-	case "confirmMeeting":
+	case "confirmMeeting", "missMeeting":
 		if p["res"] != "" && ddmm(p["date"]) != "" {
 			g.done[doneKey(p["res"], p["date"], p["time"])] = now
 			if strings.TrimSpace(p["time"]) == "" {

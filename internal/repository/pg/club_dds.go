@@ -234,6 +234,8 @@ func (r *ClubRepo) DDSApply(ctx context.Context, ops []DDSOp, who string, now ti
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	res := &DDSResult{IDs: map[string]int64{}, Rows: []DDSRow{}, Deleted: []int64{}}
+	a := &applier{ctx: ctx, tx: tx, at: now}
+	money := map[int64]bool{} // R69: rows whose sum, category, resident or date changed
 	touched := map[int64]bool{}
 	var order []int64
 	touch := func(id int64) {
@@ -281,6 +283,14 @@ func (r *ClubRepo) DDSApply(ctx context.Context, ops []DDSOp, who string, now ti
 			if len(set) == 0 {
 				continue
 			}
+			for _, k := range []string{"income", "income_cat", "resident", "date"} {
+				if _, ok := set[k]; ok {
+					money[op.ID] = true
+				}
+			}
+			if _, ok := set["resident"]; ok {
+				set["resident_id"] = nil // another name: matched again
+			}
 			parts := []string{"updated_at = $2", "updated_by = $3"}
 			args := []any{op.ID, now, who}
 			for c, v := range set {
@@ -299,6 +309,10 @@ func (r *ClubRepo) DDSApply(ctx context.Context, ops []DDSOp, who string, now ti
 			if op.ID <= 0 {
 				return nil, &ErrDDSInput{fmt.Sprintf("строка %d: нет id", i+1)}
 			}
+			// R69: what the row paid owes again (its ledger lines go back)
+			if _, err := a.unallocate(op.ID); err != nil {
+				return nil, err
+			}
 			// Deleting a row that is already gone is not an error (two people, a retry)
 			if _, err := tx.Exec(ctx, `DELETE FROM club_payments WHERE id = $1`, op.ID); err != nil {
 				return nil, err
@@ -309,35 +323,23 @@ func (r *ClubRepo) DDSApply(ctx context.Context, ops []DDSOp, who string, now ti
 			return nil, &ErrDDSInput{fmt.Sprintf("строка %d: действие %q", i+1, op.Op)}
 		}
 	}
-	// R59: a new income row naming a resident pays off their debt at once, as a
-	// payment entered in the app does; an edited row is linked by hand
-	// («Привязать платёж»), so a correction never counts the money twice.
-	// Only rows of the last 7 days: a pasted block of old rows is history.
+	// R69: a new row, or an edit of its sum, category, resident or date, is
+	// applied by the one model (club_alloc.go): no time window, the ledger
+	// says what the row already paid, an edit takes it back first.
 	inserted := map[int64]bool{}
 	for _, id := range res.IDs {
 		inserted[id] = true
 	}
 	for _, id := range order {
-		if !touched[id] || !inserted[id] {
+		if !touched[id] || (!inserted[id] && !money[id]) {
 			continue
 		}
-		var income int64
-		var cat, who string
-		var d time.Time
-		if err := tx.QueryRow(ctx, `SELECT income, income_cat, resident, date FROM club_payments WHERE id = $1`, id).Scan(&income, &cat, &who, &d); err != nil {
+		var cnt int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM club_payments WHERE id = $1`, id).Scan(&cnt); err != nil || cnt == 0 {
+			continue
+		}
+		if _, err := a.autoAllocate(id, !inserted[id], who); err != nil {
 			return nil, err
-		}
-		if d.Format("2006-01-02") < now.In(club.Almaty).AddDate(0, 0, -7).Format("2006-01-02") {
-			continue
-		}
-		if income <= 0 || strings.TrimSpace(who) == "" || strings.Contains(cat, "Штраф") {
-			continue
-		}
-		a := &applier{ctx: ctx, tx: tx, at: now}
-		if rr, err := a.matchResident(who); err == nil {
-			if _, err := a.payDebt(id, rr, income); err != nil {
-				return nil, err
-			}
 		}
 	}
 	for _, id := range order {
