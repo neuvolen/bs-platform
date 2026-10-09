@@ -53,6 +53,7 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		cancel()
 		m.AI.Premium.Start(context.Background())
 		go m.AI.EventsLoop(context.Background())
+		go m.AI.TGEventsLoop(context.Background()) // platform_tgevents.go (R70)
 		go m.AI.LoadEmbedded(context.Background(), a.botToken)
 		go m.AI.SeedGuides(context.Background())
 		go m.AI.MigrateRazborPrice(context.Background()) // price_migrate.go

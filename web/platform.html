@@ -1962,6 +1962,11 @@ body.light .ev-dh{background:rgba(0,0,0,.035)}
 .ev-dh::first-letter{text-transform:uppercase}
 .ev-past{opacity:.6}
 .ev-n{opacity:.55;margin-left:4px}
+.ev-dl{display:inline-block;margin-top:5px;padding:2px 8px;border-radius:7px;font-size:11.5px;font-weight:800;color:var(--ptx);background:rgba(255,196,0,.14);border:1px solid rgba(255,196,0,.35)}
+.ev-ds{font-size:12px;color:var(--pm);margin-top:4px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ev-src{margin:0 0 14px;font-size:12px;color:var(--pm);line-height:1.6;overflow-wrap:anywhere}
+.ev-src b{color:var(--ptx)}
+.ev-src .bad{color:#FF6B6F}
 @media(max-width:900px){.ev-row{grid-template-columns:52px minmax(0,1fr)}.ev-a{grid-column:2;justify-content:flex-start}}
 
 /* PL и ОДДС как в Google Sheets */
@@ -16578,21 +16583,24 @@ function renderEvents(){
   var shown = items.filter(function(x){ return !evTag || (x.tags || []).indexOf(evTag) >= 0; });
   var up = shown.filter(function(x){ return !x.date || x.date >= todayS; })
     .sort(function(a, b){ return String(a.date || '9999').localeCompare(String(b.date || '9999')) || String(a.time || '').localeCompare(String(b.time || '')); });
-  var past = shown.filter(function(x){ return x.date && x.date < todayS; })
-    .sort(function(a, b){ return String(b.date).localeCompare(String(a.date)); });
   var upd0 = feed.updated ? new Date(feed.updated) : null;
-  var el = pgSet('Мероприятия', 'Обновляется каждый день в 08:00 · ' + (upd0 && !isNaN(upd0) ? 'обновлено ' + evWhen(upd0) : 'ещё не обновлялось') +
-    ' · ' + ours.length + ' наших · ' + up.length + ' ближайших в Алматы');
+  var nOpp = up.filter(function(x){ return x.kind === 'возможность'; }).length;
+  var el = pgSet('Мероприятия', 'Сайты каждый день в 08:00, Telegram-каналы каждые 2–3 часа, прошедшие удаляются · ' + (upd0 && !isNaN(upd0) ? 'обновлено ' + evWhen(upd0) : 'ещё не обновлялось') +
+    ' · ' + ours.length + ' наших · ' + (up.length - nOpp) + ' мероприятий · ' + nOpp + ' возможностей');
   function feedRow(x){
     var fi = feed.items.indexOf(x);
-    var meta = [x.time, x.place].filter(Boolean).join(' · ');
+    var opp = x.kind === 'возможность';
+    var dl = opp ? 'Приём заявок до ' + evDM(x.deadline || x.date) : (x.deadline && x.deadline !== x.date ? 'Регистрация до ' + evDM(x.deadline) : '');
     return '<div class="ev-row">' +
-      '<div class="ev-tm">' + esc(x.time || '') + '</div>' +
-      '<div class="ev-b"><div class="ev-t">' + esc(x.title) + '</div>' +
-        '<div class="ev-m">' + esc([x.place, x.price ? (/^\d[\d\s]*$/.test(String(x.price)) ? money(String(x.price)) + ' ₸' : x.price) : '', x.source].filter(Boolean).join(' · ')) + '</div>' +
+      '<div class="ev-tm">' + esc(opp ? 'до' : (x.time || '')) + '</div>' +
+      '<div class="ev-b">' + (opp ? '<div class="ev-o">Возможность</div>' : '') + '<div class="ev-t">' + esc(x.title) + '</div>' +
+        '<div class="ev-m">' + esc([x.place || (x.online ? 'Онлайн' : ''), x.org, x.price ? (/^\d[\d\s]*$/.test(String(x.price)) ? money(String(x.price)) + ' ₸' : x.price) : '', x.source].filter(Boolean).join(' · ')) + '</div>' +
+        (dl ? '<div class="ev-dl">' + esc(dl) + '</div>' : '') +
+        (x.desc ? '<div class="ev-ds">' + esc(x.desc) + '</div>' : '') +
         ((x.tags || []).length ? '<div class="pf-chips">' + x.tags.map(function(t){ return '<span class="pf-chip">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
       '</div>' +
       '<div class="ev-a">' + (x.url ? '<a class="btn pf-b" href="' + esc(x.url).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">Открыть</a>' : '') +
+        (x.post && x.post !== x.url ? '<a class="btn pf-b" href="' + esc(x.post).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">Пост</a>' : '') +
         (adm ? '<button class="btn pf-b" onclick="evToOurs(' + fi + ')">Добавить в наши</button>' : '') + '</div>' +
     '</div>';
   }
@@ -16618,16 +16626,45 @@ function renderEvents(){
         '<div class="ev-a">' + (e.url ? '<a class="btn pf-b" href="' + esc(e.url).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">Открыть</a>' : '') + '</div>' +
       '</div>';
     }).join('') + '</div>' : '<div class="pf-empty">Своих мероприятий пока нет</div>') +
-    '<div class="ev-sec-h" style="margin-top:28px"><div><div class="pf-lbl" style="margin:0">Мероприятия Алматы</div>' +
+    '<div class="ev-sec-h" style="margin-top:28px"><div><div class="pf-lbl" style="margin:0">Мероприятия и возможности</div>' +
       '<div class="pf-sub">' + (upd && !isNaN(upd) ? 'Обновлено ' + upd.toLocaleDateString('ru', {day:'2-digit', month:'long'}) + ' в ' + upd.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}) : 'Лента обновляется сервером') + '</div></div>' +
       (adm ? '<div class="ev-ref"><span id="evRefMsg" class="ev-ref-m">' + esc(EV_REF.busy ? 'Ищем мероприятия, обычно 1–3 минуты…' : '') + '</span>' +
+        '<button class="btn pf-b" onclick="evAddChannel()">+ Telegram-канал</button>' +
         '<button class="btn pf-b pf-p" id="evRefBtn" onclick="evRefresh()"' + (EV_REF.busy ? ' disabled' : '') + '>' + (EV_REF.busy ? '<span class="spin"></span>' : '') + 'Обновить сейчас</button></div>' : '') +
-    '</div>' + (adm && EV_REF.err && !EV_REF.busy ? evErrHTML(EV_REF.err) : '') +
+    '</div>' + (adm && EV_REF.err && !EV_REF.busy ? evErrHTML(EV_REF.err) : '') + (adm ? evSrcHTML(feed) : '') +
     (tagList.length ? '<div class="pf-filters" style="margin-bottom:14px">' +
       '<div class="pf-fl' + (!evTag ? ' on' : '') + '" onclick="evTag=\'\';renderEvents()">Все</div>' +
       tagList.map(function(t){ return '<div class="pf-fl' + (evTag === t ? ' on' : '') + '" onclick="evTag=\'' + esc(t).replace(/'/g, '') + '\';renderEvents()">' + esc(t) + ' <span class="ev-n">' + tags[t] + '</span></div>'; }).join('') + '</div>' : '') +
     (up.length ? '<div class="pf-tbl">' + grouped(up) + '</div>' : '<div class="pf-empty">Ближайших событий в ленте нет</div>') +
-    (past.length ? '<div class="dh" style="margin-top:22px">Прошедшие</div><div class="pf-tbl ev-past">' + grouped(past.slice(0, 20)) + '</div>' : '');
+    '';
+}
+// R70: Telegram-каналы ленты: состояние и добавление канала командой
+function evDM(ds){ var d = new Date(String(ds || '') + 'T00:00:00'); return isNaN(d) ? '' : d.toLocaleDateString('ru', {day:'numeric', month:'long'}); }
+function evSrcHTML(feed){
+  var tg = feed.tg || {}, keys = Object.keys(tg);
+  var extra = []; try{ extra = (JSON.parse(localStorage.getItem('bs_events_tg') || '{}').channels || []); }catch(e){}
+  if(!keys.length && !extra.length) return '';
+  var known = {};
+  var rows = keys.map(function(k){
+    var s = tg[k] || {}; if(s.username) known[String(s.username).toLowerCase()] = 1;
+    var at = s.at ? new Date(s.at) : null;
+    var nm = s.username ? '<a href="https://t.me/' + esc(s.username) + '" target="_blank" rel="noopener">@' + esc(s.username) + '</a>' : '';
+    return '<b>' + esc(s.name || k) + '</b>' + (nm ? ' ' + nm : '') + ': ' +
+      (s.err ? '<span class="bad">' + esc(s.err) + '</span>' : (Number(s.total) || 0) + ' в ленте' + (at && !isNaN(at) ? ', проверен ' + evWhen(at) : ''));
+  });
+  extra.forEach(function(u){ if(!known[String(u).toLowerCase()]) rows.push('<b>@' + esc(u) + '</b>: добавлен, будет прочитан при следующем обновлении'); });
+  return '<div class="ev-src">Telegram-каналы · ' + rows.join(' · ') + '</div>';
+}
+function evAddChannel(){
+  var v = prompt('Ссылка на публичный Telegram-канал (t.me/имя или @имя)'); if(!v) return;
+  var u = String(v).trim().replace(/^https?:\/\//, '').replace(/^(www\.)?(t|telegram)\.me\//, '').replace(/^s\//, '').replace(/^@/, '').split(/[\/?#]/)[0];
+  if(!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(u)){ toast('Не похоже на имя канала'); return; }
+  var d = {}; try{ d = JSON.parse(localStorage.getItem('bs_events_tg') || '{}') || {}; }catch(e){}
+  if(!Array.isArray(d.channels)) d.channels = [];
+  if(d.channels.some(function(x){ return String(x).toLowerCase() === u.toLowerCase(); })){ toast('Канал уже в списке'); return; }
+  d.channels.push(u);
+  try{ localStorage.setItem('bs_events_tg', JSON.stringify(d)); }catch(e){}
+  renderEvents(); toast('Канал @' + u + ' добавлен. Нажмите «Обновить сейчас», чтобы прочитать его');
 }
 // Обновить ленту сейчас: сервер ищет мероприятия (до минуты), лента bs_events_feed приходит синхронизацией
 var EV_REF = {busy:false, err:''};
@@ -27405,9 +27442,9 @@ html.lead-user #aiBadge,html.lead-user #bsxPill,html.lead-user #tr16Help,html.le
       '<a class="lh-b" href="' + E(bot.checklists || 'https://t.me/bsurgery_bot?start=99') + '" target="_blank" rel="noopener">' + ic(IC.tg, 16) + 'Открыть в боте BS</a></div>';
     var evh = '';
     if(ev.length){
-      evh = '<div class="lh-card"><h3 class="lh-ch">Ближайшие мероприятия</h3><p class="lh-cp">Открытые события для предпринимателей Алматы</p>' + ev.map(function(x){
+      evh = '<div class="lh-card"><h3 class="lh-ch">Ближайшие мероприятия</h3><p class="lh-cp">Открытые события и возможности для предпринимателей</p>' + ev.map(function(x){
         var p = String(x.date || '').split('-');
-        var meta = [x.time, x.place, x.price].filter(Boolean).map(E).join(' · ');
+        var meta = (x.kind === 'возможность' ? ['Возможность, приём заявок до этой даты', x.place, x.org] : [x.time, x.place, x.price]).filter(Boolean).map(E).join(' · ');
         return '<div class="lh-ev"><div class="lh-evd"><b>' + (+p[2] || '') + '</b><span>' + (MON[(+p[1] || 1) - 1]) + '</span></div><div><div class="lh-evt">' + E(x.title) + '</div>' + (meta ? '<div class="lh-evm">' + meta + '</div>' : '') + '</div>' +
           (x.url ? '<a href="' + E(x.url) + '" target="_blank" rel="noopener">Подробнее ' + ic(IC.ext, 12) + '</a>' : '<span></span>') + '</div>';
       }).join('') + '</div>';

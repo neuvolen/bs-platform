@@ -330,6 +330,15 @@ func toEvent(m map[string]any) Event {
 	} else {
 		e.Time = dt
 	}
+	e.Deadline, _ = normDate(str(m["deadline"]))
+	e.Kind, e.Org, e.Desc, e.Post = str(m["kind"]), str(m["org"]), str(m["desc"]), str(m["post"])
+	if e.Org == "" {
+		e.Org = str(m["organizer"])
+	}
+	if e.Desc == "" {
+		e.Desc = str(m["description"])
+	}
+	e.Online = m["online"] == true || strings.EqualFold(str(m["online"]), "true")
 	switch t := m["tags"].(type) {
 	case []any:
 		for _, x := range t {
@@ -350,6 +359,17 @@ func toEvent(m map[string]any) Event {
 // ParseEvents reads the model's answer: the upcoming events with a date and
 // a link, without doubles.
 func ParseEvents(ans string, from time.Time) ([]Event, error) {
+	return parseEvents(ans, from, true)
+}
+
+// ParseEventsLoose: the same for items read from a channel post: no link is
+// needed (the post itself is one), an opportunity without a date takes its
+// deadline as the date.
+func ParseEventsLoose(ans string, from time.Time) ([]Event, error) {
+	return parseEvents(ans, from, false)
+}
+
+func parseEvents(ans string, from time.Time, needURL bool) ([]Event, error) {
 	s := fenceRe.ReplaceAllString(ans, "")
 	blocks, open := jsonBlocks(s)
 	var raw []map[string]any
@@ -372,7 +392,13 @@ func ParseEvents(ans string, from time.Time) ([]Event, error) {
 	seen := map[string]bool{}
 	for _, m := range raw {
 		e := toEvent(m)
-		if e.Title == "" || len(e.Date) != 10 || e.Date < today || !strings.HasPrefix(e.URL, "http") {
+		if e.Date == "" && !needURL {
+			e.Date = e.Deadline
+		}
+		if e.URL != "" && !strings.HasPrefix(e.URL, "http") {
+			e.URL = ""
+		}
+		if e.Title == "" || len(e.Date) != 10 || e.Date < today || (needURL && e.URL == "") {
 			continue
 		}
 		k := strings.ToLower(e.Title) + e.Date

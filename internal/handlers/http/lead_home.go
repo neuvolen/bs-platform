@@ -186,7 +186,8 @@ func (h *LeadHome) events(ctx context.Context, now time.Time) []gin.H {
 			continue
 		}
 		out = append(out, gin.H{"title": lhStr(it, "title"), "date": lhStr(it, "date"), "time": lhStr(it, "time"),
-			"place": lhStr(it, "place"), "url": lhStr(it, "url"), "price": lhStr(it, "price")})
+			"place": lhStr(it, "place"), "url": lhStr(it, "url"), "price": lhStr(it, "price"),
+			"kind": lhStr(it, "kind"), "deadline": lhStr(it, "deadline"), "org": lhStr(it, "org")})
 		if len(out) >= 4 {
 			break
 		}

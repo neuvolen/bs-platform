@@ -860,6 +860,15 @@ type Event struct {
 	Price  string   `json:"price,omitempty"`
 	Source string   `json:"source,omitempty"`
 	Tags   []string `json:"tags,omitempty"`
+	// Telegram channels (tgevents): an opportunity (grant, programme, contest)
+	// has Kind "возможность" and its Date is the application deadline.
+	Kind     string `json:"kind,omitempty"`
+	Deadline string `json:"deadline,omitempty"` // YYYY-MM-DD, applications close
+	Org      string `json:"org,omitempty"`
+	Desc     string `json:"desc,omitempty"`
+	Online   bool   `json:"online,omitempty"`
+	Post     string `json:"post,omitempty"`   // the channel post it came from
+	Origin   string `json:"origin,omitempty"` // "tg" for a Telegram channel
 }
 
 const eventsPrompt = `Найди в интернете бизнес-мероприятия в Алматы на ближайшие %d дней, начиная с %s: конференции, форумы, нетворкинги, бизнес-завтраки, мастер-классы и лекции для предпринимателей, выставки.

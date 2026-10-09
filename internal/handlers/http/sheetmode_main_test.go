@@ -11,5 +11,7 @@ import (
 // (SHEET_MODE=legacy); the cutover tests switch to off themselves.
 func TestMain(m *testing.M) {
 	club.SetSheetMode(club.SheetModeLegacy)
+	// R70: no test reads the real Telegram channels; the channel tests set their own
+	tgSources = nil
 	os.Exit(m.Run())
 }

@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -291,18 +290,24 @@ func (h *PlatformAI) refreshEvents(ctx context.Context) (int, error) {
 		// Nothing usable: the feed stays as it was rather than going empty.
 		return 0, errors.New("ИИ не нашёл ни одного предстоящего мероприятия с датой и ссылкой, лента осталась прежней")
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].Date+items[i].Time < items[j].Date+items[j].Time })
-	val, _ := json.Marshal(map[string]any{"updated": time.Now().UTC().Format(time.RFC3339), "items": items})
-	for try := 0; try < 3; try++ {
-		base := 0
-		if d, err := h.repo.GetDoc(ctx, "club", eventsFeedKey); err == nil && d != nil {
-			base = d.Version
+	// R70: the events from Telegram channels stay; the web search replaces
+	// only its own; what has passed goes.
+	today := time.Now().In(loc).Format("2006-01-02")
+	err = h.mutateFeed(ctx, func(f *eventsFeed) {
+		pruneFeed(f, today)
+		var tg []ai.Event
+		for _, e := range f.Items {
+			if e.Origin == "tg" {
+				tg = append(tg, e)
+			}
 		}
-		if _, err = h.repo.PutDoc(ctx, "club", eventsFeedKey, base, string(val), false, "server:events"); err == nil {
-			return len(items), nil
-		}
+		f.Items = sortFeed(mergeEvents(tg, items))
+		f.Updated = time.Now().UTC().Format(time.RFC3339)
+	})
+	if err != nil {
+		return 0, err
 	}
-	return 0, err
+	return len(items), nil
 }
 
 // untilNextMorning: time left until the next 08:00 in Almaty (the daily refresh).

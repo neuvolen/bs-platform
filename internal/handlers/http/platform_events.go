@@ -48,8 +48,14 @@ func (h *PlatformAI) startEvents(by string) chan struct{} {
 	done := r.done
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), eventsTimeout)
+		// R70: the Telegram channels first (seconds), then the web search
+		nt, terr := h.refreshTG(ctx)
 		n, err := h.refreshEvents(ctx)
 		cancel()
+		if terr != nil {
+			log.Printf("platform events (%s): telegram: %v", by, terr)
+		}
+		n += nt
 		log.Printf("platform events (%s): %d found, err=%v", by, n, err)
 		r.mu.Lock()
 		r.busy, r.finished, r.found, r.err = false, time.Now(), n, err
