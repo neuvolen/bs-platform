@@ -1,0 +1,10 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {"stability": 0.4, "similarity": 0.8, "style": 0.38, "speed": 1.05, "speaker_boost": true},
+ "context": true,
+ "lines": [
+  {"id": "v02", "text": "Каждый разбор ведут два основателя клуба, Рустам и Береке́."},
+  {"id": "v11", "text": "Хотите, чтобы мы разобрали ваш бизнес? Записывайтесь на экспресс-разбор."}
+ ]
+}
