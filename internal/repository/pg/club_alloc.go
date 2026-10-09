@@ -714,6 +714,18 @@ func (r *ClubRepo) AllocBackfill(ctx context.Context, dry bool) ([]AllocChange, 
 		if err != nil {
 			return nil, nil, err
 		}
+		if kind == "fine" && out.Left > 0 && out.Paid == 0 {
+			// the app's old flow closed the fine by deleting it (no open fine is left):
+			// the payment is spent, not a prepayment for the next fine
+			if _, err := a.addLine(p.id, res.id, AllocFine, 0, out.Left, "r69-legacy"); err != nil {
+				return nil, nil, err
+			}
+			if err := a.update("club_payments", p.id, `applied = true`); err != nil {
+				return nil, nil, err
+			}
+			perRes[res.id] = append(perRes[res.id], desc+": штраф закрыт до журнала (строка штрафа удалена), записан в журнал")
+			continue
+		}
 		line := fmt.Sprintf("%s: разнесено %s ₸", desc, club.FmtMoney(out.Paid))
 		if out.Left > 0 {
 			line += fmt.Sprintf(", остаток %s ₸", club.FmtMoney(out.Left))
