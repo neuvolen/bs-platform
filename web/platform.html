@@ -39370,6 +39370,8 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
   function tg(v){ return (money(String(v || 0)) || '0') + ' ₸'; }
   function dmy(d){ var p = String(d || '').split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : String(d || ''); }
   function fine(r){ return /штраф/i.test(r.incomeCat || ''); }
+  // R67: экспресс-разбор, МК, консультация: разовая услуга, не членство (часто записана на Рустама для статистики)
+  function oneoff(r){ var c = String(r.incomeCat || '').toLowerCase().replace(/ё/g, 'е'); return /экспресс|мастер[- ]класс|консультац|(^|[\s.,\/+])мк([\s.,\/+]|$)/.test(c); }
   var cache = null, at = 0;
   function load(force){
     if(!window.BSSync || !BSSync.clubApi) return Promise.resolve(null);
@@ -39390,11 +39392,11 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
       var all = (window.RESIDENTS || []).map(function(r){ return r.name; });
       var my = rows.filter(function(r){ return mine(r, name); }).sort(function(a, b){ return a.date < b.date ? 1 : -1; }).slice(0, 12);
       var lim = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
-      var lost = rows.filter(function(r){ return !r.applied && !fine(r) && r.date >= lim && !known(r, all) && (r.resident || /бх|трекинг|резидент/i.test(r.incomeCat || '')); })
+      var lost = rows.filter(function(r){ return !r.applied && !fine(r) && !oneoff(r) && r.date >= lim && !known(r, all) && (r.resident || /бх|трекинг|резидент/i.test(r.incomeCat || '')); })
         .sort(function(a, b){ return a.date < b.date ? 1 : -1; }).slice(0, 8);
       var editable = !!j.editable;
       var line = function(r, btn){
-        var st = fine(r) ? '<span class="r59-s">штраф</span>' : (r.applied ? '<span class="r59-s ok">учтено в долге</span>' : '<span class="r59-s no">не учтено в долге</span>');
+        var st = fine(r) ? '<span class="r59-s">штраф</span>' : (r.applied ? '<span class="r59-s ok">учтено в долге</span>' : (oneoff(r) ? '<span class="r59-s">разовая услуга</span>' : '<span class="r59-s no">не учтено в долге</span>'));
         return '<div class="pf-li"><div class="r59-r"><span class="pf-ld">' + e(dmy(r.date)) + '</span><span class="r59-c">' + e(r.incomeCat || 'Приход') + (r.resident && !mine(r, name) ? ' · ' + e(r.resident) : '') + '</span>' +
           '<b>' + e(tg(r.income)) + '</b>' + (btn === 'Привязать платёж' ? '' : st) + (btn && editable ? '<button type="button" class="btn pf-b r59-b" data-r59l="' + r.id + '" data-r59a="' + e(tg(r.income)) + '" data-r59d="' + e(dmy(r.date)) + '">' + btn + '</button>' : '') + '</div></div>';
       };
@@ -39404,7 +39406,7 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
       var h = '<div class="pf-lbl">Оплаты</div>' + (pend.length && editable ? '<div class="r63-due"><div class="r63-due-t"><b>Не учтено в долге: ' + e(tg(sum)) + '</b><span>' +
         (pend.length === 1 ? 'Оплата от ' + e(dmy(pend[0].date)) : pend.length + ' оплаты, последняя ' + e(dmy(pend[0].date))) + '. Нажмите «Учесть», и долг уменьшится</span></div>' +
         '<button type="button" class="btn pf-b pf-p r63-due-b" data-r63due="' + pend.map(function(r){ return r.id; }).join(',') + '" data-r63sum="' + e(tg(sum)) + '">Учесть</button></div>' : '') +
-        (my.length ? my.map(function(r){ return line(r, !r.applied && !fine(r) && !club(r) ? 'Учесть в долге' : ''); }).join('') : '<div class="r59-h">Оплат в ДДС пока нет</div>');
+        (my.length ? my.map(function(r){ return line(r, !r.applied && !fine(r) && !oneoff(r) && !club(r) ? 'Учесть в долге' : ''); }).join('') : '<div class="r59-h">Оплат в ДДС пока нет</div>');
       if(lost.length) h += '<div class="pf-lbl" style="margin-top:12px">Оплаты без резидента</div><div class="r59-h">Имя в ДДС не совпало ни с одним резидентом. Если это оплата ' + e(name) + ', привяжите её: сумма уйдёт в погашение долга</div>' +
         lost.map(function(r){ return line(r, 'Привязать платёж'); }).join('');
       host.innerHTML = h;

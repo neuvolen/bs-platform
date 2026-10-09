@@ -358,10 +358,17 @@ func (s *Service) private(ctx context.Context, body []byte) {
 			_ = s.SendMessageKB(ctx, m.ChatID, s.finesText(ctx), kb(appBtn("⚠️ Штрафы в BS", "fines")))
 		case "/residents":
 			_ = s.SendMessageKB(ctx, m.ChatID, s.residentsText(ctx), kb(appBtn("👥 Резиденты в BS", "")))
+		case "/calendar", "/календарь":
+			t := "📅 Google Календарь пока не подключается с сервера."
+			if h := s.calendarHook(); h != nil {
+				t = h(ctx)
+			}
+			_ = s.SendMessage(ctx, m.ChatID, t)
 		case "/help_admin", "/помощь":
 			_ = s.SendMessage(ctx, m.ChatID, "Команды команды:\n/menu: панель\n/check: кто сдал отчёт сегодня\n"+
 				"/fines: неоплаченные штрафы\n/residents: резиденты и долги\n/status: проверка системы\n/version: где работает бот\n"+
-				"/trend ссылка: чужой пост Threads в «Тренды Threads» (или просто пришлите ссылку)\n\n"+
+				"/trend ссылка: чужой пост Threads в «Тренды Threads» (или просто пришлите ссылку)\n"+
+				"/calendar: Google Календарь (подключение, покраска встреч)\n\n"+
 				"Штрафы, оплаты, расписание и резиденты: в приложении BS и на платформе.")
 		}
 		return
@@ -414,7 +421,8 @@ func (s *Service) paymentNote(ctx context.Context, m privMsg, res club.Resident)
 	_ = s.SendMessage(ctx, m.ChatID, "Спасибо! Команда проверит оплату и отметит её в приложении.")
 	txt := "💰 " + res.Name + " пишет об оплате:\n\n" + m.Text + "\n\nПроверьте поступление и отметьте оплату в приложении."
 	for _, id := range s.admins {
-		_ = s.SendMessageKB(ctx, id, txt, kb(appBtn("💰 Открыть в BS", "fines")))
+		// R67: сразу в «Приход» с этим резидентом, без поиска по вкладкам
+		_ = s.SendMessageKB(ctx, id, txt, kb([]map[string]any{{"text": "💰 Записать оплату", "web_app": map[string]string{"url": AppLink("pay", res.Name)}}}))
 	}
 }
 

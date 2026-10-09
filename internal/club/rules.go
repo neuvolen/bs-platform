@@ -89,6 +89,26 @@ type UnknownEntry struct {
 	Placed string `json:"placedIn"` // куда отнесено, или "" если не учтено
 }
 
+// NonMembershipCat: an income category that is a one-off service, not the
+// club membership: the express review («БХ Экспресс разбор», often entered
+// under Рустам's name for his own statistics), a master class («МК»), a
+// consultation. Such a payment never pays a resident's debt and is never
+// shown as a resident's payment «не учтено» or «без резидента» (R67).
+func NonMembershipCat(cat string) bool {
+	c := strings.ToLower(strings.ReplaceAll(cat, "ё", "е"))
+	for _, k := range []string{"экспресс", "мастер-класс", "мастер класс", "консультац"} {
+		if strings.Contains(c, k) {
+			return true
+		}
+	}
+	for _, w := range strings.FieldsFunc(c, func(r rune) bool { return r == ' ' || r == '.' || r == ',' || r == '/' || r == '+' }) {
+		if w == "мк" {
+			return true
+		}
+	}
+	return false
+}
+
 // NormCat is how the sheet script compared categories: lower case, ё→е,
 // no spaces around "+", no trailing ":" or ".", single spaces.
 func NormCat(s string) string {

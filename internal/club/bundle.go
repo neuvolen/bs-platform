@@ -144,6 +144,8 @@ type MonthlyPLView struct {
 	Months          []PLMonthView `json:"months,omitempty"`
 	Year            *PLYearView   `json:"year,omitempty"`
 	CurrentMonthIdx *int          `json:"currentMonthIdx,omitempty"`
+	// Source: "server" when counted from the cash journal (R67).
+	Source string `json:"source,omitempty"`
 }
 
 var (
@@ -337,27 +339,45 @@ func AppBundle(s *Snapshot, now time.Time) (map[string]any, []string) {
 	}
 	put("schedule", sched)
 
-	// ═══ ФИНАНСЫ: из листа PL, как в таблице ═══
-	pl := s.Raw[SheetPL]
-	if len(pl) > 0 {
+	// ═══ ФИНАНСЫ ═══
+	// R67: после переезда лист PL в базе больше не обновляется (это снимок
+	// последнего импорта), поэтому «На кассе» и прибыль в приложении застывали.
+	// Теперь цифры считаются из ДДС на сервере (BuildPL), как в «Учёте» платформы;
+	// лист PL остаётся запасным вариантом, пока у сервера нет структуры P&L.
+	if mp, ok := ServerMonthlyPL(s, now); ok {
 		d := BundleDebet{UnpaidFines: unpaidSum, UnpaidCount: unpaidCnt}
-		col := int(a.Month()) // колонка месяца
-		for i := range pl {
-			switch cellOf(pl, i, 0) {
-			case "ЧИСТАЯ ПРИБЫЛЬ":
-				d.NetProfit = numOr0(cellOf(pl, i, col))
-			case "На кассе":
-				d.Residual = numOr0(cellOf(pl, i, col))
-			case "Дивиденды":
-				d.Dividends = numOr0(cellOf(pl, i, col))
+		if i := *mp.CurrentMonthIdx; i >= 0 && i < len(mp.Months) {
+			m := mp.Months[i]
+			d.NetProfit, d.Dividends = m.Profit, m.Dividends
+			if m.Kassa != nil {
+				d.Residual = *m.Kassa
 			}
 		}
 		put("debet", d)
+		put("totalDebt", total)
+		put("monthlyPL", mp)
 	} else {
-		put("debet", map[string]any{})
+		pl := s.Raw[SheetPL]
+		if len(pl) > 0 {
+			d := BundleDebet{UnpaidFines: unpaidSum, UnpaidCount: unpaidCnt}
+			col := int(a.Month()) // колонка месяца
+			for i := range pl {
+				switch cellOf(pl, i, 0) {
+				case "ЧИСТАЯ ПРИБЫЛЬ":
+					d.NetProfit = numOr0(cellOf(pl, i, col))
+				case "На кассе":
+					d.Residual = numOr0(cellOf(pl, i, col))
+				case "Дивиденды":
+					d.Dividends = numOr0(cellOf(pl, i, col))
+				}
+			}
+			put("debet", d)
+		} else {
+			put("debet", map[string]any{})
+		}
+		put("totalDebt", total)
+		put("monthlyPL", MonthlyPL(pl, now))
 	}
-	put("totalDebt", total)
-	put("monthlyPL", MonthlyPL(pl, now))
 
 	// Состоявшиеся встречи из «Лога встреч», последние 300
 	done := []BundleDoneMeeting{}
@@ -414,6 +434,62 @@ func ReportShownAt(e ReportEntry) time.Time {
 		return a
 	}
 	return time.Date(s.Year(), s.Month(), s.Day(), 23, 59, 0, 0, Almaty)
+}
+
+// ServerMonthlyPL is the app's «Сводка» from the cash journal (BuildPL), the
+// same numbers as the platform's «Учёт»: revenue, profit, dividends and the
+// cash («На кассе», counted from CashStartMonth) month by month. ok is false
+// while the server holds no P&L structure (then the sheet's PL is shown).
+func ServerMonthlyPL(s *Snapshot, now time.Time) (MonthlyPLView, bool) {
+	if s == nil || s.PL == nil || len(s.PL.Rows) == 0 {
+		return MonthlyPLView{}, false
+	}
+	a := now.In(Almaty)
+	year, upTo := a.Year(), int(a.Month())
+	if s.PL.Year != 0 && s.PL.Year < year {
+		year, upTo = s.PL.Year, 12
+	}
+	built := BuildPL(s.Payments, s.PL, year, upTo)
+	months := make([]PLMonthView, 12)
+	y := &PLYearView{}
+	var kassa *float64
+	for m := 0; m < 12; m++ {
+		mo := built.Months[m]
+		mv := PLMonthView{Idx: m, Name: monthsNom[m], Short: string([]rune(monthsNom[m])[:3]),
+			Revenue: float64(mo.IncomeSum), Expenses: float64(mo.Expenses), Profit: float64(mo.Profit), Dividends: float64(mo.Dividends)}
+		if mo.IncomeSum != 0 {
+			mv.Margin = jsRound(float64(mo.Profit) / float64(mo.IncomeSum) * 100)
+		}
+		mv.HasData = mv.Revenue > 0 || mv.Expenses > 0
+		if m < upTo {
+			sal := mv.Profit - mv.Dividends
+			mv.Saldo = &sal
+			if mo.HasCash {
+				k := float64(mo.Cash)
+				mv.Kassa = &k
+				kassa = mv.Kassa
+			}
+		}
+		months[m] = mv
+		y.Revenue += mv.Revenue
+		y.Expenses += mv.Expenses
+		y.Profit += mv.Profit
+		y.Dividends += mv.Dividends
+	}
+	for m := 1; m < 12; m++ {
+		months[m].KassaStart = months[m-1].Kassa
+	}
+	if y.Revenue != 0 {
+		y.Margin = jsRound(y.Profit / y.Revenue * 100)
+	}
+	for i := upTo - 1; i >= 0; i-- {
+		if months[i].HasData {
+			y.Saldo = months[i].Saldo
+			break
+		}
+	}
+	cur := upTo - 1
+	return MonthlyPLView{OK: true, Kassa: kassa, Months: months, Year: y, CurrentMonthIdx: &cur, Source: "server"}, true
 }
 
 // MonthlyPL reads the «PL» sheet as the script's _miniGetMonthlyPL does.

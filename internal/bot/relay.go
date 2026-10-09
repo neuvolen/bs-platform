@@ -452,7 +452,9 @@ type TickResult struct {
 	Evening  []string          `json:"evening,omitempty"`
 	// Onboarding: residents who got their onboarding message of the day
 	Onboarding []string `json:"onboarding,omitempty"`
-	Errors     []string `json:"errors,omitempty"`
+	// MeetAsks: R67: «встреча прошла?» to the team, from the server's own marks
+	MeetAsks []MeetAsk `json:"meetAsks,omitempty"`
+	Errors   []string  `json:"errors,omitempty"`
 }
 
 // Tick runs the timed jobs once: every minute from housekeeping, or on demand.
@@ -481,6 +483,8 @@ func (s *Service) Tick(ctx context.Context, now time.Time) TickResult {
 	if !club.SheetLegacy() {
 		r.Onboarding, err = s.maybeOnboarding(ctx, now)
 		fail("onboarding", err)
+		r.MeetAsks, err = s.maybeMeetDoneAsks(ctx, now)
+		fail("meeting asks", err)
 	}
 	return r
 }

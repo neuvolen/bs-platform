@@ -63,6 +63,9 @@ type ClubWrites struct {
 	// AfterWrite: R51: a write that went through (a resident's payment closes
 	// their pending renewal, sales_report.go). Runs in its own goroutine.
 	AfterWrite func(ctx context.Context, action string, params map[string]string)
+	// OnMeeting: R67: the Google Calendar follows the meetings' writes
+	// (gcal.Sync.OnWrite). Runs in its own goroutine.
+	OnMeeting func(ctx context.Context, action string, params map[string]string)
 
 	send chan struct{} // one sender at a time: writes reach the sheet in order
 	wake chan struct{}
@@ -181,14 +184,16 @@ func (w *ClubWrites) Do(ctx context.Context, source string, u *platformTgUser, a
 
 // after: R51: the AfterWrite hook, outside the write's lock.
 func (w *ClubWrites) after(ctx context.Context, action string, p map[string]string) {
-	if w.AfterWrite == nil {
-		return
+	for _, h := range []func(context.Context, string, map[string]string){w.AfterWrite, w.OnMeeting} {
+		if h == nil {
+			continue
+		}
+		cp := map[string]string{}
+		for k, v := range p {
+			cp[k] = v
+		}
+		go h(context.WithoutCancel(ctx), action, cp)
 	}
-	cp := map[string]string{}
-	for k, v := range p {
-		cp[k] = v
-	}
-	go w.AfterWrite(context.WithoutCancel(ctx), action, cp)
 }
 
 // outdatedMark starts the last error of a write parked until the script

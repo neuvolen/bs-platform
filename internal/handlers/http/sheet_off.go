@@ -415,7 +415,11 @@ func (w *ClubWrites) notices(ctx context.Context, action string, p map[string]st
 		if nt == "" {
 			nt = p["oldTime"]
 		}
-		send(p["oldRes"], "🔄 Встреча перенесена\n📅 Было: "+strings.TrimSpace(p["oldDate"]+" "+p["oldTime"])+"\n📅 Стало: "+strings.TrimSpace(nd+" "+nt), sched)
+		mkb := sched
+		if d, ok := club.Date(nd); ok { // R67: кнопка открывает саму встречу
+			mkb = bot.MeetButton("📱 Открыть встречу", d, nt, p["oldRes"])
+		}
+		send(p["oldRes"], "🔄 Встреча перенесена\n📅 Было: "+strings.TrimSpace(p["oldDate"]+" "+p["oldTime"])+"\n📅 Стало: "+strings.TrimSpace(nd+" "+nt), mkb)
 	case "markAttendance":
 		for _, name := range splitNames(p["names"]) {
 			send(name, "✅ Встреча "+p["date"]+" подтверждена\nГалочка в посещениях поставлена", sched)

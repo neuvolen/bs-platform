@@ -154,3 +154,35 @@ func (r *ClubRepo) BundleCheckOn(ctx context.Context, day time.Time) (*BundleChe
 	}
 	return &c, nil
 }
+
+// SetMeetingEvent keeps the Google Calendar event the server made for a
+// meeting (R67) and, for an online one, its Meet link.
+func (r *ClubRepo) SetMeetingEvent(ctx context.Context, res string, day time.Time, link, eventID string) error {
+	_, err := r.db.Pool.Exec(ctx, `UPDATE club_meetings SET event_id = $4,
+		link = CASE WHEN $3 <> '' THEN $3 ELSE link END,
+		link_cell = CASE WHEN $3 <> '' THEN $3 ELSE link_cell END,
+		online = online OR $3 <> ''
+		WHERE btrim(resident) = btrim($1) AND date = $2::date`, res, day.Format("2006-01-02"), link, eventID)
+	return err
+}
+
+// MeetingLogSince: who is in «Лог встреч» since the day of since, as
+// "<club.NormName>|YYYY-MM-DD" (R67: the bot does not ask about them).
+func (r *ClubRepo) MeetingLogSince(ctx context.Context, since time.Time) (map[string]bool, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT date, resident FROM club_meeting_log WHERE date >= $1::date`,
+		since.In(club.Almaty).Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var d time.Time
+		var res string
+		if err := rows.Scan(&d, &res); err != nil {
+			return nil, err
+		}
+		out[club.NormName(res)+"|"+d.Format("2006-01-02")] = true
+	}
+	return out, rows.Err()
+}

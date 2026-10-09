@@ -35,13 +35,8 @@ type DebtPay struct {
 // one-off service).
 func debtCat(cat string) bool {
 	c := strings.ToLower(cat)
-	if strings.Contains(c, "штраф") || strings.Contains(c, "экспресс") {
+	if strings.Contains(c, "штраф") || club.NonMembershipCat(cat) {
 		return false
-	}
-	for _, w := range strings.Fields(c) {
-		if w == "мк" {
-			return false
-		}
 	}
 	for _, k := range []string{"трекинг", "продлен", "вход", "членск", "резидент"} {
 		if strings.Contains(c, k) {
@@ -194,6 +189,9 @@ func (r *ClubRepo) AutoCountPayments(ctx context.Context, since time.Time) (done
 		p := all[i]
 		if strings.Contains(strings.ToLower(p.Cat), "штраф") {
 			continue // a fine's payment closes fines, not the debt
+		}
+		if club.NonMembershipCat(p.Cat) {
+			continue // R67: an express review or a master class is not membership: not reported as «не учтено»
 		}
 		if strings.TrimSpace(p.Resident) == "" {
 			if debtCat(p.Cat) {

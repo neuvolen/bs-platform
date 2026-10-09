@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -390,6 +391,13 @@ func (h *BotHandler) ScriptUpdated(c *gin.Context) {
 	}
 	if len(req.Error) > 1000 {
 		req.Error = req.Error[:1000]
+	}
+	// R67: the sheet's old script (v32) failed to update itself every hour
+	// unseen, and kept asking «встреча прошла?» from the stale sheet
+	if req.Error != "" {
+		log.Printf("script self-update failed (running %s, latest %s): %s", req.Version, content.ScriptVersion(), req.Error)
+	} else {
+		log.Printf("script self-update: %s → %s", req.From, req.Version)
 	}
 	if err := h.svc.NoteScriptUpdated(c.Request.Context(), req); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
