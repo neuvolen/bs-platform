@@ -1,0 +1,39 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {
+  "stability": 0.55,
+  "similarity": 0.8,
+  "style": 0.1,
+  "speed": 1.0,
+  "speaker_boost": true
+ },
+ "context": false,
+ "lines": [
+  {
+   "id": "cur_s11",
+   "seed": 11,
+   "text": "Тре́кинг. Здесь живут доски разборов."
+  },
+  {
+   "id": "cur_s22",
+   "seed": 22,
+   "text": "Тре́кинг. Здесь живут доски разборов."
+  },
+  {
+   "id": "cur_s33",
+   "seed": 33,
+   "text": "Тре́кинг. Здесь живут доски разборов."
+  },
+  {
+   "id": "trie_s11",
+   "seed": 11,
+   "text": "Трье́кинг. Здесь живут доски разборов."
+  },
+  {
+   "id": "trie_s22",
+   "seed": 22,
+   "text": "Трье́кинг. Здесь живут доски разборов."
+  }
+ ]
+}
