@@ -1,0 +1,31 @@
+{
+ "job": "trek4",
+ "job_sha256": "03a2ae5080bf38b1ac00eb7a4e48c2a3ed056ae3f63f5e14b36920b74e454b2b",
+ "run_id": "37987813504",
+ "jobs_sha": "d3b66ede2d3c14a89951ee3f962608e257003b00",
+ "ok": true,
+ "lines": [
+  {
+   "id": "x_yat",
+   "chars": 37,
+   "words": 5,
+   "duration": 2.229
+  },
+  {
+   "id": "x_syl",
+   "chars": 38,
+   "words": 5,
+   "duration": 2.554
+  }
+ ],
+ "chars": 75,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.55,
+  "similarity_boost": 0.8,
+  "style": 0.1,
+  "use_speaker_boost": true,
+  "speed": 1.0
+ }
+}
