@@ -139,6 +139,8 @@ func sanitizeGallupDoc(g *tplpdf.GallupDoc) {
 		t.Name, t.Ru, t.DomainRu = gpStr(t.Name, 40), gpStr(t.Ru, 40), gpStr(t.DomainRu, 40)
 		t.Essence, t.Business, t.Blind, t.Manage = gpStr(t.Essence, 500), gpStr(t.Business, 600), gpStr(t.Blind, 500), gpStr(t.Manage, 600)
 	}
+	// R71: the second half of the analysis, built here from the order
+	gallupDocPlus(g)
 }
 
 func GallupPDF(c *gin.Context) {

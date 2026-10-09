@@ -397,6 +397,7 @@ var assistReadPost = map[string]bool{
 	"/api/v1/platform/presence":      true,
 	"/api/v1/platform/razbor/pdf":    true,
 	"/api/v1/platform/gallup/pdf":    true,
+	"/api/v1/platform/gallup/plus":   true, // R71: the second half of the analysis, read only
 	"/api/v1/platform/tts":           true,
 	"/api/v1/platform/assist/switch": true,
 }

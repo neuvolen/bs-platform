@@ -28488,6 +28488,7 @@ function pdfDoc(g){
     risks: (D.risks || []).map(function(r){ return {a: r.title, b: r.trigger, c: r.signs, d: r.rule}; }),
     plan: (D.plan || []).map(function(s){ return {a: s.when, b: s.action, c: s.result}; }),
     workWithMe: D.workWithMe || [],
+    order: T.map(function(t){ return t.k; }), clubAI: (deep && deep.club) || null, // R71: сервер собирает вторую половину разбора
     business: deep ? [] : (sm.business && sm.business.length ? sm.business : fs.business),
     partners: deep ? [] : (sm.partners && sm.partners.length ? sm.partners : fs.partners),
     talents: T.map(function(t){ return {rank: t.rank, name: t.n, ru: t.ru, domainRu: t.domRu, essence: t.essence, business: t.business, blind: t.blind, manage: t.manage}; })
@@ -43043,5 +43044,210 @@ window.bsAssist = {apply: applyAssist, hidden: hidden, state: function(){ return
 })();
 </script>
 <!-- /R73 -->
+<!-- R71: «Gallup резидентам понравился анализ, ещё его улучши ×2 и добавь отдельно, чем именно наш проект будет полезен
+     этому резиденту». Вторая половина разбора собирается на сервере по порядку талантов (POST /gallup/plus, правила,
+     работает без ИИ): пятёрка в работе собственника, где стоят 34 таланта, 10 пар пятёрки, роли и кого нанять,
+     эксперимент на 10 дней и «Чем Business Surgery будет полезен именно вам». Лёгкая модель ИИ дописывает клубную часть
+     (deep.club, v 3): профили, разобранные раньше, дополняются при следующем открытии, без отправки резиденту. -->
+<style id="r71gStyle">
+.r71-strip{display:grid;grid-template-columns:150px minmax(0,1fr);gap:0;align-items:center}
+.r71-strip .r71-dn{font-size:13px;font-weight:800;padding:9px 8px 9px 0;border-top:1px solid var(--gl)}
+.r71-strip .r71-dn small{display:block;font-size:11px;font-weight:600;color:var(--gs);margin-top:2px}
+.r71-row{position:relative;height:100%;min-height:40px;border-top:1px solid var(--gl)}
+.r71-in{position:absolute;left:9px;right:9px;top:0;bottom:0}
+.r71-in::before{content:'';position:absolute;left:-9px;top:0;bottom:0;width:calc((100% + 18px) * 10 / var(--n));background:var(--gc2)}
+.r71-dot{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;font:800 9px/18px 'Manrope',sans-serif;text-align:center}
+.r71-dot.r71-hi{background:var(--gi);color:var(--gc);width:16px;height:16px;margin:-8px 0 0 -8px;line-height:16px}
+.r71-dot.r71-lo{border:1px solid var(--gs);color:var(--gm);background:var(--gc);line-height:13px;width:15px;height:15px;margin:-7.5px 0 0 -7.5px;font-size:8.5px}
+.r71-zones{display:grid;grid-template-columns:150px minmax(0,1fr);font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--gs);text-transform:uppercase;margin-bottom:6px}
+.r71-zones div{position:relative;height:14px}
+.r71-zones span{position:absolute;top:0}
+.r71-top{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.r71-top .g29-c dl{margin:0;display:grid;grid-template-columns:104px minmax(0,1fr);gap:7px 10px}
+.r71-top dt{font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--gs);padding-top:3px}
+.r71-top dd{margin:0;font-size:13px;line-height:1.5;color:var(--gm)}
+.r71-top dd.talk{color:var(--gi);font-weight:700}
+.r71-pair.tension{border-style:dashed}
+.r71-kind{font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--gs)}
+.r71-split{display:grid;grid-template-columns:minmax(0,1.1fr) 150px minmax(0,1.6fr);gap:6px 14px;align-items:start}
+.r71-split > div{padding:11px 0;border-top:1px solid var(--gl);font-size:13px;line-height:1.5;color:var(--gm)}
+.r71-split > div:nth-child(-n+3){border-top:none;padding-top:0}
+.r71-split b{color:var(--gi);font-weight:800}
+.r71-lv{display:flex;gap:3px;margin-bottom:4px}.r71-lv i{width:16px;height:7px;border-radius:2px;background:var(--gl)}.r71-lv i.on{background:var(--gi)}
+.r71-days{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px;margin-bottom:14px}
+.r71-days span{font-size:10.5px;font-weight:800;text-align:center;padding:6px 0;border-radius:6px;background:var(--gc2);color:var(--gm)}
+.r71-days span.k{background:var(--gi);color:var(--gc)}
+.r71-club{background:#0b0b0b;color:#fff;border-radius:20px;padding:24px;margin-top:6px}
+body.light .r71-club{background:#0b0b0b;color:#fff}
+.r71-club .r71-k{font-size:10.5px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.55)}
+.r71-club h3{margin:8px 0 10px;font-size:22px;line-height:1.25;font-weight:800;color:#fff}
+.r71-club p{margin:0;font-size:14px;line-height:1.6;color:rgba(255,255,255,.86)}
+.r71-mech .g29-fix{margin-top:2px}
+.r71-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.r71-tools span{font-size:12px;font-weight:700;border:1px solid var(--gl);border-radius:999px;padding:4px 10px;color:var(--gi)}
+.r71-first{counter-reset:f}
+.r71-first div{position:relative;padding:10px 0 10px 34px;border-top:1px solid var(--gl);font-size:13.5px;line-height:1.5;font-weight:700;color:var(--gi)}
+.r71-first div:first-child{border-top:none;padding-top:2px}
+.r71-first div::before{counter-increment:f;content:counter(f);position:absolute;left:0;top:9px;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--gi);font:800 11px/21px 'Manrope',sans-serif;text-align:center}
+.r71-first div:first-child::before{top:1px}
+.r71-first small{display:block;font-weight:600;color:var(--gm);font-size:12.5px;margin-top:2px}
+.r71-go{display:inline-flex;align-items:center;gap:6px;margin-top:14px;border:1px solid var(--gi);border-radius:12px;padding:9px 14px;font:800 13px 'Manrope',sans-serif;color:var(--gi);background:none;cursor:pointer}
+.r71-note{font-size:12.5px;color:var(--gs);margin:-4px 0 12px;line-height:1.45}
+@media(max-width:760px){
+  .r71-strip,.r71-zones{grid-template-columns:96px minmax(0,1fr)}
+  .r71-sw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+  .r71-sw > div{min-width:700px}
+  .r71-strip .r71-dn{font-size:11px;overflow-wrap:anywhere}
+  .r71-split{grid-template-columns:minmax(0,1fr)}
+  .r71-split > div{border-top:none;padding:2px 0}
+  .r71-split > div:nth-child(3n+1){border-top:1px solid var(--gl);padding-top:12px}
+  .r71-top{grid-template-columns:minmax(0,1fr)}
+  .r71-top .g29-c dl{grid-template-columns:minmax(0,1fr)}
+  .r71-club{padding:18px}
+  .r71-club h3{font-size:19px}
+}
+</style>
+<script id="r71gScript">
+(function(){
+  var G = window.G16; if(!G) return;
+  var ST = window.R71G = {plus: {}, busy: {}, err: {}, tried: {}, club: {}};
+  function E(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function nd(s){ return String(s == null ? '' : s).replace(/\s*[\u2014\u2013]\s*/g, ' - '); }
+  function T(s){ return E(nd(s)); }
+  function sec(id, lbl, body){ return '<section class="g16-sec" id="' + id + '"><div class="g16-lbl">' + lbl + '</div>' + body + '</section>'; }
+  function orderOf(g){ return G.talentList(g || {}).map(function(t){ return t.k; }); }
+  function deepOf(g){ return (g && g.ai && g.ai.deep) || null; }
+  function keyOf(bid, order, club){ return bid + '|' + order.join(',') + '|' + (club ? 'ai' : ''); }
+
+  // Вторая половина разбора с сервера (правила + строки ИИ, если они есть)
+  function fetchPlus(bid, order, club){
+    var k = keyOf(bid, order, club);
+    if(ST.busy[k] || ST.plus[k] || ST.err[k]) return;
+    if(!G.online()) return;
+    ST.busy[k] = 1;
+    Promise.resolve().then(function(){ return BSSync.api('POST', '/gallup/plus', {order: order, club: club || null}); }).then(function(r){
+      if(!r || !r.ok) throw new Error('status ' + (r && r.status));
+      return r.json();
+    }).then(function(j){
+      delete ST.busy[k];
+      if(!j || !j.plus) throw new Error('empty');
+      ST.plus[k] = j.plus;
+      try{ if(G.boardId() === bid) G.rerender(); }catch(e){}
+    }).catch(function(){ delete ST.busy[k]; ST.err[k] = 1; });
+  }
+  // Профиль, разобранный до R71: клубная часть ИИ догружается одним лёгким запросом
+  function upgradeClub(bid, order){
+    if(ST.tried[bid] || !G.online() || order.length < 5) return;
+    ST.tried[bid] = 1;
+    Promise.resolve().then(function(){ return BSSync.api('POST', '/ai/gallup', {order: order.slice(0, 34), only: 'club'}); }).then(function(r){
+      if(!r || !r.ok) throw new Error('status ' + (r && r.status));
+      return r.json();
+    }).then(function(j){
+      if(!j || !j.club) return;
+      var cur = null; try{ cur = curBoard && curBoard.id === bid ? G.savedGallup() : null; }catch(e){}
+      if(!cur || !cur.ai || !cur.ai.deep) return;
+      var deep = Object.assign({}, cur.ai.deep, {club: j.club, v: j.v || 3});
+      G.storeGallup(Object.assign({}, cur, {ai: Object.assign({}, cur.ai, {deep: deep, clubAt: new Date().toISOString()})}));
+      G.rerender();
+    }).catch(function(){});
+  }
+
+  function topCards(x){
+    return '<div class="r71-top">' + (x.top || []).map(function(t){
+      return '<div class="g29-c"><div class="g29-chips"><span class="g29-chip"><b>' + t.rank + '</b>' + E(t.domain) + '</span></div><h5>' + E(t.ru) + ' <span style="font-weight:600;color:var(--gs);font-size:12px">' + E(t.name) + '</span></h5><dl>' +
+        (t.rows || []).map(function(r){ return '<dt>' + E(r.l) + '</dt><dd' + (r.l === 'Как с вами говорить' ? ' class="talk"' : '') + '>' + T(r.t) + '</dd>'; }).join('') + '</dl></div>';
+    }).join('') + '</div>';
+  }
+  function strip(x){
+    var n = x.n || 34; if(n < 10) return '';
+    function pos(r){ return ((r - 0.5) / n * 100).toFixed(2) + '%'; }
+    var z = '<div class="r71-zones"><div></div><div><span style="left:9px">опора 1-10</span>' + (n > 10 ? '<span style="left:' + (10 / n * 100).toFixed(1) + '%">по ситуации</span>' : '') + (n >= 30 ? '<span style="right:0">отдать другим</span>' : '') + '</div></div>';
+    return '<div class="g16-card" style="margin-top:10px"><h4 class="g29-h4">Где стоят ваши таланты: места 1-' + n + ' по доменам</h4><div class="r71-sw"><div>' + z + '<div class="r71-strip" style="--n:' + n + '">' + (x.strip || []).map(function(s){
+      return '<div class="r71-dn">' + E(s.ru) + '<small>в топ-5: ' + s.top5 + ' · в топ-10: ' + s.top10 + '</small></div><div class="r71-row" style="--n:' + n + '"><div class="r71-in">' +
+        (s.ranks || []).map(function(r){ return '<span class="r71-dot ' + (r <= 10 ? 'r71-hi' : 'r71-lo') + '" style="left:' + pos(r) + '">' + r + '</span>'; }).join('') + '</div></div>';
+    }).join('') + '</div></div></div></div>';
+  }
+  function pairs(x){
+    return '<div class="g29-cards">' + (x.pairs || []).map(function(p){
+      return '<div class="g29-c r71-pair ' + (p.kind === 'tension' ? 'tension' : '') + '"><div class="r71-kind">' + (p.kind === 'tension' ? 'Спорят' : 'Усиливают') + '</div>' +
+        '<div class="g29-chips"><span class="g29-chip">' + E(p.a) + '</span><span class="g29-chip op">+</span><span class="g29-chip">' + E(p.b) + '</span></div>' +
+        '<h5>' + T(p.title) + '</h5><p>' + T(p.text) + '</p><div class="g29-fix"><i>Правило</i>' + T(p.rule) + '</div></div>';
+    }).join('') + '</div>';
+  }
+  function split(x){
+    var h = '<div class="g16-card"><div class="r71-split">' + (x.split || []).map(function(s){
+      var lv = ''; for(var i = 0; i < 4; i++) lv += '<i class="' + (4 - i >= s.level ? 'on' : '') + '"></i>';
+      return '<div><b>' + E(s.area) + '</b></div><div><div class="r71-lv">' + lv + '</div>' + E(s.who) + '</div><div>' + T(s.why) + '</div>';
+    }).join('') + '</div></div>';
+    var hr = x.hire;
+    if(hr) h += '<div class="g29-c" style="margin-top:10px"><h5>Кого взять рядом: ' + T(hr.role) + '</h5>' +
+      ((hr.talents || []).length ? '<div class="g29-chips">' + hr.talents.map(function(t){ return '<span class="g29-chip">' + E(t) + '</span>'; }).join('') + '</div>' : '') +
+      '<p>' + T(hr.why) + '</p>' + ((hr.ask || []).length ? '<div class="g29-scene"><i>Вопросы на собеседовании</i>' + hr.ask.map(function(q, i){ return (i + 1) + '. ' + T(q); }).join('<br>') + '</div>' : '') +
+      (hr.red ? '<div class="g29-fix"><i>Красный флаг</i>' + T(hr.red) + '</div>' : '') + '</div>';
+    if((x.talk || []).length) h += '<div class="g16-card" style="margin-top:10px"><h4 class="g29-h4">Как с вами говорить команде и партнёрам</h4><ul class="g29-l">' + x.talk.map(function(t){ return '<li>' + T(t) + '</li>'; }).join('') + '</ul></div>';
+    return h;
+  }
+  function exp(x){
+    var d = ''; for(var i = 1; i <= 10; i++) d += '<span class="' + (i === 1 || i === 5 || i === 10 ? 'k' : '') + '">' + i + '</span>';
+    return '<div class="g16-card g29-plan"><div class="r71-days">' + d + '</div>' + (x.exp || []).map(function(s, i){
+      return '<div class="g29-st"><em>' + (i + 1) + '</em><span>' + E(s.a) + '</span><div><b>' + T(s.b) + '</b>' + (s.c ? '<small>' + T(s.c) + '</small>' : '') + '</div></div>';
+    }).join('') + '</div>';
+  }
+  function club(x){
+    var c = x.club; if(!c) return '';
+    var h = '<div class="r71-club"><div class="r71-k">Для вас лично' + (x.ai ? ' · дополнено ИИ' : '') + '</div><h3>Чем Business Surgery будет полезен именно вам</h3><p>' + T(c.intro) + '</p></div>';
+    h += '<div class="g29-cards r71-mech" style="margin-top:10px">' + (c.mechanics || []).map(function(m){
+      return '<div class="g29-c"><h5>' + E(m.title) + '</h5><p>' + T(m.what) + '</p><div class="g29-scene"><i>Для вашего профиля</i>' + T(m.you) + '</div></div>';
+    }).join('') + '</div>';
+    if((c.diags || []).length){
+      h += '<div class="g29-grp"><h4>Диагнозы, к которым склонен ваш профиль<small>из библиотеки клуба; трекеры проверят их на разборе по вашим цифрам</small></h4><div class="g29-cards">' + c.diags.map(function(d){
+        return '<div class="g29-c"><div class="r71-kind">' + E(d.organ) + '</div><h5>' + E(d.title) + '</h5><p>' + T(d.why) + '</p>' +
+          ((d.tools || []).length ? '<div class="g29-fix"><i>Первые инструменты</i></div><div class="r71-tools">' + d.tools.map(function(t){ return '<span>' + E(t) + '</span>'; }).join('') + '</div>' : '') + '</div>';
+      }).join('') + '</div></div>';
+    }
+    if((c.first || []).length){
+      h += '<div class="g16-card" style="margin-top:10px"><h4 class="g29-h4">Как может выглядеть ваш первый цикл</h4><div class="r71-first">' + c.first.map(function(f){
+        var sub = [f.b, f.c].filter(Boolean).join(' ');
+        return '<div>' + T(f.a) + (sub ? '<small>' + T(sub) + '</small>' : '') + '</div>';
+      }).join('') + '</div></div>';
+    }
+    return h;
+  }
+  function plusHtml(x){
+    return sec('r71Top', 'Пятёрка в работе собственника', '<p class="r71-note">Как каждый из первых пяти талантов проявляется в продажах, команде, деньгах и найме, где его слепое пятно и что вас выжигает</p>' + topCards(x)) +
+      ((x.strip || []).length && x.n >= 10 ? sec('r71Strip', 'Все таланты по доменам', strip(x)) : '') +
+      ((x.pairs || []).length ? sec('r71Pairs', 'Сочетания вашей пятёрки', '<p class="r71-note">Каждая пара из первых пяти: где таланты усиливают друг друга, где спорят, и правило на каждый случай</p>' + pairs(x)) : '') +
+      sec('r71Split', 'Распределение ролей и кого искать', split(x)) +
+      ((x.exp || []).length ? sec('r71Exp', 'Эксперимент на 10 дней', '<p class="r71-note">Один цикл клуба, в котором вы работаете через сильные таланты и проверяете результат цифрой</p>' + exp(x)) : '') +
+      sec('r71Club', 'Business Surgery для вас', club(x));
+  }
+
+  var prev = window.renderGallupResult;
+  window.renderGallupResult = function(g){
+    var h = prev.apply(this, arguments);
+    try{
+      var bid = G.boardId(), order = orderOf(g), deep = deepOf(g);
+      if(!h || order.length < 3) return h;
+      // разобранный до R71 профиль: клубная часть ИИ при открытии, без отправки резиденту
+      if(deep && (!(deep.v >= 3) || !deep.club)) setTimeout(function(){ upgradeClub(bid, order); }, 0);
+      var club = deep && deep.club ? deep.club : null, x = ST.plus[keyOf(bid, order, club)];
+      if(!x){
+        // пока грузится версия с ИИ, показываем готовую по правилам
+        x = club ? ST.plus[keyOf(bid, order, null)] : null;
+        setTimeout(function(){ fetchPlus(bid, order, club); }, 0);
+      }
+      var add = x ? plusHtml(x) : (G.online() ? '<div class="g29-pill busy" style="margin-top:22px"><i></i>Собираем вторую половину разбора: пятёрка в работе, роли, эксперимент и чем клуб полезен вам</div>' : '');
+      var at = h.indexOf('<section class="g16-sec"><div class="g16-lbl">Разбор каждого таланта');
+      h = at > 0 ? h.slice(0, at) + add + h.slice(at) : h + add;
+      if(x && x.club){
+        var hero = h.indexOf('</section>');
+        if(hero > 0) h = h.slice(0, hero) + '<button type="button" class="r71-go" onclick="var e=document.getElementById(\'r71Club\');if(e)e.scrollIntoView({behavior:\'smooth\'})">Чем клуб полезен именно вам →</button>' + h.slice(hero);
+      }
+    }catch(e){}
+    return h;
+  };
+})();
+</script>
+<!-- /R71g -->
 </body>
 </html>

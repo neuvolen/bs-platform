@@ -233,6 +233,9 @@ func TestPlatformGallupEndpoint(t *testing.T) {
 		case strings.Contains(body, "Сделай вторую часть разбора"):
 			calls["b"]++
 			ans = gallupDeepFixture(t, "b")
+		case strings.Contains(body, "Чем клуб будет полезен именно вам"): // R71: the light model
+			calls["c"]++
+			ans = gallupClubFixture
 		default:
 			calls["t"]++
 			prompt = body
@@ -269,11 +272,12 @@ func TestPlatformGallupEndpoint(t *testing.T) {
 	if len(p.Talents) != 34 || !p.Complete || p.Talents[0].Key != "achiever" || p.Talents[33].Key != "harmony" || p.Talents[29].DomainRu != "Влияние" {
 		t.Fatalf("profile: %d %+v", len(p.Talents), p.Talents[:1])
 	}
-	if p.V != 2 || p.Deep == nil || p.Deep.Partial || len(p.Deep.Anchors) != 3 || len(p.Deep.Areas) != 5 || len(p.Deep.Plan) != 5 {
+	if p.V != 2 || p.Deep == nil || p.Deep.Partial || p.Deep.V != gallupDeepVer || p.Deep.Club == nil || len(p.Deep.Club.First) != 3 ||
+		len(p.Deep.Anchors) != 3 || len(p.Deep.Areas) != 5 || len(p.Deep.Plan) != 5 {
 		t.Fatalf("deep: %+v", p.Deep)
 	}
 	// the order was in the text: talents and both parts ran at once (3 calls + 1 retry of A)
-	if calls["t"] != 1 || calls["a"] != 2 || calls["b"] != 1 {
+	if calls["t"] != 1 || calls["a"] != 2 || calls["b"] != 1 || calls["c"] != 1 {
 		t.Fatalf("calls: %v", calls)
 	}
 	if !strings.Contains(prompt, "34. Harmony") || !strings.Contains(prompt, `"responseMimeType":"application/json"`) {
@@ -296,7 +300,7 @@ func TestPlatformGallupEndpoint(t *testing.T) {
 		Deep  *gallupDeep `json:"deep"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &od)
-	if w.Code != 200 || od.V != 2 || od.Deep == nil || len(od.Deep.Anchors) != 3 || len(od.Order) != 34 || calls["t"] != 1 || calls["a"] != 3 {
+	if w.Code != 200 || od.V != gallupDeepVer || od.Deep == nil || od.Deep.Club == nil || len(od.Deep.Anchors) != 3 || len(od.Order) != 34 || calls["t"] != 1 || calls["a"] != 3 {
 		t.Fatalf("order: %d %s %v", w.Code, w.Body.String()[:min(200, w.Body.Len())], calls)
 	}
 	if w = call("/ai/gallup", string(ord)); w.Header().Get("X-Gallup-Cache") != "hit" || calls["a"] != 3 {

@@ -8,6 +8,7 @@ package tplpdf
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -118,6 +119,11 @@ type GallupDoc struct {
 	Business   []string       `json:"business"` // the summary of a profile without the deep part
 	Partners   []string       `json:"partners"`
 	Talents    []GallupTalent `json:"talents"`
+	// R71: the order of the talents (keys) and the AI lines of «Чем клуб
+	// полезен»; the server builds Plus from them (gallup_plus.go)
+	Order  []string        `json:"order,omitempty"`
+	ClubAI json.RawMessage `json:"clubAI,omitempty"`
+	Plus   *GallupPlus     `json:"plus,omitempty"`
 }
 
 // GallupFooter is printed on every page.
@@ -191,12 +197,18 @@ func RenderGallup(g *GallupDoc) ([]byte, error) {
 	p.AddPage()
 	d.cover(name)
 	d.portrait()
+	d.topWork() // R71
 	d.domains()
+	d.strip() // R71
 	d.interactions()
+	d.pairs() // R71
 	d.state()
 	d.business()
+	d.split() // R71
 	d.risks()
 	d.plan()
+	d.experiment() // R71
+	d.club()       // R71
 	d.talents()
 	if err := p.Error(); err != nil {
 		return nil, err

@@ -198,7 +198,7 @@ func TestR62PremiumLoudnessAndStress(t *testing.T) {
 	check := func(what string, m map[string]string, base string, texts []string, vv premiumVoice) {
 		for _, txt := range texts {
 			u := m[txt]
-			k := normKey(premiumKey(vv, SpeakText(txt)))
+			k := normKey(premiumKey(vv, spokenKey(txt)))
 			if u != base+k+".mp3" {
 				t.Fatalf("%s %q: %s, want the normalized copy %s", what, txt, u, k)
 			}

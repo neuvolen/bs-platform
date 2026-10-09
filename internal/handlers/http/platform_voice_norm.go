@@ -208,11 +208,11 @@ func (p *PremiumVoice) normalizeKept(ctx context.Context) {
 	type item struct{ raw, style, text, label string }
 	var items []item
 	for _, t := range p.texts() {
-		items = append(items, item{premiumKey(v, SpeakText(t)), premiumStyle, t, "tour"})
+		items = append(items, item{premiumKey(v, spokenKey(t)), premiumStyle, t, "tour"})
 	}
 	lv := p.loginVoice()
 	for i, t := range p.loginLines() {
-		items = append(items, item{premiumKey(lv, SpeakText(t)), loginStyle, t, "login step " + strconv.Itoa(i+1)})
+		items = append(items, item{premiumKey(lv, spokenKey(t)), loginStyle, t, "login step " + strconv.Itoa(i+1)})
 	}
 	keys := make([]string, 0, 2*len(items))
 	for _, it := range items {

@@ -239,6 +239,7 @@ func (h *PlatformAI) Gallup(c *gin.Context) {
 	var req struct {
 		Text  string   `json:"text"`
 		Order []string `json:"order"`
+		Only  string   `json:"only"` // R71: "club" - only the club part (light model)
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_request"})
@@ -246,6 +247,10 @@ func (h *PlatformAI) Gallup(c *gin.Context) {
 	}
 	// The AI answer takes longer than the server's 60 s write timeout.
 	longBody(c)
+	if strings.TrimSpace(req.Text) == "" && len(req.Order) > 0 && req.Only == "club" {
+		h.gallupClubOnly(c, req.Order)
+		return
+	}
 	if strings.TrimSpace(req.Text) == "" && len(req.Order) > 0 {
 		h.gallupDeepOnly(c, req.Order)
 		return
@@ -264,7 +269,8 @@ func (h *PlatformAI) Gallup(c *gin.Context) {
 	sum := sha256.Sum256([]byte(text))
 	// gal3_ (R68): answers made while the order could come from the report's
 	// common text are not reused (gal2_ R29, gal_ the talents only)
-	key := "gal3_" + hex.EncodeToString(sum[:])[:48]
+	// gal4_ (R71): the deep part v3 with «Чем клуб полезен»
+	key := "gal4_" + hex.EncodeToString(sum[:])[:48]
 	ctx := c.Request.Context()
 	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
 		c.Header("X-Gallup-Cache", "hit")
@@ -359,7 +365,7 @@ func (h *PlatformAI) gallupDeepOnly(c *gin.Context, in []string) {
 		return
 	}
 	sum := sha256.Sum256([]byte(strings.Join(order, ",")))
-	key := "gal2o_" + hex.EncodeToString(sum[:])[:46]
+	key := "gal3o_" + hex.EncodeToString(sum[:])[:46] // R71: v3, with the club part
 	ctx := c.Request.Context()
 	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
 		c.Header("X-Gallup-Cache", "hit")
@@ -377,7 +383,7 @@ func (h *PlatformAI) gallupDeepOnly(c *gin.Context, in []string) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "ai_failed", "detail": errText(err)})
 		return
 	}
-	b, _ := json.Marshal(gin.H{"v": 2, "order": order, "deep": d})
+	b, _ := json.Marshal(gin.H{"v": gallupDeepVer, "order": order, "deep": d})
 	if !d.Partial {
 		_ = h.repo.PutFile(context.Background(), pg.PlatformFile{ID: key, Name: "gallup_deep.json", Mime: "application/json", Data: b}, platformUser(c))
 	}
@@ -413,4 +419,39 @@ func errText(err error) string {
 func isAIHTTP(err error) bool {
 	var he *ai.HTTPError
 	return errors.As(err, &he)
+}
+
+// gallupClubOnly (R71): POST {order, only:"club"} - the club part of the
+// deep analysis for a profile whose deep part was made before R71: one call
+// of the light model, the heavy parts stay as they are.
+func (h *PlatformAI) gallupClubOnly(c *gin.Context, in []string) {
+	order := gallupOrderOf(in)
+	if len(order) < 5 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "order"})
+		return
+	}
+	sum := sha256.Sum256([]byte("club\x00" + strings.Join(order, ",")))
+	key := "gal3c_" + hex.EncodeToString(sum[:])[:46]
+	ctx := c.Request.Context()
+	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
+		c.Header("X-Gallup-Cache", "hit")
+		c.Data(http.StatusOK, "application/json; charset=utf-8", f.Data)
+		return
+	}
+	if h.AI == nil || !h.AI.HasText() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no_ai"})
+		return
+	}
+	actx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+	club, err := h.gallupClubAsk(actx, order)
+	if club == nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "ai_failed", "detail": errText(err)})
+		return
+	}
+	b, _ := json.Marshal(gin.H{"v": gallupDeepVer, "order": order, "club": club})
+	if err == nil {
+		_ = h.repo.PutFile(context.Background(), pg.PlatformFile{ID: key, Name: "gallup_club.json", Mime: "application/json", Data: b}, platformUser(c))
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", b)
 }

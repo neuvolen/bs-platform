@@ -267,7 +267,7 @@ func (p *PremiumVoice) readLogin(ctx context.Context, v premiumVoice, sig string
 			stop(why, ai.ElevenMessage(err))
 			return
 		}
-		raw := premiumKey(v, say)
+		raw := premiumKey(v, spokenKey(t))
 		if err := p.repo.PutTTSMime(ctx, raw, "elevenlabs:"+v.ID, loginStyle, t, "audio/mpeg", audio); err != nil {
 			stop("net", "Запись не сохранилась в базе")
 			return

@@ -99,6 +99,7 @@ type gallupDeep struct {
 	Risks    []gallupRisk   `json:"risks"`
 	Plan     []gallupStep   `json:"plan"`
 	WorkWith []string       `json:"workWithMe"`
+	Club     *gallupClubAI  `json:"club,omitempty"` // R71: «Чем клуб полезен», light model
 	Partial  bool           `json:"partial,omitempty"`
 }
 
@@ -434,14 +435,20 @@ func (h *PlatformAI) gallupDeepFor(ctx context.Context, order []string) (*gallup
 		d, err := h.gallupAsk(ctx, gallupDeepPromptB(order), func(s string) (*gallupDeep, error) { return parseGallupDeepB(s, order) })
 		cb <- res{d, err}
 	}()
-	a, b := <-ca, <-cb
+	// R71: the club part on the light model, in parallel; optional
+	cc := make(chan *gallupClubAI, 1)
+	go func() {
+		c, _ := h.gallupClubAsk(ctx, order)
+		cc <- c
+	}()
+	a, b, club := <-ca, <-cb, <-cc
 	if a.d == nil && b.d == nil {
 		if a.err != nil {
 			return nil, a.err
 		}
 		return nil, b.err
 	}
-	out := &gallupDeep{V: 2, Partial: a.err != nil || b.err != nil}
+	out := &gallupDeep{V: gallupDeepVer, Partial: a.err != nil || b.err != nil, Club: club}
 	if a.d != nil {
 		out.Portrait, out.Amplify, out.Conflict, out.Anchors = a.d.Portrait, a.d.Amplify, a.d.Conflict, a.d.Anchors
 		out.Best, out.Stress, out.Reset, out.Blind = a.d.Best, a.d.Stress, a.d.Reset, a.d.Blind

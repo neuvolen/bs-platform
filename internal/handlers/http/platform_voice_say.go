@@ -21,6 +21,10 @@ const stress = "\u0301"
 // sayPhrases: whole phrases first (a word that needs its context).
 var sayPhrases = []struct{ from, to string }{
 	{"рекомендации ИИ", "рекомендации искусственного интеллекта"},
+	// R71: the shortcut, the deadline and the fine are read as words
+	{"Ctrl K", "Контрол Кей"},
+	{"до 22:00", "до двадцати двух часов"},
+	{"10 000 тенге", "десять тысяч те" + stress + "нге"},
 }
 
 // sayWords: a word (lower case, the forms in use) → how to say it. The first
@@ -48,9 +52,60 @@ var sayWords = func() map[string]string {
 		"саммари": "са" + stress + "ммари", "тенге": "те" + stress + "нге",
 		// Latin: read the Russian way
 		"gallup": "Гэ" + stress + "ллап", "crm": "Си Ар Эм", "bs": "Би Эс",
+		// R71: P&L, Kaspi, WhatsApp, KPI, Ctrl
+		"pl": "Пи энд Эл", "kaspi": "Ка" + stress + "спи", "whatsapp": "Уотса" + stress + "п", "kpi": "Кей Пи Ай",
+		"ctrl": "Контрол",
+		// R71: Достык (коворкинг), Телеграм
+		"достык": "Досты" + stress + "к",
 	}
+	// R71: the stress the model often misses, every form in use
+	forms := func(stem, acc string, ends ...string) {
+		for _, e := range ends {
+			m[stem+e] = acc + e
+		}
+	}
+	forms("реферал", "рефера"+stress+"л", "", "ы", "а", "ов", "ам", "ами", "ах", "е", "у", "ом")
+	forms("телеграм", "телегра"+stress+"м", "", "е", "а", "у", "ом")
+	forms("договор", "догово"+stress+"р", "", "а", "ы", "ов", "ам", "ами", "ах", "е", "у", "ом")
+	for w, to := range map[string]string{
+		"звонит": "звони" + stress + "т", "звонят": "звоня" + stress + "т", "звонишь": "звони" + stress + "шь",
+		"звоним": "звони" + stress + "м", "звоните": "звони" + stress + "те",
+		"облегчить": "облегчи" + stress + "ть", "облегчит": "облегчи" + stress + "т", "облегчим": "облегчи" + stress + "м",
+	} {
+		m[w] = to
+	}
+	// ё where the text was typed with е: «пятёрка» (the model reads «пяте́рка»)
+	forms("пятерк", "пятёрк", "а", "и", "е", "у", "ой", "ам", "ами")
 	return m
 }()
+
+// R71: «трЭкинг, а не трЕкинг». Measured on the platform's model
+// (eleven_multilingual_v2, voice ogi2DyUAKJb7CEdqqvlU): «тре́кинг» already
+// gives the soft [рʲе] in a fresh take (F2 at the vowel 2 080-2 220 Hz, the
+// native «тре́тий» 2 130-2 230, the hard «трэ́кинг» and the unmarked
+// «трекинг» 1 900-2 030); «трье́кинг», «тр'е́кинг», «тр-е-кинг» are no softer
+// there and add a glide («триекинг», «Трей Кинг»). The take kept for these
+// phrases came out hard, so they are read again: sayRetake salts the file
+// key (a new take), the text sent stays the same.
+var sayRetake = []struct {
+	mark string
+	take string
+}{
+	{"тре" + stress + "к", "r71"},
+}
+
+// spokenKey: what the file key of a phrase hashes (the spoken text and its
+// take).
+func spokenKey(t string) string {
+	say := SpeakText(t)
+	low := strings.ToLower(say)
+	for _, r := range sayRetake {
+		if strings.Contains(low, r.mark) {
+			return say + "\x00take:" + r.take
+		}
+	}
+	return say
+}
 
 // SpeakText: the text ElevenLabs reads for a phrase (spaces collapsed).
 func SpeakText(t string) string {

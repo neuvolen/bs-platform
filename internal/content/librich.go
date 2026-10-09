@@ -64,7 +64,18 @@ type richLib struct {
 	etag  string
 	tools []RichTool
 	byID  map[string]int
-	vids  map[string][]Video // R62: "tool:"/"diag:" + normalized title
+	vids  map[string][]Video  // R62: "tool:"/"diag:" + normalized title
+	diags map[string]RichDiag // R71: id → the short card of a diagnosis
+}
+
+// RichDiag (R71): what the Gallup analysis cites of a diagnosis.
+type RichDiag struct {
+	ID         string   `json:"id"`
+	Organ      string   `json:"organ"`
+	Title      string   `json:"title"`
+	Subtitle   string   `json:"subtitle"`
+	Cure       []string `json:"cure"`
+	FirstSteps []string `json:"first_steps"`
 }
 
 // Video (R62): a YouTube link on a rich card (field "videos" of a tool,
@@ -189,6 +200,12 @@ func buildRich() error {
 			}
 		}
 	}
+	var dl []RichDiag
+	_ = json.Unmarshal(db, &dl)
+	next.diags = make(map[string]RichDiag, len(dl))
+	for _, x := range dl {
+		next.diags[x.ID] = x
+	}
 	sum := sha256.New()
 	sum.Write(tb)
 	sum.Write(db)
@@ -276,4 +293,14 @@ func RichTitles() (tools, diag []string) {
 		diag = append(diag, d.Title)
 	}
 	return tools, diag
+}
+
+// RichDiagByID (R71): one diagnosis of the library; ok false when there is
+// none.
+func RichDiagByID(id string) (RichDiag, bool) {
+	richOnce.Do(loadRich)
+	richMu.RLock()
+	defer richMu.RUnlock()
+	d, ok := rich.diags[id]
+	return d, ok
 }

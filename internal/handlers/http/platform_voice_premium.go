@@ -421,7 +421,7 @@ func (p *PremiumVoice) have(ctx context.Context, v premiumVoice, texts []string)
 // file of the spoken text (SpeakText, R62), then the ones made before the
 // pronunciation dictionary (keyed by the shown text).
 func voiceKeys(v premiumVoice, t string) []string {
-	k := premiumKey(v, SpeakText(t))
+	k := premiumKey(v, spokenKey(t))
 	ks := []string{normKey(k), k}
 	if old := premiumKey(v, t); old != k {
 		ks = append(ks, normKey(old), old)
@@ -707,7 +707,7 @@ func (p *PremiumVoice) read(ctx context.Context, v premiumVoice, texts []string)
 			}
 			return
 		}
-		raw := premiumKey(v, say)
+		raw := premiumKey(v, spokenKey(t))
 		if err := p.repo.PutTTSMime(context.WithoutCancel(ctx), raw, "elevenlabs:"+v.ID, premiumStyle, t, "audio/mpeg", audio); err != nil {
 			p.progress(func(j *premiumJob) {
 				j.Running, j.Error, j.Stopped = false, "Запись не сохранилась в базе", "net"

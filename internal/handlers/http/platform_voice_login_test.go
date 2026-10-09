@@ -73,7 +73,7 @@ func TestR40dLoginDemoVoice(t *testing.T) {
 	defer func() { PremiumPace = oldPace }()
 
 	tour := []string{"Раз.", "Два.", "Три."}
-	login := []string{"Это ваш кабинет.", "Карта здоровья.", "Войдите через Телеграм."}
+	login := []string{"Это ваш кабинет.", "Карта здоровья.", "Войдите через бот."} // R71: no dictionary word, the text goes as written
 	secret := func() []byte { return []byte("jwt-secret-for-tests-0123456789") }
 	p := NewPremiumVoice(repo, secret, func() []string { return tour })
 	p.EL = &ai.Eleven{Base: srv.URL, HTTP: srv.Client(), Key: p.key, Wait: func(int, time.Duration) time.Duration { return time.Millisecond }}
