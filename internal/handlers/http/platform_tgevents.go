@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -40,7 +41,8 @@ type tgSource struct {
 // one whose title says Zula; the team can also add a channel in Мероприятия.
 var tgSources = []tgSource{
 	{Key: "startup_course_com", Name: "Возможности Startup course", Username: "startup_course_com"},
-	{Key: "zula", Name: "Opportunities with Zula", Match: "zula", Guess: []string{
+	// found on the first run on the server by its title: @opportunities_zula
+	{Key: "zula", Name: "Opportunities with Zula", Username: "opportunities_zula", Match: "zula", Guess: []string{
 		"opportunitieswithzula", "opportunities_with_zula", "zulaopportunities", "zula_opportunities",
 		"oppswithzula", "opps_with_zula", "zulaopps", "zula_opps", "opportunitieszula", "opportunities_zula",
 		"zula_opportunity", "zulaopportunity", "withzula", "zula_kz",
@@ -56,6 +58,9 @@ var (
 	tgHTTP     = &http.Client{Timeout: 25 * time.Second}
 	tgMaxItems = 200
 	tgUserRe   = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{3,31}$`)
+	// tgRun: one run at a time (the loop, the morning refresh and the button
+	// may meet right after a start)
+	tgRun sync.Mutex
 )
 
 type tgState struct {
@@ -375,8 +380,8 @@ func (h *PlatformAI) readTG(ctx context.Context, s tgSource, st *tgState, now ti
 	rules := len(out)
 	nAI := 0
 	if len(hard) > 0 && h.AI != nil && h.AI.HasText() {
-		if len(hard) > 8 {
-			hard = hard[len(hard)-8:]
+		if len(hard) > 5 {
+			hard = hard[len(hard)-5:] // a short answer is not cut off
 		}
 		actx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		evs, err := tgevents.AIExtract(actx, h.AI.JSON, hard, now)
@@ -396,6 +401,11 @@ func (h *PlatformAI) readTG(ctx context.Context, s tgSource, st *tgState, now ti
 // refreshTG reads every channel and writes the feed (also removing what has
 // passed, even when no channel answers).
 func (h *PlatformAI) refreshTG(ctx context.Context) (int, error) {
+	if !tgRun.TryLock() {
+		log.Printf("events tg: a run is going on, skipped")
+		return 0, nil
+	}
+	defer tgRun.Unlock()
 	now := time.Now()
 	today := now.In(tgevents.Almaty).Format("2006-01-02")
 	f, _ := h.loadFeed(ctx)
