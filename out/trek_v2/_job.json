@@ -1,0 +1,55 @@
+{
+ "job": "trek_v2",
+ "job_sha256": "9336fd066187b2cb7a6e1223b222eff15998ec8ede0a94660f591e58ccb2ffda",
+ "run_id": "37986551244",
+ "jobs_sha": "22dc4954cd0b11cfd9a0b035a32f44254067e996",
+ "ok": true,
+ "lines": [
+  {
+   "id": "a_cur",
+   "chars": 40,
+   "words": 7,
+   "duration": 2.368
+  },
+  {
+   "id": "b_plain",
+   "chars": 38,
+   "words": 7,
+   "duration": 2.322
+  },
+  {
+   "id": "c_trie",
+   "chars": 42,
+   "words": 7,
+   "duration": 2.601
+  },
+  {
+   "id": "d_apos",
+   "chars": 42,
+   "words": 7,
+   "duration": 2.554
+  },
+  {
+   "id": "e_hyph",
+   "chars": 42,
+   "words": 7,
+   "duration": 2.508
+  },
+  {
+   "id": "f_hard",
+   "chars": 40,
+   "words": 7,
+   "duration": 2.368
+  }
+ ],
+ "chars": 244,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.55,
+  "similarity_boost": 0.8,
+  "style": 0.1,
+  "use_speaker_boost": true,
+  "speed": 1.0
+ }
+}
