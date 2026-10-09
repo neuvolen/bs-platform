@@ -338,7 +338,7 @@ type putDocReq struct {
 // @Router       /api/v1/platform/docs/{key} [put]
 func (h *PlatformHandler) PutDoc(c *gin.Context) {
 	key := c.Param("key")
-	if !platformKeyRe.MatchString(key) || key == "bs_boards" || key == platformSeedKey || platformLocalOnlyKeys[key] {
+	if !platformKeyRe.MatchString(key) || key == "bs_boards" || key == platformSeedKey || key == GallupFixKey || platformLocalOnlyKeys[key] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad key"})
 		return
 	}

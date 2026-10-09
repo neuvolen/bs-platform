@@ -169,14 +169,16 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/ai/recs", m.AI.RecsNow)
 	g.POST("/ai/recs/:id", m.AI.RecAction)
 	g.POST("/ai/marketing", m.AI.Marketing)
-	g.POST("/ai/forecast", m.AI.Forecast)    // forecast_ai.go: «Учёт» → «Прогноз» → «Что если…» с ИИ (R48)
-	g.GET("/insights", m.AI.Insights)        // r32_insights.go: «Идеи и заметки» → «Аналитика»
-	g.POST("/ai/gallup", m.AI.Gallup)        // platform_gallup.go: 34 talents from a Gallup report
-	g.POST("/gallup/pdf", GallupPDF)         // platform_gallup_pdf.go: the analysis as a PDF (R29)
-	g.POST("/ai/health", m.AI.Health)        // platform_health.go: organ scores for «Здоровье бизнеса»
-	g.POST("/tts", m.AI.TTS)                 // platform_tts.go: voice guide (onboarding)
-	g.POST("/tts/warm", m.AI.TTSWarm)        // platform_tts_warm.go: the tour phrases made ahead of time
-	g.GET("/tts/manifest", m.AI.TTSManifest) // platform_tts_static.go: phrase → file, state
+	g.POST("/ai/forecast", m.AI.Forecast)            // forecast_ai.go: «Учёт» → «Прогноз» → «Что если…» с ИИ (R48)
+	g.GET("/insights", m.AI.Insights)                // r32_insights.go: «Идеи и заметки» → «Аналитика»
+	g.POST("/ai/gallup", m.AI.Gallup)                // platform_gallup.go: 34 talents from a Gallup report
+	g.POST("/gallup/pdf", GallupPDF)                 // platform_gallup_pdf.go: the analysis as a PDF (R29)
+	g.POST("/gallup/fix/send", m.AI.GallupFixSend)   // platform_gallup_fix.go: the corrected analysis to the resident (R68)
+	g.POST("/gallup/fix/audit", m.AI.GallupFixAudit) // R68: who got an analysis not from their own report
+	g.POST("/ai/health", m.AI.Health)                // platform_health.go: organ scores for «Здоровье бизнеса»
+	g.POST("/tts", m.AI.TTS)                         // platform_tts.go: voice guide (onboarding)
+	g.POST("/tts/warm", m.AI.TTSWarm)                // platform_tts_warm.go: the tour phrases made ahead of time
+	g.GET("/tts/manifest", m.AI.TTSManifest)         // platform_tts_static.go: phrase → file, state
 	g.POST("/tts/voice", m.AI.TTSSetVoice)
 	m.AI.Premium.Register(pub, g) // R36: «Голос ElevenLabs» (platform_voice_premium.go)
 	// R57: the video voiceovers of GitHub Actions (OIDC), with the same key (voicepipe.go)

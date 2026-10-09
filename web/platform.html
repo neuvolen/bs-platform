@@ -4959,7 +4959,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   var LS = window.localStorage;
   var P = Storage.prototype;
   var rawSet = P.setItem, rawGet = P.getItem, rawRemove = P.removeItem;
-  var LOCAL_ONLY = {bs_lastsync:1, bs_peer:1, bs_seed:1};   // bs_seed пишет только сервер
+  var LOCAL_ONLY = {bs_lastsync:1, bs_peer:1, bs_seed:1, bs_gallup_fix:1};   // bs_seed, bs_gallup_fix пишет только сервер
   var K_TOKEN = 'bsx_token', K_USER = 'bsx_user', K_STATE = 'bsx_state', K_UNSENT = 'bsx_unsent';
 
   // Память браузера (5 МБ) может закончиться: обложки разборов и т. п. Тогда запись
@@ -37193,7 +37193,8 @@ function r46LeadTeaser(){
       var cur = curBoard && curBoard.id === bid ? G.savedGallup() : null; if(!cur) return;
       var D = DB(), keys = x.j.talents.map(function(t){ return t.key; }).filter(function(k){ return D[k]; });
       var g = Object.assign({}, cur, {ai: {talents: x.j.talents, summary: x.j.summary || {}, complete: !!x.j.complete, at: new Date().toISOString(), v: x.j.v || 1, deep: x.j.deep || null}});
-      if(keys.length >= (cur.themes || []).length) g.themes = keys;
+      // R68: порядок ИИ из текста отчёта заменяет прежний; полный пронумерованный список отчёта главнее
+      if(keys.length >= 5 && !(cur.ranked && (cur.themes || []).length >= 34)) g.themes = keys;
       delete g.aiWant; G.storeGallup(g); dropText(bid); delete ST.err[bid];
       say('ИИ разобрал ' + keys.length + ' талантов'); repaint();
     }).catch(function(e){
@@ -37223,12 +37224,12 @@ function r46LeadTeaser(){
       if(text.replace(/\s+/g, ' ').length > 200){
         keepText(text);
         G.storeGallup({date: new Date().toISOString(), themes: [], aiWant: 1});
-        show('◐', 'Темы по словарю не нашлись: отчёт читает ИИ', 'Если ИИ недоступен, отметьте таланты вручную', '');
+        show('◐', 'Нумерованного списка талантов не нашёл: отчёт читает ИИ', 'Если ИИ не распознает, отправьте PDF из Gallup', '');
         askAI(text, bid);
-      } else show('✕', 'Тем в файле не нашёл', 'Проверьте, что это отчёт CliftonStrengths, или отметьте таланты вручную', 'err');
+      } else show('✕', 'Не удалось распознать отчёт', 'Отправьте PDF из Gallup (CliftonStrengths), где таланты пронумерованы по местам', 'err');
       repaint(); return;
     }
-    var g = {date: new Date().toISOString(), themes: hits.map(function(h){ return h.k; }).slice(0, 34)};
+    var g = {date: new Date().toISOString(), themes: hits.map(function(h){ return h.k; }).slice(0, 34), ranked: 1};
     G.storeGallup(g); keepText(text);
     show('✓', 'Нашёл тем: ' + g.themes.length, E(hits.slice(0, 5).map(function(h){ return (D[h.k] || {}).n; }).join(' · ')), 'ok');
     askAI(text, bid);
@@ -37303,7 +37304,7 @@ function r46LeadTeaser(){
     var why = ST.err[bid] || ST.why || '';
     if(!T.length){
       if(!g || !(g.aiWant || ST.err[bid])) return '';
-      return '<div class="r52g-st err"><b>Отчёт не разобран автоматически.</b> ' + E(why ? 'Причина: ' + why + '. ' : '') + 'Отметьте таланты вручную по порядку из отчёта: разбор появится сразу, ИИ дополнит его позже сам.' +
+      return '<div class="r52g-st err"><b>Не удалось распознать отчёт.</b> Отправьте PDF из Gallup (CliftonStrengths), где таланты пронумерованы по местам. ' + E(why ? 'Причина: ' + why + '. ' : '') + 'Или отметьте таланты вручную по порядку из отчёта.' +
         '<div class="r52g-acts"><button type="button" class="p" onclick="r52gPick(' + (document.getElementById('r52gPanel') ? 1 : 0) + ')">Отметить таланты вручную</button><button type="button" onclick="r52gRetry()">Повторить ИИ</button></div></div>';
     }
     if(g.aiWant) return '<div class="r52g-st warn"><b>Базовый разбор готов по правилам.</b> ' + (why ? 'ИИ сейчас недоступен: ' + E(why) + '. ' : '') + 'Дополню анализ ИИ сам, как только ИИ заработает.' +
@@ -40574,5 +40575,167 @@ window.r65Api = {join: join, leave: leave, share: shareStart, unshare: shareStop
 })();
 </script>
 <!-- /R65 -->
+<!-- R68: «Gallup-тест резиденты загружают, а он один на всех отправляет». Разбор по словарю (R52) брал порядок тем
+     по первому упоминанию названия в тексте. Общий для всех текст отчёта (введение, легенда доменов) давал всем один
+     и тот же порядок, а по нему из общего кэша приходил один и тот же разбор и PDF. Теперь порядок только из
+     пронумерованного списка «1. Тема, 2. Тема…», без него: «Не удалось распознать отчёт, отправьте PDF из Gallup».
+     Кому уже ушёл чужой разбор, сервер находит сам (bs_gallup_fix), в «Замеры» → Gallup кнопка «Отправить
+     исправленный анализ» -->
+<script id="r68gScript">
+(function(){
+  var G = window.G16; if(!G) return;
+  // Порядок и имена тем как на сервере (platform_gallup.go)
+  var THEMES = ['achiever','arranger','belief','consistency','deliberative','discipline','focus','responsibility','restorative',
+    'activator','command','communication','competition','maximizer','self-assurance','significance','woo',
+    'adaptability','connectedness','developer','empathy','harmony','includer','individualization','positivity','relator',
+    'analytical','context','futuristic','ideation','input','intellection','learner','strategic'];
+  var DBORDER = ['context','strategic','individualization','analytical','connectedness','significance','focus','ideation','responsibility','maximizer'];
+  var EN = {'self-assurance': 'Self-Assurance'};
+  var ALIAS = {selfassurance:'self-assurance', 'самоуверенность':'self-assurance', 'достижение':'achiever', 'достигатель':'achiever', 'вера':'belief',
+    'последовательность':'consistency', 'дисциплина':'discipline', 'фокус':'focus', 'командование':'command', 'командир':'command',
+    'соревновательность':'competition', 'конкурентность':'competition', 'связанность':'connectedness', 'развитиедругих':'developer',
+    'позитив':'positivity', 'близость':'relator', 'футурист':'futuristic', 'футуристичность':'futuristic', 'идеация':'ideation', 'сбор':'input',
+    'интеллект':'intellection', 'обучаемость':'learner', 'учащийся':'learner', 'стратег':'strategic', 'стратегическоемышление':'strategic',
+    'включённость':'includer', 'очарование':'woo', 'взаимосвязь':'connectedness', 'индивидуальныйподход':'individualization'};
+  var SHORT = 900;
+  function low(s){ return String(s || '').toLowerCase().replace(/ё/g, 'е'); }
+  function esc(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\-|-/g, '[- ]?'); }
+  var RX = null;
+  function rx(){
+    if(RX) return RX;
+    RX = {};
+    THEMES.forEach(function(k){
+      var D = {}; try{ D = GALLUP_DB[k] || {}; }catch(e){}
+      var c = [EN[k] || (k.charAt(0).toUpperCase() + k.slice(1)), (G.RU || {})[k], D.ru];
+      Object.keys(ALIAS).forEach(function(a){ if(ALIAS[a] === k) c.push(a); });
+      c = c.filter(Boolean).map(low).filter(function(x, i, a){ return a.indexOf(x) === i; }).sort(function(a, b){ return b.length - a.length; });
+      var alt = '(?:' + c.map(esc).join('|') + ')';
+      RX[k] = {
+        bef: new RegExp('(?:^|[^a-zа-я0-9])(\\d{1,2})\\s{0,3}[.):]?\\s{0,3}' + alt + '(?![a-zа-я])', 'g'),
+        aft: new RegExp('(?:^|[^a-zа-я])' + alt + '\\s{0,3}[:.\\-]?\\s{0,3}(\\d{1,2})(?!\\d)', 'g'),
+        any: new RegExp('(^|[^a-zа-я])' + alt + '(?![a-zа-я])')
+      };
+    });
+    return RX;
+  }
+  function chain(c){
+    c.sort(function(a, b){ return a.pos - b.pos; });
+    var best = [];
+    c.forEach(function(s){
+      if(s.rank !== 1) return;
+      var used = {}, out = [s.k], at = s.pos; used[s.k] = 1;
+      for(var r = 2; r <= 34; r++){
+        var nx = null;
+        for(var j = 0; j < c.length; j++){ var x = c[j]; if(x.rank === r && x.pos > at && x.pos - at <= 8000 && !used[x.k]){ nx = x; break; } }
+        if(!nx) break;
+        used[nx.k] = 1; out.push(nx.k); at = nx.pos;
+      }
+      if(out.length > best.length) best = out;
+    });
+    return best;
+  }
+  function canonical(o){
+    var n = Math.min(o.length, 10); if(n < 5) return false;
+    return [THEMES, DBORDER].some(function(ref){ for(var i = 0; i < n; i++) if(o[i] !== ref[i]) return false; return true; });
+  }
+  // Места тем из отчёта человека. null: пронумерованного списка нет
+  function ranked(text){
+    var t = low(text), R = rx(), bef = [], aft = [];
+    THEMES.forEach(function(k){
+      var m; R[k].bef.lastIndex = 0; R[k].aft.lastIndex = 0;
+      while((m = R[k].bef.exec(t)) !== null){ var r = +m[1]; if(r >= 1 && r <= 34) bef.push({pos: m.index, rank: r, k: k}); R[k].bef.lastIndex = m.index + 1; }
+      while((m = R[k].aft.exec(t)) !== null){ var r2 = +m[1]; if(r2 >= 1 && r2 <= 34) aft.push({pos: m.index, rank: r2, k: k}); R[k].aft.lastIndex = m.index + 1; }
+    });
+    var out = chain(bef), a = chain(aft);
+    if(a.length > out.length) out = a;
+    if(out.length < 5){
+      out = [];
+      // короткий вставленный список без номеров: «Стратегия, Ученик, Собиратель…»
+      if(String(text || '').trim().length <= SHORT){
+        var hits = [];
+        THEMES.forEach(function(k){ var m = R[k].any.exec(t); if(m) hits.push({k: k, pos: m.index + m[1].length}); });
+        out = hits.sort(function(x, y){ return x.pos - y.pos; }).map(function(h){ return h.k; });
+      }
+    }
+    if(out.length < 5 || canonical(out)) return null;
+    return out;
+  }
+  window.R68G = {ranked: ranked};
+  // R52g и R16 зовут parseGallupText: теперь он отдаёт только места из отчёта
+  window.parseGallupText = function(text){
+    var o = ranked(text) || [];
+    return o.map(function(k, i){ return {k: k, pos: i}; });
+  };
+
+  // ── Исправления: кому ушёл разбор не по своему отчёту (сервер, bs_gallup_fix) ──
+  function E(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function say(t){ try{ toast(t); }catch(e){} }
+  function fixDoc(){ try{ return JSON.parse(localStorage.getItem('bs_gallup_fix') || 'null') || {items: {}}; }catch(e){ return {items: {}}; } }
+  function ru(ks){ return (ks || []).map(function(k){ return (G.RU || {})[k] || k; }).join(', '); }
+  var busy = {};
+  function open(id){
+    try{ goSection('board'); openBoard(id); }catch(e){}
+    setTimeout(function(){ try{ curTest = 'gallup'; openSheet('testSheet'); }catch(e){} }, 120);
+  }
+  window.r68Open = open;
+  function canSend(it, g){
+    if(!it || it.sentAt) return false;
+    if(it.status === 'ready') return true;
+    return !!(g && g.date && g.date > it.at && (g.themes || []).length >= 5);
+  }
+  function banner(){
+    var adm = typeof MODE === 'undefined' || MODE === 'admin'; if(!adm) return '';
+    var F = fixDoc(), items = F.items || {}, bid = G.boardId(), it = bid ? items[bid] : null, g = G.savedGallup(), h = '';
+    if(it && it.sentAt) h += '<div class="r52g-st"><b>Исправленный анализ отправлен резиденту.</b> ' + E(new Date(it.sentAt).toLocaleString('ru')) + '</div>';
+    else if(it){
+      h += '<div class="r52g-st err" id="r68Fix"><b>Разбор Gallup ушёл не по отчёту резидента.</b> ' + E(String(it.why || '').replace(/^./, function(c){ return c.toUpperCase(); })) + '. Получил топ-5: ' + E(ru(it.was)) + '.';
+      if(it.status === 'ready') h += '<br>Верный порядок из его отчёта: <b>' + E(ru((it.themes || []).slice(0, 5))) + '</b>.';
+      else if(!canSend(it, g)) h += '<br>Его отчёт не сохранился: загрузите PDF резидента заново, затем отправьте.';
+      if(canSend(it, g)) h += '<div class="r52g-acts"><button type="button" class="p" id="r68Send" onclick="r68Send()"' + (busy[bid] ? ' disabled' : '') + '>' + (busy[bid] ? 'Отправляю…' : 'Отправить исправленный анализ') + '</button></div>';
+      h += '</div>';
+    }
+    var other = Object.keys(items).filter(function(id){ return id !== bid && items[id] && !items[id].sentAt; });
+    if(other.length) h += '<div class="r52g-st warn"><b>Исправить Gallup: ' + other.length + '</b> ' + other.map(function(id){
+      return '<button type="button" style="border:0;background:none;color:inherit;text-decoration:underline;cursor:pointer;font:inherit;padding:0 4px" onclick="r68Open(\'' + E(id) + '\')">' + E(items[id].name || 'без имени') + '</button>'; }).join(' · ') + '</div>';
+    return h;
+  }
+  function post(path, body){
+    return Promise.resolve(BSSync.api('POST', path, body)).then(function(r){
+      if(!r) return {ok: false, st: 0, j: {}};
+      return r.json().catch(function(){ return {}; }).then(function(j){ return {ok: r.ok, st: r.status, j: j || {}}; });
+    });
+  }
+  function repaint(){ try{ if(curTest === 'gallup') renderTests(); }catch(e){} try{ G.rerender(); }catch(e){} }
+  window.r68Send = function(){
+    var bid = G.boardId(), it = (fixDoc().items || {})[bid]; if(!bid || !it || busy[bid]) return;
+    busy[bid] = 1; repaint();
+    var g = G.savedGallup();
+    if(it.status === 'ready'){ g = {date: new Date().toISOString(), themes: (it.themes || []).slice(0, 34), ranked: 1, fixed: 1}; G.storeGallup(g); }
+    var order = (g.themes || []).slice(0, 34);
+    // глубокий разбор по верному порядку; не ответил ИИ: уходит разбор по правилам
+    var deep = (g.ai && g.ai.deep) ? Promise.resolve() : post('/ai/gallup', {order: order}).then(function(x){
+      if(x.ok && x.j && x.j.deep && curBoard && curBoard.id === bid){ var cur = G.savedGallup() || g; G.storeGallup(Object.assign({}, cur, {ai: Object.assign({}, cur.ai || {}, {deep: x.j.deep, v: 2, deepAt: new Date().toISOString()})})); }
+    }).catch(function(){});
+    deep.then(function(){
+      var doc = window.G29 && G29.pdfDoc ? G29.pdfDoc(G.savedGallup()) : null;
+      if(!doc) throw new Error('разбор не собрался');
+      return post('/gallup/fix/send', {board: bid, doc: doc});
+    }).then(function(x){
+      if(!x.ok) throw new Error((x.j && x.j.message) || ('сервер ответил ' + x.st));
+      var F = fixDoc(); if(F.items && F.items[bid]){ F.items[bid].sentAt = x.j.sentAt || new Date().toISOString(); try{ localStorage.setItem('bs_gallup_fix', JSON.stringify(F)); }catch(e){} }
+      say('Исправленный анализ отправлен: ' + (x.j.name || it.name));
+    }).catch(function(e){ say('Не отправилось: ' + ((e && e.message) || 'ошибка')); }).then(function(){ delete busy[bid]; repaint(); });
+  };
+  if(typeof renderTests === 'function'){
+    var rt0 = renderTests;
+    renderTests = window.renderTests = function(){
+      var r = rt0.apply(this, arguments);
+      try{ if(curTest === 'gallup'){ var p = document.getElementById('r52gPanel'), b = banner(); if(p && b) p.insertAdjacentHTML('afterbegin', b); } }catch(e){}
+      return r;
+    };
+  }
+})();
+</script>
+<!-- /R68g -->
 </body>
 </html>

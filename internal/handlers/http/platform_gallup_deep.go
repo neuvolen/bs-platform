@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -459,40 +458,10 @@ func (h *PlatformAI) gallupDeepFor(ctx context.Context, order []string) (*gallup
 // Used only to start the deep analysis in parallel with the talent call; the
 // order from the model wins.
 func gallupScanOrder(text string) []string {
-	low := strings.ReplaceAll(strings.ToLower(text), "ё", "е")
-	type hit struct {
-		k   string
-		pos int
-	}
-	var hits []hit
-	for _, th := range gallupThemes {
-		cands := []string{th[1], th[2]}
-		for a, k := range gallupAliases {
-			if k == th[0] && !strings.ContainsAny(a, " ") {
-				cands = append(cands, a)
-			}
-		}
-		best := -1
-		for _, c := range cands {
-			c = strings.ReplaceAll(strings.ToLower(c), "ё", "е")
-			pat := regexp.QuoteMeta(c)
-			pat = strings.ReplaceAll(pat, `\-`, `[- ]?`)
-			pat = strings.ReplaceAll(pat, "-", `[- ]?`)
-			re := regexp.MustCompile(`(?:^|[^\p{L}])(` + pat + `)(?:[^\p{L}]|$)`)
-			if m := re.FindStringSubmatchIndex(low); m != nil && (best < 0 || m[2] < best) {
-				best = m[2]
-			}
-		}
-		if best >= 0 {
-			hits = append(hits, hit{th[0], best})
-		}
-	}
-	sort.SliceStable(hits, func(i, j int) bool { return hits[i].pos < hits[j].pos })
-	out := make([]string, len(hits))
-	for i, h := range hits {
-		out[i] = h.k
-	}
-	return out
+	// R68: only the person's ranked list (platform_gallup_fix.go); never the
+	// first mention of a name in the report's common text
+	o, _ := gallupRankedOrder(text)
+	return o
 }
 
 func sameOrder(a, b []string) bool {

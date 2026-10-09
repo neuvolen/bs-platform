@@ -262,8 +262,9 @@ func (h *PlatformAI) Gallup(c *gin.Context) {
 		}
 	}
 	sum := sha256.Sum256([]byte(text))
-	// gal2_: R29 profiles with the deep analysis (gal_ held the talents only)
-	key := "gal2_" + hex.EncodeToString(sum[:])[:48]
+	// gal3_ (R68): answers made while the order could come from the report's
+	// common text are not reused (gal2_ R29, gal_ the talents only)
+	key := "gal3_" + hex.EncodeToString(sum[:])[:48]
 	ctx := c.Request.Context()
 	if f, err := h.repo.GetFile(ctx, key); err == nil && f != nil {
 		c.Header("X-Gallup-Cache", "hit")
@@ -314,8 +315,12 @@ func (h *PlatformAI) Gallup(c *gin.Context) {
 		if err != nil && actx.Err() == nil && !isAIHTTP(err) {
 			code = "ai_parse"
 		}
-		c.JSON(http.StatusBadGateway, gin.H{"error": code, "detail": errText(err)})
+		c.JSON(http.StatusBadGateway, gin.H{"error": code, "detail": errText(err), "message": GallupUnrecognized})
 		return
+	}
+	// R68: the numbered places of the report win over the model's reading
+	if len(scan) == len(gallupThemes) {
+		p.Talents, p.Complete = gallupReorder(p.Talents, scan), true
 	}
 	order := make([]string, len(p.Talents))
 	for i, t := range p.Talents {
@@ -377,6 +382,25 @@ func (h *PlatformAI) gallupDeepOnly(c *gin.Context, in []string) {
 		_ = h.repo.PutFile(context.Background(), pg.PlatformFile{ID: key, Name: "gallup_deep.json", Mime: "application/json", Data: b}, platformUser(c))
 	}
 	c.Data(http.StatusOK, "application/json; charset=utf-8", b)
+}
+
+// gallupReorder puts the talents in the report's own numbered order.
+func gallupReorder(in []gallupTalent, order []string) []gallupTalent {
+	by := map[string]gallupTalent{}
+	for _, t := range in {
+		by[t.Key] = t
+	}
+	out := make([]gallupTalent, 0, len(order))
+	for i, k := range order {
+		t, ok := by[k]
+		if !ok {
+			th := gallupTheme(k)
+			t = gallupTalent{Key: k, Name: th[1], Ru: th[2], Domain: th[3], DomainRu: gallupDomainRu[th[3]]}
+		}
+		t.Rank = i + 1
+		out = append(out, t)
+	}
+	return out
 }
 
 func errText(err error) string {
