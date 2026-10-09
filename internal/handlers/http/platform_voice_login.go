@@ -275,6 +275,7 @@ func (p *PremiumVoice) readLogin(ctx context.Context, v premiumVoice, sig string
 		if ff := p.ffBin(ctx); ff != "" {
 			p.normalize(ctx, ff, raw, "elevenlabs:"+v.ID, loginStyle, t, "login line", audio)
 		}
+		log.Printf("tts premium: login demo: read again: %s", say) // R74: what was voiced (the logs show the new pronunciation)
 		p.mu.Lock()
 		if p.login.VoiceID == sig {
 			p.login.Done++

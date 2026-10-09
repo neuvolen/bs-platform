@@ -26,14 +26,20 @@ import (
 // уже другой). Всё в памяти, как присутствие на доске (platform_presence.go):
 // перезапуск сервера стоит одного переподключения.
 //
-//   POST /call/room    {board, tab, op: peek|join|leave|present|unpresent|rec|unrec}
+// R74: «Мне видео же тоже нужно»: у каждого камера (вкл/выкл, отметка cam у
+// участника, чтобы другие видели аватар, когда камера выключена) и созвон до
+// четырёх вкладок (трекер, резидент, партнёр, второй основатель): каждая
+// соединена с каждой (маленькая сетка), пятая получает room_full.
+//
+//   POST /call/room    {board, tab, op: peek|join|leave|present|unpresent|rec|unrec|cam|nocam, cam}
 //   POST /call/signal  {board, tab, to, kind, data}
 //   GET  /call/stream  ?board&tab  состояние созвона и письма этой вкладке (SSE)
 
 const (
-	callMemberTTL = 20 * time.Second
-	callMsgMax    = 200      // писем в очереди одной вкладки
-	callMsgSize   = 64 << 10 // одно письмо (offer с кандидатами) не больше
+	callMemberTTL  = 20 * time.Second
+	callMsgMax     = 200      // писем в очереди одной вкладки
+	callMsgSize    = 64 << 10 // одно письмо (offer с кандидатами) не больше
+	callMaxMembers = 4        // R74: сетка браузер в браузер: каждый шлёт каждому, больше четырёх тяжело
 )
 
 type callMsg struct {
@@ -48,6 +54,7 @@ type callMember struct {
 	Name  string    `json:"name"`
 	Role  string    `json:"role"`
 	Color string    `json:"color"`
+	Cam   bool      `json:"cam"` // R74: камера включена
 	At    time.Time `json:"-"`
 	box   []callMsg
 	live  int // открытые потоки этой вкладки
@@ -171,6 +178,11 @@ func (h *callHub) Op(board string, me callMember, op string) (callView, bool) {
 		}
 		if old := r.members[me.Key]; old != nil {
 			old.At, old.Name = h.now(), me.Name
+			if old.Cam != me.Cam {
+				old.Cam, changed = me.Cam, true
+			}
+		} else if len(r.members) >= callMaxMembers {
+			return h.viewLocked(board, me.Key), false
 		} else {
 			m := me
 			m.At = h.now()
@@ -184,6 +196,15 @@ func (h *callHub) Op(board string, me callMember, op string) (callView, bool) {
 				delete(h.rooms, board)
 			}
 			changed = true
+		}
+	case "cam", "nocam": // R74
+		if !in {
+			return h.viewLocked(board, me.Key), false
+		}
+		m := r.members[me.Key]
+		m.At = h.now()
+		if on := op == "cam"; m.Cam != on {
+			m.Cam, changed = on, true
 		}
 	case "present", "unpresent", "rec", "unrec":
 		if !in {
@@ -329,13 +350,14 @@ func (pp *PlatformPresence) CallRoom(c *gin.Context) {
 		Tab   string `json:"tab"`
 		Op    string `json:"op"`
 		Name  string `json:"name"`
+		Cam   bool   `json:"cam"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request"})
 		return
 	}
 	switch req.Op {
-	case "peek", "join", "leave", "present", "unpresent", "rec", "unrec":
+	case "peek", "join", "leave", "present", "unpresent", "rec", "unrec", "cam", "nocam":
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad op"})
 		return
@@ -345,9 +367,14 @@ func (pp *PlatformPresence) CallRoom(c *gin.Context) {
 		forbidden(c, "not_your_board")
 		return
 	}
+	me.Cam = req.Cam
 	v, ok := theCallHub.Op(req.Board, me, req.Op)
 	if !ok {
-		c.JSON(http.StatusConflict, gin.H{"error": "not_in_call", "room": v})
+		why := "not_in_call"
+		if req.Op == "join" {
+			why = "room_full" // R74: уже четверо
+		}
+		c.JSON(http.StatusConflict, gin.H{"error": why, "room": v, "max": callMaxMembers})
 		return
 	}
 	out := gin.H{"room": v}

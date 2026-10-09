@@ -41828,17 +41828,68 @@ html.r65-in .reccard{bottom:84px}
   .r65-dock{gap:4px;padding:5px}
   .r65-dock .r65-st,.r65-dock .r65-lbl{display:none}
   .r65-dock button{padding:0 10px}
+  .r65-dock .r65-av{width:22px;height:22px;font-size:9px;margin-left:-9px}
+  .r65-dock .r65-av:first-child{margin-left:0}
   .r65-stage{left:8px;right:8px;width:auto;top:calc(var(--th, 56px) + 8px)}
   .r65-stage .r65-sh [data-a="share"],.r65-stage .r65-sh [data-a="full"]{display:none}
   .r65-stage.mini{left:auto;width:180px;bottom:140px}
 }
+</style>
+<!-- R74: видео в созвоне на доске: камеры пузырями поверх доски, экран в своём окне, до четырёх участников -->
+<style id="r74Style">
+.r74-cams{position:fixed;left:0;top:0;width:0;height:0;z-index:122}
+.r74-b{position:fixed;left:-9999px;top:0;width:208px;height:117px;border-radius:14px;overflow:hidden;background:#111;color:#fff;border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 12px 32px rgba(0,0,0,.45);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;outline:none;
+  transition:left .2s ease,top .2s ease,width .2s ease,height .2s ease,border-radius .2s ease;font-family:'Manrope',-apple-system,sans-serif}
+body.light .r74-b{box-shadow:0 10px 28px rgba(0,0,0,.2);border-color:rgba(0,0,0,.14)}
+.r74-b:focus-visible{box-shadow:0 0 0 2px #fff,0 12px 32px rgba(0,0,0,.45)}
+.r74-b.drag,.r74-b.rsz{transition:none}
+.r74-b.drag{cursor:grabbing;box-shadow:0 18px 44px rgba(0,0,0,.55)}
+.r74-b video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;pointer-events:none}
+.r74-b.me video{transform:scaleX(-1)}
+.r74-av{position:absolute;inset:0;display:none;place-items:center;background:#161616}
+.r74-av i{font-style:normal;width:min(56px,42%);aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:16px;color:#111;background:var(--c,#fff)}
+.r74-b.nov .r74-av{display:grid}
+.r74-b.nov video{visibility:hidden}
+.r74-nm{position:absolute;left:0;right:0;bottom:0;padding:16px 10px 6px;font-size:11.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:linear-gradient(transparent,rgba(0,0,0,.65));pointer-events:none}
+.r74-tb{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.r74-b[data-c="bl"] .r74-tb{right:auto;left:6px}
+.r74-b:hover .r74-tb,.r74-b:focus-within .r74-tb{opacity:1}
+.r74-tb button{width:26px;height:26px;border-radius:8px;border:0;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;display:grid;place-items:center;padding:0}
+.r74-tb button:hover{background:rgba(0,0,0,.85)}
+.r74-tb button svg{width:14px;height:14px}
+.r74-tb button:focus-visible{outline:2px solid #fff}
+.r74-rs{position:absolute;width:22px;height:22px;opacity:0;transition:opacity .15s}
+.r74-rs::after{content:'';position:absolute;inset:6px;border:0 solid rgba(255,255,255,.9)}
+.r74-b:hover .r74-rs{opacity:1}
+.r74-b[data-c="bl"] .r74-rs{right:0;top:0;cursor:nesw-resize}.r74-b[data-c="bl"] .r74-rs::after{border-top-width:2px;border-right-width:2px}
+.r74-b[data-c="br"] .r74-rs{left:0;top:0;cursor:nwse-resize}.r74-b[data-c="br"] .r74-rs::after{border-top-width:2px;border-left-width:2px}
+.r74-b[data-c="tl"] .r74-rs{right:0;bottom:0;cursor:nwse-resize}.r74-b[data-c="tl"] .r74-rs::after{border-bottom-width:2px;border-right-width:2px}
+.r74-b[data-c="tr"] .r74-rs{left:0;bottom:0;cursor:nesw-resize}.r74-b[data-c="tr"] .r74-rs::after{border-bottom-width:2px;border-left-width:2px}
+.r74-b[data-c="br"] .r74-tb{right:6px}
+.r74-b.min{border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.85)}
+body.light .r74-b.min{border-color:#111}
+.r74-b.min .r74-av{display:grid}
+.r74-b.min .r74-av i{width:100%;font-size:15px}
+.r74-b.min video,.r74-b.min .r74-nm,.r74-b.min .r74-tb,.r74-b.min .r74-rs{display:none}
+@media (hover:none){.r74-tb{opacity:1}.r74-rs{opacity:.85}}
+@media (prefers-reduced-motion:reduce){.r74-b{transition:none}}
+@media print{.r74-cams{display:none}}
 </style>
 <script id="r65Script">
 (function(){
 if(!window.RTCPeerConnection || !navigator.mediaDevices) return;
 var TAB = 'c' + Math.random().toString(36).slice(2, 10);
 var C = {on: false, board: '', me: '', room: null, ice: [{urls: ['stun:stun.l.google.com:19302']}], mic: null, micOn: true, share: null, pcs: {},
-  tok: null, reader: null, fails: 0, mini: false, presKey: '', joining: false, peek: null, dismissed: '', meet: '', iceQ: {}};
+  tok: null, reader: null, fails: 0, mini: false, presKey: '', joining: false, peek: null, dismissed: '', meet: '', iceQ: {},
+  cam: null, av: new MediaStream(), bub: {}, camBusy: false};
+// R74: камера. Один запрос разрешения (микрофон и камера вместе), по умолчанию включена у всех, выключатель в панели.
+// 640×360 при 24 кадрах, пока никто не показывает экран; при показе камеры легче (их видно пузырями, экран в своём окне).
+// Голос и камера одного человека в одном потоке (C.av): браузер сводит их по времени. Запись остаётся только звуком.
+var CAMC = {width: {ideal: 640, max: 640}, height: {ideal: 360, max: 360}, frameRate: {ideal: 24, max: 24}, facingMode: 'user'};
+var MAXN = 4;
+var camPref = function(){ try{ return localStorage.getItem('bs_cam') !== '0'; }catch(e){ return true; } };
+var camSave = function(on){ try{ localStorage.setItem('bs_cam', on ? '1' : '0'); }catch(e){} };
 window.r65 = C;
 var ea = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
 var tst = function(t){ try{ toast(t); }catch(e){} };
@@ -41853,7 +41904,11 @@ var ICON = {
   scr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M12 13V7M9.5 9.5 12 7l2.5 2.5"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
   link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
-  out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></svg>'
+  out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></svg>',
+  cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3"/></svg>',
+  camoff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 13.5 21 16.5v-9l-5 3M10 6h3.5A2.5 2.5 0 0 1 16 8.5V12M16 16v-.5A2.5 2.5 0 0 1 13.5 18h-8A2.5 2.5 0 0 1 3 15.5v-7A2.5 2.5 0 0 1 5 6M3 3l18 18"/></svg>',
+  min: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 12h12"/></svg>',
+  big: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>'
 };
 
 // ── элементы ──
@@ -41863,7 +41918,7 @@ var audioBox = function(){ var b = el('r65Audio', '', 'div'); b.style.display = 
 // ── сервер ──
 var roomOp = function(op){
   if(!C.board) return Promise.resolve(null);
-  return api('POST', '/call/room', {board: C.board, tab: TAB, op: op, name: userName()}).then(function(x){
+  return api('POST', '/call/room', {board: C.board, tab: TAB, op: op, name: userName(), cam: !!C.cam}).then(function(x){
     if(x.j && x.j.ice) C.ice = x.j.ice;
     if(x.j && x.j.room) onRoom(x.j.room);
     return x;
@@ -41921,13 +41976,36 @@ var stopStream = function(){ var r = C.reader; C.tok = null; C.reader = null; if
 var micTrack = function(){ return C.mic && C.mic.getAudioTracks()[0] || null; };
 var shareTrack = function(){ return C.share && C.share.getVideoTracks()[0] || null; };
 var kindTx = function(pc, kind){ return pc.getTransceivers().filter(function(t){ return t.receiver && t.receiver.track && t.receiver.track.kind === kind; })[0] || null; };
+// R74: видео-дорожек две и всегда в этом порядке: первая экран, вторая камера (у прежней страницы камеры нет)
+var vTx = function(pc){ return pc.getTransceivers().filter(function(t){ return t.receiver && t.receiver.track && t.receiver.track.kind === 'video'; }); };
+var scrTx = function(pc){ return vTx(pc)[0] || null; };
+var camTx = function(pc){ return vTx(pc)[1] || null; };
+var camTrack = function(){ return C.cam && C.cam.getVideoTracks()[0] || null; };
+var syncAv = function(tx){ try{ if(tx && tx.sender.setStreams) tx.sender.setStreams(C.av); }catch(e){} };
+// Полоса камеры: 640×360 и 24 кадра, при показе экрана вчетверо меньше точек и 15 кадров, в сетке на четверых скромнее
+var camParams = function(P){
+  var t = camTx(P.pc); if(!t || !t.sender || !t.sender.getParameters) return;
+  var n = Math.max(1, Object.keys(C.pcs).length), shared = !!(C.room && C.room.presenter);
+  var want = shared ? {s: 2, f: 15, b: 150000} : {s: 1, f: 24, b: n >= 3 ? 450000 : n === 2 ? 600000 : 800000};
+  try{
+    var p = t.sender.getParameters();
+    if(!p.encodings || !p.encodings.length) return;
+    var e = p.encodings[0];
+    if(e.scaleResolutionDownBy === want.s && e.maxFramerate === want.f && e.maxBitrate === want.b) return;
+    e.scaleResolutionDownBy = want.s; e.maxFramerate = want.f; e.maxBitrate = want.b;
+    p.degradationPreference = 'balanced';
+    t.sender.setParameters(p).catch(function(){});
+  }catch(e){}
+  P.camMode = (shared ? 's' : 'n') + n;
+};
+var camParamsAll = function(){ Object.keys(C.pcs).forEach(function(k){ camParams(C.pcs[k]); }); };
 var closePc = function(key){
   var P = C.pcs[key]; if(!P) return;
   delete C.pcs[key];
   try{ P.pc.close(); }catch(e){}
   if(P.au){ try{ P.au.srcObject = null; P.au.remove(); }catch(e){} }
   clearTimeout(P.dt);
-  renderStage();
+  renderStage(); renderCams(); camParamsAll();
 };
 var newPc = function(key, initiator, gen){
   closePc(key);
@@ -41944,16 +42022,17 @@ var newPc = function(key, initiator, gen){
       a.play && a.play().catch(function(){});
       if(window.REC && REC.call && REC.add) REC.add(key, e.track);
     } else {
-      e.track.onunmute = function(){ renderStage(); };
-      e.track.onmute = function(){ renderStage(); };
-      renderStage();
+      var isCam = e.transceiver ? e.transceiver === camTx(pc) : vTx(pc).map(function(t){ return t.receiver.track; }).indexOf(e.track) === 1;
+      e.track.onunmute = function(){ if(isCam) renderCams(); else renderStage(); };
+      e.track.onmute = function(){ if(isCam) renderCams(); else renderStage(); };
+      if(isCam) renderCams(); else renderStage();
     }
   };
   pc.onconnectionstatechange = function(){
     if(C.pcs[key] !== P) return;
     var s = pc.connectionState;
     clearTimeout(P.dt);
-    if(s === 'connected'){ P.ok = true; render(); return; }
+    if(s === 'connected'){ P.ok = true; camParams(P); render(); return; }
     if(s === 'failed' || s === 'disconnected'){
       // Восстановление: начинающий заново звонит, второй просит его об этом
       P.dt = setTimeout(function(){
@@ -41968,8 +42047,9 @@ var newPc = function(key, initiator, gen){
 // Звонит тот, чей ключ меньше: без встречных звонков
 var call = function(key){
   var P = newPc(key, true), pc = P.pc;
-  pc.addTransceiver(micTrack() || 'audio', {direction: 'sendrecv'});
+  pc.addTransceiver(micTrack() || 'audio', {direction: 'sendrecv', streams: [C.av]});
   pc.addTransceiver(shareTrack() || 'video', {direction: 'sendrecv'});
+  pc.addTransceiver(camTrack() || 'video', {direction: 'sendrecv', streams: [C.av]}); // R74: камера
   return pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){
     if(C.pcs[key] !== P) return;
     return sig(key, 'offer', {gen: P.gen, sdp: {type: pc.localDescription.type, sdp: pc.localDescription.sdp}});
@@ -41986,9 +42066,10 @@ var onMsg = function(m){
     P = newPc(m.from, false, d.gen);
     var pc = P.pc;
     return pc.setRemoteDescription(d.sdp).then(function(){
-      var at = kindTx(pc, 'audio'), vt = kindTx(pc, 'video');
-      if(at){ at.direction = 'sendrecv'; at.sender.replaceTrack(micTrack()).catch(function(){}); }
+      var at = kindTx(pc, 'audio'), vt = scrTx(pc), ct = camTx(pc);
+      if(at){ at.direction = 'sendrecv'; at.sender.replaceTrack(micTrack()).catch(function(){}); syncAv(at); }
       if(vt){ vt.direction = 'sendrecv'; vt.sender.replaceTrack(shareTrack()).catch(function(){}); }
+      if(ct){ ct.direction = 'sendrecv'; ct.sender.replaceTrack(camTrack()).catch(function(){}); syncAv(ct); }
       flushIce(P);
       return pc.createAnswer();
     }).then(function(a){ return pc.setLocalDescription(a); }).then(function(){
@@ -42021,7 +42102,7 @@ var onRoom = function(room){
   if(!C.on){ renderJoin(); return; }
   if(!room.in){
     // сервер перезапустился или вкладку не было слышно: войти снова
-    if(!C.joining){ C.joining = true; roomOp('join').then(function(){ C.joining = false; if(C.share) roomOp('present'); }); }
+    if(!C.joining){ C.joining = true; roomOp('join').then(function(x){ C.joining = false; if(x && x.s === 409){ leave(true); tst('В созвоне уже четверо: больше не поместится. Подключитесь через Meet'); return; } if(C.share) roomOp('present'); }); }
     return;
   }
   var keys = {};
@@ -42044,7 +42125,7 @@ var onRoom = function(room){
   var pk = pres ? pres + '@' + room.presenter.at : '';
   if(pres && pres !== C.me && pres !== prevPres && pk !== C.toldPres){ C.toldPres = pk; tst('Сейчас показывает ' + first(room.presenter.name)); C.mini = false; }
   if(C.share && !C.sharing && !pres){ roomOp('present'); }
-  render();
+  render(); camParamsAll();
 };
 
 // ── показ экрана ──
@@ -42063,7 +42144,7 @@ var shareStart = function(){
     try{ tr.contentHint = 'detail'; }catch(e){}
     C.share = st; C.sharing = true;
     tr.onended = function(){ if(C.share === st) shareStop(true); };
-    Object.keys(C.pcs).forEach(function(k){ var t = kindTx(C.pcs[k].pc, 'video'); if(t) t.sender.replaceTrack(tr).catch(function(){}); });
+    Object.keys(C.pcs).forEach(function(k){ var t = scrTx(C.pcs[k].pc); if(t) t.sender.replaceTrack(tr).catch(function(){}); });
     return roomOp('present').then(function(x){
       C.sharing = false;
       var p = x && x.j && x.j.room && x.j.room.presenter;
@@ -42078,7 +42159,7 @@ var shareStart = function(){
 var shareStop = function(tell){
   var st = C.share; C.share = null;
   if(st) st.getTracks().forEach(function(t){ t.onended = null; t.stop(); });
-  Object.keys(C.pcs).forEach(function(k){ var t = kindTx(C.pcs[k].pc, 'video'); if(t) t.sender.replaceTrack(null).catch(function(){}); });
+  Object.keys(C.pcs).forEach(function(k){ var t = scrTx(C.pcs[k].pc); if(t) t.sender.replaceTrack(null).catch(function(){}); });
   if(tell) roomOp('unpresent');
   render();
 };
@@ -42090,16 +42171,29 @@ var join = function(o){
   if(!window.BSSync || !BSSync.api || !BSSync.online()){ tst('Созвон работает на сервере платформы'); return Promise.resolve(); }
   if(typeof curBoard === 'undefined' || !curBoard || !curBoard.id){ tst('Откройте доску резидента'); return Promise.resolve(); }
   C.board = String(curBoard.id); C.meet = o.meet || '';
-  return navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true}}).catch(function(e){
-    tst(e && /NotAllowed|Permission/i.test(e.name + e.message) ? 'Нет доступа к микрофону: вас не слышно, разрешите микрофон в адресной строке' : 'Микрофон не найден: вас не слышно');
-    return null;
-  }).then(function(mic){
+  var AUD = {echoCancellation: true, noiseSuppression: true, autoGainControl: true}, wantCam = camPref();
+  var micOnly = function(){
+    return navigator.mediaDevices.getUserMedia({audio: AUD}).catch(function(e){
+      tst(e && /NotAllowed|Permission/i.test(e.name + e.message) ? 'Нет доступа к микрофону: вас не слышно, разрешите микрофон в адресной строке' : 'Микрофон не найден: вас не слышно');
+      return null;
+    });
+  };
+  // R74: одно разрешение на микрофон и камеру; камеры нет или она запрещена: только звук
+  return (wantCam ? navigator.mediaDevices.getUserMedia({audio: AUD, video: CAMC}).catch(function(){
+    return micOnly().then(function(m){ if(m) tst('Камера недоступна: вас слышно, но не видно. Разрешите камеру в адресной строке'); return m; });
+  }) : micOnly()).then(function(st){
+    var mic = null;
+    if(st){
+      var vs = st.getVideoTracks(), as = st.getAudioTracks();
+      if(vs.length){ try{ vs[0].contentHint = 'motion'; }catch(e){} C.cam = new MediaStream(vs); }
+      mic = as.length ? new MediaStream(as) : null;
+    }
     C.mic = mic; C.micOn = !!mic; C.on = true; C.dismissed = '';
     document.documentElement.classList.add('r65-in');
     renderJoin();
     return roomOp('join');
   }).then(function(x){
-    if(!x || x.s !== 200){ leave(true); tst(x && x.s === 403 ? 'Это не ваша доска' : 'Созвон не начался: нет связи с сервером'); return; }
+    if(!x || x.s !== 200){ leave(true); tst(x && x.s === 403 ? 'Это не ваша доска' : x && x.s === 409 ? 'В созвоне уже четверо: больше не поместится. Подключитесь через Meet' : 'Созвон не начался: нет связи с сервером'); return; }
     stream(); render();
     tst((C.room.members || []).length > 1 ? 'Вы в созвоне' : 'Созвон начат: резидент войдёт с этой же доски');
     if(o.rec && isTeam()) recStart();
@@ -42113,9 +42207,33 @@ var leave = function(silent){
   if(!silent) roomOp('leave');
   stopStream();
   if(C.mic) C.mic.getTracks().forEach(function(t){ t.stop(); });
-  C.mic = null; C.on = false; C.room = null; C.me = ''; C.dismissed = C.board;
+  if(C.cam) C.cam.getTracks().forEach(function(t){ t.stop(); });
+  C.mic = null; C.cam = null; C.on = false; C.room = null; C.me = ''; C.dismissed = C.board;
   document.documentElement.classList.remove('r65-in');
   render(); renderJoin();
+};
+// R74: камера вкл/выкл. Выключенная камера гаснет совсем (лампочка тоже), у других вместо видео аватар
+var camToggle = function(){
+  if(!C.on || C.camBusy) return;
+  if(C.cam){
+    var st = C.cam; C.cam = null;
+    st.getTracks().forEach(function(t){ t.stop(); });
+    Object.keys(C.pcs).forEach(function(k){ var t = camTx(C.pcs[k].pc); if(t) t.sender.replaceTrack(null).catch(function(){}); });
+    camSave(false); roomOp('nocam'); render(); return;
+  }
+  C.camBusy = true;
+  navigator.mediaDevices.getUserMedia({video: CAMC}).then(function(st){
+    C.camBusy = false;
+    if(!C.on){ st.getTracks().forEach(function(t){ t.stop(); }); return; }
+    var tr = st.getVideoTracks()[0];
+    try{ tr.contentHint = 'motion'; }catch(e){}
+    C.cam = st;
+    Object.keys(C.pcs).forEach(function(k){ var t = camTx(C.pcs[k].pc); if(t){ t.sender.replaceTrack(tr).catch(function(){}); syncAv(t); } camParams(C.pcs[k]); });
+    camSave(true); roomOp('cam'); render();
+  }).catch(function(e){
+    C.camBusy = false;
+    tst(e && /NotAllowed|Permission/i.test(e.name + e.message) ? 'Нет доступа к камере: разрешите камеру в адресной строке' : 'Камера не найдена');
+  });
 };
 var micToggle = function(){
   var t = micTrack(); if(!t){ tst('Микрофон не подключён'); return; }
@@ -42176,7 +42294,7 @@ var presenter = function(){ return C.room && C.room.presenter || null; };
 var render = function(){
   var d = el('r65Dock', 'r65-dock');
   d.classList.toggle('on', C.on);
-  if(!C.on){ d.innerHTML = ''; renderStage(); return; }
+  if(!C.on){ d.innerHTML = ''; renderStage(); renderCams(); return; }
   var pr = presenter(), mine = pr && pr.key === C.me, ms = members();
   var st = pr ? (mine ? 'Вы показываете экран' : 'Показывает ' + first(pr.name)) : (ms.length > 1 ? 'В созвоне ' + ms.length : (isTeam() ? 'Ждём резидента' : 'Ждём трекера'));
   var rec = window.REC && REC.call ? REC : null, recOther = !rec && C.room && C.room.rec;
@@ -42188,6 +42306,7 @@ var render = function(){
     return '<span class="r65-av' + (pr && pr.key === m.key ? ' pres' : '') + '" style="--c:' + ea(m.color || '#5B9BFF') + '" title="' + ea(m.name + (m.key === C.me ? ' (вы)' : '')) + '">' + ea(initials(m.name)) + '</span>';
   }).join('') + '</span><span class="r65-st" id="r65St">' + ea(st) + '</span></span>';
   h += '<button type="button" class="r65-ic' + (C.micOn ? '' : ' off') + '" data-a="mic" title="' + (C.micOn ? 'Выключить микрофон' : 'Включить микрофон') + '" aria-label="Микрофон">' + (C.micOn ? ICON.mic : ICON.micoff) + '</button>';
+  h += '<button type="button" class="r65-ic' + (C.cam ? '' : ' off') + '" data-a="cam" title="' + (C.cam ? 'Выключить камеру' : 'Включить камеру') + '" aria-label="' + (C.cam ? 'Выключить камеру' : 'Включить камеру') + '" aria-pressed="' + (C.cam ? 'true' : 'false') + '">' + (C.cam ? ICON.cam : ICON.camoff) + '</button>';
   if(canShare()) h += mine ? '<button type="button" class="pr" data-a="unshare">' + ICON.stop + '<span>Остановить</span></button>'
     : '<button type="button" class="pr" data-a="share">' + ICON.scr + '<span>Показать мой экран</span></button>';
   if(isTeam() && !rec) h += '<button type="button" data-a="rec" title="Записать разбор: звук созвона, без захвата экрана"><span class="r65-rec" style="padding:0"><i style="animation:none"></i></span><span class="r65-lbl">Запись</span></button>';
@@ -42195,13 +42314,13 @@ var render = function(){
   if(C.meet) h += '<button type="button" data-a="meet" title="Открыть Meet в новой вкладке, если резидент там"><span class="r65-lbl">Meet</span></button>';
   h += '<button type="button" class="r65-ic" data-a="leave" title="Выйти из созвона" aria-label="Выйти из созвона">' + ICON.out + '</button>';
   d.innerHTML = h;
-  renderStage();
+  renderStage(); renderCams();
 };
 var renderStage = function(){
   var s = el('r65Stage', 'r65-stage');
   var pr = C.on && presenter();
   var P = pr && pr.key !== C.me ? C.pcs[pr.key] : null;
-  var t = P && kindTx(P.pc, 'video'), tr = t && t.receiver.track;
+  var t = P && scrTx(P.pc), tr = t && t.receiver.track;
   if(!pr || pr.key === C.me){ s.classList.remove('on'); C.presKey = ''; var v0 = s.querySelector('video'); if(v0) v0.srcObject = null; return; }
   if(!s.firstChild){
     s.innerHTML = '<div class="r65-sh"><span id="r65StT"></span><button type="button" data-a="share" class="pr" id="r65StMe">Показать мой экран</button><button type="button" data-a="full">Во весь экран</button><button type="button" data-a="mini">Свернуть</button></div>' +
@@ -42217,6 +42336,142 @@ var renderStage = function(){
   s.classList.toggle('wait', !tr || tr.muted || !(v.videoWidth > 0));
   if(!v._r65){ v._r65 = 1; v.addEventListener('resize', function(){ s.classList.toggle('wait', !(v.videoWidth > 0)); }); v.addEventListener('playing', function(){ s.classList.toggle('wait', !(v.videoWidth > 0)); }); }
 };
+// ── R74: камеры пузырями поверх доски. Перетаскиваются и прилипают к ближнему углу, тянутся за уголок,
+// сворачиваются в аватар (нажатие разворачивает), двойное нажатие крупнее. Своё видео зеркально ──
+var ME = '@me';
+var bubId = function(k){ return 'r74b' + String(k).replace(/[^A-Za-z0-9]/g, '_'); };
+var cssPx = function(n, d){ var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n)); return isNaN(v) ? d : v; };
+var phone = function(){ return innerWidth <= 700; };
+var area = function(){
+  var sw = phone() ? 0 : cssPx('--sw', 0), th = cssPx('--th', 56);
+  return {l: sw + 12, t: th + 12, r: innerWidth - 12, b: innerHeight - (phone() ? 140 : 12)};
+};
+var LAY = (function(){ try{ return JSON.parse(localStorage.getItem('bs_cambub') || '{}') || {}; }catch(e){ return {}; } })();
+var laySave = function(){ try{ localStorage.setItem('bs_cambub', JSON.stringify(LAY)); }catch(e){} };
+var bubState = function(k){
+  var B = C.bub[k];
+  if(!B){ var d = LAY[k === ME ? 'me' : 'peer'] || {}; B = C.bub[k] = {corner: /^[tb][lr]$/.test(d.corner || '') ? d.corner : 'bl', w: +d.w || 0, min: false, big: false}; }
+  return B;
+};
+var bubW = function(B){
+  var A = area(), aw = A.r - A.l;
+  if(B.big) return Math.round(phone() ? aw : Math.min(640, aw * .5));
+  return Math.round(Math.max(96, Math.min(B.w || (phone() ? 112 : 208), aw)));
+};
+var layout = function(){
+  var box = document.getElementById('r74Cams'); if(!box) return;
+  var A = area(), gap = 8, stack = {tl: 0, tr: 0, bl: 0, br: 0}, need = {}, fit = {};
+  var kids = [].slice.call(box.children).filter(function(e){ return C.bub[e._k]; });
+  // угол не вмещает всех по высоте: его пузыри меньше (свёрнутые остаются аватарами)
+  kids.forEach(function(e){ var B = C.bub[e._k], c = B.corner, n = need[c] || (need[c] = {v: 0, f: -gap}); if(B.min) n.f += 52 + gap; else { n.v += Math.round(bubW(B) * 9 / 16); n.f += gap; } });
+  Object.keys(need).forEach(function(c){ var n = need[c], room = A.b - A.t - n.f; fit[c] = n.v > room && n.v > 0 ? Math.max(.3, room / n.v) : 1; });
+  kids.forEach(function(e){
+    var B = C.bub[e._k];
+    var w = B.min ? 52 : Math.round(bubW(B) * fit[B.corner]), h = B.min ? 52 : Math.round(w * 9 / 16), c = B.corner;
+    var off = stack[c]; stack[c] += h + gap;
+    e.setAttribute('data-c', c);
+    if(e.classList.contains('drag')) return;
+    e.style.width = w + 'px'; e.style.height = h + 'px';
+    e.style.left = (c[1] === 'l' ? A.l : A.r - w) + 'px';
+    e.style.top = (c[0] === 't' ? A.t + off : A.b - h - off) + 'px';
+  });
+};
+var bindBub = function(e){
+  var st = null, lastTap = 0;
+  e.addEventListener('pointerdown', function(ev){
+    if(ev.button > 0 || ev.target.closest('.r74-tb button')) return;
+    var r = e.getBoundingClientRect();
+    st = {x: ev.clientX, y: ev.clientY, l: r.left, t: r.top, w: r.width, moved: false, rs: !!ev.target.closest('.r74-rs'), id: ev.pointerId};
+    try{ e.setPointerCapture(ev.pointerId); }catch(x){}
+    ev.preventDefault(); ev.stopPropagation();
+  });
+  e.addEventListener('pointermove', function(ev){
+    if(!st || ev.pointerId !== st.id) return;
+    var B = C.bub[e._k]; if(!B) return;
+    var dx = ev.clientX - st.x, dy = ev.clientY - st.y;
+    if(!st.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+    st.moved = true;
+    if(st.rs && !B.min){
+      var A = area();
+      B.big = false; B.w = Math.round(Math.max(120, Math.min(720, A.r - A.l, st.w + (B.corner[1] === 'l' ? dx : -dx))));
+      e.classList.add('rsz'); layout(); return;
+    }
+    e.classList.add('drag');
+    e.style.left = (st.l + dx) + 'px'; e.style.top = (st.t + dy) + 'px';
+  });
+  var end = function(ev){
+    if(!st || ev.pointerId !== st.id) return;
+    var s0 = st; st = null;
+    var B = C.bub[e._k]; if(!B) return;
+    if(!s0.moved){
+      if(B.min){ B.min = false; renderCams(); return; }
+      var now = Date.now();
+      if(now - lastTap < 350){ lastTap = 0; B.big = !B.big; renderCams(); return; }
+      lastTap = now; return;
+    }
+    if(!s0.rs){
+      var r = e.getBoundingClientRect(), A = area(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      B.corner = (cy < (A.t + A.b) / 2 ? 't' : 'b') + (cx < (A.l + A.r) / 2 ? 'l' : 'r');
+    }
+    e.classList.remove('drag'); e.classList.remove('rsz');
+    LAY[e._k === ME ? 'me' : 'peer'] = {corner: B.corner, w: B.w || 0}; laySave();
+    layout();
+  };
+  e.addEventListener('pointerup', end); e.addEventListener('pointercancel', end);
+  e.addEventListener('click', function(ev){
+    var b = ev.target.closest('.r74-tb button'); if(!b) return;
+    var B = C.bub[e._k]; if(!B) return;
+    ev.stopPropagation();
+    if(b.getAttribute('data-b') === 'min'){ B.min = true; B.big = false; } else B.big = !B.big;
+    renderCams();
+  });
+  e.addEventListener('keydown', function(ev){
+    var B = C.bub[e._k]; if(!B || ev.target !== e) return;
+    if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); if(B.min) B.min = false; else B.big = !B.big; renderCams(); }
+  });
+};
+var renderCams = function(){
+  var box = el('r74Cams', 'r74-cams');
+  if(!C.on){ if(box.firstChild){ [].slice.call(box.querySelectorAll('video')).forEach(function(v){ v.srcObject = null; }); box.innerHTML = ''; } C.bub = {}; return; }
+  var ms = members(), mine = ms.filter(function(m){ return m.key === C.me; })[0] || {};
+  var list = [{key: ME, name: mine.name || userName() || 'Вы', color: mine.color, me: true, track: camTrack(), on: !!C.cam}];
+  ms.forEach(function(m){
+    if(m.key === C.me) return;
+    var P = C.pcs[m.key], t = P && camTx(P.pc), tr = t && t.receiver.track;
+    list.push({key: m.key, name: m.name, color: m.color, track: tr, on: !!(m.cam && tr && !tr.muted && P.pc.connectionState === 'connected')});
+  });
+  var seen = {};
+  list.forEach(function(it){
+    var id = bubId(it.key); seen[id] = 1;
+    var e = document.getElementById(id);
+    if(!e){
+      e = document.createElement('div'); e.id = id; e.className = 'r74-b' + (it.me ? ' me' : ''); e._k = it.key; e.tabIndex = 0;
+      e.innerHTML = '<video autoplay playsinline muted></video><div class="r74-av"><i></i></div><div class="r74-nm"></div>' +
+        '<div class="r74-tb"><button type="button" data-b="big" title="Крупнее или обратно (двойное нажатие)" aria-label="Крупнее">' + ICON.big + '</button>' +
+        '<button type="button" data-b="min" title="Свернуть в аватар" aria-label="Свернуть в аватар">' + ICON.min + '</button></div><div class="r74-rs" title="Потяните, чтобы изменить размер"></div>';
+      if(it.me) box.insertBefore(e, box.firstChild); else box.appendChild(e);
+      bubState(it.key); bindBub(e);
+    }
+    var B = bubState(it.key), v = e.querySelector('video'), show = !!(it.on && it.track);
+    if(show){ if(!v.srcObject || v.srcObject.getVideoTracks()[0] !== it.track){ v.srcObject = new MediaStream([it.track]); v.play && v.play().catch(function(){}); } }
+    else if(v.srcObject) v.srcObject = null;
+    e.classList.toggle('nov', !show); e.classList.toggle('min', !!B.min); e.classList.toggle('big', !!B.big && !B.min);
+    var i = e.querySelector('.r74-av i'), ini = initials(it.name);
+    if(i.textContent !== ini) i.textContent = ini;
+    i.style.setProperty('--c', it.color || '#fff');
+    var nm = (it.me ? 'Вы' : first(it.name)) + (it.me && !C.micOn ? ' · без звука' : '') + (show ? '' : ' · камера выкл.');
+    var n = e.querySelector('.r74-nm'); if(n.textContent !== nm) n.textContent = nm;
+    var lab = (it.me ? 'Ваша камера' : 'Камера: ' + it.name) + (B.min ? ', свёрнута, нажмите, чтобы развернуть' : '');
+    if(e.getAttribute('aria-label') !== lab){ e.setAttribute('aria-label', lab); e.title = B.min ? (it.me ? 'Вы' : it.name) + ': нажмите, чтобы развернуть' : ''; }
+  });
+  [].slice.call(box.children).forEach(function(e){
+    if(seen[e.id]) return;
+    var v = e.querySelector('video'); if(v) v.srcObject = null;
+    delete C.bub[e._k]; e.remove();
+  });
+  layout();
+};
+window.addEventListener('resize', function(){ if(C.on) layout(); });
 var renderJoin = function(){
   var j = el('r65Join', 'r65-join');
   var r = C.peek, ms = r && r.members || [];
@@ -42225,7 +42480,7 @@ var renderJoin = function(){
   if(!show){ j.innerHTML = ''; return; }
   var names = ms.map(function(m){ return first(m.name); }).filter(function(n, i, a){ return a.indexOf(n) === i; }).join(', ');
   j.innerHTML = '<i></i><span>Созвон на доске: ' + ea(names) + (r.presenter ? ' · показывает ' + ea(first(r.presenter.name)) : '') + '</span>' +
-    '<button type="button" data-a="join">Присоединиться</button><button type="button" class="x" data-a="dismiss" aria-label="Скрыть">✕</button>';
+    (ms.length >= MAXN ? '<span style="opacity:.7;padding:0 6px">мест нет, ' + MAXN + ' из ' + MAXN + '</span>' : '<button type="button" data-a="join">Присоединиться</button>') + '<button type="button" class="x" data-a="dismiss" aria-label="Скрыть">✕</button>';
 };
 document.addEventListener('click', function(e){
   var b = e.target.closest && e.target.closest('#r65Dock [data-a], #r65Stage [data-a], #r65Join [data-a], #r65Stage.mini');
@@ -42233,6 +42488,7 @@ document.addEventListener('click', function(e){
   if(b.id === 'r65Stage'){ C.mini = false; renderStage(); return; }
   var a = b.getAttribute('data-a');
   if(a === 'mic') micToggle();
+  else if(a === 'cam') camToggle();
   else if(a === 'share') shareStart();
   else if(a === 'unshare') shareStop(true);
   else if(a === 'rec') recStart();
@@ -42251,6 +42507,7 @@ setInterval(function(){
   var t = document.getElementById('r65RecT');
   if(t && window.REC) t.textContent = recClock((REC.pauseAt || Date.now()) - REC.t0 - REC.paused);
   if(presenter()) renderStage();
+  renderCams();
 }, 1000);
 
 // ── на доске идёт созвон: предложить войти (опрос раз в 8 с, пока доска открыта) ──
@@ -42354,7 +42611,7 @@ if(typeof window.attachCall === 'function'){
     return out;
   };
 }
-window.r65Api = {join: join, leave: leave, share: shareStart, unshare: shareStop, rec: recStart, render: render};
+window.r65Api = {join: join, leave: leave, share: shareStart, unshare: shareStop, rec: recStart, render: render, cam: camToggle};
 })();
 </script>
 <!-- /R65 -->

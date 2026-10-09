@@ -655,6 +655,9 @@ func (p *PremiumVoice) read(ctx context.Context, v premiumVoice, texts []string)
 		return
 	}
 	p.progress(func(j *premiumJob) { j.Done = n })
+	if n < len(texts) {
+		log.Printf("tts premium: tour: reading %d of %d phrases with %s", len(texts)-n, len(texts), v.Name) // R74
+	}
 	made := 0
 	for _, t := range texts {
 		if _, ok := have[t]; ok {
@@ -717,6 +720,7 @@ func (p *PremiumVoice) read(ctx context.Context, v premiumVoice, texts []string)
 		if ff := p.ffBin(ctx); ff != "" {
 			p.normalize(ctx, ff, raw, "elevenlabs:"+v.ID, premiumStyle, t, "tour", audio)
 		}
+		log.Printf("tts premium: tour: read again: %s", say) // R74: what was voiced
 		made++
 		p.progress(func(j *premiumJob) {
 			if j.VoiceID == v.ID {

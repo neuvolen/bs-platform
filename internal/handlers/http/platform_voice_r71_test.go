@@ -1,7 +1,6 @@
 package http
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -24,29 +23,5 @@ func TestR71SpeakText(t *testing.T) {
 		if got := SpeakText(in); got != want {
 			t.Errorf("SpeakText(%q) = %q, want %q", in, got, want)
 		}
-	}
-}
-
-func TestR71Retake(t *testing.T) {
-	v := premiumVoice{ID: "v1", Model: "eleven_multilingual_v2"}
-	tr := "Трекинг. Здесь живут доски разборов."
-	if k := spokenKey(tr); !strings.HasSuffix(k, "\x00take:r71") || !strings.HasPrefix(k, SpeakText(tr)) {
-		t.Fatalf("трекинг: key text %q", k)
-	}
-	if premiumKey(v, spokenKey(tr)) == premiumKey(v, SpeakText(tr)) {
-		t.Fatal("the трекинг phrase keeps its old take")
-	}
-	for _, s := range []string{"Отчёт. Каждый день.", "Трекер видит то же самое.", "Ваши трекеры подстроятся."} {
-		if strings.Contains(strings.ToLower(s), "трек") != strings.Contains(spokenKey(s), "take:") {
-			t.Errorf("%q: retake %v", s, strings.Contains(spokenKey(s), "take:"))
-		}
-	}
-	// a phrase without the marked words keeps its file
-	if s := "Клуб. Резиденты, встречи, отчёты и штрафы."; spokenKey(s) != SpeakText(s) {
-		t.Errorf("%q: key text changed", s)
-	}
-	// the text sent to the voice has no salt
-	if strings.Contains(SpeakText(tr), "take") {
-		t.Fatal("salt in the spoken text")
 	}
 }

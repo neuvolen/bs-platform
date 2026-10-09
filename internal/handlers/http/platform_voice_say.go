@@ -39,11 +39,14 @@ var sayWords = func() map[string]string {
 		"разбор": "разбо" + stress + "р", "разбора": "разбо" + stress + "ра", "разборы": "разбо" + stress + "ры",
 		"разборов": "разбо" + stress + "ров", "разборе": "разбо" + stress + "ре", "разбору": "разбо" + stress + "ру",
 		"разборам": "разбо" + stress + "рам", "разборами": "разбо" + stress + "рами", "разборах": "разбо" + stress + "рах",
-		// трекинг, трекер: «тре́кинг», «тре́кер»
-		"трекинг": "тре" + stress + "кинг", "трекинга": "тре" + stress + "кинга", "трекингу": "тре" + stress + "кингу",
-		"трекингом": "тре" + stress + "кингом", "трекинге": "тре" + stress + "кинге",
-		"трекер": "тре" + stress + "кер", "трекера": "тре" + stress + "кера", "трекеры": "тре" + stress + "керы",
-		"трекеров": "тре" + stress + "керов", "трекеру": "тре" + stress + "керу", "трекером": "тре" + stress + "кером",
+		// трекинг, трекер: R74 «трЭ так и нужно»: твёрдое «трэ́кинг», «трэ́кер» (как говорит владелец)
+		"трекинг": "трэ" + stress + "кинг", "трекинга": "трэ" + stress + "кинга", "трекингу": "трэ" + stress + "кингу",
+		"трекингом": "трэ" + stress + "кингом", "трекинге": "трэ" + stress + "кинге",
+		"трекер": "трэ" + stress + "кер", "трекера": "трэ" + stress + "кера", "трекеры": "трэ" + stress + "керы",
+		"трекеров": "трэ" + stress + "керов", "трекеру": "трэ" + stress + "керу", "трекером": "трэ" + stress + "кером",
+		"трекерам": "трэ" + stress + "керам", "трекерами": "трэ" + stress + "керами", "трекерах": "трэ" + stress + "керах",
+		"трекере": "трэ" + stress + "кере", "трекинговый": "трэ" + stress + "кинговый", "трекинговая": "трэ" + stress + "кинговая",
+		"трекинговые": "трэ" + stress + "кинговые", "трекингового": "трэ" + stress + "кингового",
 		// Алматы: «Алматы́»
 		"алматы": "Алматы" + stress,
 		// R63: Береке (трекер): мягкое Е, ударение на последний слог, «Береке́»
@@ -79,20 +82,15 @@ var sayWords = func() map[string]string {
 	return m
 }()
 
-// R71: «трЭкинг, а не трЕкинг». Measured on the platform's model
-// (eleven_multilingual_v2, voice ogi2DyUAKJb7CEdqqvlU): «тре́кинг» already
-// gives the soft [рʲе] in a fresh take (F2 at the vowel 2 080-2 220 Hz, the
-// native «тре́тий» 2 130-2 230, the hard «трэ́кинг» and the unmarked
-// «трекинг» 1 900-2 030); «трье́кинг», «тр'е́кинг», «тр-е-кинг» are no softer
-// there and add a glide («триекинг», «Трей Кинг»). The take kept for these
-// phrases came out hard, so they are read again: sayRetake salts the file
-// key (a new take), the text sent stays the same.
+// sayRetake: a phrase whose kept take came out wrong is read again without a
+// change of its text: the mark salts the file key (a new take), the text sent
+// stays the same. R71 salted «тре́к»; R74 changed the text itself to the hard
+// «трэ́кинг» («трЭ так и нужно»), so those phrases get new keys anyway and the
+// list is empty.
 var sayRetake = []struct {
 	mark string
 	take string
-}{
-	{"тре" + stress + "к", "r71"},
-}
+}{}
 
 // spokenKey: what the file key of a phrase hashes (the spoken text and its
 // take).
