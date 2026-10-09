@@ -24177,8 +24177,11 @@ function root(){
 function muteBtn(){
   var m = Voice.muted();
   return '<span class="tr16-vw"><span class="tr16-prep tr16-later' + (Voice.later() && !m ? ' on' : '') + '" role="status">озвучка появится позже</span>' +
-    '<button type="button" class="tr16-ic' + (Voice.speaking() ? ' speaking' : '') + '" data-a="mute" title="' + (m ? 'Включить голос' : 'Выключить голос') + '" aria-label="' + (m ? 'Включить голос' : 'Выключить голос') + '">' + (m ? ICON_OFF : ICON_ON) + '</button></span>';
+    // R64: звук подписан словом «Звук», рядом крестик: обучение закрывается им, а не кнопкой звука
+    '<button type="button" class="tr16-ic tr16-snd' + (Voice.speaking() ? ' speaking' : '') + (m ? ' off' : '') + '" data-a="mute" title="Звук" aria-label="' + (m ? 'Звук выключен, включить' : 'Звук включён, выключить') + '" aria-pressed="' + (m ? 'false' : 'true') + '">' + (m ? ICON_OFF : ICON_ON) + '<em>Звук</em></button>' +
+    '<button type="button" class="tr16-ic tr16-x" data-a="close" title="Закрыть обучение" aria-label="Закрыть обучение">' + ICON_X + '</button></span>';
 }
+var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 Voice.on(function(){
   var b = document.querySelector('#tr16 .tr16-vw'); if(!b) return;
   b.outerHTML = muteBtn();
@@ -24196,7 +24199,7 @@ function showWelcome(m, auto){
     '<div class="tr16-t">' + ea(w.t) + '</div>' +
     '<div class="tr16-d">' + ea(w.d) + '</div>' +
     '<div class="tr16-wl"><div><b>' + nSec + '</b>разделов</div><div><b>2 мин</b>на всё</div><div><b>Голос</b>можно выключить</div></div>' +
-    '<div class="tr16-nav"><button type="button" class="tr16-skip" data-a="later">Пропустить</button>' +
+    '<div class="tr16-nav"><span style="margin-right:auto"></span>' +
       '<button type="button" class="tr16-btn pri" data-a="start">Начать обучение</button></div>';
   placeCenter(card);
   bindCard(card);
@@ -24284,7 +24287,7 @@ function render(){
     (tabs.length ? '<div class="tr16-tabs">' + tabs.map(function(x){ return '<span>' + ea(x) + '</span>'; }).join('') +
       ((s.tabs.length > 6) ? '<span>ещё ' + (s.tabs.length - 6) + '</span>' : '') + '</div>' : '') +
     '<div class="tr16-bar"><i style="width:' + Math.round(n / total * 100) + '%"></i></div>' +
-    '<div class="tr16-nav">' + (s.end ? '<span style="margin-right:auto"></span>' : '<button type="button" class="tr16-skip" data-a="skip">Пропустить</button>') +
+    '<div class="tr16-nav"><span style="margin-right:auto"></span>' +
       (T.i > 0 ? '<button type="button" class="tr16-btn" data-a="back">Назад</button>' : '') +
       '<button type="button" class="tr16-btn pri" data-a="next">' + (s.end ? 'Завершить' : 'Далее') + '</button></div>' +
     '<div class="tr16-keys">Стрелки ← → листают, Esc закрывает</div>';
@@ -24340,12 +24343,12 @@ function bindCard(card){
     var act = a.getAttribute('data-a');
     if(act === 'mute'){ Voice.setMuted(!Voice.muted()); if(!Voice.muted() && T){ var s = T.welcome ? null : T.steps[T.i]; Voice.say([s ? s.d : (WELCOME[T.m] || WELCOME.admin).d]); } return; }
     if(act === 'start'){ startSteps(); return; }
-    if(act === 'later' || act === 'skip'){ finish(false); return; }
+    if(act === 'close' || act === 'later' || act === 'skip'){ finish(false, true); return; }
     if(act === 'next'){ if(T.steps[T.i] && T.steps[T.i].end) finish(true); else go(T.i + 1, 1); return; }
     if(act === 'back'){ go(T.i - 1, -1); return; }
   };
 }
-function finish(done){
+function finish(done, closed){
   if(!T) return;
   var m = T.m;
   obMark(m);
@@ -24354,6 +24357,7 @@ function finish(done){
   sideOpen(false);
   T = null;
   if(done) try{ toast('Обучение пройдено. Повторить можно в меню «Обучение»'); }catch(e){}
+  else if(closed) try{ toast('Обучение закрыто. Открыть снова можно в меню «Обучение»'); }catch(e){}
 }
 document.addEventListener('keydown', function(e){
   if(!T) return;
@@ -25944,7 +25948,14 @@ window.bsDatePick = function(anchor, o){
         return '<button type="button" class="dp26-m' + (on ? ' on' : '') + (i === V.m ? ' cur' : '') + '" data-m="' + i + '"' + (z < min || a > max ? ' disabled' : '') + '>' + n + '</button>';
       }).join('') + '</div>';
     }
-    h += '<div class="dp26-f"><button type="button" class="dp26-lk" data-k="today"' + (ok(todayIso()) ? '' : ' disabled') + '>Сегодня</button>' +
+    // R64: быстрые сроки одним нажатием (o.chips: [['Завтра', 1], …], дни от сегодня), «Сбросить» для необязательной даты
+    if(o.chips && o.chips.length) h = '<div class="dp64-c" role="group" aria-label="Быстрый выбор">' + o.chips.map(function(c){
+      var t = new Date(), d = new Date(t.getFullYear(), t.getMonth(), t.getDate() + c[1]), v = isoOf(d.getFullYear(), d.getMonth(), d.getDate());
+      return '<button type="button" class="dp64-ch' + (v === sel ? ' on' : '') + '" data-v="' + v + '"' + (ok(v) ? '' : ' disabled') + ' aria-pressed="' + (v === sel) + '">' + c[0] + '</button>';
+    }).join('') + '</div>' + h;
+    if(o.title) h = '<div class="dp64-t">' + String(o.title).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }) + '</div>' + h;
+    h += '<div class="dp26-f">' + (o.onClear && sel ? '<button type="button" class="dp26-lk" data-k="clear">Сбросить</button>' :
+      (o.chips && o.chips.length ? '<span></span>' : '<button type="button" class="dp26-lk" data-k="today"' + (ok(todayIso()) ? '' : ' disabled') + '>Сегодня</button>')) +
       '<button type="button" class="dp26-lk" data-k="close">Закрыть</button></div>';
     el.innerHTML = h;
   }
@@ -25960,7 +25971,7 @@ window.bsDatePick = function(anchor, o){
     moveTo(isoOf(d.getFullYear(), d.getMonth(), Math.min(+f.slice(8, 10), last))); }
   function pick(v){ if(!ok(v)) return; close(); try{ o.onPick && o.onPick(v); }catch(e){} }
   function place(){
-    if(window.innerWidth <= 600){ el.classList.add('dp26-sheet'); el.style.left = el.style.top = ''; return; }
+    if(window.innerWidth <= 700){ el.classList.add('dp26-sheet'); el.style.left = el.style.top = ''; return; }
     el.classList.remove('dp26-sheet');
     var r = anchor.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight, W = window.innerWidth, H = window.innerHeight;
     var left = Math.min(Math.max(12, r.right - w), W - w - 12), top = r.bottom + 8;
@@ -25972,7 +25983,8 @@ window.bsDatePick = function(anchor, o){
     el.remove(); back.remove();
     document.removeEventListener('pointerdown', outside, true);
     window.removeEventListener('resize', place);
-    try{ anchor.setAttribute('aria-expanded', 'false'); anchor.focus({preventScroll:true}); }catch(e){}
+    // R64: поле даты на телефоне в фокусе открыло бы системный календарь поверх нашего
+    try{ anchor.setAttribute('aria-expanded', 'false'); if(o.refocus !== false) anchor.focus({preventScroll:true}); }catch(e){}
   }
   el._close = close;
   function outside(e){ if(!el.contains(e.target) && !anchor.contains(e.target)) close(); }
@@ -25991,6 +26003,7 @@ window.bsDatePick = function(anchor, o){
     }
     if(k === 'view'){ V.view = V.view === 'days' ? 'months' : 'days'; render(); place(); var t = el.querySelector('[data-k="view"]'); if(t) try{ t.focus({preventScroll:true}); }catch(e){} return; }
     if(k === 'today'){ pick(todayIso()); return; }
+    if(k === 'clear'){ close(); try{ o.onClear(); }catch(e){} return; }
     if(k === 'close') close();
   });
   el.addEventListener('keydown', function(e){
@@ -39701,6 +39714,157 @@ if(typeof window.callToBoard === 'function'){
     setTimeout(fit, 1500);
   };
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+</script>
+<style id="r64Style">
+/* ═══ R64: обучение (звук и крестик), заголовки карточек на доске, календарь в полях даты ═══ */
+/* Обучение: справа вверху две кнопки 44 px: «Звук» (значок и подпись) и крестик «Закрыть» */
+#tr16 .tr16-vw{gap:6px}
+#tr16 .tr16-ic{width:44px;height:44px;border-radius:12px;border-color:rgba(255,255,255,.22)}
+body.light #tr16 .tr16-ic{border-color:rgba(0,0,0,.16)}
+#tr16 .tr16-ic:hover{background:rgba(255,255,255,.08)}
+body.light #tr16 .tr16-ic:hover{background:rgba(0,0,0,.05)}
+#tr16 .tr16-ic:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+#tr16 .tr16-snd{flex-direction:column;gap:1px}
+#tr16 .tr16-snd svg{width:17px;height:17px}
+#tr16 .tr16-snd em{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.3px;line-height:1;opacity:.75}
+#tr16 .tr16-snd.off{opacity:.62}
+#tr16 .tr16-x svg{width:18px;height:18px}
+#tr16 .tr16-x{background:rgba(255,255,255,.06)}
+body.light #tr16 .tr16-x{background:rgba(0,0,0,.04)}
+#tr16 .tr16-later.on{max-width:120px;white-space:normal;line-height:1.25}
+@media (max-width:600px){#tr16 .tr16-later.on{display:none}}
+
+/* Доска: название главное. Тип мелкими капителями сверху, название 16 px 800, описание мельче и тише */
+.node .n-in > .n-tag{font-size:10px;font-weight:800;letter-spacing:1.6px;margin-bottom:8px;line-height:1.2}
+.node .n-t{font-size:16px;font-weight:800;line-height:1.24;letter-spacing:-.25px;color:var(--ptx)}
+.node .n-d{font-size:11.5px;line-height:1.45;color:#7C7C7C;margin-top:8px;font-weight:500}
+body.light .node .n-d{color:rgba(20,20,22,.5)}
+.node .n-cvd{font-size:12px!important;color:#A8A8A8!important}
+body.light .node .n-cvd{color:rgba(20,20,22,.62)!important}
+.node.diag:not(.has-cv) .n-t,.node.fine .n-t{color:var(--ptx)}
+.node.diag:not(.has-cv){box-shadow:inset 3px 0 0 var(--pred)}
+.node.fine{box-shadow:inset 3px 0 0 var(--pred)}
+/* инсайт в светлой теме был тёмной плашкой без подписи */
+body.light .node.note.ins{background:#fff;border-color:#141414;box-shadow:0 0 0 1px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.12)}
+body.light .node.note.ins .n-t{color:#141414}
+
+/* Календарь (общий bsDatePick): быстрые сроки, подпись поля, на телефоне лист снизу */
+.dp64-t{display:none;font-size:15px;font-weight:800;letter-spacing:-.2px;margin:0 2px 12px}
+.dp64-c{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.dp64-ch{height:32px;padding:0 11px;border-radius:999px;border:1px solid var(--pi)!important;font-size:12.5px!important;font-weight:700;white-space:nowrap}
+.dp64-ch:hover:not([disabled]){border-color:var(--ptx)!important}
+.dp64-ch.on{background:var(--pon)!important;color:var(--pontx)!important;border-color:var(--pon)!important}
+.dp64-ch[disabled]{opacity:.3;cursor:default}
+.dp26{width:320px}
+@media (max-width:700px){
+  .dp26-back{display:block;position:fixed;inset:0;z-index:2147483099;background:rgba(0,0,0,.55)}
+  .dp26.dp26-sheet{left:0;right:0;bottom:0;top:auto;width:auto;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;border-bottom:0;
+    padding:10px 16px calc(14px + env(safe-area-inset-bottom));animation:dp26up .2s ease both}
+  .dp26.dp26-sheet::before{content:'';display:block;width:40px;height:4px;border-radius:4px;background:var(--pi);margin:0 auto 12px}
+  .dp26.dp26-sheet .dp64-t{display:block}
+  .dp26.dp26-sheet .dp26-d{height:44px;font-size:15.5px!important}
+  .dp26.dp26-sheet .dp26-nb{width:44px;height:44px}
+  .dp26.dp26-sheet .dp26-tt{height:44px;font-size:16px!important}
+  .dp26.dp26-sheet .dp64-ch{height:38px;padding:0 13px;font-size:13.5px!important}
+  .dp26.dp26-sheet .dp26-lk{min-height:44px;padding:0 14px;font-size:14px!important}
+}
+/* Поля даты: открываются нашим календарём, системный значок заменён своим */
+input[type=date]{cursor:pointer;padding-right:36px!important;background-repeat:no-repeat!important;background-position:right 11px center!important;background-size:16px 16px!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23BDBDBD' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='3'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E")!important}
+body.light input[type=date]{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='3'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E")!important}
+input[type=date]::-webkit-calendar-picker-indicator{display:none}
+input[type=date][aria-expanded="true"],.cse-in[data-f="due"][aria-expanded="true"]{border-color:var(--ptx)!important}
+input[type=date][disabled]{cursor:default;opacity:.6}
+.cse-row[data-k="plan"] .cse-in[data-f="due"]{cursor:pointer}
+</style>
+<script id="r64Script">
+/* R64: каждое поле даты (задачи на доске, задачи резидента, CRM, канбан, контент-план, события) открывает
+   фирменный календарь bsDatePick: понедельник первым, русские месяцы, сегодня отмечено, быстрые сроки
+   «Сегодня», «Завтра», «Через 3 дня», «Через неделю», «Через 10 дней», клавиатура, на телефоне лист снизу.
+   Значение пишется в поле в прежнем виде (ГГГГ-ММ-ДД, у «Срок» плана в саммари ДД.ММ), затем input и change */
+(function(){
+  var CHIPS = [['Сегодня', 0], ['Завтра', 1], ['Через 3 дня', 3], ['Через неделю', 7], ['Через 10 дней', 10]];
+  var p2 = function(n){ return ('0' + n).slice(-2); };
+  var isDm = function(el){ return el.getAttribute('data-f') === 'due' && !!(el.closest && el.closest('.cse-row')); };
+  var want = function(el){
+    return !!(el && el.tagName === 'INPUT' && !el.disabled && !el.readOnly && !el.hasAttribute('data-dp-native') && (el.type === 'date' || isDm(el)));
+  };
+  var toIso = function(el){
+    var v = String(el.value || '').trim();
+    if(el.type === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
+    var m = /^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?$/.exec(v); if(!m) return '';
+    var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : new Date().getFullYear(), d = new Date(y, +m[2] - 1, +m[1]);
+    if(d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[1]) return '';
+    return y + '-' + p2(+m[2]) + '-' + p2(+m[1]);
+  };
+  var outOf = function(el, v){ return !v ? '' : (el.type === 'date' ? v : v.slice(8, 10) + '.' + v.slice(5, 7)); };
+  var label = function(el){
+    var f = el.closest('.field,.kbm-f,label,.fxo-row,.cse-row');
+    var l = f && f.querySelector('.lbl,.kbm-l,.fxo-l,span');
+    var t = l && l.firstChild ? String(l.firstChild.textContent || '') : '';
+    if(isDm(el)) t = 'Срок';
+    t = (t || el.getAttribute('aria-label') || el.title || '').trim();
+    return t || 'Дата';
+  };
+  var set = function(el, v){
+    el.value = outOf(el, v);
+    try{ el.dispatchEvent(new Event('input', {bubbles: true})); el.dispatchEvent(new Event('change', {bubbles: true})); }catch(e){}
+  };
+  var last = {el: null, t: 0};
+  var open = function(el, touch){
+    if(typeof window.bsDatePick !== 'function') return false;
+    if(last.el === el && Date.now() - last.t < 450) return true;
+    last.el = el; last.t = Date.now();
+    var dm = isDm(el);
+    window.bsDatePick(el, {
+      value: toIso(el), min: dm ? '' : (el.min || ''), max: dm ? '' : (el.max || ''), title: label(el), chips: CHIPS, refocus: !touch,
+      onPick: function(v){ set(el, v); },
+      onClear: el.required ? null : function(){ set(el, ''); }
+    });
+    return true;
+  };
+  // касание: без системного колеса и экранной клавиатуры; прокрутка пальцем поле не открывает
+  var touch = null;
+  document.addEventListener('touchstart', function(e){
+    var t = e.touches && e.touches[0];
+    touch = want(e.target) && t ? {el: e.target, x: t.clientX, y: t.clientY} : null;
+  }, {capture: true, passive: true});
+  document.addEventListener('touchend', function(e){
+    var t = e.changedTouches && e.changedTouches[0];
+    if(!touch || touch.el !== e.target || !t) return;
+    var moved = Math.abs(t.clientX - touch.x) > 10 || Math.abs(t.clientY - touch.y) > 10;
+    touch = null;
+    if(moved || !want(e.target)) return;
+    e.preventDefault();
+    open(e.target, true);
+  }, true);
+  document.addEventListener('mousedown', function(e){
+    if(e.button !== 0 || !want(e.target)) return;
+    e.preventDefault();
+    open(e.target, false);
+  }, true);
+  // щелчок по подписи поля или клик без mousedown (экранные чтецы)
+  document.addEventListener('click', function(e){
+    if(!want(e.target)) return;
+    e.preventDefault();
+    if(!document.querySelector('.dp26')) open(e.target, false);
+  }, true);
+  document.addEventListener('keydown', function(e){
+    if(!want(e.target)) return;
+    var k = e.key;
+    if(k === 'Enter' || (k === ' ' && !isDm(e.target)) || k === 'F4' || (e.altKey && k === 'ArrowDown')){
+      e.preventDefault(); e.stopPropagation();
+      if(!document.querySelector('.dp26')) open(e.target, false);
+    }
+  }, true);
+  // Esc закрывает только календарь: окно задачи, лист и доска под ним остаются
+  window.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    var dp = document.querySelector('.dp26'); if(!dp || !dp._close) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    dp._close();
+  }, true);
 })();
 </script>
 </body>

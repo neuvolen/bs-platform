@@ -31,6 +31,21 @@ var lazyKeep = map[string]bool{
 	"r52Script:keepStrip": true, "r52Script:edBadge": true, "r52Script:when": true,
 	// R52: the https guard in <head> runs before anything is fetched
 	"r52Https:up": true, "r52Https:pic": true, "r52Https:set": true, "r52Https:hook": true, "r52Https:attr": true, "r52Https:html": true,
+	// R64: a board card is drawn from these on the first paint: a lazy one returned
+	// "undefined" in place of the diagnosis or tool cover and the task's deadline line
+	"*:coverHTML": true, "*:coverArt": true, "*:coverKey": true, "*:organArt": true, "*:cvTitleFit": true,
+	"*:taskMeta": true, "*:goalMeta": true, "*:dnaHelix": true, "*:questBody": true, "*:contBody": true,
+	"*:fcAllowed": true, "*:fcOpen": true, "*:money": true,
+	// R64: the tour opens by itself on a first visit and from «Обучение» at any moment: its card is built
+	// from these, and a lazy one answered undefined (no «Звук» and close buttons, no steps)
+	"r16Script:ea": true, "r16Script:mode": true, "r16Script:online": true, "r16Script:dataReady": true,
+	"r16Script:obRead": true, "r16Script:obWrite": true, "r16Script:obMark": true, "r16Script:visible": true,
+	"r16Script:inSide": true, "r16Script:small": true, "r16Script:navOf": true, "r16Script:tabsOf": true,
+	"r16Script:homeBlock": true, "r16Script:buildSteps": true, "r16Script:stepEl": true, "r16Script:sideOpen": true,
+	"r16Script:usable": true, "r16Script:root": true, "r16Script:muteBtn": true, "r16Script:showWelcome": true,
+	"r16Script:ctaLater": true, "r16Script:ctaOn": true, "r16Script:startSteps": true, "r16Script:go": true,
+	"r16Script:render": true, "r16Script:placeCenter": true, "r16Script:position": true, "r16Script:bindCard": true,
+	"r16Script:finish": true, "r16Script:requeue": true, "r16Script:start": true,
 }
 
 func lazyKeepFn(key, name string) bool { return lazyKeep["*:"+name] || lazyKeep[key+":"+name] }
