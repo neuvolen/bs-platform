@@ -1,0 +1,31 @@
+{
+ "job": "words1",
+ "job_sha256": "07dc5f090e46587a38ec1f6b5ef6f8b55c4484ec4895d768470b509436ea5179",
+ "run_id": "37988088744",
+ "jobs_sha": "73cb9192f696a7154a4fdf0a30cb3dbdfe93605f",
+ "ok": true,
+ "lines": [
+  {
+   "id": "w1",
+   "chars": 100,
+   "words": 16,
+   "duration": 7.245
+  },
+  {
+   "id": "w2",
+   "chars": 90,
+   "words": 12,
+   "duration": 5.201
+  }
+ ],
+ "chars": 190,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.55,
+  "similarity_boost": 0.8,
+  "style": 0.1,
+  "use_speaker_boost": true,
+  "speed": 1.0
+ }
+}
