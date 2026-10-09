@@ -12,7 +12,7 @@ import (
 // документы клуба то, чего там ещё нет (handlers/http/library_ext.go).
 
 // LibExtVersion: поднимать, когда в library_ext добавлены новые пункты.
-const LibExtVersion = "2026-10-ext6" // R62: + 105 diagnoses and 51 tools (Окружение, Цели, Энергия, Продукт, Аналитика, Мышление first), YouTube links on the cards
+const LibExtVersion = "2026-10-ext7" // R62b: second YouTube round, video coverage 96% diagnoses, 96% tools, 99% guides
 
 //go:embed library_ext/*.json
 var libExtFS embed.FS

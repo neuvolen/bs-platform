@@ -172,5 +172,13 @@
   ]
  },
  "time": "1-2 месяца подготовки и 90 дней запуска",
- "level": "система"
+ "level": "система",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=gzoyrS-1IOQ",
+   "title": "Growing from One Location to Multiple Locations: Why It Works and Why It Breaks",
+   "why": "Что ломается при открытии новых точек",
+   "lang": "en"
+  }
+ ]
 }

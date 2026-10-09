@@ -163,5 +163,19 @@
   ]
  },
  "time": "8 недель",
- "level": "рост"
+ "level": "рост",
+ "videos": [
+  {
+   "url": "https://www.youtube.com/watch?v=IFIqfLGVNWc",
+   "title": "План на месяц и неделю. Метод эффективного планирования",
+   "why": "Как собрать идеальную неделю",
+   "lang": "ru"
+  },
+  {
+   "url": "https://www.youtube.com/watch?v=yKtiZ514nm4",
+   "title": "12-недельный план (шаблон Google Sheets)",
+   "why": "Планирование недель вперёд",
+   "lang": "ru"
+  }
+ ]
 }
