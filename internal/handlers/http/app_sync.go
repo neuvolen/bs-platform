@@ -197,5 +197,5 @@ func (g *AppGateway) MyCal(c *gin.Context) {
 		}
 		scope = s
 	}
-	serveCal(c, g.Sync, scope, fmt.Sprintf("tg:%d", tg))
+	serveCal(c, g.Sync, scope, fmt.Sprintf("tg:%d", tg), scope == fmt.Sprintf("user:tg:%d", tg))
 }

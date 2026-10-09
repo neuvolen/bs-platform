@@ -369,6 +369,9 @@ func (h *PlatformHandler) PutDoc(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
+	if key == "bs_mycal" {
+		gcalTouch(scope) // R71: the work calendar goes to Google
+	}
 	c.JSON(http.StatusOK, out)
 }
 

@@ -159,6 +159,10 @@ func (h *GcalSetup) save(c *gin.Context) {
 func (h *GcalSetup) callback(c *gin.Context) {
 	ctx := c.Request.Context()
 	k := c.Query("state")
+	if gcal.IsUserState(k) { // R71: a person's own calendar (gcal_users.go)
+		gcalUserCallback(c)
+		return
+	}
 	if !h.keyOK(ctx, k) {
 		gcalPage(c, http.StatusForbidden, `<h1>Ссылка устарела</h1><p>Напишите боту <b>/calendar</b>, он пришлёт новую.</p>`)
 		return

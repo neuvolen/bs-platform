@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
@@ -49,7 +51,8 @@ func wireCalendar(g *httpapi.AppGateway, writes *httpapi.ClubWrites, clubRepo *p
 			}
 			return "📅 Google Календарь: " + setup.Status(ctx) +
 				"\n\nСсылка для подключения (действует 3 дня, только для вас):\n" + link +
-				"\n\nПосле подключения платформа сама красит прошедшие встречи в зелёный с ✅, создаёт события новых встреч и не шлёт уведомления и письма."
+				"\n\nПосле подключения платформа сама красит прошедшие встречи в зелёный с ✅, создаёт события новых встреч и не шлёт уведомления и письма." +
+				"\n\nТот же ключ Google нужен резидентам и команде: в «Календаре работы» у каждого кнопка «Подключить Google Календарь». Проверьте, что приложение Google опубликовано (Audience → In production), иначе Google отключает их через 7 дней."
 		})
 	}
 	go func() {
@@ -57,4 +60,43 @@ func wireCalendar(g *httpapi.AppGateway, writes *httpapi.ClubWrites, clubRepo *p
 		setup.AtStart()
 	}()
 	return setup
+}
+
+// calClient: the owner's Google client of the R67 setup (its OAuth client
+// serves every person's connection too).
+func calClient(m httpapi.RoutesRegistrar) *gcal.Client {
+	if s, ok := m.(*httpapi.GcalSetup); ok && s.Sync != nil {
+		return s.Sync.C
+	}
+	return nil
+}
+
+// wireUserCalendars (R71): each person's «Календарь работы» syncs with
+// their own Google Calendar (internal/gcal/user.go): every 5 minutes, when
+// the calendar opens and a few seconds after an edit.
+func wireUserCalendars(d *Deps, g *httpapi.AppGateway, owner *gcal.Client, jwtSecret string, botSvc *bot.Service) httpapi.RoutesRegistrar {
+	m := httpapi.NewGcalUsersModule(g, []byte(jwtSecret))
+	if owner == nil || d == nil || d.DB == nil || d.PlatformRepo == nil {
+		return m
+	}
+	repo := pg.NewGcalUserRepo(d.DB, d.PlatformRepo)
+	u := &gcal.UserSync{Owner: owner, Store: repo, Docs: repo, Secret: []byte(jwtSecret)}
+	if botSvc != nil && botSvc.Enabled() {
+		u.Notify = func(ctx context.Context, text string) {
+			for _, id := range botSvc.NotifyIDs() {
+				if err := botSvc.SendMessage(ctx, id, text); err != nil {
+					log.Printf("gcal users notify %d: %v", id, err)
+				}
+			}
+		}
+	}
+	httpapi.SetGcalUsers(u)
+	if !strings.EqualFold(os.Getenv("GCAL_USERS"), "off") {
+		go func() {
+			time.Sleep(90 * time.Second)
+			u.SyncAll(context.Background())
+			u.Loop(context.Background())
+		}()
+	}
+	return m
 }

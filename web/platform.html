@@ -869,6 +869,11 @@ body.light .sb-l{color:#141414}
  cursor:pointer;transition:background .12s}
 .wc-c:hover{background:rgba(255,255,255,.09)}
 .wc-c.on{background:var(--gold);box-shadow:0 0 10px rgba(255,255,255,.3)}
+.wc-c.gcal{position:relative;background:repeating-linear-gradient(135deg,rgba(66,133,244,.30) 0 6px,rgba(66,133,244,.14) 6px 12px)}
+.wc-c.gcal .wc-n{color:var(--t1)}
+.gcb{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin-bottom:14px;border:1px solid var(--bd);border-radius:12px;background:rgba(66,133,244,.06);font-size:12.5px;color:var(--t2)}
+.gcb b{color:var(--t1)}.gcb .gcb-e{color:#FF6B6B;flex-basis:100%}
+.gcb .zb{width:auto;padding:0 12px;height:30px;font-size:12px}
 .crm{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:10px;align-items:start;
  overflow-x:auto;padding-bottom:10px}
 .crm-col{background:rgba(255,255,255,.028);border:1px solid var(--bd);border-radius:12px;
@@ -10338,19 +10343,22 @@ function loadCal(){
   if(!MYCAL) MYCAL = {slots:{}};
   MYCAL_FOR = '';
 }
+// R71: «Мой» у команды: свой календарь работы (и свой Google Календарь), без открытого резидента
+var MYCAL_ME = false, MYCAL_G = null, MYCAL_GT = 0;
+function calURL(who){ return who === '__me__' ? '/mycal?own=1' : '/mycal?name=' + encodeURIComponent(who); }
 function calFetch(who){
-  BSSync.api('GET', '/mycal?name=' + encodeURIComponent(who)).then(function(r){
+  BSSync.api('GET', calURL(who)).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){ return {st: r.status, j: j}; });
   }).then(function(x){
     if(MYCAL_FOR !== who) return; // пока грузили, открыли другого резидента
-    if(x.st === 200){ MYCAL = calNorm(x.j.value); MYCAL_VER = Number(x.j.version) || 0; MYCAL_ST = ''; }
+    if(x.st === 200){ MYCAL = calNorm(x.j.value); MYCAL_VER = Number(x.j.version) || 0; MYCAL_ST = ''; MYCAL_G = x.j.gcal ? {gcal: x.j.gcal, gev: x.j.gev || []} : null; MYCAL_GT = Date.now(); }
     else MYCAL_ST = x.st === 404 ? 'none' : 'err';
     if(typeof section !== 'undefined' && section === 'mycal') renderMyCal();
   }, function(){ if(MYCAL_FOR === who){ MYCAL_ST = 'err'; if(section === 'mycal') renderMyCal(); } });
 }
 function calPut(who, again){
   var body = {value: JSON.stringify(MYCAL), version: MYCAL_VER};
-  BSSync.api('PUT', '/mycal?name=' + encodeURIComponent(who), body).then(function(r){
+  BSSync.api('PUT', calURL(who), body).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
       if(MYCAL_FOR !== who) return;
       if(r.status === 200){ MYCAL_VER = Number(j.version) || MYCAL_VER; return; }
@@ -10388,17 +10396,19 @@ var calType = 'work';
 
 function renderMyCal(){
   if(calTeam()){
-    var who = calWho();
-    if(MYCAL_FOR !== who){ MYCAL_FOR = who; MYCAL = {slots:{}, notes:{}}; MYCAL_VER = 0; MYCAL_ST = who ? 'load' : 'none'; if(who) calFetch(who); }
+    var who = MYCAL_ME ? '__me__' : calWho();
+    if(MYCAL_FOR !== who){ MYCAL_G = null; MYCAL_FOR = who; MYCAL = {slots:{}, notes:{}}; MYCAL_VER = 0; MYCAL_ST = who ? 'load' : 'none'; if(who) calFetch(who); }
     if(MYCAL_ST){
-      var e0 = pgSet('Календарь · ' + (who || 'резидент'), 'У каждого резидента свой календарь');
-      e0.innerHTML = '<div class="pf-empty">' + (!who ? 'Откройте разбор резидента: календарь покажется его' :
+      var e0 = pgSet(who === '__me__' ? 'Мой календарь' : 'Календарь · ' + (who || 'резидент'), 'У каждого резидента свой календарь');
+      e0.innerHTML = calMeSw() + '<div class="pf-empty">' + (!who ? 'Откройте разбор резидента: календарь покажется его' :
         MYCAL_ST === 'load' ? 'Загружаю календарь…' : MYCAL_ST === 'none' ? 'У резидента нет входа через Telegram: календарь появится, когда он войдёт' :
         'Календарь не загрузился. <span class="pf-link" onclick="MYCAL_FOR=null;renderMyCal()">Повторить</span>') + '</div>';
       return;
     }
   } else if(!MYCAL) loadCal();
-  var el = pgSet(calTeam() ? 'Календарь · ' + MYCAL_FOR : 'Мой календарь', 'Планируйте цикл и отмечайте занятость');
+  if(!calTeam()) calGLoad(false);
+  var el = pgSet(calTeam() && MYCAL_FOR !== '__me__' ? 'Календарь · ' + MYCAL_FOR : 'Мой календарь', 'Планируйте цикл и отмечайте занятость');
+  var GEV = calGMap();
   var HOURS = [];
   for(var hh=7; hh<=23; hh++) HOURS.push(hh);
   var base = new Date();
@@ -10423,7 +10433,7 @@ function renderMyCal(){
   var busy = Object.keys(MYCAL.slots).length;
   var focusH = Object.keys(MYCAL.slots).filter(k=>MYCAL.slots[k]==='focus').length;
 
-  el.innerHTML =
+  el.innerHTML = calMeSw() + calGBar() +
     '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px">' +
       '<div class="viewsw" style="margin:0">' +
         '<div class="vsb'+(calMode==='week'?' on':'')+'" onclick="calMode=\'week\';renderMyCal()">Неделя</div>' +
@@ -10466,6 +10476,9 @@ function renderMyCal(){
           });
           if(hasMeet) return '<div class="wc-c meet" title="Встреча с трекерами">BS</div>';
           var note = MYCAL.notes && MYCAL.notes[k];
+          var ge = !v && GEV[k];
+          if(ge) return '<div class="wc-c gcal noted" title="'+esc('Google: ' + ge.map(function(x){ return (x.a ? x.a + '–' + x.b + ' ' : '') + x.t; }).join('; '))+'"' +
+            ' onclick="setSlot(\''+k+'\')" oncontextmenu="slotNote(\''+k+'\',event)"><span class="wc-n">'+esc(ge[0].t).slice(0,14)+'</span></div>';
           return '<div class="wc-c'+(v?' on':'')+(note?' noted':'')+'" '+(t?'style="background:'+t.c+'"':'')+
             ' onclick="setSlot(\''+k+'\')" oncontextmenu="slotNote(\''+k+'\',event)"' +
             (note?' title="'+esc(note)+'"':'')+'>'+(note?'<span class="wc-n">'+esc(note).slice(0,14)+'</span>':'')+'</div>';
@@ -10473,7 +10486,95 @@ function renderMyCal(){
     }).join('') + '</div>' +
     '<div class="dbox g" style="margin-top:14px;font-size:12.5px">' +
       'Выберите тип сверху и нажимайте на ячейки. Правый клик по ячейке добавляет комментарий. ' +
-      'Серые ячейки BS это встречи с трекерами.</div>';
+      'Серые ячейки BS это встречи с трекерами' + (GEV.__n ? ', синие в полоску: события из Google Календаря (только просмотр)' : '') + '.</div>';
+}
+
+// ═══ R71: Google Календарь человека (свой у резидента и у каждого в команде) ═══
+function calOwnerView(){ return !calTeam() || MYCAL_FOR === '__me__'; }
+function calMeSw(){
+  if(!calTeam()) return '';
+  return '<div class="viewsw" style="margin:0 0 12px">' +
+    '<div class="vsb'+(!MYCAL_ME?' on':'')+'" onclick="MYCAL_ME=false;MYCAL_FOR=null;renderMyCal()">Резидента</div>' +
+    '<div class="vsb'+(MYCAL_ME?' on':'')+'" onclick="MYCAL_ME=true;MYCAL_FOR=null;renderMyCal()">Мой</div></div>';
+}
+// резидент: статус и события Google берём с /mycal (сам календарь живёт в общей синхронизации)
+function calGLoad(force){
+  if(!(window.BSSync && BSSync.online && BSSync.online())) return;
+  if(!force && (calGLoad.busy || Date.now() - MYCAL_GT < 60000)) return;
+  calGLoad.busy = true; MYCAL_GT = Date.now();
+  BSSync.api('GET', '/mycal').then(function(r){ return r.json(); }).then(function(j){
+    calGLoad.busy = false;
+    MYCAL_G = j && j.gcal ? {gcal: j.gcal, gev: j.gev || []} : null;
+    if(section === 'mycal') renderMyCal();
+  }, function(){ calGLoad.busy = false; });
+}
+// «YYYY-MM-DD|H» → события Google в этот час (весь день не закрашиваем)
+function calGMap(){
+  var o = {__n: 0};
+  ((MYCAL_G && MYCAL_G.gev) || []).forEach(function(e){
+    if(e.ad) return;
+    for(var h = e.h0; h < e.h1; h++){ (o[e.d + '|' + h] = o[e.d + '|' + h] || []).push(e); o.__n++; }
+  });
+  return o;
+}
+function calGBar(){
+  var G = MYCAL_G && MYCAL_G.gcal; if(!G) return '';
+  var st = G.status || {}, own = calOwnerView();
+  if(!own) return st.connected ? '<div class="gcb">Google Календарь резидента подключён: его занятость видна синим.</div>' : '';
+  if(!st.available) return '<div class="gcb"><span>Google Календарь</span><div class="zb" style="opacity:.5;cursor:default">Подключить Google Календарь</div>' +
+    '<span>' + esc(st.hint || 'Подключение станет доступно после настройки Google в /calendar') + '</span></div>';
+  if(!st.connected) return '<div class="gcb"><span>Отметки уйдут в ваш Google Календарь, а ваши события Google появятся здесь.</span>' +
+    '<div class="zb" onclick="calGConnect()">Подключить Google Календарь</div></div>';
+  var last = st.last && st.last.slice(0,4) !== '0001' ? new Date(st.last).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'}) : '';
+  return '<div class="gcb"><span>Google Календарь: <b>' + esc(st.email || 'подключён') + '</b> · отметки в «' + esc(st.writeName || '') + '»' + (last ? ' · обновлено ' + last : '') + '</span>' +
+    '<div style="flex:1"></div>' +
+    (st.need ? '<div class="zb" onclick="calGConnect()">Переподключить</div>' : '<div class="zb" onclick="calGSync()">Обновить</div>') +
+    '<div class="zb" onclick="calGSettings()">Календари</div><div class="zb" onclick="calGOff()">Отключить</div>' +
+    (st.error ? '<div class="gcb-e">' + esc(st.error) + '</div>' : '') + '</div>';
+}
+function calGReload(){ if(calTeam()){ MYCAL_GT = Date.now(); calFetch(MYCAL_FOR); } else calGLoad(true); }
+function calGConnect(){
+  BSSync.api('POST', '/gcal/connect').then(function(r){ return r.json().then(function(j){ return {st: r.status, j: j}; }); }).then(function(x){
+    if(x.st === 200 && x.j.url){ window.location.href = x.j.url; return; }
+    toast((x.j && x.j.detail) || 'Не получилось открыть Google');
+  }, function(){ toast('Нет связи с сервером'); });
+}
+function calGSync(){
+  toast('Обновляю из Google…');
+  BSSync.api('POST', '/gcal/sync').then(function(r){ return r.json(); }).then(function(j){
+    if(j && j.ok){
+      calGReload(); toast('Синхронизировано с Google');
+    } else toast((j && j.detail) || 'Не получилось');
+  }, function(){ toast('Нет связи с сервером'); });
+}
+function calGOff(){
+  askConfirm('Отключить Google Календарь?', 'Доступ будет отозван, токены удалены. События в Google останутся.', function(){
+    BSSync.api('POST', '/gcal/disconnect').then(function(){ toast('Google Календарь отключён'); calGReload(); }, function(){ toast('Нет связи с сервером'); });
+  });
+}
+function calGSettings(){
+  document.getElementById('edTitle').textContent = 'Google Календарь';
+  document.getElementById('edSub').textContent = 'Загружаю список календарей…';
+  document.getElementById('edBody').innerHTML = '';
+  openSheet('editSheet');
+  BSSync.api('GET', '/gcal?calendars=1').then(function(r){ return r.json(); }).then(function(j){
+    var st = (j && j.status) || {}, cals = (j && j.calendars) || [];
+    document.getElementById('edSub').textContent = j && j.calendarsError ? 'Список не загрузился: ' + j.calendarsError : 'Откуда показывать события и куда записывать отметки';
+    var opt = function(sel, list){ return list.map(function(c){ return '<option value="'+esc(c.id)+'"'+(c.id===sel || (sel==='primary' && c.primary)?' selected':'')+'>'+esc(c.name)+'</option>'; }).join(''); };
+    var wl = [{id:'bs', name:'BS · Календарь работы (отдельный)'}].concat(cals.filter(function(c){ return c.writable && !c.ours; }));
+    var wsel = st.own ? 'bs' : st.write;
+    document.getElementById('edBody').innerHTML =
+      '<div class="field"><div class="lbl">Показывать события из</div><select id="gcR" class="inp">' + opt(st.read, cals) + '</select></div>' +
+      '<div class="field"><div class="lbl">Записывать отметки в</div><select id="gcW" class="inp">' + opt(wsel, wl) + '</select></div>' +
+      '<div class="dbox g" style="margin:12px 0;font-size:12.5px">Без напоминаний и писем гостям. Правки в Google возвращаются сюда, при правке с двух сторон остаётся последняя.</div>' +
+      '<button class="btn bg" style="width:100%;padding:14px" onclick="calGSave()">Сохранить</button>';
+  }, function(){ document.getElementById('edSub').textContent = 'Нет связи с сервером'; });
+}
+function calGSave(){
+  var r = document.getElementById('gcR'), w = document.getElementById('gcW');
+  BSSync.api('POST', '/gcal/settings', {read: r ? r.value : '', write: w ? w.value : ''}).then(function(x){ return x.json(); }).then(function(j){
+    if(j && j.ok){ closeSheet('editSheet'); toast('Сохранено'); calGReload(); } else toast((j && j.detail) || 'Не сохранилось');
+  }, function(){ toast('Нет связи с сервером'); });
 }
 function setSlot(k){
   if(MYCAL.slots[k] === calType){

@@ -49,7 +49,8 @@ type calDocStore interface {
 }
 
 // serveCal answers GET (the calendar) and PUT ({value, version}) for a scope.
-func serveCal(c *gin.Context, store calDocStore, scope, by string) {
+// owner: the viewer is the calendar's person (R71: Google titles, the button).
+func serveCal(c *gin.Context, store calDocStore, scope, by string, owner bool) {
 	ctx := c.Request.Context()
 	if c.Request.Method == http.MethodGet {
 		d, err := store.GetDoc(ctx, scope, "bs_mycal")
@@ -57,11 +58,16 @@ func serveCal(c *gin.Context, store calDocStore, scope, by string) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "load_failed"})
 			return
 		}
-		if d == nil || d.Deleted {
-			c.JSON(http.StatusOK, gin.H{"value": `{"slots":{}}`, "version": 0})
-			return
+		out := gin.H{"value": `{"slots":{}}`, "version": 0}
+		if d != nil && !d.Deleted {
+			out["value"], out["version"] = d.Value, d.Version
+		} else if d != nil {
+			out["version"] = d.Version
 		}
-		c.JSON(http.StatusOK, gin.H{"value": d.Value, "version": d.Version})
+		for k, v := range gcalCalExtra(ctx, scope, owner) {
+			out[k] = v
+		}
+		c.JSON(http.StatusOK, out)
 		return
 	}
 	var req struct {
@@ -87,6 +93,7 @@ func serveCal(c *gin.Context, store calDocStore, scope, by string) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "save_failed"})
 		return
 	}
+	gcalTouch(scope)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "version": d.Version})
 }
 
@@ -95,6 +102,11 @@ func serveCal(c *gin.Context, store calDocStore, scope, by string) {
 // (the name is ignored).
 func (h *PlatformHandler) ResidentCal(c *gin.Context) {
 	scope := "user:" + platformUser(c)
+	if !isResident(c) && c.Query("own") == "1" {
+		// R71: a team member's own work calendar (their Google Calendar too)
+		serveCal(c, h.repo, scope, platformUser(c), true)
+		return
+	}
 	if !isResident(c) {
 		s, err := residentCalScope(c.Request.Context(), h.repo, c.Query("name"))
 		if err != nil {
@@ -110,5 +122,5 @@ func (h *PlatformHandler) ResidentCal(c *gin.Context) {
 		forbidden(c, "not_resident")
 		return
 	}
-	serveCal(c, h.repo, scope, platformUser(c))
+	serveCal(c, h.repo, scope, platformUser(c), isResident(c))
 }

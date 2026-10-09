@@ -206,7 +206,12 @@ func readErr(resp *http.Response, body []byte) error {
 }
 
 func (c *Client) form(ctx context.Context, v url.Values, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.TokenURL, strings.NewReader(v.Encode()))
+	return c.formTo(ctx, c.TokenURL, v, out)
+}
+
+// formTo posts a form to a Google OAuth endpoint (token, revoke); out may be nil.
+func (c *Client) formTo(ctx context.Context, endpoint string, v url.Values, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(v.Encode()))
 	if err != nil {
 		return err
 	}
@@ -219,6 +224,9 @@ func (c *Client) form(ctx context.Context, v url.Values, out any) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK {
 		return readErr(resp, body)
+	}
+	if out == nil {
+		return nil
 	}
 	return json.Unmarshal(body, out)
 }
@@ -267,7 +275,19 @@ func (c *Client) call(ctx context.Context, method, path string, q url.Values, in
 	if err != nil {
 		return err
 	}
-	u := c.API + path
+	st, err := apiDo(ctx, c.HTTP, c.API, at, method, path, q, in, out)
+	if st == http.StatusUnauthorized {
+		c.mu.Lock()
+		c.access = ""
+		c.mu.Unlock()
+	}
+	return err
+}
+
+// apiDo: one Calendar API request with an access token (the owner's or a
+// resident's, user.go); it returns the HTTP status too.
+func apiDo(ctx context.Context, hc *http.Client, api, at, method, path string, q url.Values, in, out any) (int, error) {
+	u := api + path
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
@@ -275,36 +295,31 @@ func (c *Client) call(ctx context.Context, method, path string, q url.Values, in
 	if in != nil {
 		b, err := json.Marshal(in)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		body = bytes.NewReader(b)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+at)
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := c.HTTP.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.mu.Lock()
-		c.access = ""
-		c.mu.Unlock()
-	}
 	if resp.StatusCode >= 300 {
-		return readErr(resp, b)
+		return resp.StatusCode, readErr(resp, b)
 	}
 	if out != nil && len(b) > 0 {
-		return json.Unmarshal(b, out)
+		return resp.StatusCode, json.Unmarshal(b, out)
 	}
-	return nil
+	return resp.StatusCode, nil
 }
 
 // ── Events ──

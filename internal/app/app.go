@@ -534,6 +534,7 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 	go audit.Loop(context.Background())
 
 	calMod := wireCalendar(g, writes, clubRepo, repo, botSvc)                               // R67 (calendar_wiring.go)
+	gcalUsersMod := wireUserCalendars(d, g, calClient(calMod), jwtSecret, botSvc)           // R71 (calendar_wiring.go)
 	sheetMod := wireSheetOwner(d, g, writes, clubRepo, repo, cut, token, jwtSecret, botSvc) // R32d (sheet_wiring.go)
 	action := httpapi.NewClubActionHandler(g, clubRepo, d.PlatformRepo, staticSeed)
 	// Заявки с сайта (Tilda) прямо на сервер: /api/v1/public/tilda/<ключ> (tilda.go)
@@ -545,7 +546,7 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewTildaModule(tilda, []byte(jwtSecret)),
 		httpapi.NewClubActionModule(action, []byte(jwtSecret)),
 		httpapi.NewMigrationModule(mig, []byte(jwtSecret)), httpapi.NewClubAuditModule(audit, []byte(jwtSecret)),
-		httpapi.NewClubResidentModule(action, []byte(jwtSecret)), sheetMod, calMod}
+		httpapi.NewClubResidentModule(action, []byte(jwtSecret)), sheetMod, calMod, gcalUsersMod}
 }
 
 // parseBundleSample reads "admin:453800951,resident:490685605,lead:999".
