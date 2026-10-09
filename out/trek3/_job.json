@@ -1,0 +1,49 @@
+{
+ "job": "trek3",
+ "job_sha256": "e27bc25d729ccdde438a329d44762a7b0fb3a000cb649abe05c76a9cb9f9b809",
+ "run_id": "37987452753",
+ "jobs_sha": "14393ceda05a4e0d1f0ea916ddd6d45a90b35683",
+ "ok": true,
+ "lines": [
+  {
+   "id": "cur_s11",
+   "chars": 37,
+   "words": 5,
+   "duration": 2.229
+  },
+  {
+   "id": "cur_s22",
+   "chars": 37,
+   "words": 5,
+   "duration": 2.601
+  },
+  {
+   "id": "cur_s33",
+   "chars": 37,
+   "words": 5,
+   "duration": 2.508
+  },
+  {
+   "id": "trie_s11",
+   "chars": 38,
+   "words": 5,
+   "duration": 2.229
+  },
+  {
+   "id": "trie_s22",
+   "chars": 38,
+   "words": 5,
+   "duration": 2.508
+  }
+ ],
+ "chars": 187,
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "voice_settings": {
+  "stability": 0.55,
+  "similarity_boost": 0.8,
+  "style": 0.1,
+  "use_speaker_boost": true,
+  "speed": 1.0
+ }
+}
