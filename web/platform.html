@@ -4972,55 +4972,152 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   var LOCAL_ONLY = {bs_lastsync:1, bs_peer:1, bs_seed:1, bs_gallup_fix:1};   // bs_seed, bs_gallup_fix пишет только сервер
   var K_TOKEN = 'bsx_token', K_USER = 'bsx_user', K_STATE = 'bsx_state', K_UNSENT = 'bsx_unsent';
 
-  // Память браузера (5 МБ) может закончиться: обложки разборов и т. п. Тогда запись
-  // в localStorage падает. Значение остаётся в памяти страницы (OV), читается оттуда
-  // и всё равно уходит на сервер. Старая копия на диске удаляется, чтобы после
-  // перезагрузки не выдать себя за свежую правку.
+  // Память браузера: localStorage около 5 МБ на сайт, а библиотеки (сотни карточек), CRM и разборы
+  // с обложками вместе больше. Раньше запись падала и выходило «Память браузера заполнена».
+  // Теперь: крупный раздел (больше BIG символов) живёт в IndexedDB (сотни МБ), в localStorage
+  // только мелкие, их всего не больше LS_BUDGET (около 3 МБ). Значение крупного раздела держится
+  // в памяти страницы (OV) и пишется в IndexedDB; при следующем открытии читается оттуда до первой сверки.
+  // Нет IndexedDB (приватное окно): как раньше, в памяти страницы и на сервере.
   var OV = Object.create(null), ovNoted = false, ovWant = false;
+  var BIG = 65536, LS_BUDGET = 1500000;          // символов (в байтах вдвое больше)
+  var NEVER_IDB = {bsx_token:1, bsx_user:1};
+  var IDBK = Object.create(null);                 // ключи, которые лежат в IndexedDB
+  var idb = null, idbQ = Object.create(null), idbT = null;
+  function idbOpen(){
+    return new Promise(function(res){
+      try{
+        if(!window.indexedDB) return res(null);
+        var q = indexedDB.open('bs_store', 1);
+        q.onupgradeneeded = function(){ try{ q.result.createObjectStore('kv'); }catch(e){} };
+        q.onsuccess = function(){ res(q.result); };
+        q.onerror = function(){ res(null); };
+        q.onblocked = function(){ res(null); };
+      }catch(e){ res(null); }
+    });
+  }
+  // Запись в IndexedDB пачкой: значение null удаляет ключ
+  function idbPut(k, v){ if(!idb) return; idbQ[k] = v; clearTimeout(idbT); idbT = setTimeout(idbFlush, 150); }
+  function idbFlush(){
+    var q = idbQ; idbQ = Object.create(null);
+    if(!idb || !Object.keys(q).length) return;
+    try{
+      var t = idb.transaction('kv', 'readwrite'), os = t.objectStore('kv');
+      Object.keys(q).forEach(function(k){ if(q[k] === null) os.delete(k); else os.put(q[k], k); });
+    }catch(e){}
+  }
+  window.addEventListener('pagehide', function(){ clearTimeout(idbT); idbFlush(); });
+  // До первой сверки с сервером: крупные разделы из IndexedDB в память страницы
+  var idbReady = idbOpen().then(function(d){
+    idb = d; if(!d) return;
+    return new Promise(function(res){
+      var done = false, fin = function(){ if(!done){ done = true; res(); } };
+      setTimeout(fin, 2500);
+      try{
+        var t = d.transaction('kv', 'readonly'), os = t.objectStore('kv'), cur = os.openCursor();
+        cur.onsuccess = function(){
+          var c = cur.result; if(!c) return fin();
+          var k = String(c.key);
+          // запись этой вкладки, сделанная до загрузки, новее
+          if(!hasOv(k)){ var inLs = null; try{ inLs = rawGet.call(LS, k); }catch(e){}
+            if(inLs === null){ OV[k] = c.value; IDBK[k] = 1; } else idbPut(k, null); }
+          c.continue();
+        };
+        cur.onerror = fin; t.onerror = fin;
+      }catch(e){ fin(); }
+    });
+  }).then(function(){ cleanupOnce(); }, function(){});
+  function toIdb(k, v){
+    if(!idb || NEVER_IDB[k]) return false;
+    OV[k] = v; IDBK[k] = 1; idbPut(k, v);
+    try{ rawRemove.call(LS, k); }catch(e){}
+    return true;
+  }
   function hasOv(k){ return Object.prototype.hasOwnProperty.call(OV, k); }
   function lsGet(k){ if(hasOv(k)) return OV[k]; try{ return rawGet.call(LS, k); }catch(e){ return null; } }
   function lsSet(k, v){
     v = String(v);
-    try{ rawSet.call(LS, k, v); delete OV[k]; return true; }catch(e){}
+    if(v.length > BIG && toIdb(k, v)) return true;
+    try{
+      rawSet.call(LS, k, v); delete OV[k];
+      if(IDBK[k]){ delete IDBK[k]; idbPut(k, null); }
+      budgetSoon();
+      return true;
+    }catch(e){}
+    // Память кончилась: крупные значения переезжают в IndexedDB, запись повторяется
     var c = spare(k);
     for(var j = 0; j < c.length; j++){
-      OV[c[j].k] = c[j].v;
-      try{ rawRemove.call(LS, c[j].k); }catch(e){}
-      try{ rawSet.call(LS, k, v); delete OV[k]; quotaNote(); return true; }catch(e){}
+      if(!toIdb(c[j].k, c[j].v)){ OV[c[j].k] = c[j].v; try{ rawRemove.call(LS, c[j].k); }catch(e){} }
+      try{ rawSet.call(LS, k, v); delete OV[k]; if(IDBK[k]){ delete IDBK[k]; idbPut(k, null); } quotaNote(); return true; }catch(e){}
     }
+    if(toIdb(k, v)){ quotaNote(); return true; }
     OV[k] = v;
     try{ rawRemove.call(LS, k); }catch(e){}
     quotaNote();
     return false;
   }
-  function lsDel(k){ delete OV[k]; try{ rawRemove.call(LS, k); }catch(e){} }
+  function lsDel(k){ delete OV[k]; if(IDBK[k]){ delete IDBK[k]; idbPut(k, null); } try{ rawRemove.call(LS, k); }catch(e){} }
   function parse(s, d){ try{ var v = JSON.parse(s); return v == null ? d : v; }catch(e){ return d; } }
-  // Что можно убрать с диска: документы, которые уже лежат на сервере без
-  // несохранённых правок (сервер пришлёт их заново при следующем открытии).
-  // В этой вкладке они остаются в памяти (OV) и читаются как раньше. Крупные первыми.
+  // Что можно убрать из localStorage. С IndexedDB: любое крупное значение (оно переедет туда целиком).
+  // Без неё: только документы, которые уже лежат на сервере без несохранённых правок
+  // (сервер пришлёт их заново при следующем открытии). Крупные первыми.
   function spare(except){
     var c = [];
     try{
       for(var i = 0; i < LS.length; i++){
         var k = LS.key(i);
-        if(!k || k === except || hasOv(k) || !isSyncKey(k) || (dirty && dirty[k]) || (unsent && unsent[k])) continue;
+        if(!k || k === except || hasOv(k) || NEVER_IDB[k]) continue;
         var raw = rawGet.call(LS, k); if(raw == null || raw.length < 1024) continue;
-        if(k === 'bs_boards'){
-          var list = parse(raw, null); if(!Array.isArray(list)) continue;
-          if(!list.every(function(b){ var s = b && b.id && st.boards[b.id]; return s && !s.deleted && s.h === hb(b); })) continue;
-        } else {
-          var s = st.docs[k]; if(!s || s.deleted || s.h !== hash(raw)) continue;
+        if(!idb){
+          if(!isSyncKey(k) || (dirty && dirty[k]) || (unsent && unsent[k])) continue;
+          if(k === 'bs_boards'){
+            var list = parse(raw, null); if(!Array.isArray(list)) continue;
+            if(!list.every(function(b){ var s = b && b.id && st.boards[b.id]; return s && !s.deleted && s.h === hb(b); })) continue;
+          } else {
+            var s = st.docs[k]; if(!s || s.deleted || s.h !== hash(raw)) continue;
+          }
         }
         c.push({k: k, v: raw});
       }
     }catch(e){}
     return c.sort(function(a, b){ return b.v.length - a.v.length; });
   }
+  // localStorage в пределах LS_BUDGET: сверх него крупнейшие значения переезжают в IndexedDB
+  var budgetT = null;
+  function budgetSoon(){ if(!budgetT) budgetT = setTimeout(function(){ budgetT = null; budget(); }, 1500); }
+  function budget(){
+    if(!idb) return;
+    try{
+      var all = [], tot = 0;
+      for(var i = 0; i < LS.length; i++){ var k = LS.key(i), v = rawGet.call(LS, k) || ''; tot += k.length + v.length; all.push({k: k, n: v.length}); }
+      if(tot <= LS_BUDGET) return;
+      all.sort(function(a, b){ return b.n - a.n; });
+      for(var j = 0; j < all.length && tot > LS_BUDGET * 0.8; j++){
+        if(NEVER_IDB[all[j].k] || all[j].n < 4096) continue;
+        var raw = rawGet.call(LS, all[j].k); if(raw === null) continue;
+        if(toIdb(all[j].k, raw)) tot -= all[j].n;
+      }
+    }catch(e){}
+  }
+  // Один раз на этом устройстве: старые крупные значения из localStorage в IndexedDB
+  var LS_GEN = '2';
+  function cleanupOnce(){
+    if(!idb) return;
+    var gen = null; try{ gen = rawGet.call(LS, 'bsx_lsgen'); }catch(e){}
+    if(gen === LS_GEN){ budget(); return; }
+    try{
+      for(var j = LS.length - 1; j >= 0; j--){
+        var k2 = LS.key(j); if(!k2 || NEVER_IDB[k2]) continue;
+        var v2 = rawGet.call(LS, k2); if(v2 !== null && v2.length > BIG) toIdb(k2, v2);
+      }
+      rawSet.call(LS, 'bsx_lsgen', LS_GEN);
+    }catch(e){}
+    budget();
+  }
   function quotaNote(){
+    // Ничего не теряется (IndexedDB или сервер), человеку об этом знать не нужно
     if(ovNoted) return;
-    if(!noteEl){ ovWant = true; return; }
-    ovNoted = true;
-    note('Память браузера заполнена: данные сохраняются на сервер напрямую');
+    ovNoted = true; ovWant = false;
+    try{ console.info('bs: localStorage full, large sections kept in IndexedDB'); }catch(e){}
   }
 
   // ── Сравнение и хеш ─────────────────────────────────────────────────────
@@ -5115,6 +5212,12 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   var st = parse(lsGet(K_STATE), null) || {};
   st.rev = 0;                                   // при каждом открытии берём всё с сервера
   st.boards = st.boards || {}; st.docs = st.docs || {};
+  // Разборы, которые сервер раньше не принял (403: резидент заполнял колесо без своего разбора),
+  // лежат только в этом браузере. При открытии отправляем их заново: сервер теперь их принимает
+  (function(){
+    var local = {}; try{ (parse(lsGet('bs_boards'), []) || []).forEach(function(b){ if(b && b.id) local[b.id] = 1; }); }catch(e){}
+    Object.keys(st.boards).forEach(function(id){ var s = st.boards[id]; if(s && s.denied && !s.deleted && local[id]) delete st.boards[id]; });
+  })();
   var auth = parse(lsGet(K_USER), {}) || {};
   var token = lsGet(K_TOKEN) || '';
   var base = {boards:{}, docs:{}};              // последние копии с сервера, для слияния
@@ -5146,7 +5249,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     return rawGet.call(this, k);
   };
   P.removeItem = function(k){
-    if(this === LS) delete OV[k];
+    if(this === LS){ delete OV[k]; if(IDBK[k]){ delete IDBK[k]; idbPut(k, null); } }
     rawRemove.call(this, k);
     if(this === LS && isSyncKey(k)) markDirty(k);
   };
@@ -5316,7 +5419,8 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   var early = null;
   function pull(){
     var p = early; early = null;
-    if(!p || st.rev) p = api('GET', '/sync?since=' + st.rev + heldDocs());
+    // Крупные разделы из IndexedDB должны быть в памяти до слияния с сервером
+    if(!p || st.rev) p = idbReady.then(function(){ return api('GET', '/sync?since=' + st.rev + heldDocs()); });
     return p.then(function(r){
       if(r.status === 403){ var e0 = new Error('denied'); e0.denied = true; throw e0; }
       if(r.status !== 200){ var e = new Error('http ' + r.status); e.net = true; throw e; }
@@ -5871,6 +5975,26 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
     isLead: isLeadUser,
     logout: function(){ logout(); },
     refresh: function(){ setStatus('saving'); return tick(); },
+    // Подтверждение сервера для разбора: true, когда его текущая версия в этом браузере принята сервером.
+    // 'denied': сервер отказал (нет прав). false: не успели (нет связи), правка остаётся и уйдёт позже
+    boardSaved: function(id, ms){
+      var until = Date.now() + (ms || 10000);
+      var check = function(){
+        var b = null; try{ b = localBoards().find(function(x){ return x && x.id === id; }); }catch(e){}
+        var s = st.boards[id];
+        if(!b) return false;
+        if(s && s.denied && s.h === hb(b)) return 'denied';
+        return !!(s && !s.deleted && !s.denied && s.h === hb(b) && !dirty.bs_boards);
+      };
+      return new Promise(function(res){
+        (function loop(){
+          var r = check();
+          if(r || Date.now() > until || !token) return res(r);
+          if(!busy){ clearTimeout(tickTimer); tick(); }
+          setTimeout(loop, 300);
+        })();
+      });
+    },
     tick: tick,
     // R45: ответ запроса, ушедшего при загрузке страницы (один раз), или null
     takeEarly: function(path){ var p = earlyGet[path] || null; delete earlyGet[path]; return p; },
@@ -5880,7 +6004,7 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
   // firstSync() берёт его ответ, второго запроса нет. Лиду данные клуба не нужны: ему сразу главная лида
   var earlyGet = {};
   try{
-    if(token && !isLeadUser()){ early = api('GET', '/sync?since=0' + heldDocs()); early.catch(function(){}); }
+    if(token && !isLeadUser()){ early = idbReady.then(function(){ return api('GET', '/sync?since=0' + heldDocs()); }); early.catch(function(){}); }
     else if(token){ earlyGet['/lead/home'] = window.BSSync.api('GET', '/lead/home'); earlyGet['/lead/home'].catch(function(){}); }
   }catch(e){ early = null; }
 })();
@@ -8862,6 +8986,20 @@ function wheelPrev(kind){
   }
   return null;
 }
+// Замеры: «Сохранено» только после ответа сервера (BSSync.boardSaved), не после записи в браузер
+var _wackT = null;
+function wheelAck(okMsg){
+  clearTimeout(_wackT);
+  if(!(window.BSSync && BSSync.boardSaved)){ if(okMsg) toast(okMsg); return; }   // файл без сервера
+  _wackT = setTimeout(function(){
+    if(!curBoard) return;
+    BSSync.boardSaved(curBoard.id).then(function(r){
+      if(r === true) toast(okMsg || 'Сохранено на сервере');
+      else if(r === 'denied') toast('Сервер не принял замер. Напишите трекеру');
+      else toast('Нет связи с сервером: замер в этом браузере, отправим автоматически');
+    });
+  }, 700);
+}
 function setWheel(kind, ax, v){
   var key = kind==='life' ? 'wheel' : 'diag';
   if(!curBoard) saveBoard();
@@ -8869,6 +9007,7 @@ function setWheel(kind, ax, v){
   curBoard.tests[key] = curBoard.tests[key] || {};
   curBoard.tests[key][ax] = Math.max(0, Math.min(10, Number(v)||0));
   saveBoardSilent();
+  wheelAck();
   if(kind==='life') renderLifeWheel(); else renderBizWheel();
 }
 function wheelPage(kind, title, sub, color){
@@ -8934,7 +9073,7 @@ function saveWheelSnapshot(kind){
     avg:Math.round(avg*10)/10, vals:vals});
   if(curBoard[key].length > 12) curBoard[key].shift();
   saveBoardSilent();
-  toast('Замер сохранён');
+  wheelAck('Замер сохранён на сервере');
   if(kind==='life') renderLifeWheel(); else renderBizWheel();
 }
 function renderLifeWheel(){
@@ -38635,7 +38774,7 @@ body.light .rpanel .rp-t:hover{background:rgba(0,0,0,.05)}
         '<div class="r58w-sl"><span>1 · совсем плохо</span><span>10 · лучше не бывает</span></div>' +
         '<div class="r58w-nav"><button type="button" class="r58w-btn" onclick="r58WGo(' + (W.i - 1) + ')"' + (W.i ? '' : ' disabled') + '>← Назад</button>' +
         '<button type="button" class="r58w-btn p" onclick="r58WGo(' + (W.i + 1) + ')">' + (W.i === n - 1 ? 'Итог →' : (v ? 'Далее →' : 'Пропустить →')) + '</button></div>' +
-        '<div class="r58w-saved">' + (W.saved ? 'Сохранено на доске' : '') + '</div></div></div>';
+        '<div class="r58w-saved">' + ({wait: 'Сохраняю…', ok: 'Сохранено на сервере', fail: 'Нет связи: ответы в этом браузере, отправим автоматически', denied: 'Сервер не принял ответы'}[W.ack] || '') + '</div></div></div>';
     } else {
       var low = lowest(), a = avgOf(W.tid);
       var rows = t.axes.slice().sort(function(x, y){ return (Number(d[x]) || 99) - (Number(d[y]) || 99); }).map(function(x){
@@ -38649,7 +38788,7 @@ body.light .rpanel .rp-t:hover{background:rgba(0,0,0,.05)}
         '<div class="r58w-rows">' + rows + '</div>' +
         '<div class="r58w-acts r58w-tr">' + (a && a.n ? '<button type="button" class="r58w-btn p" onclick="r58WCard()">' + (W.card ? 'Обновить карточку на доске' : 'Положить на доску') + '</button>' : '') +
         '<button type="button" class="r58w-btn" onclick="r58WGo(0)">Изменить ответы</button><button type="button" class="r58w-btn" onclick="r58WClose()">Готово</button></div>' +
-        '<div class="r58w-saved">' + (W.cardMsg || 'Ответы уже сохранены в замерах ' + (W.lead ? 'лида' : 'резидента')) + '</div></div></div>';
+        '<div class="r58w-saved">' + (W.cardMsg || (W.ack === 'fail' ? 'Нет связи: ответы в этом браузере, отправим автоматически' : W.ack === 'denied' ? 'Сервер не принял ответы' : W.ack === 'wait' ? 'Сохраняю…' : 'Ответы сохранены в замерах ' + (W.lead ? 'лида' : 'резидента'))) + '</div></div></div>';
     }
     b.innerHTML = h;
   };
@@ -38666,7 +38805,15 @@ body.light .rpanel .rp-t:hover{background:rgba(0,0,0,.05)}
   window.r58WSet = function(v){
     if(!W) return;
     var t = testOf(W.tid), ax = t.axes[W.i]; if(!ax) return;
-    W.saved = put(W.tid, ax, v); paintW();
+    W.saved = put(W.tid, ax, v); W.ack = W.saved ? 'wait' : 'fail'; paintW();
+    // «Сохранено» только после ответа сервера
+    var w0 = W;
+    if(W.saved && window.BSSync && BSSync.boardSaved && curBoard){
+      clearTimeout(W.ackT);
+      W.ackT = setTimeout(function(){
+        BSSync.boardSaved(curBoard.id).then(function(r){ if(W === w0 && W.ack === 'wait'){ W.ack = r === true ? 'ok' : (r === 'denied' ? 'denied' : 'fail'); paintW(); } });
+      }, 500);
+    } else if(W.saved) W.ack = 'ok';
     clearTimeout(W.adv);
     W.adv = setTimeout(function(){ if(W && W.i < t.axes.length && t.axes[W.i] === ax){ W.i++; W.saved = false; paintW(); } }, 420);
   };

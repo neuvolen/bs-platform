@@ -26,6 +26,10 @@ var lazyKeep = map[string]bool{
 	"*:setMode": true, "*:setStatus": true, "*:setupDrag": true, "*:startSync": true, "*:strip": true,
 	"*:subDrag": true, "*:tabDrag": true, "*:tick": true, "*:trackData": true, "*:ui": true,
 	"*:viewSettle": true, "*:warmTour": true, "*:watch": true,
+	// Storage under quota: lsSet calls these at once and uses their answers (a lazy one answered
+	// undefined and the write threw); big sections go to IndexedDB before the first sync
+	"*:spare": true, "*:toIdb": true, "*:idbOpen": true, "*:idbPut": true, "*:idbFlush": true,
+	"*:budget": true, "*:budgetSoon": true, "*:cleanupOnce": true, "*:quotaNote": true,
 	"r46Script:r46LeadTeaser": true, // R46: the lead home's «Бизнес-идеи» block
 	// R52: the tab strip keeps its scroll, and the board signs edited cards (who, when) as it draws
 	"r52Script:keepStrip": true, "r52Script:edBadge": true, "r52Script:when": true,

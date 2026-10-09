@@ -193,19 +193,37 @@ func (h *PlatformHandler) PutBoard(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return
 		}
-		if name == "" || cur == nil || cur.Deleted || !boardBelongsTo(cur, name) {
+		if name == "" || (cur != nil && !boardBelongsTo(cur, name)) {
 			forbidden(c, "not_your_board")
+			return
+		}
+		// A resident without a board of their own (the tracker has not opened one,
+		// or it carries another spelling of the name) fills the wheel or the
+		// diagnostics on the platform: their page makes a new board. It used to be
+		// refused (403) and the answers stayed in that browser only, then got lost.
+		// Now it is kept, labelled with the resident's name.
+		if cur == nil && h.residentBoards(c, name) >= residentBoardsMax {
+			forbidden(c, "too_many_boards")
 			return
 		}
 		next := pg.PlatformBoard{}
 		next.Resident, _ = pg.BoardLabels(req.Data)
+		if strings.TrimSpace(next.Resident) == "" {
+			// The resident's page has no name fields filled: the board is theirs
+			if stamped, err := stampBoardResident(req.Data, name); err == nil {
+				req.Data = stamped
+				next.Resident = name
+			}
+		}
 		if !boardBelongsTo(&next, name) {
 			forbidden(c, "cannot_reassign_board")
 			return
 		}
 		// R32d: the resident's copy has no recordings; the board's calls stay as kept
-		if kept, err := keepCalls(cur.Data, req.Data); err == nil {
-			req.Data = kept
+		if cur != nil {
+			if kept, err := keepCalls(cur.Data, req.Data); err == nil {
+				req.Data = kept
+			}
 		}
 	}
 	// R63: a call the team deleted does not come back with an older copy of the board

@@ -16,7 +16,9 @@ import (
 //
 // A resident sees only boards made for their name (board info.res matches
 // the name in the resident list from the Google Sheet), may edit them (tick
-// tasks, fill tests, write the report), and may not create or delete boards.
+// tasks, fill tests, write the report), and may not delete boards. A resident
+// without a board of their own may start one (their wheel, diagnostics),
+// always labelled with their name (residentBoardsMax at most).
 // Club sections they get read-only: the method libraries. Everything else a
 // resident saves lands in their personal scope and never touches club data.
 // Finance and other residents' data are cut out of the shared seed.
@@ -101,6 +103,52 @@ func (h *PlatformHandler) residentOf(c *gin.Context) string {
 		return ""
 	}
 	return name
+}
+
+// residentBoardsMax: boards a resident may start themselves (a guard, not a quota).
+const residentBoardsMax = 20
+
+// residentBoards counts the live boards that are this resident's.
+func (h *PlatformHandler) residentBoards(c *gin.Context, name string) int {
+	boards, err := h.repo.LiveBoards(c.Request.Context())
+	if err != nil {
+		return residentBoardsMax // cannot tell: no new board
+	}
+	n := 0
+	for i := range boards {
+		if boardBelongsTo(&boards[i], name) {
+			n++
+		}
+	}
+	return n
+}
+
+// stampBoardResident puts the resident's name into the board's info.res
+// (and the board's name when it has none): the resident's page leaves them empty.
+func stampBoardResident(data json.RawMessage, name string) (json.RawMessage, error) {
+	var b map[string]json.RawMessage
+	if err := json.Unmarshal(data, &b); err != nil {
+		return nil, err
+	}
+	info := map[string]any{}
+	if raw, ok := b["info"]; ok && len(raw) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &info); err != nil {
+			return nil, err
+		}
+	}
+	info["res"] = name
+	ib, err := json.Marshal(info)
+	if err != nil {
+		return nil, err
+	}
+	b["info"] = ib
+	var bn string
+	_ = json.Unmarshal(b["name"], &bn)
+	if t := strings.TrimSpace(bn); t == "" || t == "Разбор" || t == "Новый разбор" {
+		nb, _ := json.Marshal("Разбор · " + name)
+		b["name"] = nb
+	}
+	return json.Marshal(b)
 }
 
 func boardBelongsTo(b *pg.PlatformBoard, name string) bool {
