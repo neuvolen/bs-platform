@@ -96,6 +96,8 @@ func (t *fakeTelegram) handler(w http.ResponseWriter, r *http.Request) {
 	case "sendMessage":
 		t.sent = append(t.sent, p)
 		_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+	case "createChatInviteLink": // R70: the personal club group link
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"invite_link":"https://t.me/+personal1"}}`))
 	default:
 		_, _ = w.Write([]byte(`{"ok":false,"description":"unknown"}`))
 	}

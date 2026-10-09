@@ -41,6 +41,16 @@ import (
 //     нажал «Я уже в клубе»): одно сообщение команде с кнопками «Это
 //     резидент» / «Это лид», только днём (10:00-20:00 Алматы); ночью оно
 //     ждёт утра. «Это лид» сразу запускает прогрев, а не холодный отказ.
+//
+// R70 (владелец: «верни как раньше»): пункты 3 и 4 заменены прежним порядком
+// в одно касание. Не нашёлся в списке или спорный: владельцу сразу (кроме
+// 23:00-08:00 Алматы) сообщение «X говорит, что он резидент» с кнопками
+// «✅ Подтвердить» / «❌ Отклонить». «Подтвердить»: резидент привязывается
+// (строка без Chat ID) или создаётся (формат из заявки, иначе второй тап
+// «Онлайн» / «Офлайн»), человеку приветствие с платформой и Mini App, личная
+// ссылка в группу клуба, оферта и онбординг. Карточка CRM находится и
+// отмечается сама. «Отклонить»: тёплый ответ лиду и прогрев, как раньше.
+// Выбирать резидента в CRM больше не нужно; полоса в CRM осталась запасной.
 
 // PlatformURL: the platform's address in the bot's messages.
 const PlatformURL = "https://app.bxclub.kz"
@@ -172,7 +182,8 @@ func MatchClaim(snap *club.Snapshot, crm map[string]any, w ClaimWho) ClaimMatch 
 	}
 	// 3. Only the name looks like a resident without a Chat ID (first and
 	// last name, in any order): the team decides.
-	if mine := strings.Fields(club.NormName(w.FirstName + " " + w.LastName)); len(mine) >= 2 {
+	mine := strings.Fields(club.NormName(w.FirstName + " " + w.LastName))
+	if len(mine) >= 2 {
 		for _, r := range snap.Residents {
 			if !active(r) || r.TgID != 0 {
 				continue
@@ -187,6 +198,19 @@ func MatchClaim(snap *club.Snapshot, crm map[string]any, w ClaimWho) ClaimMatch 
 			}
 			if all {
 				return ClaimMatch{Kind: claimMaybe, Name: r.Name, Why: "имя в Telegram совпадает с резидентом без Chat ID"}
+			}
+		}
+	}
+	// R70: a resident row of one word (the owner added «Амирхан») and that
+	// word in the Telegram name: shown to the owner as the likely row.
+	if len(mine) >= 1 {
+		has := map[string]bool{}
+		for _, x := range mine {
+			has[x] = true
+		}
+		for _, r := range snap.Residents {
+			if t := strings.Fields(club.NormName(r.Name)); active(r) && r.TgID == 0 && len(t) == 1 && has[t[0]] {
+				return ClaimMatch{Kind: claimMaybe, Name: r.Name, Why: "резидент без Chat ID с таким именем"}
 			}
 		}
 	}
@@ -328,6 +352,11 @@ type ResidentClaims struct {
 	club claimClub
 	// Link writes the Telegram chat id into the resident's row (club writes).
 	Link func(ctx context.Context, name string, tg int64) error
+	// Add creates a resident row (format «Онлайн» / «Офлайн») with the chat id.
+	Add func(ctx context.Context, name, format string, tg int64) error
+	// Welcome sends the confirmed resident the welcome package (platform,
+	// Mini App, group invite, offer) and starts the onboarding (bot/welcome.go).
+	Welcome func(ctx context.Context, tg int64, name string) (string, error)
 	// Edit replaces the text and buttons of the team's message (nil: not edited).
 	Edit func(ctx context.Context, chatID, msgID int64, text string, kb map[string]any) error
 	// Names: the team's names (PLATFORM_TEAM) for the journal.
@@ -340,10 +369,11 @@ func NewResidentClaims(f *LeadFunnel, c claimClub) *ResidentClaims {
 	return &ResidentClaims{f: f, club: c, now: func() time.Time { return f.now() }}
 }
 
-// daytime: the team hears about claims only 10:00-20:00 Almaty.
+// daytime: R70: the owner hears about claims at once, except 23:00-08:00
+// Almaty; a night claim reaches the owner at 08:00.
 func daytime(t time.Time) bool {
 	h := t.In(almaty).Hour()
-	return h >= 10 && h < 20
+	return h >= 8 && h < 23
 }
 
 func (rc *ResidentClaims) crm(ctx context.Context) map[string]any {
@@ -372,12 +402,37 @@ func (rc *ResidentClaims) price(ctx context.Context) int64 {
 	return p
 }
 
+// adoptCard: R70: a CRM card of this person without a Telegram id (made by
+// hand: same username, or the same name in «Решение» / «Резидент») gets the
+// id, so the claim lands on it instead of a new card. The owner never links.
+func adoptCard(crm map[string]any, w ClaimWho) bool {
+	leads, _ := crm["leads"].([]any)
+	if w.TgID == 0 || findLeadByTg(leads, w.TgID) != nil {
+		return false
+	}
+	user, name := normUser(w.Username), club.NormName(w.FirstName+" "+w.LastName)
+	for _, l := range leads {
+		m, _ := l.(map[string]any)
+		if m == nil || leadTg(m) != 0 {
+			continue
+		}
+		col := fmt.Sprint(m["col"])
+		if (user != "" && normUser(fmt.Sprint(m["tg"])) == user) ||
+			(len(strings.Fields(name)) >= 2 && club.NormName(fmt.Sprint(m["name"])) == name && (col == "won" || col == "decide")) {
+			m["tgId"] = float64(w.TgID)
+			return true
+		}
+	}
+	return false
+}
+
 // setClaim writes the claim onto the lead's card (creating the card quietly).
 func (rc *ResidentClaims) setClaim(ctx context.Context, w ClaimWho, via string, fn func(lead, cl map[string]any)) error {
 	src := "Бот: «Я резидент BS»"
 	if via == "app" {
 		src = "Приложение: «Я резидент BS»"
 	}
+	_ = rc.f.mutate(ctx, "bs_crm", func(crm map[string]any) bool { return adoptCard(crm, w) })
 	if _, _, err := rc.f.ensureLeadN(ctx, w.TgID, w.FirstName, w.LastName, w.Username, src,
 		"Нажал «Я резидент BS»", "", false, false); err != nil {
 		return err
@@ -396,6 +451,13 @@ func (rc *ResidentClaims) setClaim(ctx context.Context, w ClaimWho, via string, 
 		lead["claim"] = cl
 		return true
 	})
+}
+
+// platformLine: the platform in the bot's answers, with the one-tap login.
+const platformLine = "💻 Платформа BS: app.bxclub.kz, вход в один тап через Telegram (пароль не нужен)"
+
+func (rc *ResidentClaims) residentKB() map[string]any {
+	return kb(row(rc.f.appBtn("📱 Открыть приложение BS", "home")), row(platformBtn()))
 }
 
 // Claim handles «Я резидент BS» from the bot (via "bot") or the app ("app").
@@ -430,50 +492,54 @@ func (rc *ResidentClaims) Claim(ctx context.Context, w ClaimWho, via string) (Cl
 
 	switch m.Kind {
 	case claimLinked:
-		rc.send(ctx, w.TgID, "✅ Вы уже резидент BS, всё подключено.\n\nПриложение клуба открывается кнопкой ниже. Платформа: app.bxclub.kz, вход через Telegram.",
-			kb(row(rc.f.appBtn("📱 Открыть приложение BS", "home")), row(platformBtn())))
+		rc.send(ctx, w.TgID, "✅ Вы уже резидент BS, всё подключено.\n\n📱 Приложение клуба: кнопка ниже.\n"+platformLine+".", rc.residentKB())
 		rc.markResident(ctx, w.TgID, m.Name, "Нажал «Я резидент BS»: уже резидент («"+m.Name+"»)")
 		return m, nil
 	case claimLink:
-		rc.send(ctx, w.TgID, "✅ Нашёл вас в списке резидентов: "+m.Name+".\n\nTelegram привязан, доступ открыт:\n📱 приложение клуба, кнопка ниже\n💻 платформа app.bxclub.kz, вход через Telegram (доступ резидента откроется в течение часа)\n\nДобро пожаловать в Business Surgery!",
-			kb(row(rc.f.appBtn("📱 Открыть приложение BS", "home")), row(platformBtn())))
 		_ = rc.setClaim(ctx, w, via, func(lead, cl map[string]any) {
 			cl["at"], cl["status"], cl["name"], cl["why"] = now.UTC().Format(time.RFC3339), "resident", m.Name, m.Why
 			cl["by"] = "auto"
 			lead["col"], lead["warmStop"] = "won", true
 			addLog(lead, now, "«Я резидент BS»: привязан к резиденту «"+m.Name+"» автоматически ("+m.Why+")")
 		})
-		return m, nil
-	case claimMaybe:
-		if prev["status"] == "pending" {
-			rc.send(ctx, w.TgID, "Заявка уже у команды. Проверим список клуба в рабочее время и откроем доступ.", nil)
-			return m, nil
-		}
-		rc.send(ctx, w.TgID, upFirst(hiName(first)+"спасибо! Похоже, вы есть в списке клуба, но Telegram пока не привязан.")+
-			"\n\nКоманда проверит в рабочее время и откроет доступ. Пока можно открыть 99 гайдов и диагностику.",
-			kb(row(rc.f.appBtn("📘 99 гайдов", "checklists"), rc.f.appBtn("🔬 Диагностика", "diagnostic"))))
-		_ = rc.setClaim(ctx, w, via, func(lead, cl map[string]any) {
-			cl["at"], cl["status"], cl["name"], cl["why"], cl["notified"] = now.UTC().Format(time.RFC3339), "pending", m.Name, m.Why, ""
-			addLog(lead, now, "«Я резидент BS»: похоже на резидента «"+m.Name+"» ("+m.Why+"), решает команда")
-		})
-		if daytime(now) {
-			rc.notifyOne(ctx, w.TgID)
-		}
+		rc.send(ctx, w.TgID, "✅ Нашёл вас в списке резидентов: "+m.Name+".\n\nTelegram привязан, доступ открыт:\n📱 приложение клуба, кнопка ниже\n"+platformLine+" (доступ резидента откроется в течение часа)\n\nДобро пожаловать в Business Surgery!",
+			rc.residentKB())
 		return m, nil
 	}
-	// a lead (or a former resident)
-	if t, err := time.Parse(time.RFC3339, fmt.Sprint(prev["at"])); err == nil && prev["status"] == claimLead && now.Sub(t) < 12*time.Hour {
-		// pressed again: the same answer, no second sequence
-		rc.send(ctx, w.TgID, claimOffer(first, rc.price(ctx)), claimOfferKB(rc.f))
+	// R70: everyone else goes to the owner, one tap decides.
+	if prev["status"] == "pending" {
+		rc.send(ctx, w.TgID, "Заявка уже у команды, подтвердим в ближайшее время. Пока можно открыть платформу и гайды.\n\n"+platformLine+".",
+			kb(row(platformBtn()), row(rc.f.appBtn("📘 99 гайдов", "checklists"))))
 		return m, nil
 	}
-	rc.startWarm(ctx, w, via, m, now, "")
+	if err := rc.setClaim(ctx, w, via, func(lead, cl map[string]any) {
+		cl["at"], cl["status"], cl["why"], cl["notified"] = now.UTC().Format(time.RFC3339), "pending", m.Why, ""
+		if cl["why"] == "" {
+			cl["why"] = "нет в списке резидентов"
+		}
+		if m.Name != "" && m.Kind == claimMaybe {
+			cl["name"] = m.Name
+		} else {
+			delete(cl, "name")
+		}
+		delete(cl, "by")
+		lead["warmStop"] = true // пока владелец не решил
+		addLog(lead, now, "«Я резидент BS»: заявка владельцу на подтверждение")
+	}); err != nil {
+		return m, err
+	}
+	rc.send(ctx, w.TgID, upFirst(hiName(first)+"спасибо! Передал заявку команде, подтвердим в ближайшее время. После подтверждения пришлю доступы: чат резидентов, приложение и платформу.")+
+		"\n\n"+platformLine+".",
+		kb(row(platformBtn()), row(rc.f.appBtn("📘 99 гайдов", "checklists"), rc.f.appBtn("🔬 Диагностика", "diagnostic"))))
+	if daytime(now) {
+		rc.notifyOne(ctx, w.TgID, false)
+	}
 	return m, nil
 }
 
-// startWarm: the offer now, the case and the slot later; the card is marked.
+// startWarm: the offer now, the case and the slot later; the card is marked
+// first (the answer goes out only after the CRM has the claim).
 func (rc *ResidentClaims) startWarm(ctx context.Context, w ClaimWho, via string, m ClaimMatch, now time.Time, by string) {
-	rc.send(ctx, w.TgID, claimOffer(upFirst(strings.TrimSpace(w.FirstName)), rc.price(ctx)), claimOfferKB(rc.f))
 	_ = rc.setClaim(ctx, w, via, func(lead, cl map[string]any) {
 		cl["at"], cl["status"] = now.UTC().Format(time.RFC3339), claimLead
 		if m.Kind == claimFormer {
@@ -485,6 +551,7 @@ func (rc *ResidentClaims) startWarm(ctx context.Context, w ClaimWho, via string,
 		if by != "" {
 			cl["by"] = by
 		}
+		delete(lead, "warmStop")
 		lead["claimWarm"] = 0
 		lead["hot"] = true
 		lead["warmAt"] = now.UTC().Format(time.RFC3339)
@@ -497,6 +564,7 @@ func (rc *ResidentClaims) startWarm(ctx context.Context, w ClaimWho, via string,
 		}
 		addLog(lead, now, txt)
 	})
+	rc.send(ctx, w.TgID, claimOffer(upFirst(strings.TrimSpace(w.FirstName)), rc.price(ctx)), claimOfferKB(rc.f))
 }
 
 // markResident: an existing lead card of a resident goes to «Резидент».
@@ -533,7 +601,7 @@ func (rc *ResidentClaims) Recheck(ctx context.Context, w ClaimWho) error {
 	}
 	m := MatchClaim(snap, rc.crm(ctx), w)
 	if m.Kind == claimLinked {
-		rc.send(ctx, w.TgID, "✅ Вы уже резидент BS, всё подключено.", kb(row(rc.f.appBtn("📱 Открыть приложение BS", "home")), row(platformBtn())))
+		rc.send(ctx, w.TgID, "✅ Вы уже резидент BS, всё подключено.\n\n"+platformLine+".", rc.residentKB())
 		return nil
 	}
 	name, why := "", "сам сообщил, что уже в клубе"
@@ -547,23 +615,40 @@ func (rc *ResidentClaims) Recheck(ctx context.Context, w ClaimWho) error {
 			return
 		}
 		cl["status"], cl["name"], cl["why"], cl["notified"] = "pending", name, why, ""
+		if name == "" {
+			delete(cl, "name")
+		}
+		delete(cl, "by")
 		cl["at"] = now.UTC().Format(time.RFC3339)
 		lead["warmStop"] = true // пока команда не решила
-		addLog(lead, now, "Нажал «Я уже в клубе»: команда проверит вручную")
+		addLog(lead, now, "Нажал «Я уже в клубе»: заявка владельцу на подтверждение")
 	})
 	if already {
-		rc.send(ctx, w.TgID, "Заявка уже у команды, ответим в рабочее время.", nil)
+		rc.send(ctx, w.TgID, "Заявка уже у команды, подтвердим в ближайшее время.", nil)
 		return nil
 	}
-	rc.send(ctx, w.TgID, "Принято. Команда сверит список клуба в рабочее время и откроет доступ, если вы в нём есть.", nil)
+	rc.send(ctx, w.TgID, "Принято. Передал заявку команде: подтвердим и пришлём доступы.", nil)
 	if daytime(now) {
-		rc.notifyOne(ctx, w.TgID)
+		rc.notifyOne(ctx, w.TgID, false)
 	}
 	return nil
 }
 
-// notifyOne sends the team one message about a pending claim (daytime only).
-func (rc *ResidentClaims) notifyOne(ctx context.Context, tg int64) {
+// claimKB: the owner's buttons under «X говорит, что он резидент».
+func claimKB(tg int64, name string) map[string]any {
+	id := strconv.FormatInt(tg, 10)
+	rows := [][]map[string]any{row(
+		map[string]any{"text": "✅ Подтвердить", "callback_data": "rcl_ok_" + id},
+		map[string]any{"text": "❌ Отклонить", "callback_data": "rcl_no_" + id})}
+	if name != "" {
+		rows = append(rows, row(map[string]any{"text": "Это не «" + clip(name, 24) + "»: новый резидент", "callback_data": "rcl_new_" + id}))
+	}
+	return map[string]any{"inline_keyboard": rows}
+}
+
+// notifyOne sends the owner one message about a pending claim. again: send
+// even if it was sent before (R70: the claim made before the fix).
+func (rc *ResidentClaims) notifyOne(ctx context.Context, tg int64, again bool) {
 	if rc.f.send == nil {
 		return
 	}
@@ -579,7 +664,7 @@ func (rc *ResidentClaims) notifyOne(ctx context.Context, tg int64) {
 		if cl == nil || cl["status"] != "pending" {
 			return false
 		}
-		if n, _ := cl["notified"].(string); n != "" {
+		if n, _ := cl["notified"].(string); n != "" && !again {
 			return false
 		}
 		cl["notified"] = now.UTC().Format(time.RFC3339)
@@ -595,26 +680,22 @@ func (rc *ResidentClaims) notifyOne(ctx context.Context, tg int64) {
 	if t, _ := lead["tg"].(string); t != "" {
 		who += " " + t
 	}
-	text := fmt.Sprintf("🙋 Просится в резиденты: %s\n🆔 %d\n", who, tg)
+	text := fmt.Sprintf("🙋 %s говорит, что он резидент\n🆔 %d\n", who, tg)
+	if p, _ := lead["phone"].(string); strings.TrimSpace(p) != "" {
+		text += "📞 " + p + "\n"
+	}
 	if name != "" {
 		text += "Похоже на резидента «" + name + "»: " + fmt.Sprint(cl["why"]) + "\n"
 	} else {
-		text += fmt.Sprint(cl["why"]) + "\n"
+		text += "В списке резидентов нет: при подтверждении бот добавит его сам\n"
 	}
-	text += "\nКто это?"
-	var rows [][]map[string]any
-	if name != "" {
-		rows = append(rows, row(map[string]any{"text": "✅ Это резидент «" + clip(name, 30) + "»", "callback_data": "rcl_res_" + strconv.FormatInt(tg, 10)}))
-	} else {
-		rows = append(rows, row(map[string]any{"text": "Выбрать резидента в CRM", "url": PlatformURL}))
-	}
-	rows = append(rows, row(map[string]any{"text": "Это лид: позвать на разбор", "callback_data": "rcl_lead_" + strconv.FormatInt(tg, 10)}))
+	text += "\nПодтвердить: доступ, ссылка в группу клуба и онбординг уйдут сразу."
 	for _, a := range rc.f.admins {
-		rc.send(ctx, a, text, map[string]any{"inline_keyboard": rows})
+		rc.send(ctx, a, text, claimKB(tg, name))
 	}
 }
 
-// NotifyPending: the claims that came at night reach the team in the morning.
+// NotifyPending: the claims that came at night reach the owner at 08:00.
 func (rc *ResidentClaims) NotifyPending(ctx context.Context) int {
 	if !daytime(rc.now()) {
 		return 0
@@ -635,9 +716,51 @@ func (rc *ResidentClaims) NotifyPending(ctx context.Context) int {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	for _, tg := range tgs {
-		rc.notifyOne(ctx, tg)
+		rc.notifyOne(ctx, tg, false)
 	}
 	return len(tgs)
+}
+
+// ResendRecent: R70, once: a claim of the last day that the owner never
+// decided (it went the CRM way: «лид, прогрев» or waiting there) is put back
+// to «ждёт решения» and the owner gets the confirm message again. Nothing is
+// confirmed by itself. Returns the names sent.
+func (rc *ResidentClaims) ResendRecent(ctx context.Context, since time.Duration) []string {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	now := rc.now()
+	var tgs []int64
+	var names []string
+	_ = rc.f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
+		leads, _ := crm["leads"].([]any)
+		changed := false
+		for _, l := range leads {
+			m, _ := l.(map[string]any)
+			if m == nil || leadTg(m) == 0 {
+				continue
+			}
+			cl, _ := m["claim"].(map[string]any)
+			if cl == nil || cl["r70"] == true {
+				continue
+			}
+			st, by := fmt.Sprint(cl["status"]), fmt.Sprint(cl["by"])
+			at, err := time.Parse(time.RFC3339, fmt.Sprint(cl["at"]))
+			if err != nil || now.Sub(at) > since || (st != "pending" && st != claimLead) || (cl["by"] != nil && by != "") {
+				continue
+			}
+			cl["r70"], cl["status"], cl["notified"] = true, "pending", ""
+			m["warmStop"] = true
+			addLog(m, now, "Заявка «Я резидент BS» снова отправлена владельцу на подтверждение (R70)")
+			tgs = append(tgs, leadTg(m))
+			names = append(names, fmt.Sprint(m["name"]))
+			changed = true
+		}
+		return changed
+	})
+	for _, tg := range tgs {
+		rc.notifyOne(ctx, tg, true)
+	}
+	return names
 }
 
 // Loop sends the morning's pending claims (checks every 15 minutes).
@@ -652,7 +775,7 @@ func (rc *ResidentClaims) Loop(ctx context.Context) {
 		}
 		c, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		if n := rc.NotifyPending(c); n > 0 {
-			log.Printf("claims: %d pending sent to the team", n)
+			log.Printf("claims: %d pending sent to the owner", n)
 		}
 		cancel()
 	}
@@ -660,9 +783,174 @@ func (rc *ResidentClaims) Loop(ctx context.Context) {
 
 var errClaimNoName = errors.New("не выбран резидент")
 
-// Resolve is the team's decision: action "resident" links the Telegram to
-// name (or the name the claim matched), "lead" starts the warming.
+// errNeedFormat: a new resident and the claim does not say online or offline.
+var errNeedFormat = errors.New("нужен формат")
+
+// claimFormat: «Онлайн» / «Офлайн» from what the person told before (the card's
+// format, the booked разбор's slot), "" if nothing.
+func (rc *ResidentClaims) claimFormat(ctx context.Context, lead map[string]any) string {
+	pick := func(s string) string {
+		s = strings.ToLower(s)
+		switch {
+		case strings.Contains(s, "онлайн") || strings.Contains(s, "online"):
+			return "Онлайн"
+		case strings.Contains(s, "офлайн") || strings.Contains(s, "offline") || strings.Contains(s, "очно"):
+			return "Офлайн"
+		}
+		return ""
+	}
+	if lead == nil {
+		return ""
+	}
+	for _, k := range []string{"format", "fmt"} {
+		if f := pick(fmt.Sprint(lead[k])); f != "" {
+			return f
+		}
+	}
+	if id := fmt.Sprint(lead["razborSlot"]); id != "" && id != "<nil>" {
+		if doc, err := rc.f.readSlots(ctx); err == nil {
+			list, _ := doc["slots"].([]any)
+			for _, v := range list {
+				if s, ok := readSlot(v); ok && s.ID == id {
+					return pick(s.str("format"))
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// Confirm is the owner's «Подтвердить»: the resident row is found and linked,
+// or created (format: the given one, from the claim, or errNeedFormat); then
+// the welcome package and the CRM. fresh: create a new row even if the claim
+// looked like a resident without a Chat ID («Это не X: новый резидент»).
+func (rc *ResidentClaims) Confirm(ctx context.Context, tg int64, format, by string, fresh bool) (string, error) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	now := rc.now()
+	snap, err := rc.club.Load(ctx)
+	if err != nil {
+		return "", err
+	}
+	crm := rc.crm(ctx)
+	leads, _ := crm["leads"].([]any)
+	lead := findLeadByTg(leads, tg)
+	cl := map[string]any{}
+	if lead != nil {
+		if c, _ := lead["claim"].(map[string]any); c != nil {
+			cl = c
+		}
+	}
+	if cl["status"] == "resident" && cl["welcome"] != nil {
+		return "Уже подтверждён: " + fmt.Sprint(cl["name"]), nil
+	}
+	// 1. the row: by Chat ID, the claim's candidate, or a new one
+	name, how := "", ""
+	for _, r := range snap.Residents {
+		if r.TgID == tg && !r.Archived && !r.Former {
+			name, how = r.Name, "уже в списке"
+			break
+		}
+	}
+	if cand, _ := cl["name"].(string); name == "" && cand != "" && !fresh {
+		for _, r := range snap.Residents {
+			if club.NormName(r.Name) == club.NormName(cand) && !r.Archived && !r.Former && r.TgID == 0 {
+				if rc.Link == nil {
+					return "", errors.New("запись в таблицу клуба не настроена")
+				}
+				if err := rc.Link(ctx, r.Name, tg); err != nil {
+					return "", err
+				}
+				name, how = r.Name, "Telegram привязан к «"+r.Name+"»"
+				break
+			}
+		}
+	}
+	if name == "" {
+		name = "Без имени"
+		if lead != nil {
+			name = strings.TrimSpace(fmt.Sprint(lead["name"]))
+		}
+		if name == "" || name == "Без имени" || name == "<nil>" {
+			return "", errors.New("у заявки нет имени: добавьте резидента на платформе")
+		}
+		parts := strings.Fields(name)
+		for i := range parts {
+			parts[i] = upFirst(parts[i])
+		}
+		name = strings.Join(parts, " ")
+		// a row with this name and another Chat ID would be a duplicate
+		for _, r := range snap.Residents {
+			if club.NormName(r.Name) == club.NormName(name) && !r.Archived && r.TgID != 0 && r.TgID != tg {
+				name = name + " (" + strconv.FormatInt(tg, 10) + ")"
+				break
+			}
+		}
+		if format == "" {
+			format = rc.claimFormat(ctx, lead)
+		}
+		if format == "" {
+			return "", errNeedFormat
+		}
+		if rc.Add == nil {
+			return "", errors.New("запись в таблицу клуба не настроена")
+		}
+		if err := rc.Add(ctx, name, format, tg); err != nil {
+			return "", err
+		}
+		how = "новый резидент «" + name + "», " + strings.ToLower(format)
+	}
+	// 2. the CRM card, found and marked by itself (before the welcome: the
+	// card says «Резидент» by the time the person reads it)
+	w := ClaimWho{TgID: tg}
+	if lead != nil {
+		parts := strings.Fields(fmt.Sprint(lead["name"]))
+		if len(parts) > 0 {
+			w.FirstName, w.LastName = parts[0], strings.Join(parts[1:], " ")
+		}
+		w.Username = normUser(fmt.Sprint(lead["tg"]))
+	} else {
+		w.FirstName = name
+	}
+	_ = rc.setClaim(ctx, w, "bot", func(l, c map[string]any) {
+		c["status"], c["name"], c["by"], c["at"] = "resident", name, by, now.UTC().Format(time.RFC3339)
+		c["welcome"] = now.UTC().Format(time.RFC3339)
+		l["col"], l["warmStop"] = "won", true
+		addLog(l, now, "Владелец ("+by+") подтвердил: резидент («"+how+"»). Приветствие, ссылка в группу и онбординг отправлены")
+	})
+	// 3. the welcome
+	group := ""
+	if rc.Welcome != nil {
+		g, err := rc.Welcome(ctx, tg, name)
+		if err != nil {
+			log.Printf("claim: welcome %d: %v", tg, err)
+			_ = rc.f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
+				leads, _ := crm["leads"].([]any)
+				if l := findLeadByTg(leads, tg); l != nil {
+					if c, _ := l["claim"].(map[string]any); c != nil {
+						delete(c, "welcome") // a second «Подтвердить» sends it again
+						return true
+					}
+				}
+				return false
+			})
+			return "", fmt.Errorf("резидент записан (%s), но приветствие не ушло: %v", how, err)
+		}
+		group = g
+	} else {
+		rc.send(ctx, tg, "✅ Команда подтвердила: вы резидент BS ("+name+").\n\nДоступ открыт:\n📱 приложение клуба, кнопка ниже\n"+platformLine, rc.residentKB())
+	}
+	log.Printf("claim: %d confirmed by %s: %s, welcome sent (group link %t)", tg, by, how, group != "")
+	return "✅ " + name + ": резидент (" + how + "). Приветствие с платформой, ссылка в группу и онбординг отправлены", nil
+}
+
+// Resolve is the team's decision from the platform's CRM strip: action
+// "resident" links the Telegram to name (or, without a name, confirms as the
+// bot's «Подтвердить» does), "lead" starts the warming.
 func (rc *ResidentClaims) Resolve(ctx context.Context, tg int64, action, name, by string) (string, error) {
+	if action == "resident" && strings.TrimSpace(name) == "" {
+		return rc.Confirm(ctx, tg, "", by, false)
+	}
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	now := rc.now()
@@ -677,23 +965,27 @@ func (rc *ResidentClaims) Resolve(ctx context.Context, tg int64, action, name, b
 			w.LastName = strings.Join(parts[1:], " ")
 		}
 		w.Username = normUser(fmt.Sprint(lead["tg"]))
-		if cl, _ := lead["claim"].(map[string]any); cl != nil && name == "" {
-			name, _ = cl["name"].(string)
-		}
 	}
 	switch action {
 	case "resident":
-		if strings.TrimSpace(name) == "" {
-			return "", errClaimNoName
-		}
 		if rc.Link == nil {
 			return "", errors.New("запись в таблицу клуба не настроена")
 		}
 		if err := rc.Link(ctx, name, tg); err != nil {
 			return "", err
 		}
-		rc.send(ctx, tg, "✅ Команда подтвердила: вы резидент BS ("+name+").\n\nTelegram привязан, доступ открыт:\n📱 приложение клуба, кнопка ниже\n💻 платформа app.bxclub.kz, вход через Telegram (доступ резидента откроется в течение часа)",
-			kb(row(rc.f.appBtn("📱 Открыть приложение BS", "home")), row(platformBtn())))
+		welcomed := false
+		if rc.Welcome != nil {
+			if _, err := rc.Welcome(ctx, tg, name); err != nil {
+				log.Printf("claim: welcome %d: %v", tg, err)
+			} else {
+				welcomed = true
+			}
+		}
+		if !welcomed {
+			rc.send(ctx, tg, "✅ Команда подтвердила: вы резидент BS ("+name+").\n\nTelegram привязан, доступ открыт:\n📱 приложение клуба, кнопка ниже\n"+platformLine+" (доступ резидента откроется в течение часа)",
+				rc.residentKB())
+		}
 		if lead != nil {
 			_ = rc.f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
 				leads, _ := crm["leads"].([]any)
@@ -706,6 +998,9 @@ func (rc *ResidentClaims) Resolve(ctx context.Context, tg int64, action, name, b
 					cl = map[string]any{}
 				}
 				cl["status"], cl["name"], cl["by"], cl["at"] = "resident", name, by, now.UTC().Format(time.RFC3339)
+				if welcomed {
+					cl["welcome"] = now.UTC().Format(time.RFC3339)
+				}
 				l["claim"], l["col"], l["warmStop"] = cl, "won", true
 				addLog(l, now, "Команда ("+by+"): это резидент «"+name+"», Telegram привязан")
 				return true
@@ -714,34 +1009,34 @@ func (rc *ResidentClaims) Resolve(ctx context.Context, tg int64, action, name, b
 		return "Привязан к «" + name + "»", nil
 	case "lead":
 		if lead != nil {
-			if cl, _ := lead["claim"].(map[string]any); cl != nil && cl["status"] == claimLead {
+			if cl, _ := lead["claim"].(map[string]any); cl != nil && cl["status"] == claimLead && cl["by"] != nil {
 				return "Уже в прогреве", nil
 			}
 		}
-		_ = rc.f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
-			leads, _ := crm["leads"].([]any)
-			if l := findLeadByTg(leads, tg); l != nil {
-				delete(l, "warmStop")
-				return true
-			}
-			return false
-		})
 		rc.startWarm(ctx, w, "bot", ClaimMatch{Kind: claimLead}, now, by)
 		return "Лид: бот позвал на экспресс-разбор", nil
 	}
 	return "", fmt.Errorf("неизвестное действие %q", action)
 }
 
-// TeamCallback: «Это резидент» / «Это лид» under the team's message.
+// claimCallbacks: the owner's buttons. rcl_ok_ «Подтвердить», rcl_new_ «новый
+// резидент», rcl_on_ / rcl_off_ the format (second tap), rcl_no_ «Отклонить»;
+// the older rcl_res_ / rcl_lead_ and the script's approve_res_ / reject_res_.
+var claimCallbacks = []struct{ prefix, action string }{
+	{"rcl_ok_", "ok"}, {"rcl_new_", "new"}, {"rcl_on_", "on"}, {"rcl_off_", "off"}, {"rcl_no_", "lead"},
+	{"rcl_res_", "ok"}, {"rcl_lead_", "lead"}, {"approve_res_", "ok"}, {"reject_res_", "lead"},
+}
+
+// TeamCallback: the owner's buttons under the claim message.
 func (rc *ResidentClaims) TeamCallback(ctx context.Context, cb bot.CallbackUpdate) (string, bool) {
-	var action string
-	var rest string
-	switch {
-	case strings.HasPrefix(cb.Data, "rcl_res_"):
-		action, rest = "resident", strings.TrimPrefix(cb.Data, "rcl_res_")
-	case strings.HasPrefix(cb.Data, "rcl_lead_"):
-		action, rest = "lead", strings.TrimPrefix(cb.Data, "rcl_lead_")
-	default:
+	action, rest := "", ""
+	for _, c := range claimCallbacks {
+		if strings.HasPrefix(cb.Data, c.prefix) {
+			action, rest = c.action, strings.TrimPrefix(cb.Data, c.prefix)
+			break
+		}
+	}
+	if action == "" {
 		return "", false
 	}
 	tg, err := strconv.ParseInt(rest, 10, 64)
@@ -752,14 +1047,60 @@ func (rc *ResidentClaims) TeamCallback(ctx context.Context, cb bot.CallbackUpdat
 	if n, ok := rc.Names[cb.FromID]; ok && n != "" {
 		by = n
 	}
-	res, err := rc.Resolve(ctx, tg, action, "", by)
+	edit := func(text string, keys map[string]any) {
+		if rc.Edit != nil && cb.MessageID != 0 {
+			if err := rc.Edit(ctx, cb.ChatID, cb.MessageID, text, keys); err != nil {
+				log.Printf("claim: edit: %v", err)
+			}
+		}
+	}
+	var res string
+	switch action {
+	case "lead":
+		res, err = rc.Resolve(ctx, tg, "lead", "", by)
+	default:
+		format := map[string]string{"on": "Онлайн", "off": "Офлайн"}[action]
+		fresh := action == "new" || (format != "" && rc.wantsFresh(ctx, tg))
+		if action == "new" {
+			rc.markFresh(ctx, tg)
+		}
+		res, err = rc.Confirm(ctx, tg, format, by, fresh)
+		if errors.Is(err, errNeedFormat) {
+			id := strconv.FormatInt(tg, 10)
+			edit(fmt.Sprintf("🆔 %d: новый резидент. Формат участия?", tg), kb(row(
+				map[string]any{"text": "💻 Онлайн", "callback_data": "rcl_on_" + id},
+				map[string]any{"text": "🏢 Офлайн", "callback_data": "rcl_off_" + id})))
+			return "Выберите формат", true
+		}
+	}
 	if err != nil {
-		return "Не получилось: " + err.Error(), true
+		return clip("Не получилось: "+err.Error(), 190), true
 	}
-	if rc.Edit != nil && cb.MessageID != 0 {
-		_ = rc.Edit(ctx, cb.ChatID, cb.MessageID, fmt.Sprintf("🆔 %d: %s (%s)", tg, res, by), nil)
+	edit(fmt.Sprintf("🆔 %d: %s (%s)", tg, res, by), nil)
+	return clip(res, 190), true
+}
+
+// markFresh / wantsFresh: «Это не X: новый резидент» survives the format tap.
+func (rc *ResidentClaims) markFresh(ctx context.Context, tg int64) {
+	_ = rc.f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
+		leads, _ := crm["leads"].([]any)
+		if l := findLeadByTg(leads, tg); l != nil {
+			if cl, _ := l["claim"].(map[string]any); cl != nil {
+				cl["fresh"] = true
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func (rc *ResidentClaims) wantsFresh(ctx context.Context, tg int64) bool {
+	leads, _ := rc.crm(ctx)["leads"].([]any)
+	if l := findLeadByTg(leads, tg); l != nil {
+		cl, _ := l["claim"].(map[string]any)
+		return cl != nil && cl["fresh"] == true
 	}
-	return res, true
+	return false
 }
 
 // LeadCallback: the person's own buttons: «Я резидент BS» and «Я уже в клубе».
@@ -924,6 +1265,38 @@ func (g *AppGateway) LinkResidentTg(ctx context.Context, clubSrc claimClub, owne
 	return nil
 }
 
+// AddResidentTg: R70: the owner confirmed someone who is not in the list: a
+// new resident row with the chat id, the same addResident as the platform's
+// «Новый резидент» (tariff empty: the payment fills it), in the owner's name.
+func (g *AppGateway) AddResidentTg(ctx context.Context, owner int64, name, format string, tg int64) error {
+	if g.Writes == nil {
+		return errors.New("запись в клуб на сервере не настроена")
+	}
+	in := url.Values{}
+	in.Set("name", name)
+	in.Set("format", format)
+	in.Set("visits", "3")
+	in.Set("source", "Бот: «Я резидент BS»")
+	in.Set("residentChatId", strconv.FormatInt(tg, 10))
+	u := &platformTgUser{ID: owner, FirstName: "Бот: «Я резидент BS»"}
+	q := g.params(in, "addResident", u)
+	body := g.Writes.Do(ctx, "bot", u, "addResident", q, true)
+	lq := url.Values{}
+	for k, v := range q {
+		lq[k] = v
+	}
+	lq.Set("claim", strconv.FormatInt(tg, 10))
+	g.logOp(ctx, "bot", u, "addResident", lq, body)
+	g.dropBundles()
+	var out map[string]any
+	_ = json.Unmarshal(body, &out)
+	if e, _ := out["error"].(string); e != "" {
+		return errors.New(e)
+	}
+	log.Printf("claim: new resident %q (%s) with Telegram %d", name, format, tg)
+	return nil
+}
+
 // ResolveClaim godoc
 // @Summary  The team's decision on «Я резидент BS»: {tg, action: resident|lead, name}
 // @Description  resident: links the Telegram to the resident «name» (Chat ID in «BS - резиденты дебет», the person gets the welcome). lead: the bot invites to экспресс-разбор and warms up (3 touches).
@@ -935,6 +1308,7 @@ func (h *ClubActionHandler) ResolveClaim(c *gin.Context) {
 		TG     any    `json:"tg"`
 		Action string `json:"action"`
 		Name   string `json:"name"`
+		Format string `json:"format"` // R70: online | offline for a new resident
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_params"})
@@ -955,7 +1329,18 @@ func (h *ClubActionHandler) ResolveClaim(c *gin.Context) {
 			by = n
 		}
 	}
-	res, err := h.gw.Claims.Resolve(c.Request.Context(), tg, req.Action, strings.TrimSpace(req.Name), by)
+	var res string
+	var err error
+	if req.Action == "resident" && strings.TrimSpace(req.Name) == "" {
+		// R70: no resident picked: confirmed as the bot's «Подтвердить» (found or created)
+		res, err = h.gw.Claims.Confirm(c.Request.Context(), tg, map[string]string{"online": "Онлайн", "offline": "Офлайн"}[req.Format], by, false)
+		if errors.Is(err, errNeedFormat) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "need_format", "detail": "Новый резидент: выберите формат"})
+			return
+		}
+	} else {
+		res, err = h.gw.Claims.Resolve(c.Request.Context(), tg, req.Action, strings.TrimSpace(req.Name), by)
+	}
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "claim", "detail": err.Error()})
 		return

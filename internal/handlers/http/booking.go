@@ -444,10 +444,78 @@ func (f *LeadFunnel) BookSlot(ctx context.Context, u *platformTgUser, r bookReq,
 		dash(r.Phone), dash(r.Niche), dash(r.Question), u.ID)
 	if f.send != nil {
 		for _, a := range f.admins {
-			_ = f.send(ctx, a, note, nil)
+			_ = f.send(ctx, a, note, bookPaidKB(got.ID))
 		}
 	}
 	return
+}
+
+// BookPaidPrefix: R70: the owner's «Оплата получена» under a booking note:
+// the разбор is marked paid as the platform's toggle does, without the platform.
+const BookPaidPrefix = "bkp:"
+
+func bookPaidKB(slotID string) map[string]any {
+	if slotID == "" || len(BookPaidPrefix+slotID) > 64 {
+		return nil
+	}
+	return kb(row(map[string]any{"text": "💳 Оплата получена", "callback_data": BookPaidPrefix + slotID}))
+}
+
+// BookPaidCallback marks the slot's booking paid, logs it on the lead's card
+// and tells the lead the time is held.
+func (f *LeadFunnel) BookPaidCallback(ctx context.Context, cb bot.CallbackUpdate) (string, bool) {
+	if !strings.HasPrefix(cb.Data, BookPaidPrefix) {
+		return "", false
+	}
+	id := strings.TrimPrefix(cb.Data, BookPaidPrefix)
+	now := f.now()
+	var tg int64
+	var when, name string
+	already, found := false, false
+	err := f.mutateIn(ctx, "club", slotsDoc, "server:booking", func(doc map[string]any) bool {
+		list, _ := doc["slots"].([]any)
+		for _, v := range list {
+			s, ok := readSlot(v)
+			if !ok || s.ID != id {
+				continue
+			}
+			b := s.booking()
+			if b == nil {
+				return false
+			}
+			found = true
+			tg, when, name = anyInt(b["tgId"]), whenRu(s.Start), fmt.Sprint(b["name"])
+			if b["paid"] == true {
+				already = true
+				return false
+			}
+			b["paid"], b["paidAt"] = true, now.UTC().Format(time.RFC3339)
+			return true
+		}
+		return false
+	})
+	switch {
+	case err != nil:
+		return clip("Не получилось: "+err.Error(), 190), true
+	case !found:
+		return "Запись не найдена (отменена или перенесена)", true
+	case already:
+		return "Уже отмечено: оплачено", true
+	}
+	if tg != 0 {
+		_ = f.mutate(ctx, "bs_crm", func(crm map[string]any) bool {
+			leads, _ := crm["leads"].([]any)
+			if l := findLeadByTg(leads, tg); l != nil {
+				addLog(l, now, "Разбор оплачен (владелец в боте)")
+				return true
+			}
+			return false
+		})
+		if f.send != nil {
+			_ = f.send(ctx, tg, "✅ Оплата получена, время разбора закреплено: "+when+" (Алматы).\n\nДо встречи! Если планы изменятся, перенести запись можно в приложении.", nil)
+		}
+	}
+	return "Оплачено: " + name, true
 }
 
 func dash(s string) string {
@@ -679,8 +747,12 @@ func (f *LeadFunnel) RemindOnce(ctx context.Context) int {
 			q, _ := j.b["question"].(string)
 			note := fmt.Sprintf("⏰ Через час разбор: %s, %s\n%s\nТелефон: %s\nВопрос: %s\nОплата: %s", name, j.s.Start.In(almaty).Format("15:04"),
 				f.placeLine(j.s), dash(phone), dash(q), pay)
+			var keys map[string]any
+			if !paid {
+				keys = bookPaidKB(j.s.ID)
+			}
 			for _, a := range f.admins {
-				_ = f.send(ctx, a, note, nil)
+				_ = f.send(ctx, a, note, keys)
 			}
 			sent++
 		case "after":

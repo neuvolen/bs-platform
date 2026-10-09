@@ -452,11 +452,29 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 		claims.Link = func(ctx context.Context, name string, tg int64) error {
 			return g.LinkResidentTg(ctx, clubRepo, owner, name, tg)
 		}
+		// R70: the owner's one tap «Подтвердить» creates the resident and sends the welcome
+		claims.Add = func(ctx context.Context, name, format string, tg int64) error {
+			return g.AddResidentTg(ctx, owner, name, format, tg)
+		}
+		claims.Welcome = botSvc.WelcomeResident
 		g.Claims = claims
 		if os.Getenv("LEAD_FUNNEL") != "off" {
 			botSvc.SetClaimHook(claims.LeadCallback)
-			botSvc.SetTeamCallbackHook("rcl_", claims.TeamCallback)
+			for _, p := range []string{"rcl_", "approve_res_", "reject_res_"} {
+				botSvc.SetTeamCallbackHook(p, claims.TeamCallback)
+			}
 			go claims.Loop(context.Background())
+			// R70: a claim of the last day that went the CRM way: the owner gets «Подтвердить» again
+			go func() {
+				time.Sleep(45 * time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				if names := claims.ResendRecent(ctx, 30*time.Hour); len(names) > 0 {
+					log.Printf("claims: confirm re-sent to the owner: %s", strings.Join(names, ", "))
+				} else {
+					log.Printf("claims: nothing to re-send")
+				}
+			}()
 		}
 	}
 	var seedMu sync.Mutex

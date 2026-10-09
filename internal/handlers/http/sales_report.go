@@ -728,8 +728,15 @@ func (s *ClubSales) RequestRenewal(ctx context.Context, name string, months int,
 	}
 	period := map[int]string{3: "3 месяца", 12: "год"}[months]
 	if !again {
-		s.team(ctx, fmt.Sprintf("🔁 %s хочет продлить резидентство на %s (%s), %s. Статус «Ожидает оплату продления».\n%s\nКогда оплата придёт, внесите её в ДДС (доход, резидент %s) или нажмите «Оплата получена» в карточке: пакет продлится сам.",
-			name, period, tenge(amount), via, map[bool]string{true: "Ссылка Kaspi ушла резиденту.", false: "⚠️ Ссылка Kaspi клуба не задана в настройках: пришлите реквизиты сами."}[cfg.KaspiClub != ""], name), nil)
+		// R70: «Оплата получена» right under the note, no trip to the platform
+		var keys map[string]any
+		if s.Boards != nil {
+			if tg, _, err := s.Boards.ResidentTgByName(ctx, name); err == nil && tg != 0 {
+				keys = kb(row(map[string]any{"text": "✅ Оплата получена", "callback_data": RenewPaidPrefix + strconv.FormatInt(tg, 10)}))
+			}
+		}
+		s.team(ctx, fmt.Sprintf("🔁 %s хочет продлить резидентство на %s (%s), %s. Статус «Ожидает оплату продления».\n%s\nКогда оплата придёт, нажмите «Оплата получена» ниже (или внесите её в ДДС, доход, резидент %s): пакет продлится сам.",
+			name, period, tenge(amount), via, map[bool]string{true: "Ссылка Kaspi ушла резиденту.", false: "⚠️ Ссылка Kaspi клуба не задана в настройках: пришлите реквизиты сами."}[cfg.KaspiClub != ""], name), keys)
 		if s.Boards != nil {
 			if tg, _, err := s.Boards.ResidentTgByName(ctx, name); err == nil && tg != 0 {
 				_ = s.mutateLead(ctx, byLeadTg(tg), func(l map[string]any) bool {
@@ -770,6 +777,29 @@ func (s *ClubSales) RenewCallback(ctx context.Context, cb bot.CallbackUpdate) (s
 		_ = s.Send(ctx, cb.ChatID, text, keys)
 	}
 	return "Запрос на продление отправлен", true
+}
+
+// RenewPaidPrefix: R70: the owner's «Оплата получена» under a renewal request.
+const RenewPaidPrefix = "rnp:"
+
+// RenewPaidCallback: «Оплата получена» in the bot, as the card's button.
+func (s *ClubSales) RenewPaidCallback(ctx context.Context, cb bot.CallbackUpdate) (string, bool) {
+	if !strings.HasPrefix(cb.Data, RenewPaidPrefix) || s.Boards == nil {
+		return "", false
+	}
+	tg, _ := strconv.ParseInt(strings.TrimPrefix(cb.Data, RenewPaidPrefix), 10, 64)
+	name, _, err := s.Boards.ResidentByTg(ctx, tg)
+	if err != nil || name == "" {
+		return "Резидент не найден", true
+	}
+	done, err := s.applyRenewal(ctx, name, 0, "команда: оплата получена (бот)")
+	if err != nil {
+		return clip("Не получилось: "+err.Error(), 190), true
+	}
+	if !done {
+		return "Продление " + name + " уже оплачено", true
+	}
+	return "Продление " + name + " оплачено", true
 }
 
 // RenewPaidByTeam: POST /sales/renewals/paid {name}: the team saw the money.

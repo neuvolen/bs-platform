@@ -86,6 +86,11 @@ func WireSales(d *Deps, pm *httpapi.PlatformModule, botSvc *bot.Service, team, j
 		botSvc.SetPublicCallbackHook("pz:", s.HandleCallback)  // «Хочу в клуб», «Есть вопрос», «Не сейчас»
 		botSvc.SetPublicCallbackHook("cs:", s.ConsentCallback) // согласие на кейс
 		botSvc.SetPublicCallbackHook("rn:", s.RenewCallback)   // «Продлить на 3 месяца / на год»
+		// R70: the owner's one-tap «Оплата получена» (renewal, разбор booking)
+		botSvc.SetTeamCallbackHook(httpapi.RenewPaidPrefix, s.RenewPaidCallback)
+		if s.F != nil {
+			botSvc.SetTeamCallbackHook(httpapi.BookPaidPrefix, s.F.BookPaidCallback)
+		}
 	}
 	if d.PlatformRepo != nil && os.Getenv("SALES_LOOP") != "off" {
 		go func() {

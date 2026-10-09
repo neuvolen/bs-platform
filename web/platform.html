@@ -27614,10 +27614,10 @@ html.lead-user #aiBadge,html.lead-user #bsxPill,html.lead-user #tr16Help,html.le
       var opts = (CLM.res || []).map(function(n){ return '<option' + ((CLM.pick[tg] || c.name) === n ? ' selected' : '') + '>' + E(n) + '</option>'; }).join('');
       return '<div class="lh-clr" data-tg="' + E(tg) + '"><div class="lh-cln"><b>' + E(l.name || 'Без имени') + '</b><span>' + E([l.tg, new Date(c.at).toLocaleDateString('ru', {day: 'numeric', month: 'short'})].filter(Boolean).join(' · ')) + '</span></div>' +
         '<div class="lh-clw">' + E(st) + (c.why ? '. ' + E(c.why) : '') + (c.name ? '. Похоже на «' + E(c.name) + '»' : '') + '</div>' +
-        '<div class="lh-cla"><select onchange="lhClaimPick(' + Number(tg) + ',this.value)"><option value="">Резидент без Chat ID…</option>' + opts + '</select>' +
+        '<div class="lh-cla"><select onchange="lhClaimPick(' + Number(tg) + ',this.value)"><option value="">Новый резидент (бот добавит сам)</option>' + opts + '</select>' +
         '<button class="lh-b s" onclick="lhClaim(' + Number(tg) + ',\'resident\')">Это резидент</button>' +
         (c.status === 'pending' ? '<button class="lh-b s" onclick="lhClaim(' + Number(tg) + ',\'lead\')">Это лид</button>' : '') + '</div>' +
-        (CLM.err[tg] ? '<div class="lh-clerr">' + E(CLM.err[tg]) + '</div>' : '') + '</div>';
+        (CLM.err[tg] ? '<div class="lh-clerr">' + (CLM.html && CLM.html[tg] ? CLM.err[tg] : E(CLM.err[tg])) + '</div>' : '') + '</div>';
     }).join('');
   }
   function claimPaint(){
@@ -27626,14 +27626,15 @@ html.lead-user #aiBadge,html.lead-user #bsxPill,html.lead-user #tr16Help,html.le
   }
   window.lhClaimToggle = function(){ var list = claimLeads(); var pend = list.some(function(l){ return l.claim.status === 'pending'; }); CLM.open = !(CLM.open == null ? pend : CLM.open); claimPaint(); };
   window.lhClaimPick = function(tg, v){ CLM.pick[tg] = v; };
-  window.lhClaim = function(tg, action){
+  window.lhClaim = function(tg, action, fmt){
     var l = claimLeads().find(function(x){ return Number(x.tgId) === tg; }); if(!l) return;
     var name = CLM.pick[tg] || (action === 'resident' ? l.claim.name : '') || '';
-    CLM.err[tg] = '';
-    if(action === 'resident' && !name){ CLM.err[tg] = 'Выберите резидента, к которому привязать этот Telegram'; claimPaint(); return; }
-    Promise.resolve(BSSync.clubApi('POST', '/claim', {tg: tg, action: action, name: name})).then(function(r){
+    CLM.err[tg] = ''; if(CLM.html) delete CLM.html[tg];
+    // R70: без выбора сервер подтверждает сам (находит или создаёт резидента), как кнопка «Подтвердить» в боте
+    Promise.resolve(BSSync.clubApi('POST', '/claim', {tg: tg, action: action, name: name, format: fmt || ''})).then(function(r){
       return r.json().catch(function(){ return {}; }).then(function(j){ return {s: r.status, j: j}; });
     }).then(function(x){
+      if(x.s !== 200 && x.j && x.j.error === 'need_format'){ CLM.err[tg] = 'Новый резидент, формат: <button class="lh-b s" onclick="lhClaim(' + tg + ',\'resident\',\'online\')">Онлайн</button> <button class="lh-b s" onclick="lhClaim(' + tg + ',\'resident\',\'offline\')">Офлайн</button>'; CLM.html = CLM.html || {}; CLM.html[tg] = true; claimPaint(); return; }
       if(x.s !== 200){ CLM.err[tg] = 'Не получилось: ' + ((x.j && (x.j.detail || x.j.error)) || x.s); claimPaint(); return; }
       toast(x.j.result || 'Готово');
       l.claim.status = action === 'resident' ? 'resident' : 'lead';

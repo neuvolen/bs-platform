@@ -898,7 +898,9 @@ func (s *ClubSales) HandleCallback(ctx context.Context, cb bot.CallbackUpdate) (
 	switch {
 	case act == "join":
 		_ = s.sendLead(ctx, tg, "Отлично! Команда напишет вам лично"+workWhen(now)+": расскажем, как начать, и пришлём ссылку на оплату.", nil)
-		s.team(ctx, fmt.Sprintf("🔥 %s нажал «Хочу в клуб» после разбора. Этап «Решение».\nСвяжитесь сегодня: договор и оплата.\n🆔 %d", who, tg), nil)
+		// R70: when the deal is done, one tap makes the lead a resident (resident_claim.go Confirm)
+		s.team(ctx, fmt.Sprintf("🔥 %s нажал «Хочу в клуб» после разбора. Этап «Решение».\nСвяжитесь сегодня: договор и оплата.\nКогда оплатит, нажмите «Принять в резиденты»: бот сам добавит его в клуб, пришлёт ссылку в группу, платформу и онбординг.\n🆔 %d", who, tg),
+			kb(row(map[string]any{"text": "✅ Принять в резиденты", "callback_data": "rcl_ok_" + strconv.FormatInt(tg, 10)})))
 		return "Передали команде", true
 	case act == "ask":
 		_ = s.sendLead(ctx, tg, "Напишите вопрос одним сообщением прямо сюда. Его увидят Рустам и Береке и ответят лично"+workWhen(now)+".", nil)
