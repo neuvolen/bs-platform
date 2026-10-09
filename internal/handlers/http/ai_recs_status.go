@@ -205,7 +205,7 @@ func searchWhy(err error) string {
 		return "бесплатный лимит поиска на сегодня исчерпан, восстановится сам"
 	}
 	if ai.IsQuota(err) {
-		return "у Claude нет баланса, а бесплатный поиск сейчас не отвечает"
+		return "бесплатный поиск для этого ключа сейчас недоступен"
 	}
 	return "повторю позже"
 }
@@ -234,7 +234,7 @@ func recsReason(e string) string {
 	case strings.Contains(low, "ключ") && strings.Contains(low, "не принят"), strings.Contains(low, "api key not valid"):
 		return "ключ ИИ не принят"
 	case strings.Contains(low, "баланс") || strings.Contains(low, "лимит") || strings.Contains(low, "на паузе"):
-		return "ИИ был на паузе (лимиты или баланс)"
+		return "бесплатные лимиты ИИ были на паузе"
 	case strings.Contains(low, "нет ключа"):
 		return "нет ключа ИИ"
 	case strings.Contains(low, "долго") || strings.Contains(low, "deadline") || strings.Contains(low, "timeout"):

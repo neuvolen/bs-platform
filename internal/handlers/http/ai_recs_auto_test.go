@@ -46,8 +46,8 @@ const testRichDiag = `{"kind":"diag","organ":"Финансы","title":"x","subti
 "risk":"Через год кассовый разрыв остановит закупки."}`
 
 // The daily recommendation decides itself: a clear tool goes into the
-// library in the rich format; a possible replacement is put to the owner in
-// the bot, after the quiet hours, once a day, and his button does it.
+// library in the rich format; a possible replacement waits for the owner on
+// the platform (R66: not in the bot); an old bot button still works.
 func TestAutoRecs(t *testing.T) {
 	repo, ctx := testPlatformDB(t, aiRecsKey, "bs_tools", "bs_diag", "bs_libver", recsRichKey)
 	t.Cleanup(func() { _ = content.SetRichExtra(nil, nil) })
@@ -147,7 +147,7 @@ func TestAutoRecs(t *testing.T) {
 	morning := time.Date(2026, 10, 3, 7, 5, 0, 0, almaty)
 	out, err := h.autoRec(ctx, recByID("rec_20261003_aaaaaa"), morning)
 	if err != nil || out != "added" {
-		t.Fatalf("auto: %s %v", out, err)
+		t.Fatalf("auto: %s %v %v", out, err, recByID("rec_20261003_aaaaaa"))
 	}
 	if enriched != 2 {
 		t.Fatalf("enrich calls %d (the broken card must be asked again)", enriched)
@@ -193,34 +193,14 @@ func TestAutoRecs(t *testing.T) {
 	if rec["status"] != "ask" || rec["similar"] != "Кассовые разрывы" || !strings.Contains(recStr(rec, "note"), "Ждёт решения") {
 		t.Fatalf("rec: %v", rec)
 	}
+	// R66: the owner decides on the platform: nothing goes to the bot, at any hour
 	if len(sent) != 0 {
-		t.Fatal("sent in the quiet hours")
+		t.Fatalf("asked in the bot: %v", sent)
 	}
-	h.maybeSendAsk(ctx, time.Date(2026, 10, 4, 9, 59, 0, 0, almaty))
-	if len(sent) != 0 {
-		t.Fatal("sent before 10:00")
+	if cands, _ := rec["cands"].([]any); len(cands) == 0 || recStr(cands[0], "t") != "Кассовые разрывы" {
+		t.Fatalf("close items for the side-by-side view: %v", rec["cands"])
 	}
-	h.maybeSendAsk(ctx, time.Date(2026, 10, 4, 10, 10, 0, 0, almaty))
-	if len(sent) != 1 || sent[0].chat != 453800951 {
-		t.Fatalf("sent %v", sent)
-	}
-	msg := sent[0]
-	kb, _ := json.Marshal(msg.kb)
-	for _, want := range []string{"airec_add_rec_20261004_bbbbbb", "airec_rep_rec_20261004_bbbbbb", "airec_rej_rec_20261004_bbbbbb",
-		"Заменить «Кассовые разрывы»", "Подробнее на платформе", "section=aiRec\\u0026id=rec_20261004_bbbbbb"} {
-		if !strings.Contains(string(kb), want) && !strings.Contains(string(kb), strings.ReplaceAll(want, "\\u0026", "&")) {
-			t.Fatalf("%q not in %s", want, kb)
-		}
-	}
-	if !strings.Contains(msg.text, "Хронический кассовый разрыв") || strings.Contains(msg.text, "—") {
-		t.Fatalf("text: %s", msg.text)
-	}
-	// One message a day.
-	h.maybeSendAsk(ctx, time.Date(2026, 10, 4, 15, 0, 0, 0, almaty))
-	if len(sent) != 1 {
-		t.Fatal("two messages in a day")
-	}
-	// The owner presses «Заменить».
+	// A button under an old bot question still works: «Заменить».
 	toast, ok := h.HandleRecCallback(ctx, bot.CallbackUpdate{ChatID: 453800951, MessageID: 77, FromID: 453800951, Data: "airec_rep_rec_20261004_bbbbbb"})
 	if !ok || !strings.Contains(toast, "Заменено") {
 		t.Fatalf("toast %q", toast)

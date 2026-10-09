@@ -62,6 +62,8 @@ func fakeClaude(t *testing.T, key string) *httptest.Server {
 // R36: the system check: every line, the text the bot sends, what goes to
 // the owner after a deploy (only changes and failures, once per deploy).
 func TestR36SystemCheck(t *testing.T) {
+	SysPersist = 0 // R66: an AI problem waits a day (TestR66AIProblemWaitsADay); here at once
+	defer func() { SysPersist = 24 * time.Hour }()
 	const key = "sk-ant-api03-SYSCHECK-0123456789-ABCD"
 	cl := fakeClaude(t, key)
 	ctx := context.Background()
@@ -246,6 +248,8 @@ func TestR36QuietHours(t *testing.T) {
 
 // After a deploy: waits, then (in quiet hours) waits for 09:00, sends once.
 func TestR36AfterDeployWaitsAndSends(t *testing.T) {
+	SysPersist = 0 // R66: here the AI problem is sent at once
+	defer func() { SysPersist = 24 * time.Hour }()
 	meta := newMemMeta()
 	var mu sync.Mutex
 	var sent []string

@@ -18,6 +18,10 @@ import (
 
 const aiQuotaAlertDoc = "bs_ai_quota_alert"
 
+// QuotaAlertsToBot: R66: the AI's pauses and provider switches go to the
+// log and the platform, not to the owner's bot (tests turn it on).
+var QuotaAlertsToBot = false
+
 var aiQuotaAlert struct {
 	sync.Mutex
 	day string
@@ -27,7 +31,17 @@ var aiQuotaAlert struct {
 var quotaAlertNow = time.Now
 
 func (h *PlatformAI) quotaAlert(q *ai.QuotaError) {
-	if h == nil || h.Notify == nil || h.Owner == 0 || q == nil {
+	if h == nil || q == nil {
+		return
+	}
+	// R66: «такие уведомления не нужны»: the owner pays for no AI API and a
+	// free limit comes back by itself, so a pause is nothing for him to do.
+	// The platform shows it (Настройки → «Состояние ИИ», «Решения ИИ»), the log keeps it.
+	if !QuotaAlertsToBot {
+		log.Printf("ai quota: %s paused %s (not sent to the bot)", q.Service, q.When())
+		return
+	}
+	if h.Notify == nil || h.Owner == 0 {
 		return
 	}
 	// R42: another provider answers: the owner hears the switch (switchAlert), not a pause
@@ -126,7 +140,7 @@ func (h *PlatformAI) switchAlert(from, to string) {
 		}
 		return
 	}
-	if h.Notify != nil && h.Owner != 0 {
+	if QuotaAlertsToBot && h.Notify != nil && h.Owner != 0 {
 		if err := h.Notify(ctx, h.Owner, switchAlertText(h.AI, prev, to)); err != nil {
 			log.Printf("ai switch alert: %v", err)
 			return

@@ -37,9 +37,51 @@ import (
 // the commit), never between 22:00 and 09:00 Almaty: then at 09:00.
 
 const (
-	metaSysLast = "syscheck:last" // {key: sig} of the last check
-	metaSysSent = "syscheck:sent" // the deploy whose message went out
+	metaSysLast  = "syscheck:last"  // {key: sig} of the last check
+	metaSysSent  = "syscheck:sent"  // the deploy whose message went out
+	metaSysSince = "syscheck:since" // R66: {key: {sig, at}}: since when an AI problem lasts
 )
+
+// R66: «не присылай такие статусы, если я ничего не могу сделать». An AI
+// line (who answers, the recommendations) reaches the owner after a deploy
+// only when it has an action for him and has lasted a day; the free limits
+// and Google's «high demand» come back by themselves. /status and the
+// platform show it at once.
+var sysPersistKeys = map[string]bool{"ai": true, "airecs": true, "search": true, "claude": true, "aichain": true}
+
+// SysPersist: how long an AI problem lasts before the owner hears it.
+var SysPersist = 24 * time.Hour
+
+type sysSince struct {
+	Sig string    `json:"sig"`
+	At  time.Time `json:"at"`
+}
+
+// holdYoung clears the action of AI lines whose problem is younger than
+// SysPersist (DeployNote then skips them) and returns their keys.
+func holdYoung(r *CheckResult, since map[string]sysSince, now time.Time) map[string]bool {
+	young := map[string]bool{}
+	for i := range r.Items {
+		it := &r.Items[i]
+		if !sysPersistKeys[it.Key] {
+			continue
+		}
+		if it.Action == "" || (it.State != "fail" && it.State != "warn") {
+			delete(since, it.Key)
+			continue
+		}
+		// the same action asked of the owner = the same problem (the line's
+		// Sig moves with every provider's minute)
+		if s, ok := since[it.Key]; !ok || s.Sig != it.Action {
+			since[it.Key] = sysSince{Sig: it.Action, At: now}
+		}
+		if now.Sub(since[it.Key].At) < SysPersist {
+			it.Action = ""
+			young[it.Key] = true
+		}
+	}
+	return young
+}
 
 // CheckItem: one line of the check.
 type CheckItem struct {
@@ -318,10 +360,9 @@ func (s *SysCheck) claude(ctx context.Context) CheckItem {
 		it.Note = "❌ ИИ Claude не отвечает: " + msg
 		it.Detail = "Claude: " + msg + " (" + src + ")"
 		it.Problem = "не отвечает: Claude " + claudeShort(err)
-		it.Action = "Пополните баланс Claude (console.anthropic.com → Plans & Billing) или добавьте бесплатный GEMINI_API_KEY в Railway"
-		if s.AI.Gemini != "" || s.AI.Groq != "" || s.AI.OpenRouter != "" {
-			it.Action = "Пополните баланс Claude (console.anthropic.com → Plans & Billing) или подождите: бесплатные лимиты восстановятся сами"
-		}
+		// R66: the owner pays for no AI API: never «пополните баланс». The
+		// one thing he can do is a free key (when there is none)
+		it.Action = "Добавьте бесплатный GEMINI_API_KEY (aistudio.google.com/api-keys) в Railway"
 		if !ai.IsQuota(err) {
 			it.Action = "Проверьте ключ Claude: Настройки платформы → «Ключ Claude» или ANTHROPIC_API_KEY в Railway"
 		}
@@ -329,6 +370,10 @@ func (s *SysCheck) claude(ctx context.Context) CheckItem {
 		if alt := firstOther(s.AI, "claude"); alt != "" {
 			it.State, it.Note, it.Problem, it.Action = "off", "", "", ""
 			it.Text = "Claude " + claudeShort(err) + ": не используется, отвечает " + ai.ProviderLabel(alt)
+		} else if ai.IsQuota(err) && freeKey(s.AI) {
+			// R66: a free provider has a key and only rests: Claude is not needed
+			it.State, it.Note, it.Problem, it.Action = "off", "", "", ""
+			it.Text = "Claude " + claudeShort(err) + ": не используется, ИИ работает на бесплатных моделях"
 		}
 		return it
 	}
@@ -683,8 +728,24 @@ func (s *SysCheck) NotifyDeploy(ctx context.Context) (string, error) {
 	if v, _ := s.Meta.GetMeta(ctx, metaSysLast); v != "" {
 		_ = json.Unmarshal([]byte(v), &prev)
 	}
+	since := map[string]sysSince{}
+	if v, _ := s.Meta.GetMeta(ctx, metaSysSince); v != "" {
+		_ = json.Unmarshal([]byte(v), &since)
+	}
+	young := holdYoung(&r, since, s.now())
+	if b, err := json.Marshal(since); err == nil {
+		_ = s.Meta.SetMeta(ctx, metaSysSince, string(b))
+	}
 	keep := func() {
-		b, _ := json.Marshal(sigs(r))
+		kept := sigs(r)
+		for k := range young { // not told yet: its sig is not «already reported»
+			if v, ok := prev[k]; ok {
+				kept[k] = v
+			} else {
+				delete(kept, k)
+			}
+		}
+		b, _ := json.Marshal(kept)
 		if err := s.Meta.SetMeta(ctx, metaSysLast, string(b)); err != nil {
 			log.Printf("syscheck: keep: %v", err)
 		}

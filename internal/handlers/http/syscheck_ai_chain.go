@@ -88,10 +88,14 @@ func (s *SysCheck) chain(ctx context.Context) CheckItem {
 	}
 	it.Text = strings.Join(lines, " · ")
 	switch {
+	case active == "" && freeKey(s.AI):
+		// R66: a free provider rests (its limit, Google's «high demand»): it comes back by itself
+		it.State, it.Sig = "warn", "rest"
+		it.Text = "на паузе, " + restUntil(states) + ": " + it.Text
 	case active == "":
 		it.State, it.Sig = "fail", "none"
 		it.Text = "никто не отвечает: " + it.Text
-		it.Note = "❌ ИИ не отвечает: нет ключей или все бесплатные лимиты исчерпаны. Бесплатный ключ: GEMINI_API_KEY из aistudio.google.com"
+		it.Note = "❌ ИИ не отвечает: нет бесплатного ключа. Бесплатный ключ: GEMINI_API_KEY из aistudio.google.com"
 	case active == "claude":
 		it.State, it.Sig = "ok", "claude"
 	default:
@@ -99,6 +103,28 @@ func (s *SysCheck) chain(ctx context.Context) CheckItem {
 		it.Note = "🤖 ИИ отвечает через " + ai.ProviderLabel(active) + " (бесплатно)"
 	}
 	return it
+}
+
+// freeKey: some free provider (Gemini, Groq, OpenRouter) has a key.
+func freeKey(c *ai.Client) bool {
+	return c != nil && ((c.Gemini != "" && !ai.GeminiDisabled()) || c.Groq != "" || c.OpenRouter != "")
+}
+
+// restUntil: when the first free provider comes back, in words.
+func restUntil(states []ai.ProviderState) string {
+	var soon time.Time
+	for _, p := range states {
+		if !p.Free || p.Until == "" {
+			continue
+		}
+		if t, err := time.Parse(time.RFC3339, p.Until); err == nil && (soon.IsZero() || t.Before(soon)) {
+			soon = t
+		}
+	}
+	if soon.IsZero() {
+		return "восстановятся сами"
+	}
+	return "восстановятся сами к " + untilHM(soon.UTC().Format(time.RFC3339))
 }
 
 // claudeShort: why Claude is not used, in two or three words.
@@ -142,12 +168,22 @@ func (s *SysCheck) aiBlock(ctx context.Context) CheckItem {
 	}
 	var parts []string
 	switch {
+	case active == "" && freeKey(s.AI) && len(bad) == 0:
+		// R66: the free models rest and come back by themselves: nothing for
+		// the owner to do (never «пополните баланс Claude»: he pays for no AI)
+		it.State = "warn"
+		var states []ai.ProviderState
+		if s.AI != nil {
+			states = s.AI.ProviderStates()
+		}
+		parts = append(parts, "бесплатные модели на паузе, "+restUntil(states))
+		it.Problem = "бесплатные модели на паузе, " + restUntil(states)
 	case active == "":
 		it.State = "fail"
 		parts = append(parts, "никто не отвечает")
-		it.Problem, it.Action = cl.Problem, cl.Action
-		if it.Problem == "" {
-			it.Problem = "не отвечает: нет ключей или все бесплатные лимиты исчерпаны"
+		it.Problem, it.Action = cl.Problem, cl.Action // R66: never a top-up (syscheck.go claude)
+		if it.Problem == "" || it.Action == "" {
+			it.Problem = "не отвечает: нет бесплатного ключа"
 			it.Action = "Добавьте бесплатный GEMINI_API_KEY (aistudio.google.com/api-keys) в Railway"
 		}
 		for _, p := range bad { // a refused key is the likeliest fix

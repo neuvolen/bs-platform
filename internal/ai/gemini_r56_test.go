@@ -144,7 +144,11 @@ func TestR56DayZeroBare(t *testing.T) {
 			t.Fatalf("want *QuotaError, got %T %v", err, err)
 		}
 		if tc.billing {
-			if !qe.Billing || time.Until(qe.Until) < QuotaHold()-time.Minute || qe.Error() != GeminiNoFreeMessage {
+			hold := QuotaHold()
+			if tc.body == r56Bare {
+				hold = GeminiBareHold() // R66: a bare refusal names no limit: a short pause
+			}
+			if !qe.Billing || time.Until(qe.Until) < hold-time.Minute || time.Until(qe.Until) > hold+time.Minute || qe.Error() != GeminiNoFreeMessage {
 				t.Fatalf("billing: %+v %s", qe, qe.Error())
 			}
 		} else {

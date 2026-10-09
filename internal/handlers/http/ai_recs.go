@@ -250,13 +250,20 @@ func (h *PlatformAI) dailyRec(ctx context.Context, now time.Time, force bool) (m
 			}
 		}
 	}
-	organ := nextRecOrgan(items, now)
+	// R66: the organ with the library's gaps; duplicates found locally first
+	lib := h.recLibrary(ctx)
+	organ := recPickOrgan(items, lib)
 	titles := h.libTitles(ctx, items)
+	past := append([]recLibItem{}, lib...)
+	for _, it := range items {
+		past = append(past, recLibItem{Kind: recStr(it, "kind"), Organ: recStr(it, "organ"), Title: recStr(it, "title"), Line: recStr(it, "summary")})
+	}
+	gaps := recGapText(organ, lib)
 	var rejected []string
 	var cand *aiRecCand
 	var lastErr error
 	for try := 0; try < 3 && cand == nil; try++ {
-		c, err := h.recCandidate(ctx, organ, titles, rejected)
+		c, err := h.recCandidate(ctx, organ, titles, rejected, gaps)
 		if err != nil {
 			lastErr = err
 			continue
@@ -266,7 +273,13 @@ func (h *PlatformAI) dailyRec(ctx context.Context, now time.Time, force bool) (m
 			lastErr = fmt.Errorf("дубль: %s", dup)
 			continue
 		}
-		if dup := h.recDupByMeaning(ctx, c, titles); dup != "" {
+		if dup, sc := recLocalDup(c.Title, c.Summary, past); dup != "" {
+			rejected = append(rejected, c.Title)
+			lastErr = fmt.Errorf("дубль: %s", dup)
+			log.Printf("ai recs: %q dropped locally: copies %q (similarity %.2f)", c.Title, dup, sc)
+			continue
+		}
+		if dup := h.recDupByMeaning(ctx, c, recNearTitles(c, past, 40)); dup != "" {
 			rejected = append(rejected, c.Title)
 			lastErr = fmt.Errorf("дубль по смыслу: %s", dup)
 			continue
@@ -338,7 +351,7 @@ func (h *PlatformAI) updateRecs(ctx context.Context, fn func([]any) ([]any, bool
 	return err
 }
 
-func (h *PlatformAI) recCandidate(ctx context.Context, organ string, titles, rejected []string) (*aiRecCand, error) {
+func (h *PlatformAI) recCandidate(ctx context.Context, organ string, titles, rejected []string, gaps ...string) (*aiRecCand, error) {
 	excl := append(append([]string{}, titles...), rejected...)
 	list := strings.Join(excl, "; ")
 	if r := []rune(list); len(r) > 30000 { // R61: the doubled library fits whole
@@ -346,13 +359,18 @@ func (h *PlatformAI) recCandidate(ctx context.Context, organ string, titles, rej
 	}
 	c, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	ans, err := h.AI.Search(c, fmt.Sprintf(aiRecPrompt, organ, list))
+	gap := ""
+	if len(gaps) > 0 && gaps[0] != "" {
+		gap = "\n" + gaps[0]
+	}
+	ans, err := h.AI.Search(c, fmt.Sprintf(aiRecPrompt, organ, list)+gap)
 	noSearch := false
 	if err != nil && ai.SearchUnavailable(err) && h.AI.HasText() {
 		// R42: no model can search now: the model's own knowledge, checked
-		// against the library, marked «без поиска»
-		log.Printf("ai recs: web search unavailable (%s), without search", ai.UserMessage(err))
-		ans, err = h.AI.JSON(c, "Ты аналитик клуба бизнес-трекинга. Отвечай только JSON.", aiRecNoSearchPrompt(organ, list))
+		// against the library, marked «без поиска». R66: on the free light
+		// model (its own daily limit), the library's gaps in the prompt
+		log.Printf("ai recs: web search unavailable (%s), without search", ai.SearchMessage(err))
+		ans, err = h.AI.JSON(ai.Light(c), "Ты аналитик клуба бизнес-трекинга. Отвечай только JSON.", aiRecNoSearchPrompt(organ, list)+gap)
 		noSearch = true
 	}
 	if err != nil {
@@ -399,7 +417,7 @@ func (h *PlatformAI) recDupByMeaning(ctx context.Context, c *aiRecCand, titles [
 	if r := []rune(list); len(r) > 30000 { // R61: the doubled library fits whole
 		list = string(r[:30000])
 	}
-	cx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	cx, cancel := context.WithTimeout(ai.Light(ctx), 90*time.Second)
 	defer cancel()
 	ans, err := h.AI.JSON(cx, "Ты редактор библиотеки инструментов для собственников бизнеса. Отвечай только JSON.",
 		fmt.Sprintf(aiRecDupPrompt, c.Title, c.Summary+" "+c.Why, list))
@@ -450,7 +468,6 @@ func (h *PlatformAI) RecsLoop(ctx context.Context) {
 				log.Printf("ai recs: rich items: %v", err)
 			}
 			cancel()
-			go h.recsAskLoop(ctx)
 		}
 		t.Reset(h.recsTick(ctx, time.Now()).Sub(time.Now()))
 	}
@@ -516,7 +533,7 @@ func (h *PlatformAI) RecsNow(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"rec": rec})
 }
 
-// RecAction: POST /ai/recs/:id {"action": "add"|"replace"|"reject"} (team).
+// RecAction: POST /ai/recs/:id {"action": "add"|"replace"|"merge"|"reject", "target": "…"} (team).
 // add puts rec.item into bs_tools (kind tool) or bs_diag (kind diag) unless a
 // card with that title is there, and marks the rec "added"; replace puts it
 // in place of rec.similar. The rich card made for it goes into the library.
@@ -526,20 +543,24 @@ func (h *PlatformAI) RecAction(c *gin.Context) {
 	}
 	var req struct {
 		Action string `json:"action"`
+		Target string `json:"target"`
 	}
 	_ = c.ShouldBindJSON(&req)
-	if req.Action != "add" && req.Action != "reject" && req.Action != "replace" {
+	if req.Action != "add" && req.Action != "reject" && req.Action != "replace" && req.Action != "merge" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "action"})
 		return
 	}
-	code, out := h.recAction(c.Request.Context(), c.Param("id"), req.Action)
+	code, out := h.recAction(c.Request.Context(), c.Param("id"), req.Action, req.Target)
 	c.JSON(code, out)
 }
 
-func (h *PlatformAI) recAction(ctx context.Context, id, action string) (int, gin.H) {
+func (h *PlatformAI) recAction(ctx context.Context, id, action, target string) (int, gin.H) {
 	note := map[string]string{"add": "Добавлено командой на платформе", "replace": "Заменено командой на платформе",
-		"reject": "Отклонено командой на платформе"}[action]
-	return h.recApply(ctx, id, action, "platform", note)
+		"reject": "Отклонено командой на платформе", "merge": "Слито командой на платформе"}[action]
+	if (action == "merge" || action == "replace") && target != "" {
+		note = map[string]string{"merge": "Слито с «", "replace": "Заменён «"}[action] + target + "» на платформе"
+	}
+	return h.recApply(ctx, id, action, "platform", note, target)
 }
 
 // appendLibItem adds a card to bs_tools / bs_diag unless its title is there.

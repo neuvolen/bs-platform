@@ -47,7 +47,7 @@ func TestR51RecsReason(t *testing.T) {
 	for in, want := range map[string]string{
 		"Ключ Gemini не принят: создайте новый ключ…":            "ключ ИИ не принят",
 		"ИИ ответил ошибкой 400: API key not valid. Please pass": "ключ ИИ не принят",
-		ai.AllPausedMessage: "ИИ был на паузе (лимиты или баланс)",
+		ai.AllPausedMessage: "бесплатные лимиты ИИ были на паузе",
 	} {
 		if got := recsReason(in); got != want {
 			t.Errorf("%q: %q", in, got)

@@ -46,6 +46,11 @@ var lazyKeep = map[string]bool{
 	"r16Script:ctaLater": true, "r16Script:ctaOn": true, "r16Script:startSteps": true, "r16Script:go": true,
 	"r16Script:render": true, "r16Script:placeCenter": true, "r16Script:position": true, "r16Script:bindCard": true,
 	"r16Script:finish": true, "r16Script:requeue": true, "r16Script:start": true,
+	// R66: «Решения ИИ» opens straight from a link (#aiRec, the bot's old «Подробнее на платформе»):
+	// its page is drawn from these on the first paint; a lazy one answered undefined
+	"*:renderAIRec": true, "*:aiwHTML": true, "*:aiwInboxHTML": true, "*:aiwAsk": true, "*:aiwSide": true,
+	"*:aiwTargets": true, "*:aiwLib": true, "*:aiwStatusHTML": true, "*:aiwStatus": true, "*:aiwCard": true,
+	"*:aiwRunHTML": true, "*:aiwErrHTML": true, "*:bsAiErr": true,
 }
 
 func lazyKeepFn(key, name string) bool { return lazyKeep["*:"+name] || lazyKeep[key+":"+name] }

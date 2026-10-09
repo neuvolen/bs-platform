@@ -30,11 +30,14 @@ import (
 //     истории рекомендаций «Добавлено автоматически».
 //   - Кардинальное (похоже на существующий пункт, стоит заменить или слить,
 //     противоречит методологии BS, ИИ не уверен или просит решения): статус
-//     "ask", владельцу уходит сообщение в боте с кнопками «Добавить»,
-//     «Заменить «X»», «Отклонить», «Подробнее на платформе». Только с 10:00
-//     до 20:00 по Алматы (иначе ждёт), не больше одного сообщения в день.
+//     "ask". R66: владелец решает на платформе («Решения ИИ» со счётчиком):
+//     добавить, отклонить, заменить или слить с похожим, кандидат и похожий
+//     пункт рядом. В бот такие вопросы больше не уходят («уведомления не
+//     нужны, я же на платформе принимаю решения»); кнопки под старыми
+//     сообщениями работают (HandleRecCallback).
 
-// RecsBot: how the server asks the owner (wired in app.WireCalls).
+// RecsBot: the bot for the owner's buttons under the questions sent before
+// R66 (Edit marks the decision; Send is no longer used: he decides on the platform).
 type RecsBot struct {
 	Send     func(ctx context.Context, chatID int64, text string, kb map[string]any) (int64, error)
 	Edit     func(ctx context.Context, chatID, msgID int64, text string, kb map[string]any) error
@@ -44,8 +47,6 @@ type RecsBot struct {
 const (
 	recsRichScope = "server"
 	recsRichKey   = "lib_rich_ai"
-	recAskFrom    = 10 // quiet hours: the owner is asked 10:00-20:00 Almaty only
-	recAskUntil   = 20
 	recMinConf    = 0.7
 	recNoteAuto   = "Добавлено автоматически"
 )
@@ -112,19 +113,20 @@ func (h *PlatformAI) LoadRichExtra(ctx context.Context) error {
 
 type recLibItem struct {
 	Kind, Organ, Title, Line string
+	Cure                     []string // a diagnosis's cure (tool titles), when the card names it
 }
 
 // recLibrary: every tool and diagnosis known (club docs, library extension, rich).
 func (h *PlatformAI) recLibrary(ctx context.Context) []recLibItem {
 	var out []recLibItem
 	seen := map[string]bool{}
-	add := func(kind, organ, title, line string) {
+	add := func(kind, organ, title, line string, cure []string) {
 		k := kind + ":" + libNorm(title)
 		if libNorm(title) == "" || seen[k] {
 			return
 		}
 		seen[k] = true
-		out = append(out, recLibItem{Kind: kind, Organ: organ, Title: strings.TrimSpace(title), Line: recCut(line, 160)})
+		out = append(out, recLibItem{Kind: kind, Organ: organ, Title: strings.TrimSpace(title), Line: recCut(line, 160), Cure: cure})
 	}
 	str := func(m map[string]any, k string) string { s, _ := m[k].(string); return s }
 	from := func(kind string, list []map[string]any) {
@@ -133,7 +135,13 @@ func (h *PlatformAI) recLibrary(ctx context.Context) []recLibItem {
 			if kind == "diag" {
 				line = str(it, "desc")
 			}
-			add(kind, str(it, "organ"), str(it, "title"), line)
+			var cure []string
+			for _, c := range toAnyList(it["cure"]) {
+				if s, _ := c.(string); s != "" {
+					cure = append(cure, s)
+				}
+			}
+			add(kind, str(it, "organ"), str(it, "title"), line, cure)
 		}
 	}
 	for kind, key := range map[string]string{"tool": "bs_tools", "diag": "bs_diag"} {
@@ -149,10 +157,10 @@ func (h *PlatformAI) recLibrary(ctx context.Context) []recLibItem {
 	}
 	rt, rd := content.RichTitles()
 	for _, t := range rt {
-		add("tool", "", t, "")
+		add("tool", "", t, "", nil)
 	}
 	for _, t := range rd {
-		add("diag", "", t, "")
+		add("diag", "", t, "", nil)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Kind > out[j].Kind })
 	return out
@@ -247,7 +255,10 @@ func recJoin(v any) string {
 
 func (h *PlatformAI) recJudge(ctx context.Context, rec map[string]any, lib []recLibItem) (recVerdict, error) {
 	var lines []string
-	for _, it := range lib {
+	// R66: the organ's own items and the ones close to the candidate (found
+	// locally), not the whole library: a small prompt the free light model
+	// answers within its limits
+	for _, it := range recJudgeLib(rec, lib) {
 		l := fmt.Sprintf("- %s, %s", recKindName(it.Kind), it.Title)
 		if it.Line != "" {
 			// R61: the library doubled (430+ cards); a short line keeps every title in the prompt
@@ -266,7 +277,7 @@ func (h *PlatformAI) recJudge(ctx context.Context, rec map[string]any, lib []rec
 	src := strings.Join(nonEmpty(recStr(rec, "source"), recStr(rec, "company"), recStr(rec, "author"), recStr(rec, "url")), ", ")
 	prompt := fmt.Sprintf(recJudgePrompt, recKindName(recStr(rec, "kind")), recStr(rec, "organ"), recStr(rec, "title"),
 		recStr(rec, "summary"), recStr(rec, "why"), recJoin(rec["steps"]), recOr(src, "не указан"), list)
-	cx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	cx, cancel := context.WithTimeout(ai.Light(ctx), 2*time.Minute)
 	defer cancel()
 	ans, err := h.AI.JSON(cx, "Ты редактор библиотеки инструментов для собственников бизнеса. Отвечай только JSON.", prompt)
 	if err != nil {
@@ -479,7 +490,7 @@ func (h *PlatformAI) recEnrich(ctx context.Context, rec map[string]any, tools []
 	spec, extra := recRichSpecTool, ""
 	if kind == "diag" {
 		spec = recRichSpecDiag
-		extra = "Инструменты библиотеки (для cure бери названия ТОЛЬКО отсюда, слово в слово):\n- " + strings.Join(tools, "\n- ")
+		extra = "Инструменты библиотеки (для cure бери названия ТОЛЬКО отсюда, слово в слово):\n- " + strings.Join(recNearTools(rec, tools, 120), "\n- ")
 		if r := []rune(extra); len(r) > 24000 {
 			extra = string(r[:24000])
 		}
@@ -532,9 +543,15 @@ func (h *PlatformAI) autoRec(ctx context.Context, rec map[string]any, now time.T
 		}
 	}
 	askWhy, similar := "", ""
+	// R66: the close library items, found locally: shown side by side on the platform
+	cands := recCands(recStr(rec, "title"), recStr(rec, "summary"), lib)
 	v, err := h.recJudge(ctx, rec, lib)
 	if err != nil {
 		askWhy = "ИИ не смог оценить кандидата (" + ai.UserMessage(err) + ")"
+		if len(cands) > 0 {
+			similar = recStr(cands[0], "t")
+			askWhy = "похоже на «" + similar + "», возможно дубль"
+		}
 	} else {
 		var ask bool
 		if ask, askWhy = v.ask(rec); !ask {
@@ -582,6 +599,9 @@ func (h *PlatformAI) autoRec(ctx context.Context, rec map[string]any, now time.T
 				if similar != "" {
 					m["similar"] = similar
 				}
+				if len(cands) > 0 {
+					m["cands"] = cands
+				}
 				if v.Replace && similar != "" {
 					m["canReplace"] = true
 				}
@@ -593,14 +613,16 @@ func (h *PlatformAI) autoRec(ctx context.Context, rec map[string]any, now time.T
 	if err != nil {
 		return "", err
 	}
-	h.maybeSendAsk(ctx, now)
+	// R66: the owner decides on the platform («Решения ИИ»), the bot stays quiet
 	return "ask", nil
 }
 
-// recApply: add | replace | reject a recommendation (team on the platform,
-// the owner's buttons in the bot, or the server itself). note goes into the
-// recommendations' history.
-func (h *PlatformAI) recApply(ctx context.Context, id, action, by, note string) (int, gin.H) {
+// recApply: add | replace | merge | reject a recommendation (team on the
+// platform, the owner's buttons in the bot, or the server itself). note goes
+// into the recommendations' history. R66: merge puts what the recommendation
+// brings into the existing card (into[0], else rec.similar); replace may name
+// its card too.
+func (h *PlatformAI) recApply(ctx context.Context, id, action, by, note string, into ...string) (int, gin.H) {
 	var rec map[string]any
 	if d, err := h.repo.GetDoc(ctx, "club", aiRecsKey); err == nil && d != nil && !d.Deleted {
 		_, items := readRecs(d.Value)
@@ -615,6 +637,22 @@ func (h *PlatformAI) recApply(ctx context.Context, id, action, by, note string) 
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	key, added, target := "", false, ""
+	if action == "merge" {
+		key = "bs_tools"
+		if recStr(rec, "kind") == "diag" {
+			key = "bs_diag"
+		}
+		target = recStr(rec, "similar")
+		if len(into) > 0 && strings.TrimSpace(into[0]) != "" {
+			target = strings.TrimSpace(into[0])
+		}
+		if target == "" {
+			return http.StatusBadRequest, gin.H{"error": "не с чем слить"}
+		}
+		if err := h.mergeLibItem(ctx, key, target, rec); err != nil {
+			return http.StatusConflict, gin.H{"error": err.Error()}
+		}
+	}
 	if action == "add" || action == "replace" {
 		item, _ := rec["item"].(map[string]any)
 		if item == nil {
@@ -638,6 +676,9 @@ func (h *PlatformAI) recApply(ctx context.Context, id, action, by, note string) 
 		var err error
 		if action == "replace" {
 			target = recStr(rec, "similar")
+			if len(into) > 0 && strings.TrimSpace(into[0]) != "" {
+				target = strings.TrimSpace(into[0])
+			}
 			if target == "" {
 				return http.StatusBadRequest, gin.H{"error": "нечего заменять"}
 			}
@@ -658,6 +699,8 @@ func (h *PlatformAI) recApply(ctx context.Context, id, action, by, note string) 
 		for _, it := range items {
 			if m, ok := it.(map[string]any); ok && recStr(m, "id") == id {
 				switch action {
+				case "merge":
+					m["status"], m["addedAt"], m["addedTo"], m["merged"] = "added", now, key, target
 				case "add", "replace":
 					m["status"], m["addedAt"], m["addedTo"] = "added", now, key
 					if target != "" {
@@ -685,7 +728,7 @@ func (h *PlatformAI) recApply(ctx context.Context, id, action, by, note string) 
 	if err != nil {
 		return http.StatusConflict, gin.H{"error": err.Error()}
 	}
-	if action == "reject" {
+	if action == "reject" || action == "merge" {
 		_ = h.updateRichStore(ctx, func(st *recRichStore) bool {
 			if _, ok := st.Pending[id]; !ok {
 				return false
@@ -694,8 +737,12 @@ func (h *PlatformAI) recApply(ctx context.Context, id, action, by, note string) 
 			return true
 		})
 	}
-	status := map[string]string{"add": "added", "replace": "added", "reject": "rejected"}[action]
-	return http.StatusOK, gin.H{"ok": true, "status": status, "key": key, "added": added, "replaced": target}
+	status := map[string]string{"add": "added", "replace": "added", "merge": "added", "reject": "rejected"}[action]
+	out := gin.H{"ok": true, "status": status, "key": key, "added": added, "replaced": target}
+	if action == "merge" {
+		out["replaced"], out["merged"] = "", target
+	}
+	return http.StatusOK, out
 }
 
 func cloneMap(m map[string]any) map[string]any {
@@ -779,12 +826,7 @@ func (h *PlatformAI) replaceLibItem(ctx context.Context, key, target string, ite
 	return false, pg.ErrPlatformConflict
 }
 
-// ── asking the owner in the bot ──
-
-func recAskWindow(now time.Time) bool {
-	h := now.In(almaty).Hour()
-	return h >= recAskFrom && h < recAskUntil
-}
+// ── the owner's buttons under the old bot questions (R66: new ones are asked on the platform) ──
 
 func recAskText(rec map[string]any) string {
 	var b strings.Builder
@@ -802,90 +844,6 @@ func recAskText(rec map[string]any) string {
 	}
 	fmt.Fprintf(&b, "\nПочему спрашиваю: %s", recStr(rec, "askWhy"))
 	return strings.TrimSpace(b.String())
-}
-
-func recBtnTitle(s string) string {
-	if r := []rune(s); len(r) > 28 {
-		return string(r[:27]) + "…"
-	}
-	return s
-}
-
-func (h *PlatformAI) recAskKB(rec map[string]any) map[string]any {
-	id := recStr(rec, "id")
-	row1 := []map[string]any{{"text": "✅ Добавить", "callback_data": "airec_add_" + id}}
-	if sim := recStr(rec, "similar"); sim != "" {
-		row1 = append(row1, map[string]any{"text": "🔁 Заменить «" + recBtnTitle(sim) + "»", "callback_data": "airec_rep_" + id})
-	}
-	rows := [][]map[string]any{row1, {{"text": "✖️ Отклонить", "callback_data": "airec_rej_" + id}}}
-	if u := h.RecsBot.Platform; u != "" {
-		sep := "?"
-		if strings.Contains(u, "?") {
-			sep = "&"
-		}
-		rows = append(rows, []map[string]any{{"text": "Подробнее на платформе", "url": u + sep + "section=aiRec&id=" + id}})
-	}
-	return map[string]any{"inline_keyboard": rows}
-}
-
-// maybeSendAsk sends the newest recommendation waiting for the owner, within
-// 10:00-20:00 Almaty and at most one message a day.
-func (h *PlatformAI) maybeSendAsk(ctx context.Context, now time.Time) {
-	if h.RecsBot.Send == nil || h.Owner == 0 || !recAskWindow(now) {
-		return
-	}
-	today := now.In(almaty).Format("2006-01-02")
-	d, err := h.repo.GetDoc(ctx, "club", aiRecsKey)
-	if err != nil || d == nil || d.Deleted {
-		return
-	}
-	doc, items := readRecs(d.Value)
-	if s, _ := doc["askDay"].(string); s == today {
-		return
-	}
-	var rec map[string]any
-	for _, it := range items {
-		if m, ok := it.(map[string]any); ok && recStr(m, "status") == "ask" && recStr(m, "askSent") == "" {
-			rec = m
-			break
-		}
-	}
-	if rec == nil {
-		return
-	}
-	id := recStr(rec, "id")
-	// Claim the day first: a second instance or a retry must not send twice.
-	claimed := false
-	err = h.updateRecsDoc(ctx, func(doc map[string]any, items []any) bool {
-		if s, _ := doc["askDay"].(string); s == today {
-			return false
-		}
-		doc["askDay"] = today
-		claimed = true
-		return true
-	})
-	if err != nil || !claimed {
-		return
-	}
-	msgID, err := h.RecsBot.Send(ctx, h.Owner, recAskText(rec), h.recAskKB(rec))
-	if err != nil {
-		log.Printf("ai recs: ask the owner: %v", err)
-		_ = h.updateRecsDoc(ctx, func(doc map[string]any, items []any) bool {
-			delete(doc, "askDay") // try again later today
-			return true
-		})
-		return
-	}
-	stamp := now.UTC().Format(time.RFC3339)
-	_ = h.updateRecs(ctx, func(items []any) ([]any, bool) {
-		for _, it := range items {
-			if m, ok := it.(map[string]any); ok && recStr(m, "id") == id {
-				m["askSent"], m["askMsg"] = stamp, msgID
-				return items, true
-			}
-		}
-		return items, false
-	})
 }
 
 // updateRecsDoc changes bs_ai_recs as a whole (fields and items).
@@ -971,20 +929,4 @@ func pendingAutoRec(items []any, today string) map[string]any {
 		}
 	}
 	return nil
-}
-
-// recsAskLoop sends a queued question once the quiet hours are over.
-func (h *PlatformAI) recsAskLoop(ctx context.Context) {
-	t := time.NewTicker(10 * time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-		c, cancel := context.WithTimeout(ctx, time.Minute)
-		h.maybeSendAsk(c, time.Now())
-		cancel()
-	}
 }

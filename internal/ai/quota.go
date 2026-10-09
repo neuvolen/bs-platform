@@ -63,7 +63,7 @@ const GeminiNoFreeMessage = "У проекта Google нет бесплатно�
 const GeminiSearchQuotaMessage = "Поиск Google через Gemini сейчас недоступен (лимит поиска у ключа Gemini). Обычные ответы ИИ работают; поиск попробует снова позже"
 
 // AllPausedMessage: no provider can answer (R42: every free limit is used up).
-const AllPausedMessage = "ИИ временно на паузе: у Claude нет баланса, а бесплатные лимиты на сегодня закончились. Лимиты восстановятся сами"
+const AllPausedMessage = "ИИ временно на паузе: бесплатные лимиты на сегодня закончились. Они восстановятся сами, ничего делать не нужно"
 
 func quotaMessage(service string) string {
 	switch service {
@@ -129,6 +129,15 @@ func QuotaHold() time.Duration {
 		return time.Duration(v * float64(time.Hour))
 	}
 	return 6 * time.Hour
+}
+
+// GeminiBareHold (R66): the pause after a bare Gemini 429 that names no
+// limit (AI_GEMINI_BARE_HOLD_MIN minutes, 30 by default).
+func GeminiBareHold() time.Duration {
+	if v, err := strconv.ParseFloat(strings.TrimSpace(os.Getenv("AI_GEMINI_BARE_HOLD_MIN")), 64); err == nil && v > 0 {
+		return time.Duration(v * float64(time.Minute))
+	}
+	return 30 * time.Minute
 }
 
 func (e *QuotaError) Unwrap() error { return e.Err }
@@ -297,6 +306,12 @@ func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 		until = now.Add(q.Retry)
 	case q.Daily:
 		until = budgetReset(service, now)
+	case q.Billing && q.QuotaID == "" && !q.NoFree && (service == "gemini" || service == "gemini-lite"):
+		// R66: a bare «check your plan and billing» without a named limit on
+		// a free key (prod 07.10: both models, again and again for hours,
+		// while the light model answered fine the next morning): a short
+		// pause, the next request checks again
+		until = now.Add(GeminiBareHold())
 	case q.Billing:
 		until = now.Add(QuotaHold())
 	case q.Retry > 0:

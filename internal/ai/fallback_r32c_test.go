@@ -101,7 +101,7 @@ func TestR32cGeminiBillingFallsBackToClaude(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("owner not told")
 	}
-	if !toldQ.Billing || toldQ.Until.Sub(time.Now()) < 5*time.Hour {
+	if !toldQ.Billing || toldQ.Until.Sub(time.Now()) < GeminiBareHold()-time.Minute { // R66: a bare refusal names no limit: 30 minutes
 		t.Fatalf("hold: %+v", toldQ)
 	}
 	SearchBackoff = []time.Duration{time.Millisecond, time.Millisecond}

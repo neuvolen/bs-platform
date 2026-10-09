@@ -44,6 +44,8 @@ func fakeCompat(t *testing.T, text func(prompt string) string) (*httptest.Server
 // restart does not repeat it (bs_ai_active); Claude's return is told too.
 func TestR42SwitchAlert(t *testing.T) {
 	repo, ctx := testPlatformDB(t, aiActiveDoc)
+	QuotaAlertsToBot = true // R66: off in production
+	defer func() { QuotaAlertsToBot = false }()
 	var mu sync.Mutex
 	var sent []string
 	h := &PlatformAI{repo: repo, Owner: 7, AI: &ai.Client{Gemini: "g"},
@@ -168,7 +170,8 @@ func TestR42StatusChainAndThreadsBudget(t *testing.T) {
 	if l := ProviderLine(c.ProviderStates()[0]); !strings.HasPrefix(l, "Groq: лимит до ") {
 		t.Fatal(l)
 	}
-	if it := s.chain(context.Background()); it.State != "fail" || !strings.Contains(it.Note, "GEMINI_API_KEY") {
+	// R66: the free provider rests and comes back by itself: a calm warning, nothing to do
+	if it := s.chain(context.Background()); it.State != "warn" || !strings.HasPrefix(it.Text, "на паузе, восстановятся сами к ") || it.Note != "" {
 		t.Fatalf("none answers: %+v", it)
 	}
 }

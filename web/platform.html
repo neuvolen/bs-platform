@@ -3657,6 +3657,27 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
 .aiw-acts{display:flex;gap:8px;margin-top:4px}
 .aiw-acts .btn{flex:1;padding:10px;font-size:12.5px}
 .aiw-gh{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin:6px 0 10px}
+/* R66: «Решения ИИ»: предложение и похожий пункт рядом */
+.aiw-in{margin-bottom:26px}
+.aiw-n{display:inline-block;min-width:22px;padding:1px 7px;border-radius:11px;background:var(--tx);color:var(--bg);font-size:12px;font-weight:900;text-align:center;vertical-align:2px;margin-left:4px}
+.aiw-ai{display:flex;align-items:center;gap:8px;font-size:12.5px;line-height:1.45;color:var(--t2);background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:9px 12px;margin-bottom:12px}
+.aiw-ai i{width:8px;height:8px;border-radius:50%;background:#3DDC84;flex-shrink:0}
+.aiw-ai.warn i{background:#FFB020}
+.aiw-ask{background:var(--card);border:1px solid var(--bd2);border-radius:14px;padding:14px 16px;margin-bottom:12px;display:flex;flex-direction:column;gap:12px}
+.aiw-why{font-size:13px;line-height:1.5;color:var(--t2);display:flex;gap:6px;flex-wrap:wrap;align-items:baseline}
+.aiw-why b{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--t3)}
+.aiw-tgs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--t3)}
+.aiw-tgb{background:none;border:1px solid var(--bd);border-radius:14px;color:var(--t2);font:inherit;font-size:12px;font-weight:700;padding:5px 10px;cursor:pointer}
+.aiw-tgb.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.aiw-cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.aiw-sd{border:1px solid var(--bd);border-radius:12px;padding:12px 13px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.aiw-sd:first-child{border-color:var(--bd2)}
+.aiw-sl{font-size:10px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:var(--t3)}
+.aiw-none{justify-content:center;opacity:.8}
+.aiw-ol{margin:0;padding-left:18px;font-size:12.5px;line-height:1.5;color:var(--t2)}
+.aiw-acts4{flex-wrap:wrap}
+.aiw-acts4 .btn{flex:1 1 180px;min-height:44px}
+@media(max-width:700px){.aiw-cmp{grid-template-columns:1fr}.aiw-acts4 .btn{flex:1 1 100%}}
 @media(max-width:700px){.aiw-h{flex-direction:column}.aiw-list{grid-template-columns:1fr}}
 </style>
 <style id="r62Mobile">
@@ -7464,7 +7485,7 @@ var BLOCKS = {
   lib:     {name:'BS', tabs:[
     {id:'kanban',   n:'Цели и задачи'},
     {id:'events',   n:'Мероприятия'},     // R26: из «Клуба» в «BS», ссылка #events та же
-    {id:'aiRec',    n:'Рекомендации ИИ'}]},
+    {id:'aiRec',    n:'Решения ИИ'}]},      // R66: решения по рекомендациям ИИ здесь, не в боте
   // R32b: у резидента четыре раздела, внутри вкладки сверху (не список в меню). Старые rtask, rrep, rcont,
   // rfive, rmeas, rbs открывают новый раздел (R32_BALIAS), ссылки на разделы (#rtasks и т. п.) прежние
   rtrack:  {name:'Трекинг', tabs:[
@@ -7774,7 +7795,7 @@ var STUBS = {
     items:['Колонки: идеи, в работе, на проверке, готово','Карточка с ответственным и сроком',
       'Перетаскивание между колонками','Фильтр по исполнителю']},
 
-  aiRec:{t:'Рекомендации ИИ', s:'Что система предлагает добавить в базы',
+  aiRec:{t:'Решения ИИ', s:'Что ИИ предлагает добавить в базы и что ждёт вашего решения',
     items:['Часто повторяющиеся заметки резидентов','Диагнозы без инструментов',
       'Инструменты, которые никто не назначает','Пробелы в базе по органам']},
   pl:{t:'PL и ОДДС', s:'Финансы клуба',
@@ -9792,6 +9813,7 @@ function r15KitGrid(){
     return '<div class="gu-card r15gc" onclick="openCard(\'tool\',' + x.i + ')">' +
       '<div class="r15-cvw">' + coverHTML(org, String(t.title).replace(/^Книга:\s*/, ''), 'tool', false, t.isBook ? 'КНИГА' : '') + '</div>' +
       '<div class="r15-gb"><div class="r15-gm"><span class="gu-org">' + esc(org || 'BS') + '</span></div>' +
+        '<div class="kb-t">' + esc(String(t.title).replace(/^Книга:\s*/, '')) + '</div>' + // R66: название главное
         (t.short ? '<div class="r15k-d">' + esc(t.short) + '</div>' : '') +
         (t.time ? '<div class="gu-f"><span>' + esc(t.time) + '</span></div>' : '') + '</div>' +
     '</div>';
@@ -10065,7 +10087,7 @@ function delEvent(i){
 // ═══ РЕКОМЕНДАЦИИ ИИ ═══
 // R32c: ошибка ИИ одной понятной фразой. Квота Gemini (429, RESOURCE_EXHAUSTED, billing) всегда
 // звучит одинаково, сырой JSON ответа API на страницу не попадает никогда
-var BS_AI_QUOTA_MSG = 'ИИ временно на паузе: у Claude нет баланса, а бесплатные лимиты на сегодня закончились. Лимиты восстановятся сами';
+var BS_AI_QUOTA_MSG = 'ИИ временно на паузе: бесплатные лимиты на сегодня закончились. Они восстановятся сами, ничего делать не нужно';
 function bsAiErr(e, def){
   e = String(e || '').trim();
   if(!e) return def || '';
@@ -10120,8 +10142,8 @@ function aiwErrHTML(e){
   return esc(bsAiErr(e, 'Не получилось'));
 }
 function aiwHTML(){
-  var d = aiwData(), items = d.items, nw = items.filter(function(x){ return (x.status || 'new') === 'new'; }).length;
-  return '<div class="aiw">' +
+  var d = aiwData(), all = d.items, items = all.filter(function(x){ return x.status !== 'ask'; }), nw = items.filter(function(x){ return (x.status || 'new') === 'new'; }).length;
+  return aiwInboxHTML(all) + '<div class="aiw">' +
     '<div class="aiw-h"><div><div class="aiw-ht">Лучшие практики мира, 1 в день</div>' +
       '<div class="aiw-hs">ИИ находит проверенный инструмент или диагноз из мировой практики и адаптирует под бизнес в Казахстане' + (items.length ? ' · новых ' + nw + ' из ' + items.length : '') + '</div></div>' +
       '<button type="button" class="btn bg aiw-find" id="aiwFind" ' + (AIW.finding ? 'disabled' : '') + ' onclick="aiwFind()">' + (AIW.finding ? '<span class="spin"></span> Ищу практику…' : 'Найти ещё') + '</button></div>' +
@@ -10137,21 +10159,98 @@ function aiwRunHTML(d){
   return '<div class="aiw-err">Автоматический поиск ' + esc(dt(r.at)) + ' не удался: ' + esc(r.error || 'ошибка') + (r.next ? '. Следующая попытка ' + esc(dt(r.next)) : '') + '</div>';
 }
 function aiwPaint(){ var el = document.getElementById('aiwBox'); if(el) el.innerHTML = aiwHTML(); }
+// ── R66: «Решения ИИ»: что ждёт решения владельца (раньше уходило вопросом в бот) ──
+// Предложение ИИ и похожий пункт библиотеки рядом; кнопки: добавить, слить с похожим, заменить его, отклонить
+function aiwNorm(t){ return String(t || '').toLowerCase().replace(/ё/g, 'е').replace(/[^0-9a-zа-я]+/g, ' ').trim(); }
+function aiwLib(title, kind){
+  var n = aiwNorm(title), lists = kind === 'diag' ? [['diag', DIAG], ['tool', TOOLS]] : [['tool', TOOLS], ['diag', DIAG]];
+  for(var i = 0; i < lists.length; i++){
+    var arr = lists[i][1] || [];
+    for(var j = 0; j < arr.length; j++) if(arr[j] && aiwNorm(arr[j].title) === n) return {k: lists[i][0], d: arr[j]};
+  }
+  return null;
+}
+function aiwTargets(x){
+  var out = [];
+  if(x.similar) out.push(x.similar);
+  (Array.isArray(x.cands) ? x.cands : []).forEach(function(c){ if(c && c.t && out.map(aiwNorm).indexOf(aiwNorm(c.t)) < 0) out.push(c.t); });
+  return out.slice(0, 4);
+}
+function aiwPick(id, t){ AIW.pick = AIW.pick || {}; AIW.pick[id] = t; aiwPaint(); }
+function aiwSide(lbl, kind, organ, title, lines, list, src){
+  return '<div class="aiw-sd"><div class="aiw-sl">' + lbl + '</div>' +
+    '<div class="aiw-top"><span class="aiw-k">' + (kind === 'diag' ? 'ДИАГНОЗ' : 'ИНСТРУМЕНТ') + '</span>' + (organ ? '<span class="aiw-o">' + esc(organ) + '</span>' : '') + '</div>' +
+    '<div class="aiw-t">' + esc(title) + '</div>' + (lines ? '<div class="aiw-p">' + esc(lines) + '</div>' : '') +
+    (list && list.length ? '<ol class="aiw-ol">' + list.slice(0, 6).map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>' : '') +
+    (src ? '<div class="aiw-src">' + src + '</div>' : '') + '</div>';
+}
+function aiwAsk(x){
+  var bz = AIW.busy[x.id], tg = aiwTargets(x), cur = (AIW.pick && AIW.pick[x.id]) || tg[0] || '', hit = cur ? aiwLib(cur, x.kind) : null, id = escA(x.id);
+  var it = x.item || {}, src = [x.source, x.company, x.author].filter(Boolean).join(' · ');
+  var left = aiwSide('Предложение ИИ', x.kind, x.organ, x.title || x.t || '', x.summary || '', x.kind === 'diag' ? (it.signs || x.steps || []) : (x.steps || it.how || []),
+    src ? (x.url ? '<a href="' + escA(x.url) + '" target="_blank" rel="noopener">' + esc(src) + ' ↗</a>' : esc(src)) + (x.nosearch ? ' · без поиска' : '') : '');
+  var right = hit ? aiwSide('Уже есть в библиотеке', hit.k, String(hit.d.organ || '').replace(/^[^А-Яа-яA-Za-z]+/, ''), hit.d.title, hit.d.short || hit.d.desc || '',
+      hit.k === 'diag' ? (hit.d.signs || []) : (hit.d.how || []), '')
+    : '<div class="aiw-sd aiw-none"><div class="aiw-sl">Уже есть в библиотеке</div><div class="aiw-p">' + (cur ? 'Пункт «' + esc(cur) + '» не найден в базе на этой странице' : 'Похожего пункта ИИ не нашёл') + '</div></div>';
+  return '<div class="aiw-ask" data-id="' + id + '">' +
+    '<div class="aiw-why"><b>Почему спрашиваю</b> ' + esc(x.askWhy || 'нужен ваш выбор') + '<span class="aiw-d">' + esc(x.date || '') + '</span></div>' +
+    (tg.length > 1 ? '<div class="aiw-tgs"><span>Сравнить с</span>' + tg.map(function(t){ return '<button type="button" class="aiw-tgb' + (aiwNorm(t) === aiwNorm(cur) ? ' on' : '') + '" data-t="' + escA(t) + '" onclick="aiwPick(\'' + id + '\',this.dataset.t)">' + esc(t) + '</button>'; }).join('') + '</div>' : '') +
+    '<div class="aiw-cmp">' + left + right + '</div>' +
+    '<div class="aiw-acts aiw-acts4">' +
+      '<button type="button" class="btn bg" ' + (bz ? 'disabled' : '') + ' onclick="aiwAct(\'' + id + '\',\'add\')">' + (bz === 'add' ? 'Добавляю…' : 'Добавить как новый') + '</button>' +
+      (cur ? '<button type="button" class="btn bs" ' + (bz ? 'disabled' : '') + ' data-t="' + escA(cur) + '" onclick="aiwAct(\'' + id + '\',\'merge\',this.dataset.t)" title="Новые шаги и источник добавятся в существующую карточку">' + (bz === 'merge' ? 'Сливаю…' : 'Слить с «' + esc(cur) + '»') + '</button>' +
+        '<button type="button" class="btn bs" ' + (bz ? 'disabled' : '') + ' data-t="' + escA(cur) + '" onclick="aiwAct(\'' + id + '\',\'replace\',this.dataset.t)">' + (bz === 'replace' ? 'Заменяю…' : 'Заменить «' + esc(cur) + '»') + '</button>' : '') +
+      '<button type="button" class="btn bs" ' + (bz ? 'disabled' : '') + ' onclick="aiwAct(\'' + id + '\',\'reject\')">' + (bz === 'reject' ? 'Отклоняю…' : 'Отклонить') + '</button></div>' +
+  '</div>';
+}
+function aiwInboxHTML(all){
+  var ask = (all || []).filter(function(x){ return x.status === 'ask'; });
+  return '<div class="aiw-in">' +
+    '<div class="aiw-h"><div><div class="aiw-ht">Ждут вашего решения' + (ask.length ? ' <span class="aiw-n">' + ask.length + '</span>' : '') + '</div>' +
+      '<div class="aiw-hs">Понятное ИИ добавляет в базы сам. Сюда попадает то, что похоже на существующий пункт или требует выбора</div></div></div>' +
+    aiwStatusHTML() +
+    (ask.length ? ask.map(aiwAsk).join('') : '<div class="empt">Всё решено. Новые вопросы ИИ появятся здесь, в бот они не приходят</div>') +
+  '</div>';
+}
+// Состояние ИИ одной строкой (раньше это приходило уведомлением в бот)
+function aiwStatus(){
+  if(AIW.stAt && Date.now() - AIW.stAt < 120000) return;
+  AIW.stAt = Date.now();
+  try{ BSSync.api('GET', '/ai/status').then(function(r){ return r && r.ok ? r.json() : null; }).then(function(j){ if(j){ AIW.st = j; if(section === 'aiRec') aiwPaint(); } }).catch(function(){}); }catch(e){}
+}
+function aiwStatusHTML(){
+  var st = AIW.st; if(!st) return '';
+  var ch = Array.isArray(st.chain) ? st.chain : [], a = ch.find(function(p){ return p.active; }), d = aiwData(), last = d.items[0];
+  function hm(x){ var t = new Date(x); if(isNaN(t)) return ''; var u = new Date(t.getTime() + 5 * 3600000); function p(n){ return (n < 10 ? '0' : '') + n; } return p(u.getUTCHours()) + ':' + p(u.getUTCMinutes()); }
+  var txt, cls = 'ok';
+  if(a) txt = 'ИИ работает: ' + esc(a.label || a.name) + (a.free ? ' (бесплатно)' : '');
+  else {
+    var soon = ch.filter(function(p){ return p.free && p.until; }).map(function(p){ return p.until; }).sort()[0];
+    txt = 'ИИ на паузе: бесплатные лимиты восстановятся сами' + (soon ? ' к ' + hm(soon) : '') + ', делать ничего не нужно'; cls = 'warn';
+  }
+  if(last && last.nosearch) txt += ' · поиск в интернете недоступен: практики подбираются из знаний модели и пробелов библиотеки';
+  return '<div class="aiw-ai ' + cls + '"><i></i>' + txt + '</div>';
+}
+// Счётчик на вкладке «Решения ИИ»
+function aiwBadge(){ try{ if(typeof bar === 'function' && document.getElementById('bkBar')) bar(); }catch(e){} }
+
 function aiwTog(id){ AIW.open[id] = !AIW.open[id]; aiwPaint(); }
 function aiwReload(){
   try{ if(window.BSSync && BSSync.refresh) return Promise.resolve(BSSync.refresh()).catch(function(){}); }catch(e){}
   return Promise.resolve();
 }
-function aiwAct(id, action){
+function aiwAct(id, action, target){
   if(AIW.busy[id]) return;
   AIW.busy[id] = action; AIW.err = ''; aiwPaint();
-  r6Api('POST', '/ai/recs/' + encodeURIComponent(id), {action: action}).then(function(j){
+  var body = {action: action}; if(target) body.target = target;
+  r6Api('POST', '/ai/recs/' + encodeURIComponent(id), body).then(function(j){
     delete AIW.busy[id];
     if(!j || j.error){ AIW.err = String((j && j.error) || 'Не получилось'); aiwPaint(); return; }
     // Сразу показываем новый статус, потом подтягиваем документы (bs_ai_recs, bs_tools, bs_diag)
     try{ var d = aiwData(), it = d.items.find(function(x){ return x.id === id; });
-      if(it){ it.status = action === 'reject' ? 'rejected' : 'added'; localStorage.setItem('bs_ai_recs', JSON.stringify(d)); } }catch(e){}
-    toast(action === 'reject' ? 'Рекомендация отклонена' : (action === 'replace' ? 'Заменено в библиотеке' : 'Добавлено в библиотеку'));
+      if(it){ it.status = action === 'reject' ? 'rejected' : 'added'; if(action === 'merge') it.merged = target || it.similar; localStorage.setItem('bs_ai_recs', JSON.stringify(d)); } }catch(e){}
+    toast(action === 'reject' ? 'Рекомендация отклонена' : (action === 'replace' ? 'Заменено в библиотеке' : (action === 'merge' ? 'Слито с «' + (target || '') + '»' : 'Добавлено в библиотеку')));
+    aiwBadge();
     aiwPaint();
     aiwReload().then(function(){ try{ loadLibs(); }catch(e){} if(section === 'aiRec') aiwPaint(); });
   });
@@ -10170,7 +10269,8 @@ function aiwFind(){
   });
 }
 function renderAIRec(){
-  var el = pgSet('Рекомендации ИИ', 'Лучшие практики мира и пробелы в базах');
+  var el = pgSet('Решения ИИ', 'Что ИИ предлагает добавить в базы знаний: решение за вами');
+  aiwStatus();
   var recs = [];
   // Диагнозы без инструментов
   DIAG.forEach(function(d){
@@ -21856,6 +21956,7 @@ function gdGrid(){
           '<span class="gu-go">Открыть →</span></div>' +
       '</div>' +
       '<div class="r15-gb"><div class="r15-gm"><span class="gu-no">№ ' + gdNo(g) + '</span><span class="gu-org">' + esc(g.organ || 'Другое') + '</span></div>' +
+        '<div class="kb-t">' + esc(g.title || '') + '</div>' + (g.subtitle ? '<div class="r15k-d">' + gdE(g.subtitle) + '</div>' : '') +
         '<div class="gu-f">' + (g.time ? '<span>' + esc(gdTime(g.time)) + '</span>' : '') + (st ? '<span>' + st + ' ' + gdPl(st, 'шаг', 'шага', 'шагов') + '</span>' : '') + gdLvBars(g.level) + '</div>' +
         (d ? '<div class="gu-st"><div class="gu-pb"><i style="width:' + gdPct(d, t) + '%"></i></div><span class="gu-dn">' + (full ? 'внедрён' : d + ' из ' + t) + '</span></div>' : '') +
       '</div>' +
@@ -29089,7 +29190,7 @@ body.r32t .side-subs{display:none}
     var key = gem ? 'Gemini' : '';
     var quota = code === 429 || (!code || code === 400) && /exceeded your current quota|resource_exhausted|too many requests/.test(low);
     // квота: та же фраза, что у сервера и bsAiErr (R32c: ИИ переходит на Claude, если есть ключ)
-    if(quota) return typeof BS_AI_QUOTA_MSG === 'string' ? BS_AI_QUOTA_MSG : 'ИИ временно на паузе: у Claude нет баланса, а бесплатные лимиты на сегодня закончились. Лимиты восстановятся сами';
+    if(quota) return typeof BS_AI_QUOTA_MSG === 'string' ? BS_AI_QUOTA_MSG : 'ИИ временно на паузе: бесплатные лимиты на сегодня закончились. Они восстановятся сами, ничего делать не нужно';
     if(code === 401 || code === 403 || /api key not valid|permission_denied|unauthenticated|invalid.?api.?key/.test(low))
       return 'ИИ-ключ' + (key ? ' ' + key : '') + ' не принят. Проверьте ключ и доступ в Google AI Studio';
     if(code === 503 || code === 529 || /overloaded|unavailable|high demand/.test(low))
@@ -31652,6 +31753,7 @@ function badge(id){
     if(id === 'leads'){ if(!CRM) loadCRM(); var a = CRM.leads.filter(function(l){ return ['won', 'lost'].indexOf(l.col) < 0; }).length; return a ? {n: a} : null; }
     if(id === 'aReports'){ var y0 = new Date(); y0 = new Date(y0.getFullYear(), y0.getMonth(), y0.getDate() - 1).getTime(); var no = (boards || []).filter(function(b){ return !(b.report && b.report.sentAt && Date.parse(b.report.sentAt) >= y0); }).length; return no ? {n: no, red: 1} : null; }
     if(id === 'sCreo'){ var cr = r8Groups('creo').length; return cr ? {n: cr} : null; } // R36a
+    if(id === 'aiRec' && typeof aiwData === 'function'){ var ak = aiwData().items.filter(function(x){ return x.status === 'ask'; }).length; return ak ? {n: ak, red: 1} : null; } // R66: «Решения ИИ»
   }catch(e){}
   return null;
 }
@@ -35213,6 +35315,19 @@ html.lead-user #navLead .nv[data-b="lideas"]{display:flex!important}
   .r46i-q{max-width:none}
   .r46-tb .r46-q{max-width:none}
 }
+/* R66: «Название мелкое»: в карточках базы знаний (болезни, инструменты, книги, чек-листы, бизнес-идеи)
+   название главное: 19 px 800 в полном контрасте под обложкой; орган над ним мелко и тише; описание 14.5 px тише, до 3 строк.
+   Название на обложке убрано, чтобы не повторялось */
+.r15gc .r15-cvw .cv16 .cv-title,.r15gc .r15-cvw .r46i-cv .cv-title{display:none}
+.r15-gb{gap:6px;padding:12px 14px 13px}
+.r15-gb .kb-t{font-size:19px;line-height:1.22;font-weight:800;letter-spacing:-.2px;color:var(--ptx);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:break-word;hyphens:auto}
+.r15-gb .r15-gm .gu-org{background:none;color:var(--pl);padding:0;border-radius:0;font-size:10px;letter-spacing:1px;font-weight:800}
+.r15-gb .r15-gm .gu-no{font-size:10.5px;color:var(--pl)}
+.r15-gb .r15k-d{font-size:14.5px;line-height:1.45;color:var(--pm);-webkit-line-clamp:3}
+.stgrid.big .st-n,.skp-grid.big .skp-n{font-size:16px;font-weight:800;color:var(--ptx);line-height:1.2}
+.stgrid.big .st-t{font-size:12.5px;color:var(--pm)}
+@media(max-width:700px){.r15-gb .kb-t{font-size:18px}.r15-gb .r15k-d{font-size:14px}}
 </style>
 <script id="r46Script">
 // ═══ R46. 1) Болезни и Инструменты карточками с обложками ═══
@@ -35271,7 +35386,7 @@ function r46Card(kind, i, o){
       '<div class="r15-bdg">' + (o.locked ? '<span class="r46-bd gh">Для резидентов</span>' : r46Badges(kind, d, r, o.used)) + '</div>' +
       (o.locked ? '' : '<div class="gu-hov"><span class="gu-hk">' + (kind === 'diag' ? 'Диагноз' : 'Инструмент') + ' · ' + r46E(org || 'BS') + '</span>' + (hov ? '<div class="gu-pr">' + r46E(hov) + '</div>' : '') + '<span class="gu-go">Открыть →</span></div>') +
     '</div>' +
-    '<div class="r15-gb"><span class="r46-sr">' + r46E(d.title) + '</span><div class="r15-gm"><span class="gu-org">' + r46E(org || 'BS') + '</span></div>' +
+    '<div class="r15-gb"><div class="r15-gm"><span class="gu-org">' + r46E(org || 'BS') + '</span></div><div class="kb-t">' + r46E(title) + '</div>' +
       (sub ? '<div class="r15k-d">' + r46E(sub) + '</div>' : '') +
       (st.length ? '<div class="gu-f r46-st">' + st.map(function(x){ return '<span>' + r46E(x) + '</span>'; }).join('') + '</div>' : '') +
     '</div></div>';
@@ -35440,7 +35555,7 @@ function r46IdeaCard(x){
     '<div class="r15-cvw">' + r46IdeaCover(x) +
       '<div class="gu-hov"><span class="gu-hk">' + r46E(x.sub || '') + '</span><div class="gu-pr">' + r46E(x.desc || x.short) + '</div><span class="gu-go">Открыть →</span></div></div>' +
     '<div class="r15-gb"><div class="r15-gm"><span class="gu-org">' + r46E(x.sub || 'Идея') + '</span></div>' +
-      '<div class="r15k-d">' + r46E(x.short) + '</div>' +
+      '<div class="kb-t">' + r46E(x.title || '') + '</div><div class="r15k-d">' + r46E(x.short) + '</div>' +
       '<div class="gu-f"><span class="r46i-bud">' + r46E(r46Bud(x.budget)) + '</span>' + (x.payback ? '<span>окупаемость ' + r46E(x.payback) + '</span>' : '') + r46Diff(x.difficulty) + '</div>' +
     '</div></div>';
 }

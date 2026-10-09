@@ -221,11 +221,12 @@ func (s *ClubSales) WeeklyReport(ctx context.Context, now time.Time) (string, in
 	from := to.AddDate(0, 0, -7)
 	inWeek := func(t time.Time) bool { return !t.IsZero() && !t.Before(from) && t.Before(to) }
 	var act []string
-	// 1. the system check: only what is not fine
+	// 1. the system check: only what is not fine and has an action for the
+	// owner (R66: a resting free AI limit or a status line is not his job)
 	if s.Check != nil {
 		r := s.Check(ctx)
 		for _, it := range r.Items {
-			if it.State == "fail" || it.State == "warn" {
+			if (it.State == "fail" || it.State == "warn") && (it.Action != "" || !sysPersistKeys[it.Key]) {
 				act = append(act, stateMark(it.State)+" "+it.Title+": "+it.Text)
 			}
 		}

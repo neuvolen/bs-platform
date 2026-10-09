@@ -454,7 +454,7 @@ func (c *Client) Providers() []map[string]any {
 func (c *Client) Paused() bool {
 	ms := c.TextModels()
 	for _, m := range ms {
-		if c.quotaClosed(m) == nil && c.budgetLeft(m) {
+		if c.provQuota(m) == nil && c.budgetLeft(m) { // R66: Gemini stays open while its light model can answer
 			return false
 		}
 	}
