@@ -20,7 +20,7 @@ func TestR32bNav(t *testing.T) {
 			tabs[b.Key] = append(tabs[b.Key], x.ID)
 		}
 	}
-	for _, k := range []string{"rtrack", "rbiz", "rclub", "rme"} {
+	for _, k := range []string{"rbiz", "rclub", "rme"} { // R73: «Мой разбор» has three tabs, see r73_nav_test.go
 		if len(tabs[k]) < 4 {
 			t.Errorf("resident block %s: %v", k, tabs[k])
 		}

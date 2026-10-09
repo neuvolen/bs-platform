@@ -3779,8 +3779,12 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
     <div class="nv" draggable="true" data-b="lup" onclick="goBlock('lup')">Резидентство</div>
   </div>
   <div class="nav side-nav res-nav" id="navRes" style="display:none">
-    <div class="nv on" draggable="true" data-b="rtrack" onclick="goBlock('rtrack')">Трекинг</div>
-    <div class="nv" draggable="true" data-b="rbiz" onclick="goBlock('rbiz')">Мой бизнес</div>
+    <div class="nv on" draggable="true" data-b="rtrack" onclick="goBlock('rtrack')">Мой разбор</div>
+    <div class="nv" draggable="true" data-b="rtd" onclick="goBlock('rtd')">Задачи</div>
+    <div class="nv" draggable="true" data-b="rbiz" onclick="goBlock('rbiz')">Замеры</div>
+    <div class="nv" draggable="true" data-b="rotc" onclick="goBlock('rotc')">Отчёты</div>
+    <div class="nv" draggable="true" data-b="rmeet" onclick="goBlock('rmeet')">Встречи</div>
+    <div class="nv" draggable="true" data-b="rmat" onclick="goBlock('rmat')">Материалы</div>
     <div class="nv" draggable="true" data-b="rclub" onclick="goBlock('rclub')">Клуб</div>
     <div class="nv" draggable="true" data-b="rme" onclick="goBlock('rme')">Профиль</div>
   </div>
@@ -3907,7 +3911,7 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
 </div></div>
 
 <div class="page" id="pg-rtasks"><div class="pw">
-  <div class="ph"><div><div class="pt">Задания</div>
+  <div class="ph"><div><div class="pt">Задачи цикла</div>
     <div class="psub">Что нужно сделать в этом цикле</div></div></div>
   <div id="rtBody"></div>
 </div></div>
@@ -7661,38 +7665,47 @@ var BLOCKS = {
     {id:'aiRec',    n:'Решения ИИ'}]},      // R66: решения по рекомендациям ИИ здесь, не в боте
   // R32b: у резидента четыре раздела, внутри вкладки сверху (не список в меню). Старые rtask, rrep, rcont,
   // rfive, rmeas, rbs открывают новый раздел (R32_BALIAS), ссылки на разделы (#rtasks и т. п.) прежние
-  rtrack:  {name:'Трекинг', tabs:[
-    {id:'board',    n:'Мой разбор'},
-    {id:'rtasks',   n:'Задания'},
-    {id:'rreport',  n:'Отчёт'},
-    {id:'rKit',     n:'Инструменты'},
-    {id:'rsched',   n:'Встречи'},
-    {id:'mycal',    n:'Мой календарь'},
+  // R73: у резидента восемь понятных разделов (первые четыре внизу на телефоне): разбор, задачи, замеры
+  // (колёса, диагностика, Gallup, анализы в одном месте), отчёты, встречи, материалы, клуб, профиль.
+  // Старые адреса разделов (#rtasks, #rGallup и т. п.) открываются в новом месте
+  rtrack:  {name:'Мой разбор', tabs:[
+    {id:'board',    n:'Доска разбора'},
     {id:'rCalls',   n:'Записи разборов'},
-    {id:'rHist',    n:'История отчётов'}]},
-  rbiz:    {name:'Мой бизнес', tabs:[
-    {id:'rwheel',   n:'Колесо баланса'},     // R21: замеры открываются колесом баланса
+    {id:'rHistory', n:'История разборов'}]},
+  rtd:     {name:'Задачи', tabs:[
+    {id:'rtasks',   n:'Задачи цикла'}]},
+  rbiz:    {name:'Замеры', tabs:[
+    {id:'rMeas',    n:'Все замеры'},
     {id:'bizWheel', n:'Колесо бизнеса'},
-    {id:'rHealth',  n:'Здоровье бизнеса'},
+    {id:'rwheel',   n:'Колесо баланса'},
     {id:'rDiag',    n:'Диагностика'},
-    {id:'rHistory', n:'История разборов'},
-    {id:'rLabs',    n:'Анализы'},
-    {id:'rAnalysis',n:'Динамика'},
-    {id:'rSummary', n:'Сводка'}]},
-  rclub:   {name:'Клуб', tabs:[
-    {id:'rRes2',    n:'Ресурсы клуба'},
-    {id:'rFiveList',n:'Участники'},
-    {id:'rAbout',   n:'О проекте'},
-    {id:'rRules',   n:'Правила'},
-    {id:'rNumbers', n:'BS в цифрах'},
-    {id:'rInvite',  n:'Пригласить друзей'},
-    {id:'rOnboard', n:'Как пользоваться'}]},
-  rme:     {name:'Профиль', tabs:[
-    {id:'rprofile', n:'Данные'},
     {id:'rGallup',  n:'Gallup'},
-    {id:'rStats',   n:'Статус и статистика'},
+    {id:'rHealth',  n:'Оценка трекеров'},
+    {id:'rSummary', n:'Цифры бизнеса'},
+    {id:'rLabs',    n:'Анализы'},
+    {id:'rAnalysis',n:'Динамика'}]},
+  rotc:    {name:'Отчёты', tabs:[
+    {id:'rreport',  n:'Отчёт за день'},
+    {id:'rHist',    n:'История отчётов'}]},
+  rmeet:   {name:'Встречи', tabs:[
+    {id:'rsched',   n:'Расписание'},
+    {id:'mycal',    n:'Мой календарь'}]},
+  rmat:    {name:'Материалы', tabs:[
+    {id:'rKit',     n:'Инструменты и книги'},
+    {id:'rRes2',    n:'Ресурсы клуба'}]},
+  rclub:   {name:'Клуб', tabs:[
+    {id:'rFiveList',n:'Участники'},
+    {id:'rRules',   n:'Правила'},
+    {id:'rAbout',   n:'О клубе'},
+    {id:'rNumbers', n:'BS в цифрах'},
+    {id:'rInvite',  n:'Пригласить друзей'}]},
+  rme:     {name:'Профиль', tabs:[
+    {id:'rprofile', n:'Мои данные'},
+    {id:'rStats',   n:'Статистика'},
+    {id:'rResults', n:'Итоги и продление'},
     {id:'rAch',     n:'Достижения'},
-    {id:'rFines',   n:'Штрафы'}]},
+    {id:'rFines',   n:'Штрафы'},
+    {id:'rOnboard', n:'Как пользоваться'}]},
   lbs:     {name:'BS', tabs:[
     {id:'rAbout',   n:'О проекте'},
     {id:'rRules',   n:'Правила проекта'},
@@ -8667,7 +8680,7 @@ function renderReportHistory(){
           d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})+'</div></div></div>' +
       '<div style="font-size:13px;color:var(--t2);line-height:1.6;white-space:pre-wrap;' +
         'padding-top:10px;border-top:1px solid var(--bd)">'+esc(r.text)+'</div></div>';
-  }).join('') : '<div class="empt">Отчётов пока нет. Отправьте первый во вкладке Выполнение</div>';
+  }).join('') : '<div class="empt">Отчётов пока нет<br><button class="btn bg" style="margin-top:14px;padding:11px 20px" onclick="goSection(\'rreport\')">Написать отчёт за день</button></div>';
 }
 
 function renderResReports(){
@@ -16253,6 +16266,7 @@ PF_IC.mkt = '<path d="M3 10v4a1 1 0 0 0 1 1h3l6 4V5L7 9H4a1 1 0 0 0-1 1z"/><path
 PF_IC.res = '<path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.2 5.2l3.8-1 3 15.5-3.8 1z" transform="translate(-2.4 0)"/>';
 var PF_NAV_IC = {track:'board', club:'club', fin:'money', sales:'sales', mkt:'mkt', lib:'lib',
   rbs:'info', rtrack:'board', rtask:'tasks', rrep:'doc', rcont:'res', rfive:'me', rmeas:'pulse', rme:'me', rbiz:'pulse', rclub:'club',
+  rtd:'tasks', rotc:'doc', rmeet:'cal', rmat:'res',
   lbs:'info', ltrack:'board', lmeas:'pulse', lup:'up'};
 (function(){
   document.querySelectorAll('.side .nv').forEach(function(el){
@@ -27485,6 +27499,58 @@ document.addEventListener('keydown', function(e){
 .lh-ok .lh-oki{width:56px;height:56px;border-radius:50%;background:var(--tx);color:var(--bg);display:flex;align-items:center;justify-content:center;margin:4px auto 14px}
 .lh-kv{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;font-size:14px;margin:14px 0 4px;text-align:left}
 .lh-kv span{color:var(--t3)}
+/* R73: главная лида. Видео о платформе, одна кнопка, три блока */
+.lx{max-width:1040px}
+.lx #r46Lt{display:none}
+.lx-hero{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:56px;align-items:center;margin:8px 0 36px}
+.lx-vw{display:flex;justify-content:center}
+.lx-v{position:relative;width:100%;max-width:340px;aspect-ratio:9/16;border-radius:28px;overflow:hidden;background:#000;border:1px solid var(--bd2);box-shadow:0 30px 80px -30px rgba(0,0,0,.9);cursor:pointer;isolation:isolate}
+.lx-v video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#000}
+.lx-snd{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 18px;border-radius:999px;border:0;background:rgba(255,255,255,.94);color:#050505;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.45);animation:lxPing 2.4s ease-in-out infinite}
+.lx-v.snd .lx-snd{display:none}
+.lx-play{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;border-radius:50%;border:0;background:rgba(255,255,255,.94);color:#050505;display:none;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.lx-play svg{margin-left:4px}
+.lx-v.hold .lx-play,.lx-v.end .lx-play,.lx-v.snd:not(.pl) .lx-play{display:flex}
+.lx-v.hold .lx-snd,.lx-v.end .lx-snd{display:none}
+.lx-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.18)}
+.lx-bar i{display:block;height:100%;width:0;background:#fff;transition:width .25s linear}
+@keyframes lxPing{0%,100%{box-shadow:0 8px 24px rgba(0,0,0,.45),0 0 0 0 rgba(255,255,255,.35)}50%{box-shadow:0 8px 24px rgba(0,0,0,.45),0 0 0 10px rgba(255,255,255,0)}}
+.lx-kick{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--t3);margin-bottom:14px}
+.lx-h1{margin:0;font-size:46px;line-height:1.04;letter-spacing:-.03em;font-weight:800}
+.lx-lead{margin:16px 0 28px;font-size:17px;line-height:1.5;color:var(--t2);max-width:440px}
+.lx-cta{height:60px;padding:0 28px;font-size:16px;border-radius:16px;gap:12px}
+.lx-cta em{font-style:normal;opacity:.6;font-weight:700;padding-left:12px;border-left:1px solid currentColor}
+.lx-cap{margin-top:12px;font-size:13px;color:var(--t3)}
+.lx-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.lx-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:4px;min-height:172px;padding:22px 22px 20px;border-radius:22px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font:inherit;text-decoration:none;cursor:pointer;transition:transform .12s,border-color .15s}
+.lx-tile:hover{transform:translateY(-2px);border-color:var(--bd2)}
+.lx-tile.on{border-color:var(--tx)}
+.lx-big{font-size:44px;line-height:1;font-weight:800;letter-spacing:-.03em;margin-bottom:auto;padding-bottom:18px}
+.lx-big small{font-size:16px;font-weight:700;margin-left:6px;color:var(--t3);letter-spacing:0}
+.lx-tt{font-size:17px;font-weight:800}
+.lx-ts{font-size:13px;color:var(--t3);line-height:1.4;padding-right:28px}
+.lx-ar{position:absolute;right:18px;bottom:18px;width:34px;height:34px;border-radius:50%;border:1px solid var(--bd2);display:flex;align-items:center;justify-content:center}
+.lx-pan{margin-top:18px}
+.lx .lh-sec{margin-bottom:0}
+@media(max-width:900px){
+  .lx-hero{grid-template-columns:minmax(0,1fr);gap:20px;margin:0 0 22px}
+  .lx-v{max-width:min(100%,calc((100vh - 330px) * 9 / 16));border-radius:22px}
+  .lx-txt{text-align:left}
+  .lx-kick{display:none}
+  .lx-h1{font-size:26px;text-align:center}
+  .lx-cap{text-align:center}
+  .lx-lead{display:none}
+  .lx-h1{margin-bottom:14px}
+  .lx-cta{width:100%;height:auto;min-height:58px;padding:12px 18px;flex-wrap:wrap;row-gap:2px}
+  .lx-cta em{display:block;width:100%;border-left:0;padding-left:0;font-size:14px}
+  .lx-tiles{grid-template-columns:minmax(0,1fr);gap:10px}
+  .lx-tile{min-height:0;display:grid;grid-template-columns:76px minmax(0,1fr);grid-template-rows:auto auto;column-gap:14px;row-gap:2px;align-items:center;padding:16px 56px 16px 16px;border-radius:18px}
+  .lx-big{grid-row:1/3;padding:0;margin:0;font-size:34px;text-align:center}
+  .lx-big small{display:block;margin:2px 0 0;font-size:12px}
+  .lx-tt{font-size:16px}
+  .lx-ts{padding-right:0}
+  .lx-ar{top:50%;bottom:auto;margin-top:-17px;right:14px}
+}
 @media(max-width:900px){
   .lh-hero{grid-template-columns:minmax(0,1fr);gap:20px;margin-bottom:32px}
   .lh-b{white-space:normal;text-align:center;height:auto;min-height:48px;padding:12px 18px}
@@ -27588,46 +27654,93 @@ html.lead-user #aiBadge,html.lead-user #bsxPill,html.lead-user #tr16Help,html.le
     return LH.load;
   }
 
-  // ── Главная ──
+  // ── Главная (R73): видео о платформе, одна главная кнопка, три больших блока ──
+  // Текст свёрнут до заголовка и строки: всё остальное рассказывает видео. Диагностика и библиотека
+  // открываются панелью под блоками по нажатию, а не висят простынёй на странице.
+  var LX = {panel: '', vInit: false};
+  window.LX = LX;
+  var VIDEO = '/promo/lead_platform.mp4', POSTER = '/promo/lead_platform.webp';
   window.lhRender = function(){
     var el = mount();
     if(!LH.data){
-      el.innerHTML = '<div class="lh"><div class="lh-load">' + (LH.err ? E(LH.err) : 'Загружаю…') + '</div></div>';
+      el.innerHTML = '<div class="lh lx"><div class="lh-load">' + (LH.err ? E(LH.err) : 'Загружаю…') + '</div></div>';
       if(!LH.err) load().then(function(){ if(section === 'lHome') lhRender(); });
       return;
     }
-    var d = LH.data, fn = firstName(), lib = d.lib || {}, locked = lib.locked || [];
-    var done = !!(LH.res && LH.res.length), booked = !!(d.razbor && d.razbor.mine);
-    var h = '<div class="lh">';
-    if(d.preview) h += '<div class="lh-pv">' + ic('<circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/>') + '<div><b>Предпросмотр.</b> Так платформу видит лид после входа через Telegram. Ответы диагностики здесь не сохраняются, запись на разбор не бронирует окно.</div></div>';
-    h += '<section class="lh-hero"><div>' +
-      '<div class="lh-kick">Business Surgery · клуб бизнес-трекинга</div>' +
-      '<h1 class="lh-h1">' + (fn ? E(fn) + ', добро пожаловать<br><span>в Business Surgery</span>' : 'Добро пожаловать<br><span>в Business Surgery</span>') + '</h1>' +
-      '<p class="lh-lead">Здесь можно бесплатно проверить здоровье бизнеса, почитать часть библиотеки клуба и записаться на экспресс-разбор с основателями. Разбор показывает, где бизнес теряет деньги и что делать в ближайшие 10 дней.</p>' +
-      '<div class="lh-acts"><button class="lh-b p" data-act="book" onclick="lhBook()">' + (booked ? 'Моя запись на разбор' : 'Записаться на экспресс-разбор <em>· ' + M(price()) + ' ₸</em>') + '</button>' +
-      '<button class="lh-b" onclick="lhGo(\'lhDx\')">' + (done ? 'Моя карта органов' : 'Пройти диагностику') + '</button></div>' +
-      '<div class="lh-nums"><div><b>8</b><span>органов бизнеса в диагностике</span></div><div><b>' + (lib.diag || 72) + '</b><span>диагнозов в библиотеке</span></div>' +
-      '<div><b>' + (lib.tools || 110) + '</b><span>инструментов с шаблонами</span></div><div><b>10</b><span>дней длится цикл резидента</span></div></div>' +
-      '</div>' + pathHTML(done, booked) + '</section>';
-    h += '<section class="lh-sec" id="lhDx"><div class="lh-sh"><div><div class="lh-n">Шаг 1 · бесплатно</div><h2>Экспресс-диагностика бизнеса</h2>' +
-      '<p>8 ключевых диагнозов из библиотеки клуба, по 3 вопроса на каждый. Отвечайте честно: есть ли это у вас сейчас.</p></div></div>' +
-      '<div class="lh-card" id="lhDxBox">' + dxHTML() + '</div></section>';
-    h += libHTML(lib);
-    h += midHTML(d);
-    h += howHTML();
-    h += '<section class="lh-fin"><div><h2>Начните с экспресс-разбора</h2><p>Час с основателями BS на ваших цифрах. Находим, где бизнес теряет деньги, и составляем план на 10 дней. После разбора вы сами решаете, идти ли в клуб резидентом.</p></div>' +
-      '<button class="lh-b" onclick="lhBook()">' + (booked ? 'Моя запись' : 'Записаться · ' + M(price()) + ' ₸') + '</button></section>';
+    var d = LH.data, fn = firstName(), lib = d.lib || {}, bot = d.bot || {};
+    var done = !!(LH.res && LH.res.length), booked = !!(d.razbor && d.razbor.mine), run = !!LH.run;
+    if((done || run) && !LX.panel) LX.panel = 'dx';
+    var sick = done ? LH.res.filter(function(x){ return x.level === 'sick'; }).map(function(x){ return x.organ; }) : [];
+    var openN = (lib.open || []).length;
+    var h = '<div class="lh lx">';
+    if(d.preview) h += '<div class="lh-pv">' + ic('<circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/>') + '<div><b>Предпросмотр.</b> Так главную видит лид. Ответы и запись здесь не сохраняются.</div></div>';
+    h += '<section class="lx-hero">' +
+      '<div class="lx-vw"><div class="lx-v" id="lxV">' +
+        '<video id="lxVid" playsinline muted loop preload="none" poster="' + POSTER + '" aria-label="Видео: как Business Surgery работает с бизнесом"><source src="' + VIDEO + '" type="video/mp4"><source src="' + VIDEO.replace('.mp4', '.webm') + '" type="video/webm"></video>' +
+        '<button type="button" class="lx-snd" id="lxSnd" onclick="lxSound()" aria-label="Включить звук">' + ic('<path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6"/>', 18) + '<span>Нажмите для звука</span></button>' +
+        '<button type="button" class="lx-play" id="lxPlay" onclick="lxToggle()" aria-label="Смотреть видео">' + ic('<path d="M8 5l11 7-11 7z"/>', 26) + '</button>' +
+        '<div class="lx-bar"><i id="lxBar"></i></div>' +
+      '</div></div>' +
+      '<div class="lx-txt">' +
+        '<div class="lx-kick">Business Surgery · клуб бизнес-трекинга</div>' +
+        '<h1 class="lx-h1">' + (fn ? E(fn) + ', вот как' : 'Вот как') + ' мы лечим бизнес</h1>' +
+        '<p class="lx-lead">Минута о разборе, диагнозах и плане на 10 дней. Дальше один шаг.</p>' +
+        '<button class="lh-b p lx-cta" data-act="book" onclick="lhBook()">' + (booked ? 'Моя запись на разбор' : 'Записаться на экспресс-разбор<em>' + M(price()) + ' ₸</em>') + '</button>' +
+        '<div class="lx-cap">' + (booked ? 'Напоминание придёт в Telegram от бота BS' : 'Час с основателями · ваши цифры · план на 10 дней') + '</div>' +
+      '</div></section>';
+    var tile = function(id, big, t, s, act, on){
+      return '<button type="button" class="lx-tile' + (on ? ' on' : '') + '" data-tile="' + id + '" onclick="' + act + '"><b class="lx-big">' + big + '</b><span class="lx-tt">' + t + '</span><span class="lx-ts">' + s + '</span><i class="lx-ar">' + ic(on ? '<path d="M6 15l6-6 6 6"/>' : IC.arr, 16) + '</i></button>';
+    };
+    h += '<section class="lx-tiles">' +
+      tile('dx', done ? (sick.length || '0') : '5<small>мин</small>', done ? 'Ваша карта органов' : 'Бесплатная диагностика',
+        done ? (sick.length ? 'Болит: ' + E(sick.join(', ')) : 'Явных болезней нет') : items().length * 3 + ' вопросов о вашем бизнесе', "lxPanel('dx')", LX.panel === 'dx') +
+      '<a class="lx-tile" data-tile="ck" href="' + E(bot.checklists || 'https://t.me/bsurgery_bot?start=99') + '" target="_blank" rel="noopener"><b class="lx-big">99</b><span class="lx-tt">Чек-листов в Telegram</span><span class="lx-ts">Бесплатно, по всем органам бизнеса</span><i class="lx-ar">' + ic(IC.ext, 16) + '</i></a>' +
+      tile('lib', openN || (lib.tools || 0), 'Открытые материалы', 'Диагнозы и инструменты клуба', "lxPanel('lib')", LX.panel === 'lib') +
+      '</section>';
+    if(LX.panel === 'dx') h += '<section class="lh-sec lx-pan" id="lhDx"><div class="lh-card" id="lhDxBox">' + dxHTML() + '</div></section>';
+    if(LX.panel === 'lib') h += '<div class="lx-pan">' + libHTML(lib) + '</div>';
     h += '</div>';
     el.innerHTML = h;
+    lxVideo();
   };
-  function pathHTML(done, booked){
-    var st = function(cls, n, t, s){ return '<div class="lh-st ' + cls + '"><i>' + (cls === 'lh-done' ? ic(IC.ok, 15) : n) + '</i><div><b>' + t + '</b><span>' + s + '</span></div></div>'; };
-    return '<aside class="lh-path"><h3>Ваш путь в клуб</h3><p class="lh-ps">Три шага от знакомства до резидентства</p>' +
-      st(done ? 'lh-done' : 'lh-cur', 1, 'Экспресс-диагностика', '5 минут, бесплатно. Карта органов вашего бизнеса') +
-      st(booked ? 'lh-done' : (done ? 'lh-cur' : ''), 2, 'Экспресс-разбор', 'Час с основателями на ваших цифрах, план на 10 дней. ' + M(price()) + ' ₸') +
-      st('', 3, 'Резидентство', 'Разбор с трекером каждые 10 дней, задачи, пятёрка и вся библиотека') +
-      '<button class="lh-b" onclick="' + (done ? 'lhBook()' : 'lhGo(\'lhDx\')') + '">' + (booked ? 'Моя запись на разбор' : done ? 'Следующий шаг: разбор' : 'Начать с диагностики') + '</button></aside>';
+  window.lxPanel = function(p){
+    LX.panel = LX.panel === p ? '' : p;
+    lhRender();
+    if(LX.panel) setTimeout(function(){ lhGo(LX.panel === 'dx' ? 'lhDx' : 'lhLib'); }, 30);
+  };
+  // видео: без звука само, когда видно; нажатие включает звук с начала; пауза по нажатию
+  function lxVideo(){
+    var v = document.getElementById('lxVid'), box = document.getElementById('lxV'); if(!v || !box) return;
+    var slow = false; try{ var cn = navigator.connection; slow = !!(cn && (cn.saveData || /2g/.test(cn.effectiveType || ''))); }catch(e){}
+    var bar = document.getElementById('lxBar');
+    v.addEventListener('timeupdate', function(){ if(bar && v.duration) bar.style.width = (v.currentTime / v.duration * 100).toFixed(1) + '%'; });
+    v.addEventListener('play', function(){ box.classList.add('pl'); });
+    v.addEventListener('pause', function(){ box.classList.remove('pl'); });
+    v.addEventListener('ended', function(){ box.classList.remove('pl'); box.classList.add('end'); });
+    v.addEventListener('click', function(){ if(v.muted) lxSound(); else lxToggle(); });
+    if(slow || !('IntersectionObserver' in window)){ box.classList.add('hold'); return; }
+    var io = new IntersectionObserver(function(en){
+      en.forEach(function(e){
+        if(!document.body.contains(v)){ io.disconnect(); return; }
+        if(e.isIntersecting && e.intersectionRatio > .45){ if(v.muted && !box.classList.contains('user')){ v.preload = 'auto'; var p = v.play(); if(p && p.catch) p.catch(function(){ box.classList.add('hold'); }); } }
+        else if(!v.paused) v.pause();
+      });
+    }, {threshold: [0, .45, .8]});
+    io.observe(box);
   }
+  window.lxSound = function(){
+    var v = document.getElementById('lxVid'), box = document.getElementById('lxV'); if(!v) return;
+    box.classList.add('user', 'snd'); box.classList.remove('hold', 'end');
+    v.muted = false; v.loop = false; v.preload = 'auto';
+    try{ v.currentTime = 0; }catch(e){}
+    var p = v.play(); if(p && p.catch) p.catch(function(){});
+  };
+  window.lxToggle = function(){
+    var v = document.getElementById('lxVid'), box = document.getElementById('lxV'); if(!v) return;
+    if(box.classList.contains('hold') || box.classList.contains('end') || v.muted){ lxSound(); return; }
+    box.classList.add('user');
+    if(v.paused){ var p = v.play(); if(p && p.catch) p.catch(function(){}); } else v.pause();
+  };
   window.lhGo = function(id){
     var t = document.getElementById(id), pg = document.getElementById('pg-stub');
     if(t && pg) pg.scrollTo({top: t.getBoundingClientRect().top - pg.getBoundingClientRect().top + pg.scrollTop - 20, behavior: 'smooth'});
@@ -36089,7 +36202,7 @@ function r46Act(a){
       if(!n) return;
       try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
       saveBoard();
-      r46Mark('work', x.id, 1); toast('Задача на 10 дней на вашей доске: Трекинг → Задания'); r46Repaint(); return;
+      r46Mark('work', x.id, 1); toast('Задача на 10 дней добавлена в раздел «Задачи»'); r46Repaint(); return;
     }
     if(!KANBAN) loadKanban();
     var col = (KANBAN.cols.find(function(c){ return c.id === 'work'; }) || KANBAN.cols[0]).id, id = 'idea-' + x.id;
@@ -42790,5 +42903,145 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
 window.bsAssist = {apply: applyAssist, hidden: hidden, state: function(){ return ST; }};
 })();
 </script>
+<!-- R73: резидент. Меню из восьми разделов, «Замеры» одним экраном, подсказка не закрывает экран -->
+<style id="r73Style">
+.r73m{max-width:980px}
+.r73-next{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:22px 24px;border-radius:20px;background:var(--pon);color:var(--pontx);margin-bottom:18px}
+.r73-next .k{font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.6}
+.r73-next b{display:block;font-size:22px;font-weight:800;letter-spacing:-.01em;margin:4px 0 2px}
+.r73-next span{font-size:13.5px;opacity:.72}
+.r73-next button{height:50px;padding:0 24px;border-radius:14px;border:0;background:var(--pontx);color:var(--pon);font:inherit;font-size:15px;font-weight:800;cursor:pointer;white-space:nowrap}
+.r73-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.r73-c{display:flex;flex-direction:column;gap:6px;min-height:150px;padding:18px;border-radius:18px;border:1px solid var(--pb);background:var(--pc);color:inherit;text-align:left;font:inherit;cursor:pointer;transition:transform .12s,border-color .15s}
+.r73-c:hover{transform:translateY(-2px);border-color:var(--pm)}
+.r73-c .ic{width:38px;height:38px;border-radius:11px;border:1px solid var(--pb);display:flex;align-items:center;justify-content:center;margin-bottom:6px}
+.r73-c b{font-size:16px;font-weight:800}
+.r73-c em{font-style:normal;font-size:12.5px;color:var(--pm);line-height:1.4}
+.r73-c .st{margin-top:auto;padding-top:8px;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700}
+.r73-c .st i{font-style:normal;padding:3px 9px;border-radius:999px;border:1px solid var(--pi)}
+.r73-c .st i.ok{background:var(--pon);color:var(--pontx);border-color:transparent}
+.r73-c .st u{text-decoration:none;color:var(--pm)}
+.r73-h{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--pm);margin:22px 0 10px}
+.r73-pe{padding:18px;border-radius:16px;border:1px dashed var(--pi);color:var(--pm);font-size:13.5px;line-height:1.5;margin-bottom:12px}
+@media(max-width:700px){
+  .r73-next{grid-template-columns:1fr;padding:18px}
+  .r73-next button{width:100%}
+  .r73-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .r73-c{min-height:132px;padding:14px}
+  .r73-c em{display:none}
+  /* подсказка: одной строкой над нижней панелью, не на половину экрана */
+  .hintbar.on{left:10px;right:10px;transform:none;max-width:none;bottom:calc(var(--r62nb,60px) + 10px + env(safe-area-inset-bottom));padding:10px 10px 10px 14px;gap:10px;border-radius:14px}
+  .hintbar .hint-i,.hintbar .hint-d{display:none}
+  .hintbar .hint-t{font-size:13px;line-height:1.3}
+  .hintbar #hintB{padding:9px 12px!important;white-space:nowrap}
+}
+</style>
+<script id="r73Script">
+(function(){
+  if(typeof BLOCKS === 'undefined') return;
+  var E = function(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  // порядок меню, который резидент перетаскивал раньше (старые четыре раздела), сбрасывается один раз
+  try{
+    var ord = loadOrder();
+    if(!ord.r73){ delete ord.blk_navRes; ['rtrack','rbiz','rclub','rme'].forEach(function(k){ delete ord['tab_' + k]; }); ord.r73 = 1; saveOrder(ord); applyOrder(); }
+  }catch(e){}
+
+  // ═══ «Замеры»: все тесты на одном экране, следующий замер одной кнопкой ═══
+  var IC = {
+    dna: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M3.5 12h17M6 6l12 12M18 6L6 18"/>',
+    life: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/>',
+    diag: '<path d="M9 4h6M10 4v5l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V4"/>',
+    gal: '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>',
+    health: '<path d="M3 12h4l2-5 4 10 2-5h6"/>',
+    num: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    lab: '<path d="M9 3h6M10 3v6L5 19a1.5 1.5 0 0 0 1.3 2h11.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/><path d="M7.5 14h9"/>',
+    dyn: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'
+  };
+  function svg(p){ return '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>'; }
+  function cnt(a){ return (a || []).filter(function(v){ return v; }).length; }
+  function measures(){
+    var L = [];
+    var w = function(kind){ try{ return wheelData(kind) || []; }catch(e){ return []; } };
+    var hist = function(kind){ try{ return wheelHistory(kind) || []; }catch(e){ return []; } };
+    var dn = cnt(w('dna')), dt = (typeof WHEEL_DNA !== 'undefined' ? WHEEL_DNA.length : 8), dh = hist('dna');
+    L.push({id:'bizWheel', ic:'dna', t:'Колесо бизнеса', d:'8 направлений бизнеса, оценка от 0 до 10', done: dn >= dt, part: dn > 0 && dn < dt, st: dn ? dn + ' из ' + dt : 'Не заполнено', last: dh.length ? 'Замер ' + dh[dh.length - 1].date : '', key: true});
+    var ln = cnt(w('life')), lt = (typeof WHEEL_LIFE !== 'undefined' ? WHEEL_LIFE.length : 11), lh = hist('life');
+    L.push({id:'rwheel', ic:'life', t:'Колесо баланса', d:'11 сфер жизни, «Бизнес» берётся из колеса бизнеса', done: ln >= lt, part: ln > 0 && ln < lt, st: ln ? ln + ' из ' + lt : 'Не заполнено', last: lh.length ? 'Замер ' + lh[lh.length - 1].date : '', key: true});
+    var an = 0, at = 99;
+    try{ loadDiagAns(); an = Object.keys(diagAns || {}).length; at = DIAGNOSTIC_AREAS.reduce(function(a, x){ return a + x.questions.length; }, 0); }catch(e){}
+    L.push({id:'rDiag', ic:'diag', t:'Диагностика бизнеса', d:'Утверждения по органам бизнеса, итог с диагнозами', done: an >= at, part: an > 0 && an < at, st: an ? an + ' из ' + at : 'Не начата', key: true});
+    var g = null; try{ g = curBoard && curBoard.gallup; if(!g){ var all = JSON.parse(localStorage.getItem('bs_gallup') || '{}'); g = curBoard ? all[curBoard.id] : null; } }catch(e){}
+    L.push({id:'rGallup', ic:'gal', t:'Gallup', d:'Загрузите отчёт: разбор талантов под ваш бизнес', done: !!g, st: g ? 'Загружен' : 'Нет отчёта', key: true});
+    var hv = 0; try{ var H = (curBoard && curBoard.health) || {}; hv = Object.keys(H).filter(function(k){ return H[k] !== '' && H[k] != null; }).length; }catch(e){}
+    L.push({id:'rHealth', ic:'health', t:'Оценка трекеров', d:'Здоровье бизнеса по семи органам, ставят трекеры', done: hv > 0, st: hv ? hv + ' из 7 органов' : 'Появится после разбора', ro: true});
+    L.push({id:'rSummary', ic:'num', t:'Цифры бизнеса', d:'Оборот, прибыль, маржа и другие показатели за цикл', st: 'Раз в цикл'});
+    L.push({id:'rLabs', ic:'lab', t:'Анализы', d:'Показатели здоровья, которые влияют на работу', st: 'По желанию'});
+    L.push({id:'rAnalysis', ic:'dyn', t:'Динамика', d:'Что изменилось от замера к замеру', st: 'Из двух замеров', ro: true});
+    return L;
+  }
+  function renderMeas(){
+    var el = pgSet('Замеры', 'Раз в цикл, по 5 минут: видно, что меняется в бизнесе и в жизни');
+    var L = measures(), nx = L.filter(function(x){ return x.key && !x.done; })[0];
+    var h = '<div class="r73m">';
+    if(nx) h += '<div class="r73-next"><div><span class="k">Следующий замер</span><b>' + E(nx.t) + '</b><span>' + E(nx.d) + '</span></div>' +
+      '<button type="button" onclick="goSection(\'' + nx.id + '\')">' + (nx.part ? 'Продолжить' : 'Пройти') + '</button></div>';
+    else h += '<div class="r73-next"><div><span class="k">Замеры цикла</span><b>Всё заполнено</b><span>Обновите колёса перед следующим разбором, динамика посчитается сама</span></div>' +
+      '<button type="button" onclick="goSection(\'rAnalysis\')">Смотреть динамику</button></div>';
+    h += '<div class="r73-grid">' + L.map(function(x){
+      return '<button type="button" class="r73-c" data-s="' + x.id + '" onclick="goSection(this.dataset.s)"><span class="ic">' + svg(IC[x.ic]) + '</span><b>' + E(x.t) + '</b><em>' + E(x.d) + '</em>' +
+        '<span class="st"><i class="' + (x.done ? 'ok' : '') + '">' + E(x.st) + '</i><u>' + E(x.last || '') + '</u></span></button>';
+    }).join('') + '</div></div>';
+    el.innerHTML = h;
+  }
+  window.r73RenderMeas = renderMeas;
+  var rs0 = window.renderStub || renderStub;
+  window.renderStub = renderStub = function(s){ if(s === 'rMeas') return renderMeas(); return rs0.apply(this, arguments); };
+
+  // ═══ Профиль: данные без повторов (итоги и продление живут в своей вкладке, счётчики в «Статистике») ═══
+  if(typeof renderRProfile === 'function'){
+    var rp0 = renderRProfile;
+    window.renderRProfile = renderRProfile = function(){
+      var r = rp0.apply(this, arguments);
+      try{
+        var b = document.getElementById('rpBody'); if(!b || MODE !== 'res') return r;
+        b.querySelectorAll('.r51s-me').forEach(function(x){ x.remove(); });
+        var cs = b.querySelectorAll('.card-sum'); if(cs.length > 1) cs[cs.length - 1].remove();
+        var first = b.querySelector('.card-sum');
+        if(first && !first.textContent.trim()) first.outerHTML = '<div class="r73-pe">Анкета пока пустая. Имя, город, сфера бизнеса и семья появятся после первого разбора: их заполняет трекер со слов резидента.</div>';
+        b.insertAdjacentHTML('beforeend', '<div class="r73-h">Ещё в профиле</div><div class="r73-grid">' +
+          [['rStats', 'Статистика', 'Дни в клубе, циклы, встречи'], ['rResults', 'Итоги и продление', 'Итоги периодов, продление в 1 клик'], ['rAch', 'Достижения', 'Что уже открыто']].map(function(x){
+            return '<button type="button" class="r73-c" style="min-height:0" data-s="' + x[0] + '" onclick="goSection(this.dataset.s)"><b>' + x[1] + '</b><em>' + x[2] + '</em></button>';
+          }).join('') + '</div>');
+      }catch(e){}
+      return r;
+    };
+  }
+
+  // ═══ Подсказка резиденту: только на главных экранах, не на том, куда она ведёт; закрытая молчит 12 часов ═══
+  var HINT_ON = {board: 1, rtasks: 1, rMeas: 1};
+  function hintOff(t){ try{ var o = JSON.parse(localStorage.getItem('bs_hint_off') || '{}'); return o[t] && Date.now() - o[t] < 12 * 3600000; }catch(e){ return false; } }
+  window.r73HintClose = function(){
+    var t = (document.getElementById('hintT') || {}).textContent || '';
+    try{ var o = JSON.parse(localStorage.getItem('bs_hint_off') || '{}'); o[t] = Date.now(); localStorage.setItem('bs_hint_off', JSON.stringify(o)); }catch(e){}
+    var el = document.getElementById('hintBar'); if(el) el.classList.remove('on');
+  };
+  try{ var hx = document.querySelector('#hintBar .x'); if(hx){ hx.setAttribute('onclick', 'r73HintClose()'); hx.setAttribute('role', 'button'); hx.setAttribute('aria-label', 'Скрыть подсказку'); } }catch(e){}
+  window.renderHint = renderHint = function(){
+    var el = document.getElementById('hintBar'); if(!el) return;
+    var hint = null;
+    if(MODE === 'res' && HINT_ON[section]){ try{ hint = contextHint(); }catch(e){} }
+    if(!hint || hint.go === section || hintOff(hint.t)){ el.classList.remove('on'); return; }
+    document.getElementById('hintT').textContent = hint.t;
+    document.getElementById('hintD').textContent = hint.d;
+    var b = document.getElementById('hintB');
+    b.textContent = hint.btn;
+    b.onclick = function(){ el.classList.remove('on'); goSection(hint.go); };
+    el.classList.add('on');
+  };
+  // открытый раздел перерисовывается под новое меню, если страница уже открыта у резидента
+  try{ if(typeof MODE !== 'undefined' && MODE === 'res' && typeof curBlock !== 'undefined'){ pfSideSync(section); renderSide(); } }catch(e){}
+})();
+</script>
+<!-- /R73 -->
 </body>
 </html>

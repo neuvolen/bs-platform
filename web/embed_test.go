@@ -94,7 +94,7 @@ func TestRegisterServesEntryPage(t *testing.T) {
 	}
 	for _, c := range []string{"", "garbage"} {
 		page := get(c)
-		for _, want := range []string{"Вход для резидентов и команды", "Ещё не резидент?", "https://t.me/bsurgery_bot?start=app_login", "https://wa.me/77024035036", `class="lg"`, `rel="apple-touch-icon"`, "/api/v1/platform", "/config", "/auth/telegram", "BSX_onTelegram(user)", "oauth.telegram.org", "tgWebAppData", "tgAuthResult"} {
+		for _, want := range []string{"Вход для резидентов и команды", "Ещё не резидент?", "https://t.me/bsurgery_bot?start=app_login", "https://wa.me/77024035036", `class="lg"`, `rel="apple-touch-icon"`, "/api/v1/platform", "/config", "/auth/telegram", `id="tgBtn"`, "oauth.telegram.org", "tgWebAppData", "tgAuthResult"} {
 			if !strings.Contains(page, want) {
 				t.Errorf("entry page (cookie %q) lacks %q", c, want)
 			}

@@ -31,6 +31,7 @@ var lazyKeep = map[string]bool{
 	"*:spare": true, "*:toIdb": true, "*:idbOpen": true, "*:idbPut": true, "*:idbFlush": true,
 	"*:budget": true, "*:budgetSoon": true, "*:cleanupOnce": true, "*:quotaNote": true,
 	"r46Script:r46LeadTeaser": true, // R46: the lead home's «Бизнес-идеи» block
+	"*:lxVideo":               true, // R73: the lead home's video starts as the page draws
 	// R52: the tab strip keeps its scroll, and the board signs edited cards (who, when) as it draws
 	"r52Script:keepStrip": true, "r52Script:edBadge": true, "r52Script:when": true,
 	// R52: the https guard in <head> runs before anything is fetched

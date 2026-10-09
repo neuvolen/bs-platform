@@ -75,8 +75,18 @@ func ReadStart(body []byte) (StartUpdate, bool) {
 	return StartUpdate{ChatID: m.Chat.ID, Param: p, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username, Date: m.Date}, true
 }
 
+// LoginStartText: the answer to /start login.
+const LoginStartText = "📱 Платформа Business Surgery\n\nНажмите «Открыть платформу»: она откроется прямо в Telegram, вход без пароля."
+
 // takeStart: true when the server answered the /start itself.
 func (s *Service) takeStart(ctx context.Context, body []byte) bool {
+	// R73: t.me/bsurgery_bot?start=login (the login page's «Войти через приложение
+	// Telegram»): anyone gets the platform as a Mini App, signed in by Telegram itself.
+	// A resident lands in the cabinet, the team in theirs, anyone else on the guest page.
+	if st, ok := ReadStart(body); ok && st.Param == "login" {
+		_ = s.SendMessageKB(ctx, st.ChatID, LoginStartText, kb([]map[string]any{{"text": "Открыть платформу", "web_app": map[string]string{"url": s.platformURL(ctx)}}}))
+		return true
+	}
 	s.mu.RLock()
 	h := s.startHook
 	s.mu.RUnlock()

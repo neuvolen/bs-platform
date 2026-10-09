@@ -142,8 +142,24 @@ func init() {
 		_ = os.WriteFile(f, SiteManifest(), 0o644)
 	}
 	appPage = build(injectMarker(injectVoice(shell)))
-	loginHTMLBase = injectScale(loginWithIcons(useOwnFonts(string(loginHTML)), shell)) // R61: real library counts
-	loginPage = build(injectLoginVoice(loginHTMLBase))                                 // R40c: demo voice map (login_voice.go)
+	loginHTMLBase = injectTgBot(injectScale(loginWithIcons(useOwnFonts(string(loginHTML)), shell)), os.Getenv("TELEGRAM_BOT_TOKEN")) // R61: real library counts; R73: bot id for the login button
+	loginPage = build(injectLoginVoice(loginHTMLBase))                                                                               // R40c: demo voice map (login_voice.go)
+}
+
+// injectTgBot puts the bot's numeric id (the public part of its token, it is
+// in every Telegram login link anyway) into the login button, so the button
+// links to Telegram's login page at once: no /config round trip and no
+// Telegram widget before the person can sign in (R73). Without a token the
+// page asks /config, as before.
+func injectTgBot(page, token string) string {
+	id, _, _ := strings.Cut(strings.TrimSpace(token), ":")
+	for _, r := range id {
+		if r < '0' || r > '9' {
+			id = ""
+			break
+		}
+	}
+	return strings.ReplaceAll(page, "<!--TGBOTID-->", id)
 }
 
 // stripSeed replaces `var NAME = <json>;` lines with empty values and returns
