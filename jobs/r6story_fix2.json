@@ -1,0 +1,10 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {"stability": 0.42, "similarity": 0.8, "style": 0.3, "speed": 0.98, "speaker_boost": true},
+ "context": true,
+ "lines": [
+  {"id": "u06", "text": "План на десять дней: платёжный календарь и закуп передать управля́ющей."},
+  {"id": "u09", "text": "Через два цикла кассовый разрыв закрыт. Дальше закуп переходит к управля́ющей."}
+ ]
+}
