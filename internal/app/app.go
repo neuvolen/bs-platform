@@ -474,6 +474,13 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		httpapi.DebtFixAtStart(ctx, clubRepo, repo, writes.Tables)
+		if lines, err := clubRepo.R69Audit(ctx); err != nil {
+			log.Printf("r69 audit: %v", err)
+		} else {
+			for _, l := range lines {
+				log.Printf("r69 audit: %s", l)
+			}
+		}
 	}()
 	var docs interface {
 		PutServerDoc(ctx context.Context, key, value string) error

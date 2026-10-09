@@ -772,3 +772,6 @@ func (a *auditor) ruleConductedOverPaid() {
 func ParseDebetRows(rows [][]string) ([]Resident, error) {
 	return parseDebet(rows, func(string, ...any) {})
 }
+
+// FmtMoney: 1500000 → "1 500 000".
+func FmtMoney(v int64) string { return money(v) }
