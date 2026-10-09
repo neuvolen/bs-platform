@@ -152,11 +152,12 @@ func (h *PlatformAI) RetryCall(c *gin.Context) {
 	if fid == "" {
 		fid, _ = meta["audio"].(string)
 	}
-	if fid == "" || !h.repo.FileExists(ctx, fid) {
+	hasText := strings.TrimSpace(csS(meta["transcript"])) != "" // R65: расшифровка остаётся без записи
+	if !hasText && (fid == "" || !h.repo.FileExists(ctx, fid)) {
 		c.JSON(http.StatusOK, gin.H{"error": "Запись не сохранилась на сервере, обработать снова нельзя"})
 		return
 	}
-	if msg := h.noKey(meta["text"] == true); msg != "" {
+	if msg := h.noKey(meta["text"] == true || hasText); msg != "" {
 		c.JSON(http.StatusOK, gin.H{"error": msg, "noKey": true})
 		return
 	}
@@ -255,12 +256,13 @@ func (h *PlatformAI) runCallJob(id string) {
 	if fid == "" {
 		fid, _ = meta["audio"].(string)
 	}
-	if fid == "" {
+	var f *pg.PlatformFile
+	if t, _ := meta["transcript"].(string); fid == "" && strings.TrimSpace(t) != "" {
+		f = &pg.PlatformFile{Mime: "audio/webm"} // R65: запись удалена, расшифровка осталась
+	} else if fid == "" {
 		fail(errors.New("запись не сохранилась на сервере"))
 		return
-	}
-	f, err := h.repo.GetFile(ctx, fid)
-	if err != nil || f == nil {
+	} else if f, _ = h.repo.GetFile(ctx, fid); f == nil {
 		fail(errors.New("запись не найдена на сервере"))
 		return
 	}
@@ -301,6 +303,7 @@ func (h *PlatformAI) runCallJob(id string) {
 	// R32e: the structured summary as a draft and its PDF; the resident gets
 	// it when the team publishes (callsum_flow.go)
 	h.callSumDraft(ctx, j, meta)
+	h.callRecAfterSummary(ctx, j, meta) // R65: саммари и PDF готовы: аудио не храним (callrec_r65.go)
 	meta["stage"] = "deliver"
 	b, _ := json.Marshal(meta)
 	_ = h.repo.UpdateAIJob(ctx, id, "running", "", b)
@@ -389,6 +392,9 @@ func callCard(id string, meta map[string]any) map[string]any {
 	callSumFields(card, meta) // R32e: sections and draft/published (callsum_flow.go)
 	if sent, ok := meta["sent"]; ok {
 		card["sent"] = sent
+	}
+	if rd, ok := meta["recDeleted"]; ok { // R65: «Запись удалена после саммари»
+		card["recDeleted"] = rd
 	}
 	return card
 }

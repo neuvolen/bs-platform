@@ -121,10 +121,14 @@ func TestCallRecordingsDelivered(t *testing.T) {
 			Problems, Next   []string
 			Checklist        []struct{ Text, Due string }
 			Sent             map[string]any
+			RecDeleted       map[string]any // R65: запись удалена после саммари
 		}
 	}
 	_ = json.Unmarshal(b.Data, &bd)
-	if len(bd.Calls) != 1 || bd.Calls[0].ID != resp.ID || bd.Calls[0].Title != "Разбор Даулета" || bd.Calls[0].Audio == "" ||
+	if repo.FileExists(ctx, resp.File) {
+		t.Fatalf("R65: the recording must be deleted once the summary and its PDF are ready")
+	}
+	if len(bd.Calls) != 1 || bd.Calls[0].ID != resp.ID || bd.Calls[0].Title != "Разбор Даулета" || bd.Calls[0].Audio != "" || bd.Calls[0].RecDeleted["why"] != "summary" ||
 		len(bd.Calls[0].Problems) != 1 || len(bd.Calls[0].Next) != 1 || bd.Calls[0].Sent["owner"] != true || bd.Calls[0].Sent["resident"] != false {
 		t.Fatalf("board calls: %s", b.Data)
 	}

@@ -126,8 +126,11 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.Use(middleware.RequireRole("admin", "moderator", "resident"))
 
 	g.GET("/sync", m.h.Sync)
-	g.POST("/presence", m.Presence.Post)         // R52: platform_presence.go
-	g.GET("/presence/stream", m.Presence.Stream) // R52
+	g.POST("/presence", m.Presence.Post)          // R52: platform_presence.go
+	g.GET("/presence/stream", m.Presence.Stream)  // R52
+	g.POST("/call/room", m.Presence.CallRoom)     // R65: онлайн-разбор на доске (platform_callroom.go)
+	g.POST("/call/signal", m.Presence.CallSignal) // R65
+	g.GET("/call/stream", m.Presence.CallStream)  // R65
 	g.PUT("/boards/:id", m.h.PutBoard)
 	g.DELETE("/boards/:id", m.h.DeleteBoard)
 	g.GET("/boards/:id/versions", m.h.BoardVersions)

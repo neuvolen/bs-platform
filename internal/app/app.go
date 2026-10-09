@@ -271,7 +271,8 @@ func WireCalls(pm *httpapi.PlatformModule, botSvc *bot.Service, team string) {
 		pm.WireLeadBot(botSvc.SendMessageKB, admins)
 	}
 	go pm.AI.ResumeCalls(context.Background(), 45*time.Second, 2*time.Minute, 3*time.Minute)
-	go pm.AI.CallSumLoop(context.Background(), 5*time.Minute) // R32e: quiet-hours sends, auto-publish
+	go pm.AI.CallSumLoop(context.Background(), 5*time.Minute)               // R32e: quiet-hours sends, auto-publish
+	go pm.AI.CallRecLoop(context.Background(), 90*time.Second, 6*time.Hour) // R65: записи разборов не храним после саммари
 }
 
 // contentEngine: the wired engine, for the /status line (syscheck_wiring.go).

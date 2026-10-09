@@ -39869,5 +39869,595 @@ input[type=date][disabled]{cursor:default;opacity:.6}
   }, true);
 })();
 </script>
+<!-- R65: онлайн-разбор на доске в одной вкладке: созвон трекера и резидента, экран показывает любой (новый показ сменяет прежний),
+     запись звука созвона без второго захвата экрана, вместо плашки точка «● Запись» в панели созвона, запись не хранится после саммари -->
+<style id="r65Style">
+.r65-dock{position:fixed;left:calc(var(--sw, 0px) + (100vw - var(--sw, 0px)) / 2);bottom:22px;transform:translateX(-50%);z-index:121;display:none;align-items:center;gap:6px;
+  max-width:calc(100vw - var(--sw, 0px) - 24px);padding:6px;border-radius:16px;background:var(--pc, #161616);color:var(--ptx, #fff);border:1px solid var(--pi, rgba(255,255,255,.14));
+  box-shadow:0 14px 40px rgba(0,0,0,.45);font-family:'Manrope',-apple-system,sans-serif;font-size:13px;box-sizing:border-box}
+body.light .r65-dock{box-shadow:0 12px 32px rgba(0,0,0,.14)}
+.r65-dock.on{display:flex}
+.r65-dock button{font:inherit;font-weight:800;font-size:12.5px;height:36px;padding:0 12px;border-radius:11px;border:1px solid var(--pi, rgba(255,255,255,.14));background:transparent;color:inherit;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
+.r65-dock button:hover{background:var(--ph, rgba(255,255,255,.06))}
+.r65-dock button:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.r65-dock button.pr{background:var(--ptx, #fff);color:var(--pc, #111);border-color:var(--ptx, #fff)}
+.r65-dock button.pr:hover{filter:brightness(.9)}
+.r65-dock button.off{opacity:.55}
+.r65-dock button svg{width:16px;height:16px;flex-shrink:0}
+.r65-dock .r65-ic{width:36px;padding:0;justify-content:center}
+.r65-who{display:flex;align-items:center;gap:8px;padding:0 6px 0 4px;min-width:0}
+.r65-avs{display:flex}
+.r65-av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;font-weight:900;color:#111;background:var(--c);border:2px solid var(--pc, #161616);margin-left:-6px;position:relative}
+.r65-av:first-child{margin-left:0}
+.r65-av.pres{box-shadow:0 0 0 2px var(--ptx, #fff)}
+.r65-st{font-weight:700;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.r65-rec{display:inline-flex;align-items:center;gap:6px;font-weight:800;font-variant-numeric:tabular-nums;padding:0 8px;white-space:nowrap;opacity:.9}
+.r65-rec i{width:8px;height:8px;border-radius:50%;background:#E5484D;animation:r65p 1.6s ease-in-out infinite}
+@keyframes r65p{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.r65-rec i{animation:none}}
+.r65-sep{width:1px;height:22px;background:var(--pi, rgba(255,255,255,.14));margin:0 2px}
+.r65-stage{position:fixed;z-index:120;right:16px;top:calc(var(--th, 56px) + 112px);width:min(64vw, 1100px);display:none;flex-direction:column;border-radius:16px;overflow:hidden;
+  background:#000;border:1px solid var(--pi, rgba(255,255,255,.14));box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.r65-stage.on{display:flex}
+.r65-stage.mini{width:260px;top:auto;bottom:84px;cursor:pointer}
+.r65-stage .r65-sh{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;background:var(--pc, #161616);color:var(--ptx, #fff);font:800 13px 'Manrope',-apple-system,sans-serif}
+.r65-stage .r65-sh span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r65-stage .r65-sh button{font:inherit;font-size:12px;height:30px;padding:0 10px;border-radius:9px;border:1px solid var(--pi, rgba(255,255,255,.14));background:transparent;color:inherit;cursor:pointer;white-space:nowrap}
+.r65-stage .r65-sh button.pr{background:var(--ptx, #fff);color:var(--pc, #111);border-color:var(--ptx, #fff)}
+.r65-stage.mini .r65-sh button{display:none}
+.r65-stage video{display:block;width:100%;max-height:calc(100vh - var(--th, 56px) - 150px);background:#000;object-fit:contain}
+.r65-stage .r65-wait{position:absolute;left:0;right:0;bottom:0;top:46px;display:none;place-items:center;color:#aaa;font:700 13px 'Manrope',sans-serif}
+.r65-stage.wait .r65-wait{display:grid}
+.r65-join{position:fixed;left:calc(var(--sw, 0px) + (100vw - var(--sw, 0px)) / 2);bottom:22px;transform:translateX(-50%);z-index:121;display:none;align-items:center;gap:10px;
+  padding:6px 6px 6px 14px;border-radius:14px;background:var(--pc, #161616);color:var(--ptx, #fff);border:1px solid var(--pi, rgba(255,255,255,.14));box-shadow:0 14px 40px rgba(0,0,0,.4);
+  font:700 13px 'Manrope',-apple-system,sans-serif;max-width:calc(100vw - 24px);box-sizing:border-box}
+.r65-join.on{display:flex}
+.r65-join i{width:8px;height:8px;border-radius:50%;background:#3DD68C;flex-shrink:0}
+.r65-join span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r65-join button{font:inherit;font-weight:800;height:34px;padding:0 14px;border-radius:10px;border:1px solid var(--ptx, #fff);background:var(--ptx, #fff);color:var(--pc, #111);cursor:pointer;white-space:nowrap}
+.r65-join .x{background:transparent;color:inherit;border-color:transparent;padding:0 8px;opacity:.6}
+html.r65-in .recpill{display:none!important}
+html.r65-in .reccard{bottom:84px}
+.r65-cm{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--pi, rgba(255,255,255,.14));border-radius:14px;margin-bottom:14px}
+.r65-cm b{font-size:14px}
+.r65-cm span{font-size:12.5px;line-height:1.5;opacity:.75}
+.r65-cm .btn{width:100%;padding:13px}
+.cl-recgone{font-size:12.5px;opacity:.7;margin:6px 0 2px}
+.r65-gone{font-size:11px;opacity:.65}
+@media(max-width:700px){
+  .r65-dock,.r65-join{bottom:84px;left:50%}
+  .r65-dock{gap:4px;padding:5px}
+  .r65-dock .r65-st,.r65-dock .r65-lbl{display:none}
+  .r65-dock button{padding:0 10px}
+  .r65-stage{left:8px;right:8px;width:auto;top:calc(var(--th, 56px) + 8px)}
+  .r65-stage .r65-sh [data-a="share"],.r65-stage .r65-sh [data-a="full"]{display:none}
+  .r65-stage.mini{left:auto;width:180px;bottom:140px}
+}
+</style>
+<script id="r65Script">
+(function(){
+if(!window.RTCPeerConnection || !navigator.mediaDevices) return;
+var TAB = 'c' + Math.random().toString(36).slice(2, 10);
+var C = {on: false, board: '', me: '', room: null, ice: [{urls: ['stun:stun.l.google.com:19302']}], mic: null, micOn: true, share: null, pcs: {},
+  tok: null, reader: null, fails: 0, mini: false, presKey: '', joining: false, peek: null, dismissed: '', meet: '', iceQ: {}};
+window.r65 = C;
+var ea = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+var tst = function(t){ try{ toast(t); }catch(e){} };
+var isTeam = function(){ return typeof MODE !== 'undefined' && MODE === 'admin'; };
+var api = function(m, p, b){ return BSSync.api(m, p, b).then(function(r){ return r.json().catch(function(){ return null; }).then(function(j){ return {s: r.status, j: j}; }); }); };
+var userName = function(){ try{ var u = BSSync.user && BSSync.user(); return (u && u.name) || ''; }catch(e){ return ''; } };
+var first = function(n){ return String(n || '').trim().split(/\s+/)[0] || 'Участник'; };
+var initials = function(n){ var p = String(n || '?').trim().split(/\s+/); return ((p[0] || '?')[0] + (p[1] ? p[1][0] : '')).toUpperCase(); };
+var ICON = {
+  mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  micoff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V6a3 3 0 0 0-6-.5M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.6 2.8M12 18v3M4 4l16 16"/></svg>',
+  scr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M12 13V7M9.5 9.5 12 7l2.5 2.5"/></svg>',
+  stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+  out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></svg>'
+};
+
+// ── элементы ──
+var el = function(id, cls, tag){ var e = document.getElementById(id); if(!e){ e = document.createElement(tag || 'div'); e.id = id; e.className = cls; document.body.appendChild(e); } return e; };
+var audioBox = function(){ var b = el('r65Audio', '', 'div'); b.style.display = 'none'; return b; };
+
+// ── сервер ──
+var roomOp = function(op){
+  if(!C.board) return Promise.resolve(null);
+  return api('POST', '/call/room', {board: C.board, tab: TAB, op: op, name: userName()}).then(function(x){
+    if(x.j && x.j.ice) C.ice = x.j.ice;
+    if(x.j && x.j.room) onRoom(x.j.room);
+    return x;
+  }).catch(function(){ return null; });
+};
+var sig = function(to, kind, data){
+  return BSSync.api('POST', '/call/signal', {board: C.board, tab: TAB, to: to, kind: kind, data: data}).catch(function(){});
+};
+// Кандидаты соединения уходят пачкой раз в 150 мс
+var sigIce = function(to, gen, c){
+  var q = C.iceQ[to] || (C.iceQ[to] = {gen: gen, c: [], t: 0});
+  if(q.gen !== gen){ q.gen = gen; q.c = []; }
+  q.c.push(c);
+  if(!q.t) q.t = setTimeout(function(){ var b = C.iceQ[to]; delete C.iceQ[to]; if(b && b.c.length) sig(to, 'ice', {gen: b.gen, c: b.c}); }, 150);
+};
+var stream = function(){
+  if(C.tok || !C.on) return;
+  var my = {}, board = C.board, t0 = Date.now();
+  C.tok = my;
+  BSSync.api('GET', '/call/stream?board=' + encodeURIComponent(board) + '&tab=' + TAB).then(function(r){
+    if(!r.ok || !r.body || !r.body.getReader) throw new Error('no stream');
+    var rd = r.body.getReader(), dec = new TextDecoder(), buf = '';
+    if(C.tok !== my){ try{ rd.cancel(); }catch(e){} return; }
+    C.reader = rd;
+    var pump = function(){
+      return rd.read().then(function(x){
+        if(x.done || C.tok !== my) return;
+        buf += dec.decode(x.value, {stream: true});
+        var i;
+        while((i = buf.indexOf('\n\n')) >= 0){
+          var ev = buf.slice(0, i); buf = buf.slice(i + 2);
+          var data = ev.split('\n').filter(function(l){ return l.indexOf('data: ') === 0; }).map(function(l){ return l.slice(6); }).join('');
+          if(!data) continue;
+          try{
+            var j = JSON.parse(data);
+            if(j.room){ C.fails = 0; onRoom(j.room); }
+            (j.msgs || []).forEach(function(m){ C.chain = (C.chain || Promise.resolve()).then(function(){ return onMsg(m); }).catch(function(e){ console.warn('r65', e); }); });
+          }catch(e){}
+        }
+        return pump();
+      });
+    };
+    return pump();
+  }).catch(function(){}).then(function(){
+    if(C.tok !== my) return;
+    C.tok = null; C.reader = null;
+    if(!C.on || board !== C.board) return;
+    if(Date.now() - t0 < 4000) C.fails++;
+    setTimeout(stream, C.fails ? Math.min(8000, 1000 * C.fails) : 30);
+  });
+};
+var stopStream = function(){ var r = C.reader; C.tok = null; C.reader = null; if(r){ try{ r.cancel(); }catch(e){} } };
+
+// ── соединения: одно на каждого участника, звук и экран в постоянных дорожках (замена дорожки без переговоров) ──
+var micTrack = function(){ return C.mic && C.mic.getAudioTracks()[0] || null; };
+var shareTrack = function(){ return C.share && C.share.getVideoTracks()[0] || null; };
+var kindTx = function(pc, kind){ return pc.getTransceivers().filter(function(t){ return t.receiver && t.receiver.track && t.receiver.track.kind === kind; })[0] || null; };
+var closePc = function(key){
+  var P = C.pcs[key]; if(!P) return;
+  delete C.pcs[key];
+  try{ P.pc.close(); }catch(e){}
+  if(P.au){ try{ P.au.srcObject = null; P.au.remove(); }catch(e){} }
+  clearTimeout(P.dt);
+  renderStage();
+};
+var newPc = function(key, initiator, gen){
+  closePc(key);
+  var pc = new RTCPeerConnection({iceServers: C.ice});
+  var P = {key: key, pc: pc, initiator: initiator, gen: gen || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), pend: [], at: Date.now()};
+  C.pcs[key] = P;
+  pc.onicecandidate = function(e){ if(e.candidate && C.pcs[key] === P) sigIce(key, P.gen, e.candidate.toJSON ? e.candidate.toJSON() : e.candidate); };
+  pc.ontrack = function(e){
+    if(C.pcs[key] !== P) return;
+    if(e.track.kind === 'audio'){
+      var a = P.au || (P.au = document.createElement('audio'));
+      a.autoplay = true; a.setAttribute('playsinline', ''); a.srcObject = new MediaStream([e.track]);
+      if(!a.parentNode) audioBox().appendChild(a);
+      a.play && a.play().catch(function(){});
+      if(window.REC && REC.call && REC.add) REC.add(key, e.track);
+    } else {
+      e.track.onunmute = function(){ renderStage(); };
+      e.track.onmute = function(){ renderStage(); };
+      renderStage();
+    }
+  };
+  pc.onconnectionstatechange = function(){
+    if(C.pcs[key] !== P) return;
+    var s = pc.connectionState;
+    clearTimeout(P.dt);
+    if(s === 'connected'){ P.ok = true; render(); return; }
+    if(s === 'failed' || s === 'disconnected'){
+      // Восстановление: начинающий заново звонит, второй просит его об этом
+      P.dt = setTimeout(function(){
+        if(C.pcs[key] !== P || pc.connectionState === 'connected') return;
+        if(P.initiator) call(key); else sig(key, 'hello', {});
+      }, s === 'failed' ? 300 : 6000);
+    }
+    render();
+  };
+  return P;
+};
+// Звонит тот, чей ключ меньше: без встречных звонков
+var call = function(key){
+  var P = newPc(key, true), pc = P.pc;
+  pc.addTransceiver(micTrack() || 'audio', {direction: 'sendrecv'});
+  pc.addTransceiver(shareTrack() || 'video', {direction: 'sendrecv'});
+  return pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){
+    if(C.pcs[key] !== P) return;
+    return sig(key, 'offer', {gen: P.gen, sdp: {type: pc.localDescription.type, sdp: pc.localDescription.sdp}});
+  }).catch(function(e){ console.warn('r65 offer', e); });
+};
+var flushIce = function(P){
+  var l = P.pend; P.pend = [];
+  l.forEach(function(c){ P.pc.addIceCandidate(c).catch(function(){}); });
+};
+var onMsg = function(m){
+  if(!C.on || !m || !m.from) return;
+  var d = m.data || {}, P = C.pcs[m.from];
+  if(m.kind === 'offer'){
+    P = newPc(m.from, false, d.gen);
+    var pc = P.pc;
+    return pc.setRemoteDescription(d.sdp).then(function(){
+      var at = kindTx(pc, 'audio'), vt = kindTx(pc, 'video');
+      if(at){ at.direction = 'sendrecv'; at.sender.replaceTrack(micTrack()).catch(function(){}); }
+      if(vt){ vt.direction = 'sendrecv'; vt.sender.replaceTrack(shareTrack()).catch(function(){}); }
+      flushIce(P);
+      return pc.createAnswer();
+    }).then(function(a){ return pc.setLocalDescription(a); }).then(function(){
+      if(C.pcs[m.from] !== P) return;
+      return sig(m.from, 'answer', {gen: P.gen, sdp: {type: pc.localDescription.type, sdp: pc.localDescription.sdp}});
+    });
+  }
+  if(m.kind === 'answer'){
+    if(!P || P.gen !== d.gen || P.pc.signalingState !== 'have-local-offer') return;
+    return P.pc.setRemoteDescription(d.sdp).then(function(){ flushIce(P); });
+  }
+  if(m.kind === 'ice'){
+    if(!P || P.gen !== d.gen) return;
+    (d.c || []).forEach(function(c){ if(P.pc.remoteDescription) P.pc.addIceCandidate(c).catch(function(){}); else P.pend.push(c); });
+    return;
+  }
+  if(m.kind === 'hello'){
+    if(C.me < m.from && (!P || (P.pc.connectionState !== 'connected' && Date.now() - P.at > 8000))) return call(m.from);
+    return;
+  }
+  if(m.kind === 'bye'){ closePc(m.from); }
+};
+
+// ── состояние созвона от сервера ──
+var onRoom = function(room){
+  if(!room) return;
+  var prevPres = C.room && C.room.presenter ? C.room.presenter.key : '';
+  C.room = room;
+  if(room.you) C.me = room.you;
+  if(!C.on){ renderJoin(); return; }
+  if(!room.in){
+    // сервер перезапустился или вкладку не было слышно: войти снова
+    if(!C.joining){ C.joining = true; roomOp('join').then(function(){ C.joining = false; if(C.share) roomOp('present'); }); }
+    return;
+  }
+  var keys = {};
+  (room.members || []).forEach(function(m){
+    if(m.key === C.me) return;
+    keys[m.key] = 1;
+    if(!C.pcs[m.key]){
+      if(C.me < m.key) call(m.key);
+      else {
+        // ждём звонка; если не пришёл, просим
+        var k = m.key; C.wait = C.wait || {};
+        if(!C.wait[k]) C.wait[k] = setTimeout(function(){ delete C.wait[k]; if(C.on && !C.pcs[k]) sig(k, 'hello', {}); }, 4000);
+      }
+    }
+  });
+  Object.keys(C.pcs).forEach(function(k){ if(!keys[k]) closePc(k); });
+  var pres = room.presenter ? room.presenter.key : '';
+  // Показывает уже другой (нажал позже меня): свой показ останавливается сам
+  if(C.share && !C.sharing && pres && pres !== C.me && Date.parse(room.presenter.at) >= (C.myPresAt || 0)){ shareStop(false); }
+  var pk = pres ? pres + '@' + room.presenter.at : '';
+  if(pres && pres !== C.me && pres !== prevPres && pk !== C.toldPres){ C.toldPres = pk; tst('Сейчас показывает ' + first(room.presenter.name)); C.mini = false; }
+  if(C.share && !C.sharing && !pres){ roomOp('present'); }
+  render();
+};
+
+// ── показ экрана ──
+var canShare = function(){ return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia); };
+var shareStart = function(){
+  if(!C.on){ tst('Сначала войдите в созвон'); return; }
+  if(!canShare()){ tst('Показ экрана работает в Chrome на компьютере'); return; }
+  if(C.share){ return; }
+  // Трекеру Chrome сразу предлагает эту вкладку с доской (вторая вкладка не нужна), резиденту: любое окно или экран.
+  // «Поделиться этой вкладкой вместо…» в полосе Chrome меняет источник без остановки показа.
+  var o = {video: {frameRate: {ideal: 15, max: 30}}, audio: false, selfBrowserSurface: 'include', surfaceSwitching: 'include', monitorTypeSurfaces: 'include'};
+  if(isTeam()) o.preferCurrentTab = true;
+  return navigator.mediaDevices.getDisplayMedia(o).then(function(st){
+    if(!C.on){ st.getTracks().forEach(function(t){ t.stop(); }); return; }
+    var tr = st.getVideoTracks()[0];
+    try{ tr.contentHint = 'detail'; }catch(e){}
+    C.share = st; C.sharing = true;
+    tr.onended = function(){ if(C.share === st) shareStop(true); };
+    Object.keys(C.pcs).forEach(function(k){ var t = kindTx(C.pcs[k].pc, 'video'); if(t) t.sender.replaceTrack(tr).catch(function(){}); });
+    return roomOp('present').then(function(x){
+      C.sharing = false;
+      var p = x && x.j && x.j.room && x.j.room.presenter;
+      C.myPresAt = p && p.key === C.me ? Date.parse(p.at) : Date.now();
+      render(); tst('Вы показываете экран');
+    });
+  }).catch(function(e){
+    if(e && /NotAllowed|Permission|AbortError/i.test(e.name + ' ' + e.message)) return;
+    tst('Показ не начался: ' + ((e && e.message) || 'нет доступа'));
+  });
+};
+var shareStop = function(tell){
+  var st = C.share; C.share = null;
+  if(st) st.getTracks().forEach(function(t){ t.onended = null; t.stop(); });
+  Object.keys(C.pcs).forEach(function(k){ var t = kindTx(C.pcs[k].pc, 'video'); if(t) t.sender.replaceTrack(null).catch(function(){}); });
+  if(tell) roomOp('unpresent');
+  render();
+};
+
+// ── вход и выход ──
+var join = function(o){
+  o = o || {};
+  if(C.on){ if(o.rec && isTeam() && !window.REC) recStart(); return Promise.resolve(); }
+  if(!window.BSSync || !BSSync.api || !BSSync.online()){ tst('Созвон работает на сервере платформы'); return Promise.resolve(); }
+  if(typeof curBoard === 'undefined' || !curBoard || !curBoard.id){ tst('Откройте доску резидента'); return Promise.resolve(); }
+  C.board = String(curBoard.id); C.meet = o.meet || '';
+  return navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true}}).catch(function(e){
+    tst(e && /NotAllowed|Permission/i.test(e.name + e.message) ? 'Нет доступа к микрофону: вас не слышно, разрешите микрофон в адресной строке' : 'Микрофон не найден: вас не слышно');
+    return null;
+  }).then(function(mic){
+    C.mic = mic; C.micOn = !!mic; C.on = true; C.dismissed = '';
+    document.documentElement.classList.add('r65-in');
+    renderJoin();
+    return roomOp('join');
+  }).then(function(x){
+    if(!x || x.s !== 200){ leave(true); tst(x && x.s === 403 ? 'Это не ваша доска' : 'Созвон не начался: нет связи с сервером'); return; }
+    stream(); render();
+    tst((C.room.members || []).length > 1 ? 'Вы в созвоне' : 'Созвон начат: резидент войдёт с этой же доски');
+    if(o.rec && isTeam()) recStart();
+  });
+};
+var leave = function(silent){
+  if(!C.on) return;
+  if(window.REC && REC.call){ try{ stopCallRec(); }catch(e){} }
+  Object.keys(C.pcs).forEach(function(k){ sig(k, 'bye', {}); closePc(k); });
+  if(C.share) shareStop(false);
+  if(!silent) roomOp('leave');
+  stopStream();
+  if(C.mic) C.mic.getTracks().forEach(function(t){ t.stop(); });
+  C.mic = null; C.on = false; C.room = null; C.me = ''; C.dismissed = C.board;
+  document.documentElement.classList.remove('r65-in');
+  render(); renderJoin();
+};
+var micToggle = function(){
+  var t = micTrack(); if(!t){ tst('Микрофон не подключён'); return; }
+  C.micOn = !C.micOn; t.enabled = C.micOn; render();
+};
+var linkCopy = function(){
+  var u = location.origin + '/#call=' + encodeURIComponent(C.board || (curBoard && curBoard.id) || '');
+  var done = function(){ tst('Ссылка скопирована: резидент откроет эту доску и войдёт в созвон'); };
+  try{ navigator.clipboard.writeText(u).then(done, function(){ tst(u); }); }catch(e){ tst(u); }
+};
+
+// ── запись: звук созвона без второго захвата (микрофон и голоса участников сводятся в WebAudio) ──
+var recStart = function(){
+  if(window.REC){ tst('Запись уже идёт'); return; }
+  if(!window.MediaRecorder){ tst('Запись работает в Chrome на компьютере'); return; }
+  var ac = new (window.AudioContext || window.webkitAudioContext)(), dest = ac.createMediaStreamDestination(), an = ac.createAnalyser();
+  an.fftSize = 512;
+  try{ ac.resume(); }catch(e){}
+  var srcs = {};
+  var add = function(k, track){
+    if(!track || srcs[k + track.id]) return;
+    try{ var s = ac.createMediaStreamSource(new MediaStream([track])); s.connect(dest); s.connect(an); srcs[k + track.id] = s; }catch(e){}
+  };
+  add('me', micTrack());
+  Object.keys(C.pcs).forEach(function(k){ var t = kindTx(C.pcs[k].pc, 'audio'); if(t) add(k, t.receiver.track); });
+  var mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+  var mr = new MediaRecorder(dest.stream, {mimeType: mime, audioBitsPerSecond: 32000});
+  var id = 'r' + Date.now().toString(36), i = 0;
+  var R = {id: id, mr: mr, ac: ac, an: an, streams: [], t0: Date.now(), paused: 0, pauseAt: 0, bytes: 0, mem: [],
+    boardId: curBoard.id, res: recRes(), date: recDate(), mime: 'audio/webm', mode: 'call', call: true, add: add};
+  REC = callRec = R;
+  RDB.putRec({id: id, boardId: R.boardId, res: R.res, date: R.date, started: R.t0, mime: R.mime, state: 'recording'});
+  mr.ondataavailable = function(e){ if(!e.data || !e.data.size) return; R.mem.push(e.data); R.bytes += e.data.size; RDB.putChunk(id, i++, e.data); };
+  mr.onstop = function(){ recFinish(R); };
+  mr.start(5000);
+  document.body.classList.add('rec-on');
+  roomOp('rec');
+  render();
+  tst('Запись созвона началась');
+};
+// Конец записи: снять отметку «Запись» у всех
+(function(){
+  var _rf = window.recFinish;
+  if(typeof _rf !== 'function') return;
+  window.recFinish = function(r){
+    var out = _rf.apply(this, arguments);
+    if(r && r.call && C.on) roomOp('unrec');
+    render();
+    return out;
+  };
+  var _scr = window.startCallRec;
+  if(typeof _scr === 'function') window.startCallRec = function(){ if(C.on) return recStart(); return _scr.apply(this, arguments); };
+})();
+
+// ── отрисовка ──
+var members = function(){ return (C.room && C.room.members) || []; };
+var presenter = function(){ return C.room && C.room.presenter || null; };
+var render = function(){
+  var d = el('r65Dock', 'r65-dock');
+  d.classList.toggle('on', C.on);
+  if(!C.on){ d.innerHTML = ''; renderStage(); return; }
+  var pr = presenter(), mine = pr && pr.key === C.me, ms = members();
+  var st = pr ? (mine ? 'Вы показываете экран' : 'Показывает ' + first(pr.name)) : (ms.length > 1 ? 'В созвоне ' + ms.length : (isTeam() ? 'Ждём резидента' : 'Ждём трекера'));
+  var rec = window.REC && REC.call ? REC : null, recOther = !rec && C.room && C.room.rec;
+  var h = '';
+  if(rec) h += '<span class="r65-rec" id="r65Rec" title="Идёт запись звука созвона"><i></i>Запись <span id="r65RecT">' + recClock(Date.now() - rec.t0 - rec.paused) + '</span></span>' +
+    '<button type="button" class="r65-ic" data-a="recstop" title="Остановить запись" aria-label="Остановить запись">' + ICON.stop + '</button><span class="r65-sep"></span>';
+  else if(recOther) h += '<span class="r65-rec" title="' + ea(first(C.room.rec.name)) + ' записывает разбор"><i></i>Запись</span><span class="r65-sep"></span>';
+  h += '<span class="r65-who"><span class="r65-avs">' + ms.map(function(m){
+    return '<span class="r65-av' + (pr && pr.key === m.key ? ' pres' : '') + '" style="--c:' + ea(m.color || '#5B9BFF') + '" title="' + ea(m.name + (m.key === C.me ? ' (вы)' : '')) + '">' + ea(initials(m.name)) + '</span>';
+  }).join('') + '</span><span class="r65-st" id="r65St">' + ea(st) + '</span></span>';
+  h += '<button type="button" class="r65-ic' + (C.micOn ? '' : ' off') + '" data-a="mic" title="' + (C.micOn ? 'Выключить микрофон' : 'Включить микрофон') + '" aria-label="Микрофон">' + (C.micOn ? ICON.mic : ICON.micoff) + '</button>';
+  if(canShare()) h += mine ? '<button type="button" class="pr" data-a="unshare">' + ICON.stop + '<span>Остановить</span></button>'
+    : '<button type="button" class="pr" data-a="share">' + ICON.scr + '<span>Показать мой экран</span></button>';
+  if(isTeam() && !rec) h += '<button type="button" data-a="rec" title="Записать разбор: звук созвона, без захвата экрана"><span class="r65-rec" style="padding:0"><i style="animation:none"></i></span><span class="r65-lbl">Запись</span></button>';
+  if(isTeam()) h += '<button type="button" class="r65-ic" data-a="link" title="Ссылка резиденту на этот созвон" aria-label="Ссылка резиденту">' + ICON.link + '</button>';
+  if(C.meet) h += '<button type="button" data-a="meet" title="Открыть Meet в новой вкладке, если резидент там"><span class="r65-lbl">Meet</span></button>';
+  h += '<button type="button" class="r65-ic" data-a="leave" title="Выйти из созвона" aria-label="Выйти из созвона">' + ICON.out + '</button>';
+  d.innerHTML = h;
+  renderStage();
+};
+var renderStage = function(){
+  var s = el('r65Stage', 'r65-stage');
+  var pr = C.on && presenter();
+  var P = pr && pr.key !== C.me ? C.pcs[pr.key] : null;
+  var t = P && kindTx(P.pc, 'video'), tr = t && t.receiver.track;
+  if(!pr || pr.key === C.me){ s.classList.remove('on'); C.presKey = ''; var v0 = s.querySelector('video'); if(v0) v0.srcObject = null; return; }
+  if(!s.firstChild){
+    s.innerHTML = '<div class="r65-sh"><span id="r65StT"></span><button type="button" data-a="share" class="pr" id="r65StMe">Показать мой экран</button><button type="button" data-a="full">Во весь экран</button><button type="button" data-a="mini">Свернуть</button></div>' +
+      '<video autoplay playsinline muted></video><div class="r65-wait">Ждём картинку…</div>';
+  }
+  s.classList.add('on');
+  s.classList.toggle('mini', !!C.mini);
+  s.querySelector('#r65StT').textContent = 'Показывает ' + first(pr.name);
+  s.querySelector('#r65StMe').style.display = canShare() ? '' : 'none';
+  var v = s.querySelector('video');
+  if(tr && (C.presKey !== pr.key || !v.srcObject || v.srcObject.getVideoTracks()[0] !== tr)){ v.srcObject = new MediaStream([tr]); v.play && v.play().catch(function(){}); }
+  C.presKey = pr.key;
+  s.classList.toggle('wait', !tr || tr.muted || !(v.videoWidth > 0));
+  if(!v._r65){ v._r65 = 1; v.addEventListener('resize', function(){ s.classList.toggle('wait', !(v.videoWidth > 0)); }); v.addEventListener('playing', function(){ s.classList.toggle('wait', !(v.videoWidth > 0)); }); }
+};
+var renderJoin = function(){
+  var j = el('r65Join', 'r65-join');
+  var r = C.peek, ms = r && r.members || [];
+  var show = !C.on && ms.length && C.peekBoard && typeof curBoard !== 'undefined' && curBoard && String(curBoard.id) === C.peekBoard && C.dismissed !== C.peekBoard;
+  j.classList.toggle('on', !!show);
+  if(!show){ j.innerHTML = ''; return; }
+  var names = ms.map(function(m){ return first(m.name); }).filter(function(n, i, a){ return a.indexOf(n) === i; }).join(', ');
+  j.innerHTML = '<i></i><span>Созвон на доске: ' + ea(names) + (r.presenter ? ' · показывает ' + ea(first(r.presenter.name)) : '') + '</span>' +
+    '<button type="button" data-a="join">Присоединиться</button><button type="button" class="x" data-a="dismiss" aria-label="Скрыть">✕</button>';
+};
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('#r65Dock [data-a], #r65Stage [data-a], #r65Join [data-a], #r65Stage.mini');
+  if(!b) return;
+  if(b.id === 'r65Stage'){ C.mini = false; renderStage(); return; }
+  var a = b.getAttribute('data-a');
+  if(a === 'mic') micToggle();
+  else if(a === 'share') shareStart();
+  else if(a === 'unshare') shareStop(true);
+  else if(a === 'rec') recStart();
+  else if(a === 'recstop'){ try{ stopCallRec(); }catch(x){} }
+  else if(a === 'link') linkCopy();
+  else if(a === 'meet'){ try{ window.open(C.meet, '_blank', 'noopener'); }catch(x){} }
+  else if(a === 'leave') leave();
+  else if(a === 'join') join();
+  else if(a === 'dismiss'){ C.dismissed = C.peekBoard; renderJoin(); }
+  else if(a === 'mini'){ C.mini = true; renderStage(); e.stopPropagation(); }
+  else if(a === 'full'){ var v = document.querySelector('#r65Stage video'); try{ (v.requestFullscreen || v.webkitRequestFullscreen).call(v); }catch(x){} }
+});
+// Время записи в панели созвона
+setInterval(function(){
+  if(!C.on) return;
+  var t = document.getElementById('r65RecT');
+  if(t && window.REC) t.textContent = recClock((REC.pauseAt || Date.now()) - REC.t0 - REC.paused);
+  if(presenter()) renderStage();
+}, 1000);
+
+// ── на доске идёт созвон: предложить войти (опрос раз в 8 с, пока доска открыта) ──
+setInterval(function(){
+  if(C.on || document.hidden || !window.BSSync || !BSSync.online || !BSSync.online()) return;
+  try{ var u = BSSync.user && BSSync.user(); if(!u || u.role === 'lead') return; }catch(e){ return; }
+  if(typeof section === 'undefined' || section !== 'board' || typeof curBoard === 'undefined' || !curBoard || !curBoard.id){ C.peek = null; renderJoin(); return; }
+  var b = String(curBoard.id);
+  api('POST', '/call/room', {board: b, tab: TAB, op: 'peek'}).then(function(x){
+    if(C.on) return;
+    C.peekBoard = b; C.peek = x && x.s === 200 && x.j ? x.j.room : null; renderJoin();
+  }).catch(function(){});
+}, 8000);
+
+// ── ссылка резиденту: /#call=<доска> открывает доску и предлагает войти ──
+(function(){
+  var m = String(location.hash || '').match(/^#call=([A-Za-z0-9_\-]{1,64})$/); if(!m) return;
+  var id = decodeURIComponent(m[1]), n = 0;
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  var t = setInterval(function(){
+    if(++n > 60){ clearInterval(t); return; }
+    if(!window.BSSync || !BSSync.ready || !BSSync.ready() || typeof boards === 'undefined' || typeof openBoard !== 'function') return;
+    clearInterval(t);
+    if(!boards.some(function(b){ return String(b.id) === id; })){ tst('Доска созвона недоступна'); return; }
+    try{ openBoard(id); goSection('board'); }catch(e){}
+    api('POST', '/call/room', {board: id, tab: TAB, op: 'peek'}).then(function(x){ C.peekBoard = id; C.peek = x && x.j ? x.j.room : null; renderJoin(); });
+  }, 500);
+})();
+
+// ── вход в созвон из меню записи и из «Начать разбор» в расписании ──
+if(typeof window.openCallMenu === 'function'){
+  var _ocm = window.openCallMenu;
+  window.openCallMenu = function(){
+    var r = _ocm.apply(this, arguments);
+    try{
+      var body = document.getElementById('edBody');
+      if(body && !body.querySelector('.r65-cm')){
+        var box = document.createElement('div'); box.className = 'r65-cm';
+        box.innerHTML = C.on
+          ? '<b>Вы в созвоне на доске</b><span>Запись берёт звук созвона: микрофон и голоса участников. Экран не захватывается, полос Chrome от записи нет.</span>'
+          : '<b>Созвон на доске</b><span>Одна вкладка: резидент открывает эту же доску у себя. Экран показывает любой из вас в один клик, запись идёт без второй вкладки и без полос Chrome.</span>' +
+            '<button type="button" class="btn bg" id="r65CmGo">Начать созвон и запись</button>';
+        body.insertBefore(box, body.firstChild);
+        var go = box.querySelector('#r65CmGo');
+        if(go) go.onclick = function(){ try{ closeSheet('editSheet'); }catch(e){} join({rec: true}); };
+      }
+    }catch(e){}
+    return r;
+  };
+}
+if(typeof window.startSession === 'function'){
+  window.startSession = function(i){
+    var s = (SDATA.schedule || [])[i]; if(!s) return;
+    var b = latestBoardOf(s.res);
+    if(b){ openBoard(b.id); goSection('board'); } else { newBoardFor(s.res); }
+    setTimeout(function(){ join({rec: true, meet: isMeet(s) ? s.link : ''}); }, 50);
+    setTimeout(function(){ try{ checkMeetBanner(); }catch(e){} }, 500);
+  };
+}
+// Ушли с доски созвона: созвон продолжается (звук и показ идут), панель остаётся
+window.addEventListener('pagehide', function(){ if(C.on){ Object.keys(C.pcs).forEach(function(k){ sig(k, 'bye', {}); }); roomOp('leave'); } });
+
+// ── «Запись удалена после саммари» в списке и в карточке разбора ──
+var goneText = function(c){ return c && c.recDeleted ? (c.recDeleted.why === 'summary' ? 'Запись удалена после саммари' : 'Запись удалена через 7 дней') : ''; };
+if(typeof window.renderCallList === 'function'){
+  var _rcl = window.renderCallList;
+  window.renderCallList = function(boxId){
+    var r = _rcl.apply(this, arguments);
+    try{
+      var box = document.getElementById(boxId);
+      ((curBoard && curBoard.calls) || []).forEach(function(c){
+        var g = goneText(c); if(!g) return;
+        var row = box && box.querySelector('.rl-i[onclick*="' + c.id + '"] .rl-d');
+        if(row && !row.querySelector('.r65-gone')) row.insertAdjacentHTML('beforeend', ' · <span class="r65-gone">' + ea(g) + '</span>');
+      });
+    }catch(e){}
+    return r;
+  };
+}
+if(typeof window.showCall === 'function'){
+  var _shc = window.showCall;
+  window.showCall = function(id){
+    var r = _shc.apply(this, arguments);
+    try{
+      var c = ((curBoard && curBoard.calls) || []).find(function(x){ return x.id === id; }), g = goneText(c);
+      var m = document.querySelector('#edBody .cv-meta');
+      if(g && m && !document.querySelector('#edBody .cl-recgone')) m.insertAdjacentHTML('afterend', '<div class="cl-recgone">' + ea(g) + '. Расшифровка и саммари сохранены</div>');
+    }catch(e){}
+    return r;
+  };
+}
+// Серверная отметка recDeleted доходит до карточки, которую страница уже держит
+if(typeof window.attachCall === 'function'){
+  var _atc = window.attachCall;
+  window.attachCall = function(b, j){
+    var out = _atc.apply(this, arguments);
+    try{
+      var res = j && j.result; if(typeof res === 'string') res = JSON.parse(res);
+      if(out && res && res.recDeleted && !out.recDeleted){ out.recDeleted = res.recDeleted; out.audio = ''; out.file = ''; saveAll(); }
+    }catch(e){}
+    return out;
+  };
+}
+window.r65Api = {join: join, leave: leave, share: shareStart, unshare: shareStop, rec: recStart, render: render};
+})();
+</script>
+<!-- /R65 -->
 </body>
 </html>

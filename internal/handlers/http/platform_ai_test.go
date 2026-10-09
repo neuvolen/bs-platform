@@ -140,7 +140,7 @@ func TestPlatformFilesAndAI(t *testing.T) {
 	}
 	_ = json.Unmarshal(j.Result, &res)
 	if j.Status != "done" || !strings.Contains(res.Transcript, "Резидент: Пять миллионов") ||
-		res.Summary.Title != "Разбор Даулета" || len(res.Summary.Checklist) != 1 || res.Audio == "" {
+		res.Summary.Title != "Разбор Даулета" || len(res.Summary.Checklist) != 1 || res.Audio != "" { // R65: аудио удалено после саммари
 		t.Fatalf("job: %+v / %s", j, j.Result)
 	}
 	if strings.Join(calls, ",") != "command,transcribe,summary" {
