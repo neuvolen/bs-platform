@@ -28484,12 +28484,16 @@ function dl(id){
   Promise.resolve().then(function(){ return BSSync.api('GET', '/ai/calls/' + encodeURIComponent(id) + '/summary.pdf' + (b ? '?board=' + encodeURIComponent(b.id) : '')); }).then(function(r){
     if(!r) throw new Error('Нет связи с сервером');
     if(!r.ok) return r.json().then(function(j){ throw new Error((j && (j.detail || j.error)) || ('Сервер ответил ' + r.status)); }, function(){ throw new Error('Сервер ответил ' + r.status); });
-    return r.blob();
-  }).then(function(bl){
+    // R63: имя файла даёт сервер: «Саммари Имя Фамилия ДД.ММ.ГГГГ.pdf»
+    var cd = (r.headers && r.headers.get && r.headers.get('Content-Disposition')) || '', fm = cd.match(/filename\*=utf-8''([^;]+)/i), fn = '';
+    try{ fn = fm ? decodeURIComponent(fm[1]) : ''; }catch(x){ fn = ''; }
+    return r.blob().then(function(bl){ return {bl: bl, fn: fn}; });
+  }).then(function(o){
+    var bl = o.bl;
     var c = ((b && b.calls) || []).find(function(x){ return x.id === id; }) || {};
     var a = document.createElement('a');
     a.href = URL.createObjectURL(bl);
-    a.download = ('Саммари разбора ' + ((b && b.info && b.info.res) || '') + ' ' + (c.date || '')).replace(/\s+/g, ' ').trim().replace(/[\\/:*?"<>|]/g, '') + '.pdf';
+    a.download = o.fn || ('Саммари ' + ((b && b.info && b.info.res) || '') + ' ' + (c.date || '')).replace(/\s+/g, ' ').trim().replace(/[\\/:*?"<>|]/g, '') + '.pdf';
     a.rel = 'noopener'; a.style.display = 'none';
     document.body.appendChild(a); a.click();
     setTimeout(function(){ a.remove(); URL.revokeObjectURL(a.href); }, 60000);
@@ -28753,7 +28757,8 @@ function paint(v){
     '</div><div class="cse-ft">' +
       '<button type="button" class="cse-b" data-keep="1" onclick="r32eClose()">Закрыть</button>' +
       '<button type="button" class="cse-b" onclick="r32eRegen()"' + (v.hasTranscript ? '' : ' disabled title="Нет расшифровки"') + '>Спросить ИИ заново</button>' +
-      '<button type="button" class="cse-b" onclick="r32ePDF()">PDF</button><span class="sp"></span>' +
+      '<button type="button" class="cse-b" onclick="r32ePDF()">PDF</button>' +
+      (v.offline ? '' : '<button type="button" class="cse-b" onclick="r63WAed()">Отправить в WhatsApp</button>') + '<span class="sp"></span>' +
       '<button type="button" class="cse-b" onclick="r32eSave(false)">Сохранить</button>' +
       (v.offline ? '' : '<button type="button" class="cse-b p" onclick="r32eSave(true)">' + (pub ? 'Сохранить у резидента' : 'Опубликовать резиденту') + '</button>') +
       '<div class="msg" id="cseMsg"></div></div></div>';
@@ -28789,6 +28794,7 @@ window.r32eRegen = function(){
   }).catch(function(e){ busy(false); msg('Не получилось: ' + e.message, true); });
 };
 window.r32ePDF = function(){ if(ED && window.r32SummaryPDF) r32SummaryPDF(ED.id); };
+window.r63WAed = function(){ if(ED && window.r63WA) r63WA(ED.id); }; // R63
 window.r32ePublish = function(id){
   toast('Публикуем…');
   api('POST', '/ai/calls/' + encodeURIComponent(id) + '/publish').then(function(p){
@@ -39336,6 +39342,12 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
 .r59p .r59-s.no{color:var(--pred)}
 .r59p .r59-b{font-size:12px;padding:5px 10px;min-height:0}
 .r59p .r59-h{font-size:12px;color:var(--pm);line-height:1.45;margin:2px 0 6px}
+.r59p .r63-due{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 10px;padding:12px 14px;border-radius:12px;border:1px solid var(--pred);background:rgba(255,107,111,.08)}
+.r59p .r63-due-t{flex:1;min-width:180px}
+.r59p .r63-due-t b{display:block;font-size:14px;color:var(--ptx)}
+.r59p .r63-due-t span{display:block;font-size:12px;color:var(--pm);margin-top:2px;line-height:1.45}
+.r59p .r63-due-b{font-size:14px;padding:10px 18px;min-height:44px;font-weight:800}
+.r59p .r63-due-x{font-size:13px;min-height:44px}
 </style>
 <script id="r59Script">
 (function(){
@@ -39373,7 +39385,13 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
         return '<div class="pf-li"><div class="r59-r"><span class="pf-ld">' + e(dmy(r.date)) + '</span><span class="r59-c">' + e(r.incomeCat || 'Приход') + (r.resident && !mine(r, name) ? ' · ' + e(r.resident) : '') + '</span>' +
           '<b>' + e(tg(r.income)) + '</b>' + (btn === 'Привязать платёж' ? '' : st) + (btn && editable ? '<button type="button" class="btn pf-b r59-b" data-r59l="' + r.id + '" data-r59a="' + e(tg(r.income)) + '" data-r59d="' + e(dmy(r.date)) + '">' + btn + '</button>' : '') + '</div></div>';
       };
-      var h = '<div class="pf-lbl">Оплаты</div>' + (my.length ? my.map(function(r){ return line(r, !r.applied && !fine(r) ? 'Учесть в долге' : ''); }).join('') : '<div class="r59-h">Оплат в ДДС пока нет</div>');
+      // R63: одна заметная кнопка «Учесть» над списком: все неучтённые оплаты резидента разом, подтверждение тут же на карточке
+      var club = function(r){ var c = String(r.incomeCat || ''); return /трекинг|продлен|вход|членск|резидент/i.test(c) && !/экспресс|(^|\s)мк(\s|$)/i.test(c); };
+      var pend = my.filter(function(r){ return !r.applied && !fine(r) && club(r); }), sum = pend.reduce(function(a, r){ return a + (+r.income || 0); }, 0);
+      var h = '<div class="pf-lbl">Оплаты</div>' + (pend.length && editable ? '<div class="r63-due"><div class="r63-due-t"><b>Не учтено в долге: ' + e(tg(sum)) + '</b><span>' +
+        (pend.length === 1 ? 'Оплата от ' + e(dmy(pend[0].date)) : pend.length + ' оплаты, последняя ' + e(dmy(pend[0].date))) + '. Нажмите «Учесть», и долг уменьшится</span></div>' +
+        '<button type="button" class="btn pf-b pf-p r63-due-b" data-r63due="' + pend.map(function(r){ return r.id; }).join(',') + '" data-r63sum="' + e(tg(sum)) + '">Учесть</button></div>' : '') +
+        (my.length ? my.map(function(r){ return line(r, !r.applied && !fine(r) && !club(r) ? 'Учесть в долге' : ''); }).join('') : '<div class="r59-h">Оплат в ДДС пока нет</div>');
       if(lost.length) h += '<div class="pf-lbl" style="margin-top:12px">Оплаты без резидента</div><div class="r59-h">Имя в ДДС не совпало ни с одним резидентом. Если это оплата ' + e(name) + ', привяжите её: сумма уйдёт в погашение долга</div>' +
         lost.map(function(r){ return line(r, 'Привязать платёж'); }).join('');
       host.innerHTML = h;
@@ -39392,7 +39410,33 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
       }, function(){ btn.disabled = false; toast('Нет связи с сервером'); });
     }, 'Учесть');
   }
+  // R63: «Учесть» в два касания на самой карточке: первое показывает сумму, второе учитывает
+  function linkAll(btn, name){
+    if(!btn.dataset.armed){
+      btn.dataset.armed = '1'; btn.textContent = 'Да, учесть ' + btn.dataset.r63sum;
+      var x = document.createElement('button'); x.type = 'button'; x.className = 'btn pf-b r63-due-x'; x.textContent = 'Отмена';
+      x.onclick = function(ev){ ev.stopPropagation(); delete btn.dataset.armed; btn.textContent = 'Учесть'; x.remove(); };
+      btn.parentNode.appendChild(x);
+      return;
+    }
+    var ids = String(btn.dataset.r63due || '').split(',').filter(Boolean), paid = 0, fail = '';
+    btn.disabled = true; btn.textContent = 'Учитываем…';
+    var x2 = btn.parentNode.querySelector('.r63-due-x'); if(x2) x2.remove();
+    ids.reduce(function(p, id){
+      return p.then(function(){
+        return BSSync.clubApi('POST', '/dds/link', {id: Number(id), resident: name}).then(function(r){ return r.json().catch(function(){ return {}; }); })
+          .then(function(j){ if(j && j.ok) paid += (+j.paid || 0); else fail = fail || (j && j.detail) || 'ошибка'; }, function(){ fail = fail || 'нет связи с сервером'; });
+      });
+    }, Promise.resolve()).then(function(){
+      toast(fail ? 'Учтено ' + tg(paid) + '. Не получилось: ' + fail : (paid ? 'Учтено в долге: ' + tg(paid) : 'Учтено. Долга не было, суммы записаны как оплаты'));
+      cache = null;
+      var re = function(){ var i = (window.RESIDENTS || []).findIndex(function(z){ return z.name === name; }); var cs = document.getElementById('cardSheet'); if(i >= 0 && cs && cs.classList.contains('on')) openResident(i); else paint(name); };
+      try{ BSSync.refresh().then(re, re); }catch(z){ re(); }
+    });
+  }
   document.addEventListener('click', function(ev){
+    var d = ev.target.closest && ev.target.closest('[data-r63due]');
+    if(d && d.closest('#r59Pay')){ ev.stopPropagation(); linkAll(d, d.closest('#r59Pay').dataset.name); return; }
     var b = ev.target.closest && ev.target.closest('[data-r59l]'); if(!b) return;
     var host = b.closest('#r59Pay'); if(!host) return;
     link(b.dataset.r59l, host.dataset.name, b.dataset.r59a, b.dataset.r59d, b);
@@ -39424,6 +39468,150 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
 })();
 </script>
 <!-- /R59 -->
+<!-- R63: удалить саммари и запись разбора (подтверждение на карточке, задачи по галочке), «короткая запись» до 3 минут, «Отправить в WhatsApp» -->
+<style id="r63Style">
+.r63-short{display:inline-flex;align-items:center;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;vertical-align:2px;border:1px solid var(--pred);color:var(--pred);white-space:nowrap}
+.r63-del{color:var(--pred)!important;border-color:rgba(255,107,111,.5)!important}
+.r63-cf{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:11px 13px;border:1px solid var(--pred);border-radius:12px;background:rgba(255,107,111,.07);cursor:default;width:100%;box-sizing:border-box}
+.r63-cf b{font-size:13px;color:var(--ptx)}
+.r63-cf span{font-size:12px;color:var(--pm);line-height:1.45}
+.r63-cf label{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--ptx);cursor:pointer;min-height:32px}
+.r63-cf label input{width:18px;height:18px;margin:0;accent-color:var(--pred)}
+.r63-cf .r63-row{display:flex;gap:8px;flex-wrap:wrap}
+.r63-cf .r63-go{background:var(--pred);border-color:var(--pred);color:#fff}
+</style>
+<script id="r63Script">
+(function(){
+'use strict';
+function md(){ try{ return typeof MODE === 'string' ? MODE : 'admin'; }catch(e){ return 'admin'; } }
+function team(){ return md() !== 'res' && md() !== 'lead'; }
+function api(method, path, body){
+  return BSSync.api(method, path, body).then(function(r){
+    if(!r) throw new Error('Нет связи с сервером');
+    return r.json().catch(function(){ return {}; }).then(function(j){ if(!r.ok) throw new Error((j && (j.detail || j.error)) || ('Сервер ответил ' + r.status)); return j; });
+  });
+}
+function callOf(id){ return ((curBoard && curBoard.calls) || []).find(function(x){ return x.id === id; }) || null; }
+function nt(s){ return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim(); }
+// Короткая запись: в расшифровке меньше ~3 минут речи (около 140 слов в минуту)
+function isShort(c){ var t = String((c && c.transcript) || '').trim(); return !!t && t.split(/\s+/).length < 420; }
+function hasSum(c){ return !!c && (c.by === 'server' || c.sumStatus === 'draft' || c.sumStatus === 'published'); }
+function relist(){ try{ ['rcBody', 'rpCallsL', 'cmList'].forEach(function(b){ if(document.getElementById(b)) renderCallList(b); }); }catch(e){} }
+
+// «Отправить в WhatsApp»: номер резидента из данных клуба, иначе WhatsApp спросит контакт
+window.r63WA = function(id){
+  var w = null; try{ w = window.open('', '_blank'); }catch(e){}
+  toast('Готовим сообщение…');
+  api('POST', '/ai/calls/' + encodeURIComponent(id) + '/share').then(function(j){
+    if(w && !w.closed) w.location.href = j.wa; else location.href = j.wa;
+    toast(j.phone ? 'WhatsApp резидента: текст и ссылка на PDF готовы' : 'Номера резидента нет: выберите контакт в WhatsApp');
+  }).catch(function(e){ try{ if(w) w.close(); }catch(x){} toast('Не получилось: ' + e.message); });
+};
+
+// Удаление: саммари, запись, расшифровка и PDF; задачи с доски только по галочке
+function removeTasks(c){
+  if(!c || typeof nodes === 'undefined' || typeof delNode !== 'function') return 0;
+  var t = {};
+  (c.checklist || []).forEach(function(k){ if(k && k.text) t[nt(k.text)] = 1; });
+  (c.plan || []).forEach(function(p){ if(p && p.what) t[nt(p.what)] = 1; });
+  var gone = nodes.filter(function(n){ return n.type === 'task' && (n.fromCall === c.id || t[nt(n.title)]) && !(n.task && n.task.completed); });
+  gone.forEach(function(n){ delNode(n.id); });
+  return gone.length;
+}
+function doDelete(id, withTasks, btn){
+  var b = curBoard, c = callOf(id);
+  if(btn){ btn.disabled = true; btn.textContent = 'Удаляем…'; }
+  api('DELETE', '/ai/calls/' + encodeURIComponent(id) + (b ? '?board=' + encodeURIComponent(b.id) : '')).then(function(){
+    var n = withTasks ? removeTasks(c) : 0;
+    (boards || []).forEach(function(x){
+      if(x.calls) x.calls = x.calls.filter(function(k){ return k.id !== id; });
+      if(x.pendingCalls) x.pendingCalls = x.pendingCalls.filter(function(k){ return k !== id; });
+    });
+    if(curBoard && curBoard.calls) curBoard.calls = curBoard.calls.filter(function(k){ return k.id !== id; });
+    try{ if(n && typeof saveBoard === 'function') saveBoard(); else saveAll(); }catch(e){}
+    try{ if(typeof closeSheet === 'function' && document.querySelector('#edBody .cv-main')) closeSheet('editSheet'); }catch(e){}
+    relist();
+    toast('Удалено: саммари и запись' + (n ? ', задач с доски: ' + n : ''));
+    try{ BSSync.refresh(); }catch(e){}
+  }).catch(function(e){ if(btn){ btn.disabled = false; btn.textContent = 'Удалить'; } toast('Не удалилось: ' + e.message); });
+}
+// Подтверждение прямо на карточке: панель с галочкой и кнопками
+function askDelete(id, host){
+  if(!host || host.querySelector('.r63-cf')) return;
+  var c = callOf(id), nTasks = c ? ((c.checklist || []).length || (c.plan || []).length) : 0;
+  var p = document.createElement('div'); p.className = 'r63-cf';
+  p.innerHTML = '<b>Удалить саммари и запись разбора?</b><span>Запись, расшифровка и PDF удалятся с сервера. Вернуть нельзя</span>' +
+    (nTasks ? '<label><input type="checkbox" class="r63-tk"> Удалить также задачи из этого саммари</label>' : '') +
+    '<div class="r63-row"><button type="button" class="btn pf-b r63-go">Удалить</button><button type="button" class="btn pf-b r63-no">Отмена</button></div>';
+  p.onclick = function(e){ e.stopPropagation(); };
+  p.querySelector('.r63-no').onclick = function(e){ e.stopPropagation(); p.remove(); };
+  p.querySelector('.r63-go').onclick = function(e){ e.stopPropagation(); var tk = p.querySelector('.r63-tk'); doDelete(id, !!(tk && tk.checked), this); };
+  host.appendChild(p);
+}
+window.r63AskDelete = askDelete;
+
+// Список «Записи разборов» у команды: метка «короткая запись», «WhatsApp» и «Удалить»
+if(typeof window.renderCallList === 'function'){
+  var origList = window.renderCallList;
+  window.renderCallList = function(boxId){
+    var r = origList.apply(this, arguments);
+    if(!team()) return r;
+    try{
+      var box = document.getElementById(boxId);
+      ((curBoard && curBoard.calls) || []).forEach(function(c){
+        var row = box && box.querySelector('.rl-i[onclick*="' + c.id + '"]'); if(!row || row.querySelector('.r63-del')) return;
+        var t = row.querySelector('.rl-t');
+        if(t && isShort(c) && !t.querySelector('.r63-short')) t.insertAdjacentHTML('beforeend', '<span class="r63-short">короткая запись</span>');
+        var acts = row.querySelector('.r32-acts');
+        if(!acts){ acts = document.createElement('div'); acts.className = 'rl-a r32-acts'; (row.querySelector('.rl-b') || row).appendChild(acts); }
+        if(hasSum(c)){
+          var w = document.createElement('button'); w.className = 'btn pf-b r63-wa'; w.type = 'button'; w.textContent = 'Отправить в WhatsApp';
+          w.onclick = function(e){ e.stopPropagation(); r63WA(c.id); };
+          acts.appendChild(w);
+        }
+        var d = document.createElement('button'); d.className = 'btn pf-b r63-del'; d.type = 'button'; d.textContent = isShort(c) ? 'Удалить короткую запись' : 'Удалить';
+        d.onclick = function(e){ e.stopPropagation(); askDelete(c.id, row.querySelector('.rl-b') || row); };
+        acts.appendChild(d);
+      });
+    }catch(e){}
+    return r;
+  };
+}
+// Карточка разбора у команды: те же кнопки
+if(typeof window.showCall === 'function'){
+  var origShow = window.showCall;
+  window.showCall = function(id){
+    var r = origShow.apply(this, arguments);
+    if(!team()) return r;
+    try{
+      var c = callOf(id), acts = document.querySelector('#edBody .cv-acts');
+      if(c && acts && !acts.querySelector('.r63-del')){
+        if(hasSum(c)){
+          var w = document.createElement('button'); w.className = 'btn pf-b r63-wa'; w.type = 'button'; w.textContent = 'Отправить в WhatsApp';
+          w.onclick = function(){ r63WA(id); };
+          acts.appendChild(w);
+        }
+        var d = document.createElement('button'); d.className = 'btn pf-b r63-del'; d.type = 'button'; d.textContent = 'Удалить';
+        d.onclick = function(){ askDelete(id, acts.parentNode); };
+        acts.appendChild(d);
+      }
+    }catch(e){}
+    return r;
+  };
+}
+// Задачи из саммари помнят свой разбор: по этой отметке их можно удалить вместе с ним
+if(typeof window.callToBoard === 'function'){
+  var origTb = window.callToBoard;
+  window.callToBoard = function(id){
+    var before = typeof nodes !== 'undefined' ? nodes.length : 0;
+    var r = origTb.apply(this, arguments);
+    try{ if(typeof nodes !== 'undefined'){ nodes.slice(before).forEach(function(n){ if(n.type === 'task') n.fromCall = id; }); if(typeof saveBoard === 'function') saveBoard(); } }catch(e){}
+    return r;
+  };
+}
+})();
+</script>
+<!-- /R63 -->
 <script id="r62Script">
 /* R62: телефон. Панель разделов внизу: четыре главных раздела режима (в порядке меню) и «Ещё» (всё меню).
    Доска на телефоне открывается целиком в кадре, для просмотра; кнопка ✎ включает правку. */

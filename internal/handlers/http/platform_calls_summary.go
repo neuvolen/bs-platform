@@ -166,15 +166,42 @@ func callJSON(card map[string]any) map[string]any {
 	return out
 }
 
+// summaryName: R63: «Саммари <Имя Фамилия> <ДД.ММ.ГГГГ>.pdf» everywhere
+// (download, bot, WhatsApp link), never «черновик».
 func summaryName(resident, date string) string {
-	n := "Саммари разбора"
+	n := "Саммари"
 	if resident != "" {
 		n += " " + resident
 	}
-	if date != "" {
-		n += " " + date
+	if d := summaryDate(date); d != "" {
+		n += " " + d
 	}
+	n = strings.Map(func(r rune) rune {
+		if strings.ContainsRune(`\/:*?"<>|`, r) {
+			return -1
+		}
+		return r
+	}, n)
 	return strings.Join(strings.Fields(n), " ") + ".pdf"
+}
+
+// summaryDate: the call's date as ДД.ММ.ГГГГ (2026-10-07 and 7.10.2026 too).
+func summaryDate(d string) string {
+	d = strings.TrimSpace(d)
+	if t, err := time.Parse("2006-01-02", d); err == nil {
+		return t.Format("02.01.2006")
+	}
+	if len(d) >= 10 {
+		if t, err := time.Parse("2006-01-02", d[:10]); err == nil {
+			return t.Format("02.01.2006")
+		}
+	}
+	if f := strings.Fields(d); len(f) > 0 {
+		if t, err := time.Parse("2.1.2006", f[0]); err == nil {
+			return t.Format("02.01.2006")
+		}
+	}
+	return d
 }
 
 // makeSummaryPDF renders the call's summary and keeps it (meta.summaryPdf).
@@ -410,7 +437,7 @@ func keepCalls(cur, next json.RawMessage) (json.RawMessage, error) {
 
 // callRecordingName: a file a resident may not open (platform_calls.go names).
 func callRecordingName(name string) bool {
-	for _, p := range []string{"Запись разбора", "Расшифровка разбора", "Созвон ", "Саммари разбора", "Черновик · "} {
+	for _, p := range []string{"Запись разбора", "Расшифровка разбора", "Созвон ", "Саммари разбора", "Черновик · ", "Саммари "} {
 		if strings.HasPrefix(name, p) {
 			return true
 		}

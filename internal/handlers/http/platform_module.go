@@ -94,6 +94,8 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	// R25: the branded template of a library tool by an open link (library_rich.go)
 	r.GET("/t/:file", PublicTemplate)
 	r.HEAD("/t/:file", PublicTemplate)
+	// R63: the summary PDF by the signed link of «Отправить в WhatsApp» (callsum_r63.go)
+	r.GET("/sum/:key", m.AI.PublicSummary)
 	// R32d: the tour's voice as immutable files (platform_tts_static.go)
 	pub.GET("/tts/a/:file", m.AI.TTSFile)
 
@@ -155,6 +157,8 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.PUT("/ai/calls/:id/summary", m.AI.PutCallSummary)
 	g.POST("/ai/calls/:id/summary/regenerate", m.AI.RegenCallSummary)
 	g.POST("/ai/calls/:id/publish", m.AI.PublishCall)
+	g.DELETE("/ai/calls/:id", m.AI.DeleteCall)    // R63: callsum_r63.go
+	g.POST("/ai/calls/:id/share", m.AI.ShareCall) // R63: WhatsApp
 	g.GET("/ai/callsum/settings", m.AI.CallSumSettings)
 	g.PUT("/ai/callsum/settings", m.AI.PutCallSumSettings)
 	g.POST("/ai/events", m.AI.RefreshEvents)

@@ -208,6 +208,10 @@ func (h *PlatformHandler) PutBoard(c *gin.Context) {
 			req.Data = kept
 		}
 	}
+	// R63: a call the team deleted does not come back with an older copy of the board
+	if gone := h.repo.BoardCallsGone(c.Request.Context(), id); len(gone) > 0 {
+		req.Data = dropGoneCalls(gone, req.Data)
+	}
 	out, err := h.repo.PutBoard(c.Request.Context(), id, req.Version, req.Data, platformUser(c))
 	if errors.Is(err, pg.ErrPlatformConflict) {
 		c.JSON(http.StatusConflict, gin.H{"error": "conflict", "current": out})

@@ -467,6 +467,12 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 			log.Printf("platform seed: %v", err)
 		}
 	}
+	// R63: payments entered before R59 pay off the debt by themselves (Альтаир 07.10 and the others)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		httpapi.DebtFixAtStart(ctx, clubRepo, repo, writes.Tables)
+	}()
 	var docs interface {
 		PutServerDoc(ctx context.Context, key, value string) error
 	}

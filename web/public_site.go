@@ -435,7 +435,7 @@ var aiAgents = []string{
 	"Googlebot", "Bingbot", "YandexBot", "Applebot",
 }
 
-var robotsClosed = []string{"/api/", "/platform", "/dl/", "/voice/", "/swagger/", "/tts/"}
+var robotsClosed = []string{"/api/", "/platform", "/dl/", "/sum/", "/voice/", "/swagger/", "/tts/"}
 
 func robotsRules() string {
 	var b strings.Builder

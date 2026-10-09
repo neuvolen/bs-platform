@@ -283,7 +283,7 @@ func TestR32eCallSummaryFlow(t *testing.T) {
 	}
 	h.CallSumTick(ctx, time.Date(2026, 10, 5, 9, 5, 0, 0, csAlmaty))
 	rd := docsTo(777000444)
-	if len(rd) != 1 || !bytes.HasPrefix(rd[0].data, []byte("%PDF-")) || !strings.HasPrefix(rd[0].name, "Саммари разбора Айдос Онлайнов") ||
+	if len(rd) != 1 || !bytes.HasPrefix(rd[0].data, []byte("%PDF-")) || !strings.HasPrefix(rd[0].name, "Саммари Айдос Онлайнов") ||
 		!strings.Contains(rd[0].cap, "план на 10 дней") || strings.Contains(rd[0].cap, "—") {
 		t.Fatalf("morning send: %+v", rd)
 	}

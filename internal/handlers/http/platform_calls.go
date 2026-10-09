@@ -504,7 +504,7 @@ func (h *PlatformAI) deliverCall(ctx context.Context, j *pg.AIJob, meta map[stri
 				sent["owner"] = true
 				if fid, _ := meta["summaryPdf"].(string); fid != "" && h.SendDoc != nil {
 					if f, err := h.repo.GetFile(ctx, fid); err == nil && f != nil {
-						_ = h.SendDoc(ctx, h.Owner, "Черновик · "+f.Name, f.Data, "Черновик саммари для проверки")
+						_ = h.SendDoc(ctx, h.Owner, f.Name, f.Data, "Саммари для проверки: резидент получит его после публикации") // R63: имя файла без «черновик»
 					}
 				}
 			}
@@ -537,6 +537,9 @@ func (h *PlatformAI) attachToBoard(ctx context.Context, boardID string, card map
 		var data map[string]any
 		if json.Unmarshal(b.Data, &data) != nil || data == nil {
 			return errors.New("board data")
+		}
+		if callGone(data, card["id"]) { // R63: the team deleted this call
+			return nil
 		}
 		calls, _ := data["calls"].([]any)
 		have := false

@@ -816,6 +816,9 @@ func (h *PlatformAI) putBoardCall(ctx context.Context, boardID string, card map[
 		if json.Unmarshal(b.Data, &data) != nil || data == nil {
 			return fmt.Errorf("board data")
 		}
+		if callGone(data, card["id"]) { // R63: the team deleted this call
+			return nil
+		}
 		calls, _ := data["calls"].([]any)
 		have := false
 		for i, x := range calls {
