@@ -34,6 +34,7 @@ type eventsRun struct {
 	by       string
 	found    int
 	err      error
+	nosearch bool // R70: the web search was skipped (no model can search)
 }
 
 // startEvents starts a refresh unless one runs; it returns the run's done channel.
@@ -51,14 +52,24 @@ func (h *PlatformAI) startEvents(by string) chan struct{} {
 		// R70: the Telegram channels first (seconds), then the web search
 		nt, terr := h.refreshTG(ctx)
 		n, err := h.refreshEvents(ctx)
+		_ = h.mutateFeed(ctx, func(f *eventsFeed) { f.Tried = time.Now().UTC().Format(time.RFC3339) })
 		cancel()
 		if terr != nil {
 			log.Printf("platform events (%s): telegram: %v", by, terr)
 		}
 		n += nt
-		log.Printf("platform events (%s): %d found, err=%v", by, n, err)
+		// R70: no model can search the web now (Claude without balance, the
+		// search limits of both Gemini models used up, no key): that part is
+		// skipped quietly, the Telegram channels keep the feed alive.
+		nosearch := ai.SearchUnavailable(err)
+		if nosearch {
+			log.Printf("platform events (%s): %d from telegram; web search skipped, no model can search now (%s)", by, nt, ai.UserMessage(err))
+			err = nil
+		} else {
+			log.Printf("platform events (%s): %d found, err=%v", by, n, err)
+		}
 		r.mu.Lock()
-		r.busy, r.finished, r.found, r.err = false, time.Now(), n, err
+		r.busy, r.finished, r.found, r.err, r.nosearch = false, time.Now(), n, err, nosearch
 		r.mu.Unlock()
 		close(done)
 	}()
@@ -91,6 +102,9 @@ func (h *PlatformAI) eventsState() gin.H {
 		}
 	} else {
 		out["found"] = r.found
+		if r.nosearch {
+			out["nosearch"] = true
+		}
 	}
 	return out
 }

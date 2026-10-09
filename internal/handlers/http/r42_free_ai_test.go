@@ -122,11 +122,11 @@ func TestR42RecsAndEventsWithoutSearch(t *testing.T) {
 		t.Fatalf("prompt: %s", prompts[0])
 	}
 	mu.Unlock()
-	// events: the feed stays, the page says the search is unavailable
+	// events: the feed stays; R70: the web part is skipped quietly (no error)
 	h.Run = func(f func()) { f() }
 	<-h.startEvents("button")
 	st := h.eventsState()
-	if st["nosearch"] != true || st["error"] != EventsNoSearch {
+	if st["nosearch"] != true || st["error"] != nil {
 		t.Fatalf("events: %+v", st)
 	}
 	d, _ := repo.GetDoc(ctx, "club", eventsFeedKey)

@@ -199,6 +199,9 @@ func AppSign(token, action, chatID, ts string) string {
 	return hex.EncodeToString(m.Sum(nil))
 }
 
+// AppInitHeader carries Telegram.WebApp.initData (R70).
+const AppInitHeader = "X-Tg-Init"
+
 func verifyAppInitData(initData, token string, now time.Time) (*platformTgUser, error) {
 	q, err := url.ParseQuery(initData)
 	if err != nil || q.Get("hash") == "" {
@@ -235,6 +238,11 @@ func (g *AppGateway) identify(c *gin.Context, initData string) (*platformTgUser,
 	if g.token == "" {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "telegram_not_configured"})
 		return nil, false
+	}
+	if initData == "" {
+		// R70: the Mini App sends initData in a header, out of URLs and logs;
+		// older copies still send it as the _tg parameter or field.
+		initData = c.GetHeader(AppInitHeader)
 	}
 	u, err := verifyAppInitData(initData, g.token, g.now())
 	if err != nil {
@@ -373,7 +381,7 @@ func (g *AppGateway) getAt(ctx context.Context, base string, q url.Values) ([]by
 
 // Call godoc
 // @Summary  A call of the Telegram app, passed to the script
-// @Description  Query: action and its parameters, plus _tg = Telegram.WebApp.initData. The caller is the Telegram user from initData; chatId in the query is ignored.
+// @Description  Query: action and its parameters; Telegram.WebApp.initData in the X-Tg-Init header (R70) or, from older app copies, as _tg. The caller is the Telegram user from initData; chatId in the query is ignored.
 // @Tags     app
 // @Router   /api/v1/app/call [get]
 func (g *AppGateway) Call(c *gin.Context) {

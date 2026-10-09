@@ -33912,8 +33912,13 @@ function ptUgcHTML(){
     b.classList.toggle('on', n > 0 && admin());
   }
   function refreshBadge(){
-    if(!live() || !admin()) return Promise.resolve();
-    return api('GET', '/wa').then(function(j){ if(j && !j.error){ S.waq = j; badge(j.pending || 0); } });
+    // R70: резидент и лид очередь не видят (раньше опрос раз в минуту получал 403)
+    var de = document.documentElement.classList;
+    if(!live() || !admin() || S.waOff || de.contains('res-user') || de.contains('lead-user')) return Promise.resolve();
+    return api('GET', '/wa').then(function(j){
+      if(j && (j.reason === 'team_only' || j.error === 'team_only')){ S.waOff = true; return; }
+      if(j && !j.error){ S.waq = j; badge(j.pending || 0); }
+    });
   }
 
   // ═══ Карточка мероприятия на странице «Мероприятия» ═══

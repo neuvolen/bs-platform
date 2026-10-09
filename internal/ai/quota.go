@@ -69,7 +69,7 @@ func quotaMessage(service string) string {
 	switch service {
 	case "gemini", "gemini-lite", "tts":
 		return GeminiQuotaMessage
-	case "gemini-search":
+	case "gemini-search", "gemini-lite-search":
 		return GeminiSearchQuotaMessage
 	case "groq", "openrouter":
 		return "Закончился бесплатный лимит " + ProviderLabel(service) + " на сегодня. Он восстановится сам"
@@ -160,6 +160,9 @@ type quotaState struct {
 	until   map[string]time.Time
 	daily   map[string]bool
 	billing map[string]bool
+	// R70: the file the pauses are kept in (quota_store.go), "" for none
+	file     string
+	selftest time.Time
 }
 
 // QuotaInfo: what Google said in a 429 answer.
@@ -329,6 +332,9 @@ func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 		c.quota.until[service] = until
 		c.quota.daily[service] = q.Daily
 		c.quota.billing[service] = q.Billing
+		if until.Sub(now) > time.Minute {
+			c.saveQuotaLocked()
+		}
 	}
 	until, daily, billing := c.quota.until[service], c.quota.daily[service], c.quota.billing[service]
 	c.quota.mu.Unlock()
@@ -366,7 +372,7 @@ func (c *Client) hold(service string, q QuotaInfo, err error) *QuotaError {
 	// The owner hears about a long pause once (OnQuota dedupes by day); a
 	// per-minute limit is not worth a message.
 	// R56: a closed web search alone is not worth a message (text goes on)
-	if wasOpen && (daily || billing) && c.OnQuota != nil && service != "gemini-search" {
+	if wasOpen && (daily || billing) && c.OnQuota != nil && !strings.HasSuffix(service, "-search") {
 		go c.OnQuota(qe)
 	}
 	return qe
@@ -452,6 +458,7 @@ func (c *Client) SetQuotaUntil(service string, until time.Time) {
 		c.quota.until, c.quota.daily = map[string]time.Time{}, map[string]bool{}
 	}
 	c.quota.until[service] = until
+	c.saveQuotaLocked()
 }
 
 // IsQuota: err says the quota is used up (closed service or Google's 429).

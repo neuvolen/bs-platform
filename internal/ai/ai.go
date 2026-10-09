@@ -909,7 +909,7 @@ func (c *Client) Search(ctx context.Context, prompt string) (string, error) {
 	for _, m := range ms {
 		var ans string
 		var err error
-		if q := c.quotaClosed("gemini-search"); q != nil && m == "gemini" {
+		if q := c.geminiSearchClosed(); q != nil && m == "gemini" {
 			err = q
 		} else if q := c.quotaClosed(m); q != nil {
 			err = q
@@ -972,25 +972,55 @@ func (c *Client) geminiSearchCall(ctx context.Context, body any) ([]byte, error)
 	if ke := c.keyClosed("gemini"); ke != nil {
 		return nil, ke
 	}
-	if q := c.quotaClosed("gemini-search"); q != nil {
-		return nil, q
+	first := c.quotaClosed("gemini-search")
+	if first == nil {
+		for try := 0; ; try++ {
+			b, err := c.gemPost(ctx, c.geminiModel(), "generateContent", body)
+			if q := c.noteQuota("gemini-search", err); q != nil {
+				first = q
+				break
+			}
+			if ke := c.noteBadKey("gemini", err); ke != nil {
+				return nil, ke
+			}
+			if err == nil || try > 0 {
+				return b, err
+			}
+			he, retired := retiredModel(err)
+			if !retired || !c.switchGeminiModel(ctx, he) {
+				return b, err
+			}
+		}
 	}
-	for try := 0; ; try++ {
-		b, err := c.gemPost(ctx, c.geminiModel(), "generateContent", body)
-		if q := c.noteQuota("gemini-search", err); q != nil {
-			return nil, q
-		}
-		if ke := c.noteBadKey("gemini", err); ke != nil {
-			return nil, ke
-		}
-		if err == nil || try > 0 {
-			return b, err
-		}
-		he, retired := retiredModel(err)
-		if !retired || !c.switchGeminiModel(ctx, he) {
-			return b, err
-		}
+	// R70: Google counts the search quota per model: the light model searches
+	// when the main one is refused (its own pause, "gemini-lite-search").
+	lite := strings.TrimSpace(c.GeminiLightModel)
+	if lite == "" || lite == c.geminiModel() || ctx.Err() != nil {
+		return nil, first
 	}
+	if q := c.quotaClosed("gemini-lite-search"); q != nil {
+		return nil, first
+	}
+	b, err := c.gemPost(ctx, lite, "generateContent", body)
+	if q := c.noteQuota("gemini-lite-search", err); q != nil {
+		return nil, first
+	}
+	if ke := c.noteBadKey("gemini", err); ke != nil {
+		return nil, ke
+	}
+	return b, err
+}
+
+// geminiSearchClosed: neither Gemini model may search now (R70).
+func (c *Client) geminiSearchClosed() *QuotaError {
+	q := c.quotaClosed("gemini-search")
+	if q == nil {
+		return nil
+	}
+	if lite := strings.TrimSpace(c.GeminiLightModel); lite != "" && lite != c.geminiModel() && c.quotaClosed("gemini-lite-search") == nil {
+		return nil
+	}
+	return q
 }
 
 func (c *Client) geminiSearch(ctx context.Context, prompt string) (string, error) {

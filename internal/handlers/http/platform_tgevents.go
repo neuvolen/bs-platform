@@ -124,6 +124,7 @@ func (h *PlatformAI) tgSourceList(ctx context.Context) []tgSource {
 
 type eventsFeed struct {
 	Updated string              `json:"updated,omitempty"`
+	Tried   string              `json:"tried,omitempty"` // R70: the last refresh run, whatever it found
 	Items   []ai.Event          `json:"items"`
 	TG      map[string]*tgState `json:"tg,omitempty"`
 	Cleaned *feedCleaned        `json:"cleaned,omitempty"`

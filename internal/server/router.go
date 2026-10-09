@@ -11,7 +11,9 @@ import (
 )
 
 func SetupRouter(registrars ...httpapi.RoutesRegistrar) *gin.Engine {
-	r := gin.Default()
+	// R70: gin.Default without its logger: the request log masks login data and tokens
+	r := gin.New()
+	r.Use(middleware.RequestLog(), gin.Recovery())
 
 		corsConfig := cors.Config{
 		AllowOriginFunc: func(origin string) bool {
@@ -20,6 +22,7 @@ func SetupRouter(registrars ...httpapi.RoutesRegistrar) *gin.Engine {
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{
 			"Authorization", "Content-Type",
+			"X-Tg-Init", // R70: the Mini App's Telegram initData, out of the URL
 		},
 		ExposeHeaders: []string{
 			"Set-Cookie",

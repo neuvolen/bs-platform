@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/bnursik/business_surgery_backend/internal/ai"
+	"github.com/bnursik/business_surgery_backend/internal/datadir"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
@@ -77,6 +78,10 @@ type PlatformAI struct {
 func NewPlatformAI(repo *pg.PlatformRepo, c *ai.Client) *PlatformAI {
 	if c == nil {
 		c = ai.FromEnv()
+		// R70: the quota pauses outlive a deploy (only with the volume)
+		if datadir.Root() != "" {
+			c.PersistQuota(datadir.Path("ai-quota.json"))
+		}
 		// R56: ~60 s after the start, one tiny request to each Gemini model
 		// logs what Google says about the key's quota
 		c.StartGeminiSelfTest()
@@ -321,18 +326,37 @@ func untilNextMorning(now time.Time) time.Duration {
 	return next.Sub(a)
 }
 
-// EventsLoop refreshes the feed at start and every morning at 08:00 Almaty.
+// feedStale (R70): the start's refresh is due only when the last refresh
+// tried is older than the last 08:00 Almaty: a deploy (10-20 a day) no
+// longer runs the morning search again.
+func (h *PlatformAI) feedStale(ctx context.Context, now time.Time) bool {
+	f, _ := h.loadFeed(ctx)
+	last := f.Tried
+	if last == "" {
+		last = f.Updated
+	}
+	at, err := time.Parse(time.RFC3339, last)
+	if err != nil {
+		return true
+	}
+	return at.Before(now.Add(untilNextMorning(now)).Add(-24 * time.Hour))
+}
+
+// EventsLoop refreshes the feed at start (when the morning's refresh has not
+// run yet) and every morning at 08:00 Almaty.
 func (h *PlatformAI) EventsLoop(ctx context.Context) {
 	t := time.NewTimer(2 * time.Minute)
+	first := true
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
-		if h.AI.Status()["text"] != "" {
+		if h.AI.Status()["text"] != "" && (!first || h.feedStale(ctx, time.Now())) {
 			<-h.startEvents("morning")
 		}
+		first = false
 		t.Reset(untilNextMorning(time.Now()))
 	}
 }

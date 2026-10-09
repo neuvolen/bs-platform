@@ -229,17 +229,25 @@ var GeminiSelfTestTimeout = 40 * time.Second
 // GeminiSelfTestDelay: how long after the start the self-test runs.
 var GeminiSelfTestDelay = 60 * time.Second
 
+// GeminiSelfTestEvery: the self-test runs at most this often (R70).
+var GeminiSelfTestEvery = 12 * time.Hour
+
 // StartGeminiSelfTest runs GeminiSelfTest once, GeminiSelfTestDelay after
 // the start (AI_GEMINI_SELFTEST=0 turns it off).
 func (c *Client) StartGeminiSelfTest() {
 	if c == nil || c.Gemini == "" || os.Getenv("AI_GEMINI_SELFTEST") == "0" {
 		return
 	}
+	// R70: once in GeminiSelfTestEvery, not on every deploy: each answer
+	// spends one of the model's free requests of the day
+	if !c.selfTestDue(GeminiSelfTestEvery) {
+		return
+	}
 	go func() {
 		time.Sleep(GeminiSelfTestDelay)
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
-		c.GeminiSelfTest(ctx)
+		c.geminiSelfTest(ctx, true)
 	}()
 }
 
@@ -248,6 +256,12 @@ func (c *Client) StartGeminiSelfTest() {
 // is opened again, a refusal is classified as any other. It returns the
 // lines it logged.
 func (c *Client) GeminiSelfTest(ctx context.Context) []string {
+	return c.geminiSelfTest(ctx, false)
+}
+
+// geminiSelfTest: skipPaused leaves out a model under a daily or billing
+// pause (the start's run after a deploy, R70).
+func (c *Client) geminiSelfTest(ctx context.Context, skipPaused bool) []string {
 	if c == nil || c.Gemini == "" {
 		return nil
 	}
@@ -264,6 +278,14 @@ func (c *Client) GeminiSelfTest(ctx context.Context) []string {
 		svc := "gemini"
 		if i > 0 {
 			svc = "gemini-lite"
+		}
+		if q := c.quotaClosed(svc); skipPaused && q != nil && (q.Daily || q.Billing) {
+			// R70: a pause kept from before the restart: asking spends nothing
+			// useful (a daily limit comes back at Google's midnight)
+			line := "gemini selftest " + m + ": skipped, paused " + q.When()
+			log.Print(line)
+			out = append(out, line)
+			continue
 		}
 		_, err := c.gemPostTimeout(ctx, m, "generateContent", body, GeminiSelfTestTimeout)
 		line := "gemini selftest " + m + ": "

@@ -313,7 +313,8 @@ func TestR56SearchQuotaClosesOnlySearch(t *testing.T) {
 			t.Fatalf("search: %v", err)
 		}
 	}
-	if searches.Load() != 1 {
+	// R70: the main model, then the light one (its own search quota), once each
+	if searches.Load() != 2 {
 		t.Fatalf("closed search asked %d times", searches.Load())
 	}
 	ans, err := c.Text(context.Background(), "s", "p")

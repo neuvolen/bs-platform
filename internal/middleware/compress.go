@@ -207,6 +207,12 @@ func (w *compressWriter) Flush() {
 	w.ResponseWriter.Flush()
 }
 
+// Unwrap (R70): http.ResponseController reaches the connection through it.
+// Without it longBody's SetReadDeadline/SetWriteDeadline failed silently on
+// every compressed /api/ answer, and the server's 60 s write timeout cut the
+// long AI answers (Gallup: «connection closed unexpectedly» after 117 s).
+func (w *compressWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 func (w *compressWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return w.ResponseWriter.Hijack()
 }
