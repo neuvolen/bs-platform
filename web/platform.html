@@ -26233,7 +26233,7 @@ function draw(name){
       ['Онлайн', 'Офлайн'].map(function(v){ return '<button type="button" data-a="fmt" data-v="' + v + '" class="' + (fmt === v ? 'on' : '') + '" aria-pressed="' + (fmt === v) + '">' + v + '</button>'; }).join('') + '</div>') +
     row('joinedAt', 'Дата входа', '', '<button type="button" class="r23-in r26-date" data-a="date" aria-haspopup="dialog" aria-label="Дата входа: ' + ea(human(r.joinedAt) || 'не указана') + '">' +
       CAL_IC + '<span>' + ea(human(r.joinedAt) || 'Выбрать дату') + '</span></button>') +
-    row('partner', 'Партнёр', 'Пара резидентов: встречи и отчёты вместе', '<select class="r23-in" data-a="partner" aria-label="Партнёр"><option value="">Нет партнёра</option>' +
+    row('partner', 'Партнёр', 'Бизнес-партнёр (одна компания): встречи и отчёты вместе, переключение между ними в один клик', '<select class="r23-in" data-a="partner" aria-label="Партнёр"><option value="">Нет партнёра</option>' +
       others.map(function(x){ return '<option value="' + ea(x.name) + '"' + (x.name === r.partner ? ' selected' : '') + '>' + ea(x.name) + '</option>'; }).join('') + '</select>') +
     row('chatId', 'Telegram Chat ID', 'Только цифры. По нему бот узнаёт резидента',
       '<input class="r23-in" data-a="chat" inputmode="numeric" autocomplete="off" maxlength="16" aria-label="Telegram Chat ID" placeholder="не указан" value="' + ea(r.chatId || '') + '">' +
@@ -26262,6 +26262,10 @@ function applyLocal(name, field, value){
   if(field === 'partner') S.list.forEach(function(x){
     if(x.name === value) x.partner = name; else if(x.partner === name && x.name !== name) x.partner = '';
   });
+  // R70: кнопка партнёра на доске и в карточке видит пару сразу
+  if(field === 'partner') try{ (typeof RESIDENTS !== 'undefined' && RESIDENTS || []).forEach(function(x){
+    if(x.name === name) x.partner = value; else if(x.name === value) x.partner = name; else if(x.partner === name) x.partner = '';
+  }); }catch(e){}
   return prev;
 }
 function syncCard(nr){
@@ -30502,8 +30506,10 @@ function headerTools(){
   return '<div class="fx-tools">' + h + '</div>';
 }
 function tabsHTML(){
-  var t = [['dds', 'ДДС', FX.st === 'ready' ? '<small id="fxTabN">' + nf(FX.rows.length) + '</small>' : ''], ['pl', 'P&L', ''], ['odds', 'ОДДС', ''], ['an', 'Анализ', ''], ['num', 'В цифрах', ''], ['fc', 'Прогноз', ''], ['debts', 'Долги и штрафы', '']]; // R48: прогноз; R69: долги и штрафы резидентов
-  return '<div class="fx-tabs" role="tablist">' + t.map(function(x){
+  // R70: «Долги и штрафы» сразу после ДДС; порядок вкладок меняется перетаскиванием (у каждого свой, bs_order)
+  var t = [['dds', 'ДДС', FX.st === 'ready' ? '<small id="fxTabN">' + nf(FX.rows.length) + '</small>' : ''], ['debts', 'Долги и штрафы', ''], ['pl', 'P&L', ''], ['odds', 'ОДДС', ''], ['an', 'Анализ', ''], ['num', 'В цифрах', ''], ['fc', 'Прогноз', '']]; // R48: прогноз; R69: долги и штрафы резидентов
+  if(window.bsTabSort) t = bsTabSort('fx', t, function(x){ return x[0]; });
+  return '<div class="fx-tabs" role="tablist" data-tabrow="fx">' + t.map(function(x){
     return '<button class="fx-tab' + (FX.tab === x[0] ? ' on' : '') + '" role="tab" data-t="' + x[0] + '" onclick="fxTab(\'' + x[0] + '\')">' + x[1] + x[2] + '</button>'; }).join('') + '</div>';
 }
 function subtitle(){
@@ -33792,7 +33798,7 @@ function ptUgcHTML(){
     '<li>Видео снимаем после встречи на телефон, 3 вопроса: с чем пришёл, что сделали, что сейчас.</li>' +
     '<li>Кейс уходит в Контент-завод: пост в Threads и карусель в Instagram со ссылкой на бота.</li>' +
     '<li>Бонус начисляется после публикации, отмечаем в карточке резидента.</li></ol>' +
-    '<h3 style="margin-top:16px">Правила</h3><ul><li>Публикуем только с письменного согласия резидента.</li><li>Цифры подтверждает резидент, без данных его клиентов.</li><li>Резидент может снять материал в любой момент.</li></ul></div></div>';
+    '<h3 style="margin-top:16px">Правила</h3><ul><li>Резиденты согласны на кейсы с момента вступления; имя показываем, только если команда включила его в кейсе.</li><li>Цифры подтверждает резидент, без данных его клиентов.</li><li>Резидент может снять материал в любой момент.</li></ul></div></div>';
 }
 
 (function(){
@@ -36969,25 +36975,26 @@ function r46LeadTeaser(){
     api('GET', '/sales/consent').then(function(j){ if(j && !j.error){ CS.people = j.people || []; casesPaint(); } });
   }
   function renderCases(){
-    var el = pgSet('Маркетинг', 'Кейсы «было → стало» из замеров резидентов, только с их согласия');
+    var el = pgSet('Маркетинг', 'Кейсы «было → стало» из замеров резидентов');
     el.innerHTML = '<div id="r51sCases"><div class="pf-empty">Загружаю кейсы…</div></div>';
     casesLoad();
   }
   function caseCard(x){
     var c = x.case || {}, ex = x.exports || {};
     var mets = (c.metrics || []).map(function(m){ return '<li>' + e(m.label) + ': ' + e(fmtM(m.before, m.unit)) + ' → ' + e(fmtM(m.after, m.unit)) + '</li>'; }).join('');
-    var st = c.status || 'draft', noCons = x.consent === 'no';
+    var st = c.status || 'draft'; // R70: согласие у всех резидентов, имя в кейсе включает команда
     return '<div class="r51s-case" data-id="' + ea(c.id) + '"><div class="t"><b>' + e(c.title) + '</b><span class="r51s-chip ' + st + '">' + e(STN[st] || st) + '</span></div>' +
-      '<div class="who">' + e(x.who || '') + ' · согласие: <b style="color:' + (noCons ? 'var(--pred)' : 'inherit') + '">' + e(MODEN[x.consent] || x.consent) + '</b>' + (c.ai ? ' · текст ИИ' : '') + '</div>' +
+      '<div class="who">' + e(x.who || '') + ' · <b>' + (c.named ? 'с именем' : 'анонимно') + '</b>' + (c.ai ? ' · текст ИИ' : '') + '</div>' +
       (mets ? '<ul>' + mets + '</ul>' : '') +
       '<input class="inp" data-ct value="' + ea(c.title) + '" aria-label="Заголовок"><textarea class="inp" data-cs aria-label="История">' + e(c.story || '') + '</textarea>' +
       '<div class="r51s-acts">' +
         '<button class="btn pf-b" type="button" data-ca="save">Сохранить текст</button>' +
         (st === 'draft' ? '<button class="btn pf-b" type="button" data-ca="approved">Утвердить</button>' : '') +
-        (st !== 'published' ? '<button class="btn pf-b pf-p" type="button" data-ca="published"' + (noCons ? ' disabled title="Нет согласия резидента"' : '') + '>Опубликовать</button>' : '<button class="btn pf-b" type="button" data-ca="hidden">Снять</button>') +
+        (st !== 'published' ? '<button class="btn pf-b pf-p" type="button" data-ca="published">Опубликовать</button>' : '<button class="btn pf-b" type="button" data-ca="hidden">Снять</button>') +
         (st === 'hidden' || st === 'approved' ? '<button class="btn pf-b" type="button" data-ca="draft">В черновики</button>' : '') +
         (CS.ai ? '<button class="btn pf-b" type="button" data-ca="ai">ИИ: переписать</button>' : '') +
         '<button class="btn pf-b" type="button" data-ca="th">Threads</button><button class="btn pf-b" type="button" data-ca="car">Карусель</button><button class="btn pf-b" type="button" data-ca="site">Блок сайта</button>' +
+        '<button class="btn pf-b" type="button" data-ca="name" aria-pressed="' + (!!c.named) + '">' + (c.named ? 'Скрыть имя' : 'Показывать имя') + '</button>' +
         '<button class="btn pf-b" type="button" data-ca="del">Удалить</button></div></div>';
   }
   function fmtM(v, u){ if(u === '₸') return tg(v); var s = (Math.round(Number(v) * 10) / 10).toString().replace('.', ','); return u ? s + ' ' + u : s; }
@@ -37000,15 +37007,11 @@ function r46LeadTeaser(){
     var people = CS.people || [];
     var yes = people.filter(function(p){ return p.mode === 'anon' || p.mode === 'name'; }).length;
     box.innerHTML = '<div class="r51s-box"><h4>Как это работает</h4><div class="k">«Собрать черновики» берёт резидентов с согласием и цифрами в начале и сейчас (выручка, прибыль, часы собственника, индекс здоровья, закрытые диагнозы) и пишет кейс по шаблону. Утвердите, при необходимости поправьте текст и опубликуйте: кейс пойдёт в напоминание дня 5 после разбора и на открытую страницу «О клубе». Анонимный кейс: только ниша, город и цифры.</div>' +
-      '<div class="r51s-acts"><button class="btn pf-b pf-p" type="button" id="r51sGen">Собрать черновики</button><span class="k" style="align-self:center">Согласие дали ' + yes + ' из ' + people.filter(function(p){ return !p.former; }).length + '</span></div><div class="r51s-msg' + (CS.gm ? ' ' + CS.gm[1] : '') + '" id="r51sGenMsg">' + e(CS.gm ? CS.gm[0] : '') + '</div></div>' +
+      '<div class="r51s-acts"><button class="btn pf-b pf-p" type="button" id="r51sGen">Собрать черновики</button></div><div class="r51s-msg' + (CS.gm ? ' ' + CS.gm[1] : '') + '" id="r51sGenMsg">' + e(CS.gm ? CS.gm[0] : '') + '</div></div>' +
       '<div class="cx-pipes" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px">' + ['all', 'draft', 'approved', 'published', 'hidden'].map(function(k){
         return '<button class="btn pf-b' + (CS.f === k ? ' pf-p' : '') + '" type="button" data-cf="' + k + '" style="height:32px;font-size:12px">' + (k === 'all' ? 'Все' : STN[k]) + ' · ' + (cnt[k] || 0) + '</button>'; }).join('') + '</div>' +
-      (list.length ? '<div class="r51s-cases">' + list.map(caseCard).join('') + '</div>' : '<div class="pf-empty">Кейсов пока нет. Нужны согласие резидента и замеры в начале и сейчас</div>') +
-      '<div class="r51s-box"><h4>Согласие резидентов</h4><div class="k">По умолчанию «анонимно»: только ниша, город и цифры. Резидент меняет это сам в профиле (платформа и приложение), его выбор не перезаписывается. «Спросить в боте» пришлёт ему кнопки 10:00-20:00.</div>' +
-      '<table class="r51s-tbl"><tr><th>Резидент</th><th>Согласие</th><th class="hm">Когда</th><th></th></tr>' + people.map(function(p){
-        return '<tr><td>' + e(p.name) + (p.former ? ' <span class="k">(бывший)</span>' : '') + '</td><td><select class="inp" data-cm="' + ea(p.name) + '">' + ['anon', 'name', 'no'].map(function(m){ return '<option value="' + m + '"' + (p.mode === m ? ' selected' : '') + '>' + MODEN[m] + (m === 'anon' && !p.chosen ? ' (по умолчанию)' : '') + '</option>'; }).join('') + '</select></td>' +
-          '<td class="hm k">' + e(p.at ? dm(p.at) + ' · ' + (p.by || '') : (p.reqAt ? 'спросили ' + dm(p.reqAt) : '')) + '</td><td>' + (p.former ? '' : '<button class="btn pf-b" type="button" data-cr="' + ea(p.name) + '" style="height:30px;font-size:12px">Спросить в боте</button>') + '</td></tr>';
-      }).join('') + '</table></div>';
+      (list.length ? '<div class="r51s-cases">' + list.map(caseCard).join('') + '</div>' : '<div class="pf-empty">Кейсов пока нет. Нужны замеры резидента в начале и сейчас</div>') +
+      '<div class="r51s-box"><h4>Согласие резидентов</h4><div class="k">Резиденты согласны на кейсы автоматически с момента вступления. Кейс по умолчанию анонимный: ниша, город и цифры. Имя появится, только если в кейсе включить «Показывать имя».</div></div>';
   }
   document.addEventListener('click', function(ev){
     var t = ev.target; if(!t.closest) return;
@@ -37031,8 +37034,9 @@ function r46LeadTeaser(){
     var done = function(j){ ca.disabled = false; if(!j || j.error){ say((j && (j.message || j.error)) || 'Не получилось'); return; } CS.items = j.items || CS.items; casesPaint(); };
     ca.disabled = true;
     if(a === 'save'){ api('PUT', '/sales/cases/' + encodeURIComponent(id), {title: card.querySelector('[data-ct]').value, story: card.querySelector('[data-cs]').value}).then(function(j){ done(j); if(j && !j.error) say('Текст сохранён'); }); return; }
+    if(a === 'name'){ var nmd = !(x.case || {}).named; api('PUT', '/sales/cases/' + encodeURIComponent(id), {named: nmd}).then(function(j){ done(j); if(j && !j.error) say(nmd ? 'В кейсе будет имя резидента' : 'Кейс снова анонимный'); }); return; }
     if(a === 'ai'){ say('ИИ переписывает…'); api('POST', '/sales/cases/' + encodeURIComponent(id) + '/ai').then(done); return; }
-    if(a === 'del'){ ca.disabled = false; askConfirm('Удалить кейс?', 'Черновик соберётся заново при следующей сборке, если есть согласие', function(){ api('DELETE', '/sales/cases/' + encodeURIComponent(id)).then(done); }); return; }
+    if(a === 'del'){ ca.disabled = false; askConfirm('Удалить кейс?', 'Черновик соберётся заново при следующей сборке, если есть замеры', function(){ api('DELETE', '/sales/cases/' + encodeURIComponent(id)).then(done); }); return; }
     api('PUT', '/sales/cases/' + encodeURIComponent(id), {status: a}).then(function(j){ done(j); if(j && !j.error) say(a === 'published' ? 'Опубликован: в напоминании дня 5 и на странице «О клубе»' : 'Статус: ' + STN[a]); });
   });
   document.addEventListener('change', function(ev){
@@ -37057,8 +37061,7 @@ function r46LeadTeaser(){
   function meHTML(d){
     if(!d) return '<div class="pf-empty">Загружаю…</div>';
     var r = d.renew || {}, p = r.pending;
-    var h = '<div class="r51s-box" id="r51sCons"><h4>Мои результаты в кейсах клуба</h4><div class="k">Можно ли показывать ваши цифры «было → стало» в кейсах клуба (соцсети, сайт)? Анонимно: только ниша, город и цифры. Поменять можно в любой момент.</div>' + (d.consentNote ? '<div class="r51s-st" id="r52cNote">' + e(d.consentNote) + '</div>' : '') +
-      '<div class="r51s-mode">' + [['anon', 'Анонимно'], ['name', 'С именем'], ['no', 'Нельзя']].map(function(m){ return '<button type="button" data-mm="' + m[0] + '" class="' + (d.consent === m[0] ? 'on' : '') + '" aria-pressed="' + (d.consent === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div></div>';
+    var h = ''; // R70: согласие на кейсы у резидента с момента вступления, выбора в профиле нет
     h += '<div class="r51s-box" id="r51sRenew"><h4>Продление резидентства</h4><div class="k">' + (r.packEnd ? 'Пакет действует до ' + e(r.packEnd) + (r.daysLeft >= 0 ? ' (осталось ' + r.daysLeft + ' дн.)' : '') + '. ' : '') + 'Продлить в 1 клик: команда увидит запрос, пакет продлится сам после оплаты.</div>' +
       (p ? '<div class="r51s-st wait">⏳ Ожидает оплату продления: ' + (p.months == 12 ? 'год' : '3 месяца') + ', ' + tg(p.amount) + '</div>' + (r.kaspi ? '<div class="r51s-acts"><a class="btn pf-b pf-p" href="' + ea(r.kaspi) + '" target="_blank" rel="noopener">Оплатить ' + tg(p.amount) + ' (Kaspi)</a></div>' : '<div class="k" style="margin-top:6px">Команда пришлёт ссылку на оплату.</div>') : '') +
       '<div class="r51s-acts">' + (r.q3Price > 0 ? '<button class="btn pf-b' + (p ? '' : ' pf-p') + '" type="button" data-rn="3">Продлить на 3 месяца · ' + tg(r.q3Price) + '</button>' : '') +
@@ -37074,7 +37077,7 @@ function r46LeadTeaser(){
   }
   function mePaint(){ document.querySelectorAll('.r51s-me').forEach(function(el){ el.innerHTML = meHTML(ME.d); }); }
   function renderResults(){
-    var el = pgSet('Итоги и продление', 'Итоги периодов, продление в 1 клик, согласие на кейсы');
+    var el = pgSet('Итоги и продление', 'Итоги периодов, продление в 1 клик');
     el.innerHTML = '<div class="r51s-me">' + meHTML(ME.d) + '</div>';
     meLoad(function(j){ if(!j || j.error){ el.innerHTML = '<div class="pf-empty">Не загрузилось: ' + e((j && j.error) || '') + '</div>'; return; } mePaint(); });
   }
@@ -37108,11 +37111,11 @@ function r46LeadTeaser(){
       REN = a[1];
       var p = ren.pending;
       var h = '<div class="r51s-box"><h4>Итоги и продление</h4><div class="k">' + (ren.packEnd ? 'Пакет до ' + e(ren.packEnd.split('-').reverse().join('.')) + (ren.daysLeft != null ? ' (осталось ' + ren.daysLeft + ' дн.)' : '') + '. ' : '') +
-        'Согласие на кейсы: <b>' + e(MODEN[cons.mode || 'anon']) + '</b>' + (cons.chosen ? '' : ' (по умолчанию)') + '.</div>' +
+        '</div>' +
         (p ? '<div class="r51s-st wait">⏳ Ожидает оплату продления: ' + (p.months == 12 ? 'год' : '3 месяца') + ', ' + tg(p.amount) + '</div>' : '') +
         '<div class="r51s-acts"><button class="btn pf-b" type="button" data-rr="3">Итог 3 месяцев</button><button class="btn pf-b" type="button" data-rr="12">Итог года</button>' +
         (p ? '<button class="btn pf-b pf-p" type="button" data-rpaid="1">Оплата получена: продлить</button>' : '') +
-        '<button class="btn pf-b" type="button" data-rcons="1">Спросить согласие на кейс</button></div>' +
+        '</div>' +
         (reps.length ? '<div style="margin-top:10px">' + reps.map(function(r){
           var st = r.status === 'sent' ? 'отправлен ' + dmhm(r.sentAt) : (r.status === 'queued' ? 'уйдёт в 10:00' : 'черновик' + (r.err ? ' · ' + r.err : ''));
           return '<div class="r51s-rep"><span><b>' + (r.months == 12 ? 'Год' : '3 месяца') + '</b> · ' + e(r.from) + ' - ' + e(r.to) + ' · <span class="k">' + e(st) + '</span></span><span class="a">' +
@@ -40676,6 +40679,9 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
 .r69-hint{font-size:12.5px;color:var(--pm);line-height:1.5;margin:-4px 0 12px}
 .r69-un .r69-li{grid-template-columns:86px minmax(0,1fr) auto}
 .r69-un select{max-width:220px}
+.r69-nm em.r70-chk{color:#F5A524;border-color:#F5A524}
+.r70-why{margin:6px 0 0;padding:10px 12px;border:1px solid #F5A524;border-radius:10px;font-size:12.5px;line-height:1.5;color:var(--ptx)}
+.r70-why b{color:#F5A524}
 @media (max-width:900px){
   .r69-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .r69-tr{grid-template-columns:minmax(120px,1.6fr) minmax(76px,1fr) 22px}
@@ -40726,6 +40732,7 @@ function rows(){
     if(D.f === 'on') return !r.former && r.format === 'Онлайн';
     if(D.f === 'off') return !r.former && r.format !== 'Онлайн';
     if(D.f === 'former') return r.former;
+    if(D.f === 'check') return !!(r.check && r.check.length); // R70: долг не сходится с оплатами
     return D.f === 'all' ? !r.former || r.total > 0 : true;
   });
   var by = {
@@ -40747,6 +40754,8 @@ function kpiHTML(){
 }
 function toolsHTML(){
   var F = [['all', 'Все'], ['debt', 'С долгом'], ['fines', 'Со штрафами'], ['on', 'Онлайн'], ['off', 'Офлайн'], ['former', 'Бывшие']];
+  var nChk = ((D.rep && D.rep.residents) || []).filter(function(r){ return r.check && r.check.length; }).length;
+  if(nChk) F.push(['check', 'Проверить · ' + nf(nChk)]); // R70
   return '<div class="r69-tools"><input class="r69-q" id="r69Q" placeholder="Найти резидента" value="' + E(D.q) + '" aria-label="Найти резидента">' +
     F.map(function(f){ return '<button type="button" class="r69-ch' + (D.f === f[0] ? ' on' : '') + '" data-r69f="' + f[0] + '">' + f[1] + '</button>'; }).join('') +
     '<select class="r69-in" id="r69Sort" aria-label="Сортировка" style="min-height:34px">' +
@@ -40762,7 +40771,15 @@ var FIDX = {};
 function fineByID(id){ return FIDX[id]; }
 function detHTML(r){
   var h = '<div class="r69-det" data-det="' + r.id + '">';
-  h += '<div class="r69-sec"><div class="r69-sh">Долг по членству: ' + tg(r.debt) + (r.debt ? ' · остаток входа ' + tg(r.rest) + ' · продление ' + tg(r.renew) : '') + (r.tariff ? ' · тариф ' + tg(r.tariff) : '') + '</div></div>';
+  h += '<div class="r69-sec"><div class="r69-sh">Долг по членству: ' + tg(r.debt) + (r.debt ? ' · остаток входа ' + tg(r.rest) + ' · продление ' + tg(r.renew) : '') + (r.tariff ? ' · тариф ' + tg(r.tariff) : '') +
+    (D.editable ? '<button type="button" class="r69-b sm" data-r69="set" data-id="' + r.id + '">Установить долг</button>' : '') + '</div>';
+  // R70: долг не сходится с оплатами: почему проверить; «Установить долг» с причиной держится и после пересчётов
+  if(r.check && r.check.length) h += '<div class="r70-why"><b>Проверить:</b> ' + r.check.map(E).join('; ') + '</div>';
+  if(D.form.set === r.id) h += '<div class="r69-form"><input class="r69-in" id="r70SA" inputmode="numeric" data-money="1" value="' + nf(r.debt) + '" aria-label="Долг по членству, ₸" style="max-width:160px">' +
+    '<input class="r69-in" id="r70SR" placeholder="Причина: например, продление оплачено 07.10" maxlength="300" aria-label="Причина">' +
+    '<button type="button" class="r69-b sm pri" data-r69="set-ok" data-id="' + r.id + '">Сохранить долг</button><button type="button" class="r69-b sm" data-r69="set-x">Отмена</button>' +
+    '<div class="r69-msg" id="r70SM"></div><div class="r69-hint" style="margin:0;width:100%">Штрафы не меняются. Пересчёты и старые оплаты этот долг не перепишут, причина останется в истории</div></div>';
+  h += '</div>';
   var open = r.fines.filter(function(f){ return f.status === 'Не оплатил'; }), done = r.fines.filter(function(f){ return f.status !== 'Не оплатил'; });
   h += '<div class="r69-sec"><div class="r69-sh">Штрафы' + (open.length ? ': к оплате ' + tg(r.finesOpen) : '') + '</div>';
   if(!r.fines.length) h += '<div class="r69-hint" style="margin:0">Штрафов нет</div>';
@@ -40785,6 +40802,15 @@ function detHTML(r){
     h += '<div class="r69-li"><span class="d">' + E(dmy(p.date)) + '</span><span class="t">' + E(p.cat || 'Приход') + (p.account ? ' · ' + E(p.account) : '') + '<small>' + E(lines.join(' · ')) + '</small></span><span class="v">' + tg(p.amount) + '</span></div>';
   });
   h += '</div>';
+  // R70: история долга: каждое изменение с причиной (оплата, закрытый пакет, ручная правка)
+  if(r.history && r.history.length){
+    h += '<div class="r69-sec"><div class="r69-sh">История долга</div>';
+    r.history.forEach(function(e){
+      var d = new Date(e.at), ds = isNaN(d) ? '' : ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear();
+      h += '<div class="r69-li"><span class="d">' + E(ds) + '</span><span class="t">' + E(e.reason) + '</span><span class="v">' + nf(e.before) + ' → ' + nf(e.after) + '</span></div>';
+    });
+    h += '</div>';
+  }
   if(D.editable){
     h += '<div class="r69-acts"><button type="button" class="r69-b pri" data-r69="pay" data-n="' + E(r.name) + '" data-k="debt">Записать оплату</button>' +
       '<button type="button" class="r69-b" data-r69="pay" data-n="' + E(r.name) + '" data-k="fine">Оплата штрафа</button>' +
@@ -40824,7 +40850,8 @@ function tableHTML(){
   list.forEach(function(r){
     var o = !!D.open[r.id];
     h += '<div class="r69-tr r69-row' + (o ? ' open' : '') + '" data-r69row="' + r.id + '" tabindex="0" role="button" aria-expanded="' + o + '">' +
-      '<span class="r69-nm"><i>' + E(r.name) + '</i><em>' + (r.former ? 'бывший' : (r.format === 'Онлайн' ? 'онлайн' : 'офлайн')) + '</em></span>' +
+      '<span class="r69-nm"><i>' + E(r.name) + '</i><em>' + (r.former ? 'бывший' : (r.format === 'Онлайн' ? 'онлайн' : 'офлайн')) + '</em>' +
+        (r.check && r.check.length ? '<em class="r70-chk" title="' + E(r.check.join('; ')) + '">Проверить</em>' : '') + '</span>' +
       '<span class="n' + (r.debt ? ' red' : ' m') + '">' + nf(r.debt) + '</span>' +
       '<span class="n' + (r.finesOpen ? ' red' : ' m') + '">' + nf(r.finesOpen) + '</span>' +
       '<span class="n' + (r.total ? ' red' : ' m') + '">' + nf(r.total) + '</span>' +
@@ -40864,7 +40891,19 @@ function act(b){
   if(a === 'reload'){ load(true); return; }
   if(a === 'pay'){ payForm(b.dataset.n, b.dataset.k); return; }
   if(a === 'fine'){ D.form = {fine: +b.dataset.id}; paintBody(); setTimeout(function(){ var x = document.getElementById('r69FA'); if(x) x.focus(); }, 30); return; }
-  if(a === 'fine-x' || a === 'wo-x'){ D.form = {}; paintBody(); return; }
+  if(a === 'fine-x' || a === 'wo-x' || a === 'set-x'){ D.form = {}; paintBody(); return; }
+  if(a === 'set'){ D.form = {set: +b.dataset.id}; paintBody(); setTimeout(function(){ var x = document.getElementById('r70SA'); if(x){ x.focus(); try{ x.select(); }catch(e){} } }, 30); return; }
+  if(a === 'set-ok'){
+    var sv = String((document.getElementById('r70SA') || {}).value || '').replace(/\D/g, ''), why = String((document.getElementById('r70SR') || {}).value || '').trim(), sm = document.getElementById('r70SM');
+    if(sv === ''){ if(sm) sm.textContent = 'Введите сумму долга (0, если долга нет)'; return; }
+    if(!why){ if(sm) sm.textContent = 'Напишите причину: она останется в истории долга'; return; }
+    b.disabled = true;
+    api('POST', '/debts/set', {id: +b.dataset.id, debt: sv, reason: why}).then(function(x){
+      b.disabled = false;
+      if(x.ok){ D.form = {}; toastS('Долг установлен: ' + tg(+sv)); reloadSoon(); } else if(sm) sm.textContent = (x.j && (x.j.detail || x.j.error)) || 'Не получилось';
+    });
+    return;
+  }
   if(a === 'fine-ok'){
     var amount = String((document.getElementById('r69FA') || {}).value || '').replace(/\D/g, ''), type = (document.getElementById('r69FT') || {}).value || 'Штраф';
     var m = document.getElementById('r69FM');
@@ -40926,6 +40965,238 @@ window.r69OpenDebts = function(name){
   goSection('pl');
   try{ if(typeof fxTab === 'function') fxTab('debts'); }catch(e){}
 };
+})();
+</script>
+<!-- R70: вкладки переставляются перетаскиванием (мышь; на телефоне долгое нажатие), порядок у каждого свой и хранится на сервере (bs_order); резиденты-партнёры в один клик -->
+<style id="r70Style">
+[data-r70row]>[data-r70k]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+[data-r70row]>.r70-drag{opacity:.5}
+[data-r70row]>.r70-lift{opacity:.9;transform:scale(1.05);box-shadow:0 6px 18px rgba(0,0,0,.35);position:relative;z-index:2}
+.r70-prt{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;border:1px solid var(--pb,#333);background:none;color:var(--ptx,#fff);font:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;min-height:28px;max-width:240px;vertical-align:middle;margin-left:8px}
+.r70-prt i{font-style:normal;overflow:hidden;text-overflow:ellipsis}
+.r70-prt svg{flex-shrink:0}
+.r70-prt:hover,.r70-prt:focus-visible{border-color:var(--pon,#fff)}
+.titlewrap .r70-prt{margin-left:6px}
+@media (max-width:700px){.titlewrap .r70-prt i{max-width:90px}}
+</style>
+<script id="r70Script">
+(function(){
+'use strict';
+function E(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+// ═══ Порядок вкладок: любая строка вкладок, у каждого свой (bs_order.tabs_<строка>) ═══
+// «Почему я не могу "Долги и штрафы" перемещать влево-вправо». Компьютер: перетащить мышью.
+// Телефон: подержать вкладку, она приподнимется, и вести пальцем. Вкладки разделов (bk-tabs)
+// пишут порядок своим кодом (tabDrag), остальные строки сюда.
+var ROWS = '[data-tabrow],.fx-tabs,#rpTabs,.bk-tabs,[role="tablist"],.tabs,.tr53-tabs,.tr16-tabs,.r54-tabs,.ls-tabs';
+var KEYS = ['t', 'tab', 's', 'ids', 'k', 'id', 'f'];
+function r70lo(){ try{ return typeof loadOrder === 'function' ? loadOrder() : JSON.parse(localStorage.getItem('bs_order') || '{}'); }catch(e){ return {}; } }
+function r70so(o){ if(typeof saveOrder === 'function') saveOrder(o); else try{ o.at = Date.now(); localStorage.setItem('bs_order', JSON.stringify(o)); }catch(e){} }
+function r70key(el){
+  if(!el || !el.dataset) return '';
+  for(var i = 0; i < KEYS.length; i++){ var v = el.dataset[KEYS[i]]; if(v) return KEYS[i] + ':' + v; }
+  return '';
+}
+function r70rowKey(row){
+  if(row.dataset.tabrow) return row.dataset.tabrow;
+  if(row.id) return row.id;
+  var c = String(row.className || '').split(/\s+/)[0] || 'tabs';
+  return c + '@' + (typeof section !== 'undefined' ? section : '');
+}
+function r70items(row){ return Array.prototype.filter.call(row.children, function(x){ return !!r70key(x); }); }
+function r70bk(row){ return row.classList.contains('bk-tabs'); }
+// Список вкладок в сохранённом порядке (новые вкладки на своих местах в конце)
+window.bsTabSort = function(key, list, idOf){
+  var ids = r70lo()['tabs_' + key]; if(!Array.isArray(ids) || !ids.length) return list;
+  var out = [];
+  ids.forEach(function(id){ list.forEach(function(x){ if(String(idOf(x)) === String(id) && out.indexOf(x) < 0) out.push(x); }); });
+  list.forEach(function(x){ if(out.indexOf(x) < 0) out.push(x); });
+  return out;
+};
+function r70ids(row){ return r70items(row).map(function(x){ var k = r70key(x); return k.slice(k.indexOf(':') + 1); }); }
+function r70apply(row){
+  if(r70bk(row) || D.on) return;
+  var ids = r70lo()['tabs_' + r70rowKey(row)]; if(!Array.isArray(ids) || !ids.length) return;
+  var items = r70items(row), cur = r70ids(row), want = [];
+  ids.forEach(function(id){ var i = cur.indexOf(String(id)); if(i >= 0) want.push(items[i]); });
+  items.forEach(function(x){ if(want.indexOf(x) < 0) want.push(x); });
+  var same = want.every(function(x, i){ return items[i] === x; }); if(same) return;
+  var anchor = items[items.length - 1].nextSibling;
+  want.forEach(function(x){ row.insertBefore(x, anchor); });
+}
+function r70save(row){
+  if(r70bk(row)) return; // tabDrag
+  var o = r70lo(); o['tabs_' + r70rowKey(row)] = r70ids(row); r70so(o);
+}
+var fine = !window.matchMedia || window.matchMedia('(pointer:fine)').matches;
+function r70scan(){
+  Array.prototype.forEach.call(document.querySelectorAll(ROWS), function(row){
+    var items = r70items(row); if(items.length < 2 || (!r70bk(row) && items.length !== row.children.length)) return;
+    if(!row.hasAttribute('data-r70row')) row.setAttribute('data-r70row', '');
+    items.forEach(function(x){ x.setAttribute('data-r70k', ''); if(fine && x.getAttribute('draggable') !== 'true') x.setAttribute('draggable', 'true'); });
+    r70apply(row);
+  });
+}
+var D = {on: false};
+var qd = 0;
+function later(){ if(qd) return; qd = 1; (window.requestAnimationFrame || setTimeout)(function(){ qd = 0; try{ r70scan(); }catch(e){} }); }
+try{ new MutationObserver(later).observe(document.documentElement, {childList: true, subtree: true}); }catch(e){}
+later();
+function r70item(t){
+  var it = t && t.closest ? t.closest('[data-r70row]>[data-r70k]') : null;
+  return it;
+}
+function moveTo(it, x, y){
+  var el = document.elementFromPoint(x, y), over = r70item(el);
+  if(!over || over === it || over.parentNode !== it.parentNode) return;
+  var r = over.getBoundingClientRect(), vert = r.height > r.width * 1.6 && it.parentNode.scrollHeight > it.parentNode.clientHeight + 4;
+  var after = vert ? y > r.top + r.height / 2 : x > r.left + r.width / 2;
+  var ref = after ? over.nextSibling : over;
+  if(ref !== it && it.nextSibling !== ref) it.parentNode.insertBefore(it, ref);
+}
+// Мышь: HTML5-перетаскивание (у вкладок разделов своё, tabDrag)
+document.addEventListener('dragstart', function(e){
+  var it = r70item(e.target); if(!it || r70bk(it.parentNode)) return;
+  D.on = true; D.it = it; it.classList.add('r70-drag');
+  try{ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', r70key(it)); }catch(_){}
+}, true);
+document.addEventListener('dragover', function(e){
+  if(!D.on || !D.it) return;
+  e.preventDefault();
+  moveTo(D.it, e.clientX, e.clientY);
+});
+document.addEventListener('drop', function(e){ if(D.on) e.preventDefault(); });
+document.addEventListener('dragend', function(){
+  if(!D.on || !D.it) return;
+  var it = D.it, row = it.parentNode; it.classList.remove('r70-drag'); D.on = false; D.it = null;
+  if(row) r70save(row);
+}, true);
+// Палец: долгое нажатие поднимает вкладку, дальше она идёт за пальцем
+var T = null;
+function synth(type, el){
+  var ev; try{ ev = new DragEvent(type, {bubbles: true, cancelable: true}); }catch(_){ ev = document.createEvent('Event'); ev.initEvent(type, true, true); }
+  el.dispatchEvent(ev);
+}
+document.addEventListener('touchstart', function(e){
+  if(e.touches.length !== 1){ T = null; return; }
+  var it = r70item(e.target); if(!it) return;
+  var p = e.touches[0];
+  T = {it: it, row: it.parentNode, x: p.clientX, y: p.clientY, on: false};
+  var t = T;
+  t.tm = setTimeout(function(){
+    if(T !== t) return;
+    t.on = true; D.on = true; it.classList.add('r70-lift');
+    try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){}
+    if(r70bk(t.row)) synth('dragstart', it);
+  }, 420);
+}, {passive: true});
+document.addEventListener('touchmove', function(e){
+  if(!T) return;
+  var p = e.touches[0];
+  if(!T.on){ if(Math.abs(p.clientX - T.x) > 8 || Math.abs(p.clientY - T.y) > 8){ clearTimeout(T.tm); T = null; } return; }
+  if(e.cancelable) e.preventDefault();
+  moveTo(T.it, p.clientX, p.clientY);
+  var r = T.row.getBoundingClientRect();
+  if(p.clientX < r.left + 24) T.row.scrollLeft -= 12; else if(p.clientX > r.right - 24) T.row.scrollLeft += 12;
+}, {passive: false});
+function tend(e){
+  if(!T) return;
+  var t = T; T = null; clearTimeout(t.tm);
+  if(!t.on) return;
+  if(e && e.cancelable) e.preventDefault();
+  t.it.classList.remove('r70-lift'); D.on = false;
+  // клик после переноса не открывает вкладку
+  var stop = function(ev){ ev.stopPropagation(); ev.preventDefault(); document.removeEventListener('click', stop, true); };
+  document.addEventListener('click', stop, true); setTimeout(function(){ document.removeEventListener('click', stop, true); }, 450);
+  if(r70bk(t.row)) synth('dragend', t.it); else r70save(t.row);
+}
+document.addEventListener('touchend', tend, {passive: false});
+document.addEventListener('touchcancel', tend, {passive: false});
+document.addEventListener('contextmenu', function(e){ if(T && T.on) e.preventDefault(); });
+
+// ═══ Резиденты-партнёры: переключение в один клик ═══
+// «Добавь возможность переключаться в один клик у резидентов-партнёров». Партнёр задаётся в карточке
+// резидента («Настройки резидента» → «Партнёр»); на доске, в панели резидента и в карточке клуба
+// рядом с именем кнопка партнёра: его доска (последний разбор) или карточка.
+var SW = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4L3 8l4 4"/><path d="M3 8h14"/><path d="M17 20l4-4-4-4"/><path d="M21 16H7"/></svg>';
+function resList(){ return typeof RESIDENTS !== 'undefined' && RESIDENTS ? RESIDENTS : []; }
+function r70res(name){ return typeof pfResOf === 'function' ? pfResOf(name) : null; }
+function r70prtOf(name){
+  var r = r70res(name); if(!r) return null;
+  var p = String(r.partner || '').trim();
+  if(!p){
+    // партнёр мог быть записан только у второго
+    var back = resList().find(function(x){ return x && String(x.partner || '').trim() === r.name; });
+    if(back) p = back.name;
+  }
+  if(!p || p === r.name) return null;
+  var pr = resList().find(function(x){ return x && x.name === p; }) || r70res(p);
+  return pr ? pr.name : p;
+}
+function team(){ try{ return typeof bsIsTeam === 'function' ? bsIsTeam() : (typeof MODE !== 'undefined' && MODE === 'admin'); }catch(e){ return false; } }
+function chip(p, where){
+  return '<button type="button" class="r70-prt" data-r70prt="' + E(p) + '" data-w="' + where + '" title="Партнёр: ' + E(p) + '. Переключиться в один клик" aria-label="Переключиться на партнёра ' + E(p) + '">' + SW + '<i>' + E(p) + '</i></button>';
+}
+window.r70GoPartner = function(p, where){
+  var b = typeof latestBoardOf === 'function' ? latestBoardOf(p) : null;
+  if(where === 'card' && team()){
+    var i = resList().findIndex(function(x){ return x && x.name === p; });
+    if(i >= 0 && typeof openResident === 'function'){ openResident(i); return; }
+  }
+  if(b){
+    var rp = document.documentElement.classList.contains('rp-open');
+    try{ if(typeof closeSheet === 'function') closeSheet('cardSheet'); }catch(e){}
+    try{ if(typeof goBlock === 'function' && typeof section !== 'undefined' && section !== 'board') goBlock('track'); }catch(e){}
+    openBoard(b.id);
+    if(rp && typeof openRP === 'function') try{ openRP(); }catch(e){}
+    try{ toast('Доска партнёра: ' + p); }catch(e){}
+    return;
+  }
+  if(team()){
+    var j = resList().findIndex(function(x){ return x && x.name === p; });
+    if(j >= 0 && typeof openResident === 'function'){ openResident(j); try{ toast('У ' + p + ' пока нет разбора'); }catch(e){} return; }
+  }
+  try{ toast('У ' + p + ' пока нет разбора'); }catch(e){}
+};
+function r70boardChip(){
+  var w = document.querySelector('#topBar .titlewrap'); if(!w) return;
+  var old = document.getElementById('r70Prt'); if(old) old.remove();
+  var nm = typeof curBoard !== 'undefined' && curBoard && curBoard.info && curBoard.info.res; if(!nm) return;
+  var p = r70prtOf(nm); if(!p) return;
+  if(!team() && !(typeof latestBoardOf === 'function' && latestBoardOf(p))) return;
+  w.insertAdjacentHTML('beforeend', chip(p, 'board').replace('class="r70-prt"', 'class="r70-prt" id="r70Prt"'));
+}
+function r70rpChip(){
+  var m = document.getElementById('rpMeta'); if(!m || m.querySelector('.r70-prt')) return;
+  var nm = (typeof curBoard !== 'undefined' && curBoard && curBoard.info && curBoard.info.res) || ''; if(!nm) return;
+  var p = r70prtOf(nm); if(!p) return;
+  if(!team() && !(typeof latestBoardOf === 'function' && latestBoardOf(p))) return;
+  m.insertAdjacentHTML('beforeend', chip(p, 'panel'));
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-r70prt]'); if(!b) return;
+  e.preventDefault(); e.stopPropagation();
+  window.r70GoPartner(b.dataset.r70prt, b.dataset.w);
+});
+if(typeof openBoard === 'function'){
+  var ob = openBoard;
+  openBoard = window.openBoard = function(){ var r = ob.apply(this, arguments); try{ r70boardChip(); r70rpChip(); }catch(e){} return r; };
+}
+if(typeof rpHead === 'function'){
+  var rh = rpHead;
+  rpHead = window.rpHead = function(){ var r = rh.apply(this, arguments); try{ r70rpChip(); }catch(e){} return r; };
+}
+if(typeof openResident === 'function'){
+  var or = openResident;
+  openResident = window.openResident = function(i){
+    var r = or.apply(this, arguments);
+    try{
+      var res = resList()[i], p = res && r70prtOf(res.name), c = document.querySelector('#cardBody .pf-chips');
+      if(p && c) c.insertAdjacentHTML('beforeend', chip(p, 'card'));
+    }catch(e){}
+    return r;
+  };
+}
 })();
 </script>
 <script id="r69Money">

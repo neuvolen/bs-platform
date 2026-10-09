@@ -55,6 +55,10 @@ var lazyKeep = map[string]bool{
 	"*:renderAIRec": true, "*:aiwHTML": true, "*:aiwInboxHTML": true, "*:aiwAsk": true, "*:aiwSide": true,
 	"*:aiwTargets": true, "*:aiwLib": true, "*:aiwStatusHTML": true, "*:aiwStatus": true, "*:aiwCard": true,
 	"*:aiwRunHTML": true, "*:aiwErrHTML": true, "*:bsAiErr": true,
+	// R70: the tab rows take their saved order and the partner button is drawn as the board opens
+	// (their answers are used at once: a lazy one answered undefined)
+	"r70Script:r70scan": true, "r70Script:r70apply": true, "r70Script:r70prtOf": true, "r70Script:chip": true,
+	"r70Script:r70boardChip": true, "r70Script:r70rpChip": true,
 }
 
 func lazyKeepFn(key, name string) bool { return lazyKeep["*:"+name] || lazyKeep[key+":"+name] }

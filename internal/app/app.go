@@ -495,6 +495,7 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 			httpapi.R69ApplyDelay = d // tests: no 10 minutes between the dry run and the real run
 		}
 		httpapi.ClubR69AtStart(ctx, clubRepo, writes.Tables) // R69: ledger of payments, meetings from the log
+		httpapi.ClubR70AtStart(ctx, clubRepo, writes.Tables) // R70: owner's debt adjustments, debt changes with reasons, audit
 	}()
 	var docs interface {
 		PutServerDoc(ctx context.Context, key, value string) error

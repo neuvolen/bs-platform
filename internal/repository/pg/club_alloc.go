@@ -234,10 +234,20 @@ func (a *applier) unallocate(payID int64) ([]AllocLine, error) {
 	}
 	var resID int64
 	_ = a.tx.QueryRow(a.ctx, `SELECT resident_id FROM club_pay_alloc WHERE payment_id = $1 LIMIT 1`, payID).Scan(&resID)
+	// R70: a line written before the team's «Установить долг» does not bring the old debt back
+	adjAt, adjusted := a.lastAdjust(resID)
+	if err := a.why(fmt.Sprintf("оплата (строка ДДС #%d) снята: строку изменили или удалили", payID)); err != nil {
+		return nil, err
+	}
 	var fines []int64
 	for _, l := range lines {
+		var lineAt time.Time
+		_ = a.tx.QueryRow(a.ctx, `SELECT at FROM club_pay_alloc WHERE id = $1`, l.ID).Scan(&lineAt)
 		if err := a.delete("club_pay_alloc", l.ID); err != nil {
 			return nil, err
+		}
+		if adjusted && (l.Kind == AllocRest || l.Kind == AllocRenew) && !lineAt.After(adjAt) {
+			continue
 		}
 		switch l.Kind {
 		case AllocRest:
@@ -337,6 +347,9 @@ func (a *applier) allocate(payID int64, by string) (*AllocResult, error) {
 			take := min64(k.due, left)
 			if take <= 0 {
 				continue
+			}
+			if err := a.why(fmt.Sprintf("оплата %s ₸ от %s (строка ДДС #%d)", club.FmtMoney(take), p.date.Format("02.01.2006"), p.id)); err != nil {
+				return nil, err
 			}
 			if err := a.update("club_residents", r.id, k.col+` = `+k.col+` - $2, updated_at = now(), updated_by = 'server'`, take); err != nil {
 				return nil, err

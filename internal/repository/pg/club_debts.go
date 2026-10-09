@@ -56,6 +56,10 @@ type DebtRow struct {
 	Payments   []DebtPayment `json:"payments"`
 	LastPayDay string        `json:"lastPayDay,omitempty"`
 	LastPaySum int64         `json:"lastPaySum,omitempty"`
+	// R70: «Проверить»: why the debt does not fit the payments; the debt's
+	// changes with their reasons (newest first)
+	Check   []string       `json:"check,omitempty"`
+	History []BalanceEvent `json:"history,omitempty"`
 }
 
 // DebtsReport is the tab's data.
@@ -249,8 +253,36 @@ func (r *ClubRepo) Debts(ctx context.Context) (*DebtsReport, error) {
 			d.LastPayDay, d.LastPaySum = p.Date, p.Amount
 		}
 	}
+	if err := a.cached(); err != nil {
+		return nil, err
+	}
+	rr := map[int64]*resRow{}
+	for i := range list {
+		rr[list[i].id] = &list[i]
+	}
 	for _, id := range order {
 		d := byID[id]
+		// R70: the audit and the history of the debt
+		if x := rr[id]; x != nil && !x.former {
+			var rest, renew int64
+			if err := tx.QueryRow(ctx, `SELECT rest_entry, renew_debt FROM club_residents WHERE id = $1`, id).Scan(&rest, &renew); err != nil {
+				return nil, err
+			}
+			rp, err := a.residentPays(x)
+			if err != nil {
+				return nil, err
+			}
+			if d.Check, err = a.auditDebt(x, rest, renew, rp); err != nil {
+				return nil, err
+			}
+		}
+		h, err := a.balanceHistory(id, 12)
+		if err != nil {
+			return nil, err
+		}
+		if len(h) > 0 {
+			d.History = h
+		}
 		d.Total = d.Debt + d.FinesOpen
 		sort.Slice(d.Payments, func(i, j int) bool { return d.Payments[i].Date > d.Payments[j].Date })
 		if len(d.Payments) > 40 {

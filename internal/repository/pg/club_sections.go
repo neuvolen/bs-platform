@@ -194,5 +194,25 @@ func (a *applier) setResidentField(p map[string]string) error {
 	if n < 0 {
 		return fmt.Errorf("«%s»: меньше нуля", v)
 	}
+	if field == "restEntry" || field == "renewDebt" {
+		// R70: a debt set by hand is an adjustment: logged with the reason and kept
+		var rest, renew int64
+		if err := a.tx.QueryRow(a.ctx, `SELECT rest_entry, renew_debt FROM club_residents WHERE id = $1`, r.id).Scan(&rest, &renew); err != nil {
+			return err
+		}
+		ra, na := rest, renew
+		if field == "restEntry" {
+			ra = n
+		} else {
+			na = n
+		}
+		if err := a.why("правка вручную: поле «" + field + "»"); err != nil {
+			return err
+		}
+		if _, err := a.insert("club_debt_adjust", `INSERT INTO club_debt_adjust (resident_id, rest_before, renew_before, rest_after, renew_after, reason, by)
+			VALUES ($1,$2,$3,$4,$5,$6,'card')`, r.id, rest, renew, ra, na, "правка вручную: поле «"+field+"»"); err != nil {
+			return err
+		}
+	}
 	return a.update("club_residents", r.id, col+` = $2`, n)
 }

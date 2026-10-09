@@ -27,6 +27,7 @@ func registerDDS(g *gin.RouterGroup, h *ClubHandler) {
 	g.POST("/dds/link", h.DDSLink)
 	g.GET("/debts", h.Debts)                    // R69: «Учёт → Долги и штрафы»
 	g.POST("/fines/writeoff", h.FineWriteOff) // R69: «Списать штраф» с причиной
+	g.POST("/debts/set", h.DebtSet)           // R70: «Установить долг» с причиной
 }
 
 // Debts godoc

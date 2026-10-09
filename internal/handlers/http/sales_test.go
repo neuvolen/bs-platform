@@ -567,8 +567,9 @@ func TestSalesConsentAndCases(t *testing.T) {
 	c.Request = httptest.NewRequest("POST", "/", strings.NewReader(`{"name":"Айдана Ким"}`))
 	e.s.RequestConsent(c)
 	time.Sleep(50 * time.Millisecond)
-	if md, chosen := consentMode(e.s.consents(ctx)[normName("Айдана Ким")]); md != "anon" || chosen {
-		t.Fatalf("a bot request is not a choice: %s %v", md, chosen)
+	// R70: every resident consents on joining: shown anonymously unless the team names the case
+	if md, chosen := consentMode(e.s.consents(ctx)[normName("Айдана Ким")]); md != "anon" || !chosen {
+		t.Fatalf("consent on joining: %s %v", md, chosen)
 	}
 	e.s.ConsentTick(ctx)
 	if len(e.tg.to(801)) != 0 {
@@ -591,11 +592,12 @@ func TestSalesConsentAndCases(t *testing.T) {
 	if err := e.s.setConsent(ctx, "Болат Нуров", "name", "резидент на платформе"); err != nil {
 		t.Fatal(err)
 	}
-	if e.s.ConsentOf(ctx, "Айдана Ким") != "anon" || e.s.ConsentOf(ctx, "Болат Нуров") != "name" || e.s.ConsentOf(ctx, "Вера Ли") != "no" {
+	// R70: an old choice no longer counts: everyone consents, anonymously by default
+	if e.s.ConsentOf(ctx, "Айдана Ким") != "anon" || e.s.ConsentOf(ctx, "Болат Нуров") != "anon" || e.s.ConsentOf(ctx, "Вера Ли") != "anon" {
 		t.Fatal("consents")
 	}
 	n, skipped, err := e.s.Generate(ctx, "test")
-	if err != nil || n != 2 {
+	if err != nil || n != 3 {
 		t.Fatalf("generate %d %v %v", n, skipped, err)
 	}
 	cs := e.s.cases(ctx)
@@ -640,8 +642,8 @@ func TestSalesConsentAndCases(t *testing.T) {
 	if th := ex["threads"].(string); len([]rune(th)) > 500 {
 		t.Fatalf("threads too long %d", len([]rune(th)))
 	}
-	if !strings.Contains(named.Story, "Болат Нуров") {
-		t.Fatalf("named story: %s", named.Story)
+	if strings.Contains(named.Story+named.Title, "Болат") {
+		t.Fatalf("a new case names the resident: %s", named.Story)
 	}
 	// publishing needs consent; /about gets only published ones
 	var public []PublicCaseView
@@ -661,22 +663,25 @@ func TestSalesConsentAndCases(t *testing.T) {
 	if len(public) != 1 || strings.Contains(public[0].Who, "Айдана") || public[0].Story != "" {
 		t.Fatalf("public %+v", public)
 	}
-	// Вера has no consent: a case made by hand cannot be published
-	_ = e.s.saveCases(ctx, func(items []salesCase) ([]salesCase, bool) {
-		return append(items, salesCase{ID: "case_vera", Resident: "Вера Ли", Status: "draft"}), true
-	})
-	if code := put("case_vera", `{"status":"published"}`); code != 409 {
-		t.Fatalf("no consent publish %d", code)
+	// R70: the team names a case: «Показывать имя»
+	if code := put(named.ID, `{"status":"published","named":true}`); code != 200 {
+		t.Fatalf("publish named %d", code)
+	}
+	if len(public) != 2 || !strings.Contains(public[0].Who+public[1].Who, "Болат") {
+		t.Fatalf("named public %+v", public)
+	}
+	if code := put(named.ID, `{"status":"hidden","named":false}`); code != 200 || len(public) != 1 {
+		t.Fatalf("hide %d %+v", code, public)
 	}
 	// day 5 of a lead with a finance diagnosis takes the published case
 	txt := e.s.caseFor(ctx, []diagPlan{planForDiag("Кассовые разрывы", "")}, "кофейня")
 	if !strings.Contains(txt, "Сеть кофеен") || strings.Contains(txt, "Айдана") {
 		t.Fatalf("caseFor: %s", txt)
 	}
-	// the consent is withdrawn: /about drops it at once
+	// R70: an old «нельзя» from the bot no longer hides a case: consent comes with residency
 	_ = e.s.setConsent(ctx, "Айдана Ким", "no", "резидент")
-	if len(public) != 0 {
-		t.Fatalf("withdrawn still public: %+v", public)
+	if len(public) != 1 {
+		t.Fatalf("public after an old-style answer: %+v", public)
 	}
 }
 
@@ -1030,12 +1035,10 @@ func TestSalesHTTP(t *testing.T) {
 	if _, out, _ := do("GET", "/t/seq", ""); !strings.Contains(fmt.Sprint(out["seq"]), "tg901") {
 		t.Fatalf("seq %v", out)
 	}
-	// R52: never chose: «анонимно» and one line about it in the profile, a week from the first look
-	if code, out, _ := do("GET", "/r/me", ""); code != 200 || out["consent"] != "anon" || out["consentChosen"] != false || out["name"] != "Айдана Ким" ||
-		!strings.Contains(fmt.Sprint(out["consentNote"]), "анонимно") {
+	// R70: consent comes with residency: no choice, no line about it in the profile
+	if code, out, _ := do("GET", "/r/me", ""); code != 200 || out["consent"] != "anon" || out["consentChosen"] != true || out["name"] != "Айдана Ким" || out["consentNote"] != nil {
 		t.Fatalf("me %d %v", code, out)
 	}
-	noLong(t, "consent note", fmt.Sprint(e.s.consentNotice(context.Background(), "Айдана Ким")))
 	e.at(e.clock().Add(8 * 24 * time.Hour))
 	if _, out, _ := do("GET", "/r/me", ""); out["consentNote"] != nil || out["consent"] != "anon" {
 		t.Fatalf("the line stays after a week: %v", out)

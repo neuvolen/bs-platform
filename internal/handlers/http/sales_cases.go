@@ -54,13 +54,24 @@ const consentDefault = "anon"
 // consentNoticeDays: how long the profile shows the line about the default.
 const consentNoticeDays = 7
 
-// consentMode: the resident's mode and whether they (or the team on their
-// word) chose it; a record without "at" is a bot request, not a choice.
+// consentMode: R70 «Убери у резидентов анонимность согласия: они всегда
+// будут согласны автоматически, как стали резидентами». Every resident
+// consents on joining: the choice «анонимно / с именем / нельзя» is gone from
+// the profile and an old choice no longer counts. A case is shown
+// anonymously (niche, city, figures) unless the team names it: the case's
+// own «Показывать имя» (salesCase.Named, caseMode).
 func consentMode(m map[string]any) (string, bool) {
-	if md := sStr(m, "mode"); consentModes[md] != "" && sStr(m, "at") != "" {
-		return md, true
+	_ = m
+	return consentDefault, true
+}
+
+// caseMode: how this case shows its resident: «с именем» only when the team
+// switched it on for the case.
+func caseMode(x salesCase) string {
+	if x.Named {
+		return "name"
 	}
-	return consentDefault, false
+	return "anon"
 }
 
 // ── согласие ──
@@ -81,42 +92,10 @@ func (s *ClubSales) ConsentOf(ctx context.Context, name string) string {
 	return md
 }
 
-// consentNotice: the one line the resident's profile shows about the default
-// (from the first time they open it, for consentNoticeDays); "" after a choice.
+// consentNotice: R70: nothing (residents consent on joining, no choice to tell about).
 func (s *ClubSales) consentNotice(ctx context.Context, name string) string {
-	k := normName(name)
-	if k == "" {
-		return ""
-	}
-	m := s.consents(ctx)[k]
-	if _, chosen := consentMode(m); chosen {
-		return ""
-	}
-	now := s.now()
-	if at, err := time.Parse(time.RFC3339, sStr(m, "noticeAt")); err == nil {
-		if now.Sub(at) > consentNoticeDays*24*time.Hour {
-			return ""
-		}
-	} else {
-		_ = s.mutate(ctx, "club", consentDoc, func(doc map[string]any) bool {
-			people := sMap(doc, "people")
-			if people == nil {
-				people = map[string]any{}
-			}
-			x, _ := people[k].(map[string]any)
-			if x == nil {
-				x = map[string]any{"name": strings.TrimSpace(name)}
-			}
-			if sStr(x, "noticeAt") != "" {
-				return false
-			}
-			x["noticeAt"] = rfc(now)
-			people[k] = x
-			doc["people"] = people
-			return true
-		})
-	}
-	return "Теперь по умолчанию ваши цифры «было → стало» могут попасть в кейсы клуба анонимно: только ниша, город и цифры, без имени. Можно выбрать «С именем» или «Нельзя»."
+	_, _ = ctx, name
+	return ""
 }
 
 func (s *ClubSales) setConsent(ctx context.Context, name, mode, by string) error {
@@ -316,6 +295,7 @@ type salesCase struct {
 	By          string                `json:"by,omitempty"`
 	ApprovedAt  string                `json:"approvedAt,omitempty"`
 	PublishedAt string                `json:"publishedAt,omitempty"`
+	Named       bool                  `json:"named,omitempty"` // R70: the team shows the name (anonymous by default)
 }
 
 func (s *ClubSales) cases(ctx context.Context) []salesCase {
@@ -507,8 +487,8 @@ func (s *ClubSales) Cases(c *gin.Context) {
 	cons := s.consents(ctx)
 	out := []gin.H{}
 	for _, x := range s.cases(ctx) {
-		md, _ := consentMode(cons[normName(x.Resident)])
-		out = append(out, s.caseView(x, md))
+		_ = cons
+		out = append(out, s.caseView(x, caseMode(x)))
 	}
 	c.JSON(http.StatusOK, gin.H{"items": out, "ai": s.AI != nil})
 }
@@ -551,7 +531,7 @@ func (s *ClubSales) Generate(ctx context.Context, by string) (int, []gin.H, erro
 		if r.JoinedAt != nil && (p.First.IsZero() || r.JoinedAt.Before(p.First)) {
 			p.First = *r.JoinedAt
 		}
-		cs := caseFromPeriod(p, now, md)
+		cs := caseFromPeriod(p, now, "anon") // R70: anonymous until the team names the case
 		if cs == nil {
 			skipped = append(skipped, gin.H{"name": r.Name, "why": "мало данных: нужны замеры в начале и сейчас"})
 			continue
@@ -593,6 +573,7 @@ type putCaseReq struct {
 	Title  *string `json:"title"`
 	Story  *string `json:"story"`
 	Status string  `json:"status"`
+	Named  *bool   `json:"named"` // R70: «Показывать имя» (the team's choice per case)
 }
 
 // PutCase: PUT /sales/cases/:id {title?, story?, status?}.
@@ -625,6 +606,9 @@ func (s *ClubSales) PutCase(c *gin.Context) {
 			}
 			if r.Story != nil {
 				x.Story, x.Edited = clip(noLongDash(*r.Story), 4000), true
+			}
+			if r.Named != nil {
+				x.Named = *r.Named
 			}
 			if r.Status != "" && r.Status != x.Status {
 				x.Status = r.Status
@@ -700,7 +684,7 @@ func (s *ClubSales) CaseAI(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 		return
 	}
-	mode := s.ConsentOf(ctx, cur.Resident)
+	mode := caseMode(*cur)
 	var b strings.Builder
 	if mode == "name" {
 		b.WriteString("Резидент: " + cur.Resident + " (можно с именем)\n")
@@ -757,8 +741,9 @@ func (s *ClubSales) published(ctx context.Context) []gin.H {
 	cons := s.consents(ctx)
 	var out []gin.H
 	for _, x := range s.cases(ctx) {
-		md, _ := consentMode(cons[normName(x.Resident)])
-		if x.Status != "published" || (md != "anon" && md != "name") {
+		_ = cons
+		md := caseMode(x)
+		if x.Status != "published" {
 			continue
 		}
 		out = append(out, gin.H{"case": x, "mode": md})

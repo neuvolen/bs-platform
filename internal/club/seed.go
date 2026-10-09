@@ -38,6 +38,7 @@ type SeedResident struct {
 	Granted   int64  `json:"granted"`
 	Left      int64  `json:"left"`
 	Months    int64  `json:"months"`
+	Partner   string `json:"partner,omitempty"` // R70: business partner (one click between the two)
 }
 
 // SeedFine is one line of the platform's FINES.
@@ -80,6 +81,7 @@ func SeedResidents(snap *Snapshot) []SeedResident {
 			Name: d.Name, Paid: d.PaidEntry, Rest: d.RestEntry, DebtRenew: d.RenewDebt,
 			Fines: d.FinesUnpaid, Total: d.TotalDebt, Tariff: d.Tariff, Start: day(d.JoinedAt),
 			Format: d.Format, Done: d.Done, Granted: d.Granted, Left: d.MeetingsLeft, Months: d.Months,
+			Partner: strings.TrimSpace(d.Partner),
 		})
 	}
 	return out

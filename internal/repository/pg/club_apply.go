@@ -47,7 +47,7 @@ var reapplyAfterSend = map[string]bool{"setPartner": true, "setMeetings": true, 
 var ErrNothingToApply = errors.New("nothing to apply")
 
 var undoTables = map[string]bool{"club_fines": true, "club_payments": true, "club_meetings": true,
-	"club_meeting_log": true, "club_residents": true, "club_pay_alloc": true}
+	"club_meeting_log": true, "club_residents": true, "club_pay_alloc": true, "club_debt_adjust": true}
 
 // undoStep brings one row back: Prev is the row before (null: it was inserted).
 type undoStep struct {
@@ -62,6 +62,9 @@ type applier struct {
 	tx   pgx.Tx
 	at   time.Time
 	undo []undoStep
+	// R70, read-only reports: the income rows and the names' residents, read once
+	payCache   []payRaw
+	matchCache map[string]int64
 }
 
 func (a *applier) insert(table, sql string, args ...any) (int64, error) {
@@ -444,14 +447,9 @@ func (a *applier) meetingHappened(name, date, tm string, matchTime bool) error {
 	}
 	// R59: пакет закончился (3/3): тариф один раз уходит в долг продления, новый
 	// пакет считается со следующего дня (0/3). Встреча, уже отмеченная в этот день,
-	// пакет второй раз не закрывает
+	// пакет второй раз не закрывает. R70: пакет начисляется один раз (club_r70.go)
 	if fresh && r.granted > 0 && done >= r.granted {
-		if r.tariff > 0 {
-			if err := a.update("club_residents", r.id, `renew_debt = renew_debt + $2, updated_at = now(), updated_by = 'server'`, r.tariff); err != nil {
-				return err
-			}
-		}
-		if err := a.newPackage(r, d.AddDate(0, 0, 1)); err != nil {
+		if err := a.packageDone(r, d, done); err != nil {
 			return err
 		}
 	}
