@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"github.com/bnursik/business_surgery_backend/internal/club"
+	"github.com/bnursik/business_surgery_backend/internal/middleware"
 	"log"
 	"os"
 	"strconv"
@@ -224,6 +225,11 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) *htt
 		[]byte(jwtSecret),
 	)
 	m.AI.Ops = pg.NewClubRepo(d.DB)
+	if m.Access != nil {
+		// every token of the platform is checked against its session: revoked
+		// devices, assistants' rights and journal (assist_access.go)
+		middleware.SessionGuard = m.Access.Guard
+	}
 	if d.PlatformRepo != nil {
 		// The voice guide: every tour phrase made and kept before anyone opens the tour.
 		m.AI.TourTexts = web.TourTexts

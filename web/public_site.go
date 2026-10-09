@@ -378,6 +378,8 @@ func RegisterPublic(r *gin.Engine) {
 		"/llms-full.txt": text("llmsfull", "text/plain; charset=utf-8", llmsFullTxt),
 		"/about":         text("about", "text/html; charset=utf-8", aboutHTML),
 		"/library":       text("library", "text/html; charset=utf-8", libraryHTML),
+		"/privacy":       text("privacy", "text/html; charset=utf-8", privacyHTML), // legal.go: для Google OAuth и пользователей
+		"/terms":         text("terms", "text/html; charset=utf-8", termsHTML),
 		"/library/:slug": func(c *gin.Context) {
 			l := publicLib()
 			slug := c.Param("slug")
@@ -435,11 +437,11 @@ var aiAgents = []string{
 	"Googlebot", "Bingbot", "YandexBot", "Applebot",
 }
 
-var robotsClosed = []string{"/api/", "/platform", "/dl/", "/sum/", "/voice/", "/swagger/", "/tts/"}
+var robotsClosed = []string{"/api/", "/platform", "/dl/", "/sum/", "/voice/", "/swagger/", "/tts/", "/assist/", "/in/"}
 
 func robotsRules() string {
 	var b strings.Builder
-	b.WriteString("Allow: /about\nAllow: /library\nAllow: /llms.txt\nAllow: /llms-full.txt\nAllow: /site/\n")
+	b.WriteString("Allow: /about\nAllow: /library\nAllow: /privacy\nAllow: /terms\nAllow: /llms.txt\nAllow: /llms-full.txt\nAllow: /site/\n")
 	for _, p := range robotsClosed {
 		b.WriteString("Disallow: " + p + "\n")
 	}
@@ -470,6 +472,8 @@ func sitemapXML() string {
 	}
 	add(SiteURL+"/about", "1.0")
 	add(SiteURL+"/library", "0.8")
+	add(SiteURL+"/privacy", "0.3")
+	add(SiteURL+"/terms", "0.3")
 	for _, e := range l.items {
 		add(libURL(e.Slug), "0.6")
 	}
@@ -806,7 +810,7 @@ func pageHead(title, desc, canonical, ogType, ld string) string {
 func pageFoot() string {
 	p := bsProfile
 	return `<footer><div class="w"><p><b style="color:#fff">Business Surgery</b> · клуб бизнес-трекинга · ` + hx(p.Address) + `</p>` +
-		`<p>WhatsApp <a href="` + p.WALink + `">` + p.WAPhone + `</a> · Telegram <a href="` + p.Bot + `">` + p.BotHandle + `</a> · <a href="` + p.MainSite + `">bxclub.kz</a> · <a href="/about">О клубе</a> · <a href="/library">Библиотека</a> · <a href="/llms.txt">llms.txt</a></p>` +
+		`<p>WhatsApp <a href="` + p.WALink + `">` + p.WAPhone + `</a> · Telegram <a href="` + p.Bot + `">` + p.BotHandle + `</a> · <a href="` + p.MainSite + `">bxclub.kz</a> · <a href="/about">О клубе</a> · <a href="/library">Библиотека</a> · <a href="/privacy">Политика конфиденциальности</a> · <a href="/terms">Условия использования</a> · <a href="/llms.txt">llms.txt</a></p>` +
 		`<p>Обновлено ` + siteUpdated + `</p></div></footer>` + "\n</body>\n</html>\n"
 }
 

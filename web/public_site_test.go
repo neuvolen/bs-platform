@@ -302,8 +302,8 @@ func TestSitemapAndLibraryPages(t *testing.T) {
 	if err != nil || len(items) == 0 {
 		t.Fatalf("library: %v", err)
 	}
-	if len(sm.URLs) != len(items)+2 {
-		t.Errorf("sitemap has %d urls, want %d", len(sm.URLs), len(items)+2)
+	if len(sm.URLs) != len(items)+4 { // /about, /library, /privacy, /terms
+		t.Errorf("sitemap has %d urls, want %d", len(sm.URLs), len(items)+4)
 	}
 	seen := map[string]bool{}
 	for _, u := range sm.URLs {

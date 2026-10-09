@@ -81,9 +81,14 @@ func (r *GcalUserRepo) GcalSaveConn(ctx context.Context, c gcal.UserConn) error 
 	return err
 }
 
-// GcalDeleteConn forgets the connection and its cache (the log stays).
+// GcalDeleteConn forgets the connection, its cache of Google events and the
+// sync journal (it names the person's blocks and Google account): after
+// «Отключить» nothing from Google stays on the server (privacy policy, /privacy).
 func (r *GcalUserRepo) GcalDeleteConn(ctx context.Context, scope string) error {
-	_, err := r.db.Pool.Exec(ctx, `DELETE FROM gcal_users WHERE scope = $1`, scope)
+	if _, err := r.db.Pool.Exec(ctx, `DELETE FROM gcal_users WHERE scope = $1`, scope); err != nil {
+		return err
+	}
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM gcal_user_log WHERE scope = $1`, scope)
 	return err
 }
 

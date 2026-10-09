@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -20,6 +21,7 @@ import (
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/bnursik/business_surgery_backend/pkg/auth"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // PlatformAuthHandler logs the team into the platform with Telegram:
@@ -34,6 +36,8 @@ type PlatformAuthHandler struct {
 	repo     *pg.PlatformRepo // set by NewPlatformModule
 	names    *residentNames
 	leads    *LeadFunnel // the CRM card of a lead who logs in (NewPlatformModule)
+
+	access *AssistAccess // assist_access.go: sessions, assistants, personal links
 
 	mu          sync.Mutex
 	botUsername string
@@ -186,37 +190,85 @@ func (h *PlatformAuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "telegram_check_failed", "detail": err.Error()})
 		return
 	}
-	role := "admin"
-	name, ok := h.team[u.ID]
-	if !ok {
-		// Not the team: maybe an active resident from the Google Sheet.
-		rname, active, lerr := h.repo.ResidentByTg(c.Request.Context(), u.ID)
-		if lerr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
-			return
-		}
-		if active {
-			role, name = "resident", rname
-		} else {
-			// Anyone else with a valid Telegram login is a lead: the lead home
-			// only (every other endpoint refuses the role), and a card in the
-			// CRM without a word to the team chat.
-			role = "lead"
-			if h.leads != nil {
-				if err := h.leads.PlatformLogin(c.Request.Context(), u); err != nil {
-					log.Printf("platform login: lead %d not saved to the CRM: %v", u.ID, err)
-				}
-			}
-		}
-	}
-	if name == "" {
-		name = strings.TrimSpace(u.FirstName + " " + u.LastName)
-	}
-	sub := "tg:" + strconv.FormatInt(u.ID, 10)
-	access, _, err := h.jwt.GenerateTokens(sub, role, []string{})
+	ctx := c.Request.Context()
+	role, name, err := h.roleFor(ctx, u.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
+	}
+	if role == "lead" && h.repo != nil {
+		// Ассистент резидента (не команда и не резидент): сразу в кабинет
+		// резидента, которого вёл последним; остальные в переключателе.
+		if served, err := h.repo.ServedBy(ctx, u.ID); err == nil && len(served) > 0 {
+			out, err := h.issueAssistant(c, &served[0], "tg:"+strconv.FormatInt(u.ID, 10), tgDisplayName(u), "Telegram", 0)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+				return
+			}
+			c.JSON(http.StatusOK, out)
+			return
+		}
+		// Anyone else with a valid Telegram login is a lead: the lead home
+		// only (every other endpoint refuses the role), and a card in the
+		// CRM without a word to the team chat.
+		if h.leads != nil {
+			if err := h.leads.PlatformLogin(ctx, u); err != nil {
+				log.Printf("platform login: lead %d not saved to the CRM: %v", u.ID, err)
+			}
+		}
+	}
+	out, err := h.ownSession(c, u.ID, role, name, u.Photo, tgDisplayName(u), "telegram")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func tgDisplayName(u *platformTgUser) string {
+	n := strings.TrimSpace(u.FirstName + " " + u.LastName)
+	if n == "" && u.Username != "" {
+		n = "@" + u.Username
+	}
+	return n
+}
+
+// roleFor: команда (admin), действующий резидент (resident) или лид (lead).
+func (h *PlatformAuthHandler) roleFor(ctx context.Context, tg int64) (string, string, error) {
+	if name, ok := h.team[tg]; ok {
+		return "admin", name, nil
+	}
+	if h.repo == nil {
+		return "lead", "", nil
+	}
+	rname, active, err := h.repo.ResidentByTg(ctx, tg)
+	if err != nil {
+		return "", "", err
+	}
+	if active {
+		return "resident", rname, nil
+	}
+	return "lead", "", nil
+}
+
+// roleOf: роль без ошибки (переключатель ассистента: есть ли свой кабинет).
+func (h *PlatformAuthHandler) roleOf(ctx context.Context, tg int64) string {
+	r, _, err := h.roleFor(ctx, tg)
+	if err != nil {
+		return "lead"
+	}
+	return r
+}
+
+// ownSession: вход в свой кабинет (Telegram) и ответ, как у входа.
+func (h *PlatformAuthHandler) ownSession(c *gin.Context, tg int64, role, name, photo, actorName, kind string) (gin.H, error) {
+	if name == "" {
+		name = actorName
+	}
+	sub := "tg:" + strconv.FormatInt(tg, 10)
+	access, err := h.issueSession(c, pg.PlatformSession{Sub: sub, Actor: sub, ActorName: firstNonBlank(name, actorName), Kind: kind}, role, nil)
+	if err != nil {
+		return nil, err
 	}
 	team := map[string]string{}
 	if role == "admin" {
@@ -225,12 +277,25 @@ func (h *PlatformAuthHandler) Login(c *gin.Context) {
 		}
 	}
 	setSessionCookie(c, access, int(platformSessionTTL.Seconds()))
-	c.JSON(http.StatusOK, gin.H{
+	return gin.H{
 		"token":     access,
 		"expiresAt": time.Now().Add(platformSessionTTL).UTC(),
-		"user":      gin.H{"id": sub, "name": name, "photo": u.Photo, "role": role},
+		"user":      gin.H{"id": sub, "name": name, "photo": photo, "role": role},
 		"team":      team,
-	})
+	}, nil
+}
+
+// issueOwn: ассистент возвращается в свой кабинет (переключатель); nil, если
+// своего кабинета нет (не команда и не резидент).
+func (h *PlatformAuthHandler) issueOwn(c *gin.Context, tg int64, actorName, photo string) (gin.H, error) {
+	role, name, err := h.roleFor(c.Request.Context(), tg)
+	if err != nil {
+		return nil, err
+	}
+	if role == "lead" {
+		return nil, nil
+	}
+	return h.ownSession(c, tg, role, name, photo, actorName, "telegram")
 }
 
 // PlatformSessionCookie holds the same JWT as the API token. It only decides
@@ -252,8 +317,38 @@ func setSessionCookie(c *gin.Context, value string, maxAge int) {
 // @Success      204
 // @Router       /api/v1/platform/auth/logout [post]
 func (h *PlatformAuthHandler) Logout(c *gin.Context) {
+	// the server forgets this device's session too (the list of devices)
+	raw := strings.TrimSpace(strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer "))
+	if raw == "" {
+		raw, _ = c.Cookie(PlatformSessionCookie)
+	}
+	if sid := h.sessionID(raw); sid != "" && h.repo != nil {
+		_ = h.repo.RevokeSession(c.Request.Context(), sid, "")
+		if h.access != nil {
+			h.access.forget(sid)
+		}
+	}
 	setSessionCookie(c, "", -1)
 	c.Status(http.StatusNoContent)
+}
+
+// sessionID: the sid of a valid platform token ("" when none).
+func (h *PlatformAuthHandler) sessionID(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	tkn, err := jwt.Parse(raw, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return h.jwt.Secret(), nil
+	})
+	if err != nil || !tkn.Valid {
+		return ""
+	}
+	cl, _ := tkn.Claims.(jwt.MapClaims)
+	sid, _ := cl["sid"].(string)
+	return sid
 }
 
 type residentsSyncReq struct {

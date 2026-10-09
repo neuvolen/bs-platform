@@ -114,6 +114,9 @@ func (h *PlatformHandler) Sync(c *gin.Context) {
 	}
 	if isResident(c) {
 		boards, docs = filterForResident(boards, docs, name, "user:"+platformUser(c))
+		if assistHidesFinance(c) {
+			docs = stripResidentMoney(docs, name) // ассистент: без долгов, оплат и штрафов
+		}
 		boards = h.gateResidentCalls(c.Request.Context(), boards, name) // R32e: callsum_flow.go
 	}
 	docs = dropClubPersonal(docs)

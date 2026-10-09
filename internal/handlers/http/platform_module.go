@@ -20,6 +20,9 @@ type PlatformModule struct {
 	Partners *Partners
 	// R52: кто сейчас на доске: курсоры, выделение, аватары (platform_presence.go)
 	Presence *PlatformPresence
+	// Доступ для ассистента, личные ссылки входа, сессии (assist_access.go).
+	// Его Guard ставится в middleware.SessionGuard при сборке сервера (app.go).
+	Access *AssistAccess
 }
 
 func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte) *PlatformModule {
@@ -39,6 +42,10 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		return b.Resident, nil
 	})
 	m.Presence.Start(context.Background())
+	if h.repo != nil {
+		m.Access = NewAssistAccess(h.repo, a, h.names)
+		a.access = m.Access
+	}
 	m.AI.KeySecret = secret // R34a: seals the Claude key saved in the settings
 	// R36: the tour's premium voice (ElevenLabs), picked in the settings
 	m.AI.Premium = NewPremiumVoice(h.repo, m.AI.aiKeySecret, m.AI.tourTexts)
@@ -199,4 +206,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 		m.Partners.Register(r, g) // R38b: /p/<code>, /r?ref=, /partners/links, /crm/base-import
 	}
 	RegisterVideo(r, g, m) // R54: Маркетинг → SMM → «Видео» (platform_video.go)
+	if m.Access != nil {
+		m.Access.Register(r, pub, g) // доступ для ассистента, личные ссылки, сессии
+	}
 }

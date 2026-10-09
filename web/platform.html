@@ -5710,7 +5710,8 @@ body.light .gu-sec.g12-st{background:#fff;border-color:rgba(0,0,0,.09)}
         '<div class="bx-t">Вход для резидентов и команды</div>' +
         '<div class="bx-s">Платформа клуба. Вход через Telegram</div>' +
         '<div class="bx-w" id="bsxWidget"></div><div class="bx-msg" id="bsxMsg" role="status" aria-live="polite"></div>' +
-        '<div class="bx-foot">Ещё не резидент? <a href="https://t.me/bsurgery_bot?start=app_login" target="_blank" rel="noopener">Забрать интерактивные чек-листы</a></div></div>';
+        '<div class="bx-foot">Ещё не резидент? <a href="https://t.me/bsurgery_bot?start=app_login" target="_blank" rel="noopener">Забрать интерактивные чек-листы</a></div>' +
+        '<div class="bx-foot"><a href="/privacy" target="_blank" rel="noopener">Политика конфиденциальности</a> · <a href="/terms" target="_blank" rel="noopener">Условия использования</a></div></div>';
       document.body.appendChild(loginEl);
     }
     loginEl.style.display = 'flex';
@@ -42396,5 +42397,398 @@ window.r65Api = {join: join, leave: leave, share: shareStart, unshare: shareStop
 })();
 </script>
 <!-- /R68g -->
+<!-- Доступ для ассистента: профиль резидента, баннер и переключатель ассистента, вход без Telegram в карточке резидента (assist_access.go) -->
+<style id="asStyle">
+.as-card{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:16px 18px;margin-bottom:12px}
+.as-lbl{font-size:11px;font-weight:800;letter-spacing:1.6px;color:var(--pl);text-transform:uppercase;margin-bottom:10px}
+.as-p{font-size:13px;color:var(--pm);line-height:1.5}
+.as-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:11px 0;border-top:1px solid var(--pb)}
+.as-row:first-of-type{border-top:0}
+.as-n{font-size:14px;font-weight:700;color:var(--ptx);overflow-wrap:anywhere}
+.as-h{font-size:12px;color:var(--pm);margin-top:2px;line-height:1.4}
+.as-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+.as-b{height:36px;padding:0 14px;border-radius:10px;background:var(--pc);color:var(--ptx);border:1px solid var(--pi);font:700 13px/1 inherit;font-family:inherit;cursor:pointer;white-space:nowrap}
+.as-b:hover{background:var(--ph)}
+.as-b.p{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.as-b.red{color:var(--pred)}
+.as-b.red.sure{background:var(--pred);color:#fff;border-color:var(--pred)}
+.as-b[disabled]{opacity:.55;cursor:progress}
+.as-sel,.as-in{height:36px;border-radius:10px;border:1px solid var(--pi);background:var(--pd);color:var(--ptx);font:600 13px/1 inherit;font-family:inherit;padding:0 10px;max-width:100%}
+.as-in{width:100%}
+.as-chip{display:inline-block;font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;border:1px solid var(--pi);color:var(--pm);margin-left:6px;vertical-align:1px}
+.as-chip.ok{color:#3DD68C;border-color:rgba(61,214,140,.4)}
+.as-chip.wait{color:#E0B341;border-color:rgba(224,179,65,.4)}
+.as-pre{display:grid;gap:8px;margin:10px 0}
+.as-pre label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--pi);border-radius:12px;cursor:pointer}
+.as-pre label.on{border-color:var(--ptx)}
+.as-pre input{margin-top:3px;accent-color:var(--ptx)}
+.as-pre b{display:block;font-size:13.5px;color:var(--ptx)}
+.as-pre span{display:block;font-size:12px;color:var(--pm);margin-top:2px}
+.as-pre b .as-chip{display:inline-block;margin:0 0 0 6px;font-size:10.5px}
+.as-link{margin-top:12px;padding:12px;border:1px dashed var(--pi);border-radius:12px}
+.as-link code{display:block;font-size:12.5px;word-break:break-all;color:var(--ptx);margin-bottom:10px;user-select:all}
+.as-log{font-size:13px}
+.as-log .as-row{grid-template-columns:auto minmax(0,1fr)}
+.as-t{font-size:12px;color:var(--pm);white-space:nowrap;min-width:92px}
+.as-err{color:var(--pred);font-size:13px;margin-top:8px}
+.as-ok{color:#3DD68C;font-size:13px;margin-top:8px}
+#asBar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:2147483000;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);
+  padding:8px 8px 8px 14px;border-radius:999px;background:#141414;color:#fff;border:1px solid rgba(255,255,255,.18);box-shadow:0 10px 30px rgba(0,0,0,.45);font:600 13px/1.2 'Manrope',-apple-system,sans-serif}
+#asBar .d{width:8px;height:8px;border-radius:50%;background:#E0B341;flex:none}
+#asBar .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#asBar .t b{font-weight:800}
+#asBar .t span{color:#9A9A9A;font-weight:600}
+#asBar button{height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#fff;font:700 12.5px/1 inherit;font-family:inherit;cursor:pointer;flex:none}
+#asBar button:hover{background:rgba(255,255,255,.08)}
+#asMenu{position:fixed;left:50%;bottom:62px;transform:translateX(-50%);z-index:2147483001;width:min(340px,calc(100% - 24px));background:#141414;color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:8px;box-shadow:0 16px 40px rgba(0,0,0,.5);display:none}
+#asMenu.on{display:block}
+#asMenu .h{font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#8C8C8C;padding:8px 10px}
+#asMenu button{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;padding:11px 10px;border-radius:10px;border:0;background:transparent;color:#fff;font:600 14px/1.2 inherit;font-family:inherit;cursor:pointer}
+#asMenu button:hover{background:rgba(255,255,255,.07)}
+#asMenu button small{color:#9A9A9A;font-size:12px;margin-left:10px}
+@media (max-width:600px){#asBar{bottom:calc(72px + env(safe-area-inset-bottom,0px));gap:8px;padding:6px 6px 6px 12px}#asMenu{bottom:calc(120px + env(safe-area-inset-bottom,0px))}#asBar .t span{display:none}.as-row{grid-template-columns:1fr}.as-acts{justify-content:flex-start}}
+</style>
+<script id="asScript">
+(function(){
+'use strict';
+function ea(v){ return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function me(){ try{ return (window.BSSync && BSSync.user && BSSync.user()) || null; }catch(e){ return null; } }
+function asst(){ var u = me(); return (u && u.assistant) || null; }
+function api(m, p, b){
+  if(!window.BSSync || !BSSync.api) return Promise.resolve({_s: 0, error: 'net', detail: 'Платформа ещё загружается'});
+  return BSSync.api(m, p, b).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ j = j || {}; j._s = r.status; return j; }); },
+    function(){ return {_s: 0, error: 'net', detail: 'Нет связи с сервером'}; });
+}
+function errText(j){ return (j && (j.detail || (j.error === 'net' ? 'Нет связи с сервером' : j.error))) || 'Не получилось'; }
+var MON = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+function when(s){
+  if(!s) return '';
+  var d = new Date(s); if(isNaN(d)) return '';
+  var now = new Date(), mins = Math.round((now - d) / 60000);
+  if(mins >= 0 && mins < 2) return 'только что';
+  if(mins >= 0 && mins < 60) return mins + ' мин назад';
+  var hm = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  if(d.toDateString() === now.toDateString()) return 'сегодня ' + hm;
+  return d.getDate() + ' ' + MON[d.getMonth()] + ' ' + hm;
+}
+function copy(t, el){
+  var ok = function(){ if(el){ var o = el.textContent; el.textContent = 'Скопировано'; setTimeout(function(){ el.textContent = o; }, 1600); } };
+  try{ navigator.clipboard.writeText(t).then(ok, function(){ fallback(); }); }catch(e){ fallback(); }
+  function fallback(){ var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); ok(); }catch(e){} ta.remove(); }
+}
+function waLink(text){ return 'https://wa.me/?text=' + encodeURIComponent(text); }
+function tgLink(url, text){ return 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text); }
+// Отзыв без confirm(): первое нажатие просит подтвердить, второе в течение 4 с выполняет
+function sure(btn, label){
+  if(btn.classList.contains('sure')) return true;
+  btn.classList.add('sure'); var o = btn.textContent; btn.textContent = label || 'Точно?';
+  setTimeout(function(){ if(btn.isConnected && btn.classList.contains('sure')){ btn.classList.remove('sure'); btn.textContent = o; } }, 4000);
+  return false;
+}
+function presetSel(cur, list, attr){
+  return '<select class="as-sel" ' + attr + ' aria-label="Права ассистента">' + (list || PRESETS).map(function(p){
+    return '<option value="' + ea(p.id) + '"' + (p.id === cur ? ' selected' : '') + '>' + ea(p.name) + '</option>'; }).join('') + '</select>';
+}
+var PRESETS = [
+  {id: 'tasks', name: 'Задачи и отчёты', hint: 'Задания, отчёты, разбор и календарь. Без финансов и настроек'},
+  {id: 'nofin', name: 'Всё, кроме финансов', hint: 'Всё, что видите вы, кроме денег: долги, оплаты, штрафы, показатели бизнеса'},
+  {id: 'view', name: 'Только просмотр', hint: 'Видит задания, разбор и календарь, ничего не меняет'}
+];
+function presetName(id){ var p = PRESETS.filter(function(x){ return x.id === id; })[0]; return p ? p.name : id; }
+
+// ═══ 1. Ассистент: что видно, баннер «Вы работаете за», переключатель ═══
+// Деньги резидента ассистенту не видны ни при каких правах (сервер их и не присылает)
+var HIDE_ALL = {rFines: 1, rResults: 1, rSummary: 1, rInvite: 1, rAccess: 1};
+// «Задачи и отчёты» и «Только просмотр»: трекинг и клуб, без «Моего бизнеса» и профиля
+var HIDE_BLOCKS = {tasks: {rbiz: 1, rme: 1}, view: {rbiz: 1, rme: 1}};
+function hidden(s){
+  var a = asst(); if(!a) return false;
+  if(HIDE_ALL[s]) return true;
+  var hb = HIDE_BLOCKS[a.preset] || {};
+  for(var b in hb){ if(typeof BLOCKS !== 'undefined' && BLOCKS[b] && BLOCKS[b].tabs.some(function(t){ return t.id === s; })) return true; }
+  return false;
+}
+var applied = '';
+function applyAssist(){
+  var a = asst(), key = a ? a.id + ':' + a.preset : '';
+  if(key === applied) return;
+  applied = key;
+  document.documentElement.classList.toggle('as-mode', !!a);
+  if(!a){ var b0 = document.getElementById('asBar'); if(b0) b0.remove(); return; }
+  try{
+    Object.keys(BLOCKS).forEach(function(b){
+      if(!/^r/.test(b)) return;
+      BLOCKS[b].tabs = BLOCKS[b].tabs.filter(function(t){ return !HIDE_ALL[t.id]; });
+    });
+    var hb = HIDE_BLOCKS[a.preset] || {};
+    document.querySelectorAll('#navRes .nv').forEach(function(n){ n.style.display = hb[n.dataset.b] ? 'none' : ''; });
+  }catch(e){ console.error(e); }
+  bar(a);
+}
+function bar(a){
+  var el = document.getElementById('asBar');
+  if(!el){ el = document.createElement('div'); el.id = 'asBar'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.innerHTML = '<i class="d" aria-hidden="true"></i><div class="t">Вы работаете за: <b>' + ea(a.resident) + '</b> <span>· ' + ea(a.presetName || presetName(a.preset)) + '</span></div>' +
+    '<button type="button" id="asSw" aria-haspopup="menu">Сменить</button><button type="button" id="asOut">Выйти</button>';
+  el.querySelector('#asSw').onclick = function(e){ e.stopPropagation(); menu(); };
+  el.querySelector('#asOut').onclick = function(){
+    // выход как в меню платформы: данные этого браузера стираются
+    try{ var p = document.getElementById('bsxPill'); if(p){ p.click(); var o = document.getElementById('bsxOut'); if(o){ o.click(); return; } } }catch(x){}
+    fetch('/api/v1/platform/auth/logout', {method: 'POST', credentials: 'same-origin'}).then(function(){ handoff({logout: true}); }, function(){ handoff({logout: true}); });
+  };
+  // кто-то нажал «Сменить»: подтянуть список заранее
+  api('GET', '/assist').then(function(j){ ST = j; var sw = document.getElementById('asSw'); if(sw && j && j.mode === 'assistant' && (j.residents || []).length < 2 && !j.own) sw.style.display = 'none'; });
+}
+var ST = null;
+function menu(){
+  var m = document.getElementById('asMenu');
+  if(!m){ m = document.createElement('div'); m.id = 'asMenu'; m.setAttribute('role', 'menu'); document.body.appendChild(m);
+    document.addEventListener('click', function(e){ if(!m.contains(e.target)) m.classList.remove('on'); }); }
+  var draw = function(j){
+    if(!j || j.mode !== 'assistant'){ m.innerHTML = '<div class="h">Нет связи с сервером</div>'; return; }
+    m.innerHTML = '<div class="h">Вы работаете за</div>' + (j.residents || []).map(function(r){
+      return '<button type="button" role="menuitem" data-id="' + r.id + '"' + (r.current ? ' aria-current="true"' : '') + '>' + ea(r.resident) + '<small>' + (r.current ? 'сейчас' : ea(r.presetName)) + '</small></button>';
+    }).join('') + (j.own ? '<button type="button" role="menuitem" data-id="0">Мой кабинет<small>свой вход</small></button>' : '');
+    m.querySelectorAll('button').forEach(function(b){ b.onclick = function(){ if(b.getAttribute('aria-current')){ m.classList.remove('on'); return; } sw(+b.dataset.id, b); }; });
+  };
+  m.classList.toggle('on');
+  if(ST) draw(ST);
+  api('GET', '/assist').then(function(j){ ST = j; draw(j); });
+}
+function sw(id, btn){
+  if(btn) btn.disabled = true;
+  api('POST', '/assist/switch', {id: id}).then(function(j){
+    if(j._s !== 200 || !j.token){ if(btn) btn.disabled = false; alertNote(errText(j)); return; }
+    handoff({token: j.token, user: j.user, team: j.team || {}});
+  });
+}
+// Другой кабинет: страница /switch стирает данные этого браузера в обход синхронизации
+// (иначе удаление ключей ушло бы на сервер) и открывает платформу заново
+function handoff(j){
+  try{ sessionStorage.setItem('bsx_handoff', JSON.stringify(j)); }catch(e){}
+  location.replace('/switch');
+}
+function alertNote(t){ try{ if(typeof toast === 'function') return toast(t); }catch(e){} }
+
+// Раздел, скрытый от ассистента, по прямой ссылке ведёт к заданиям
+var gs0 = window.goSection;
+if(typeof gs0 === 'function'){
+  window.goSection = goSection = function(s){
+    applyAssist();
+    if(hidden(s)) s = 'rtasks';
+    return gs0.apply(this, [s].concat([].slice.call(arguments, 1)));
+  };
+}
+var gb0 = window.goBlock;
+if(typeof gb0 === 'function'){
+  window.goBlock = goBlock = function(b){
+    applyAssist();
+    var a = asst(); if(a && (HIDE_BLOCKS[a.preset] || {})[b]) b = 'rtrack';
+    return gb0.apply(this, [b].concat([].slice.call(arguments, 1)));
+  };
+}
+
+// ═══ 2. Резидент: Профиль → «Доступ для ассистента» ═══
+try{
+  if(typeof BLOCKS !== 'undefined' && BLOCKS.rme && !BLOCKS.rme.tabs.some(function(t){ return t.id === 'rAccess'; })) BLOCKS.rme.tabs.push({id: 'rAccess', n: 'Доступ для ассистента'});
+  var rs0 = window.renderStub;
+  window.renderStub = renderStub = function(s){
+    if(s === 'rAccess') return renderAccess();
+    return rs0.apply(this, arguments);
+  };
+}catch(x){}
+var RA = {d: null, link: null, pre: 'tasks', err: ''};
+function renderAccess(){
+  var el = pgSet('Доступ для ассистента', 'Ассистент входит своим Telegram и работает в вашем кабинете с теми правами, которые вы выбрали. Отозвать доступ можно в любой момент');
+  el.innerHTML = '<div id="asRes"><div class="as-p">Загружаю…</div></div>';
+  load();
+}
+function load(){
+  return api('GET', '/assist').then(function(j){
+    RA.d = j; paint();
+  });
+}
+function paint(){
+  var box = document.getElementById('asRes'); if(!box) return;
+  var j = RA.d || {};
+  if(j._s && j._s !== 200){ box.innerHTML = '<div class="as-err">' + ea(errText(j)) + '</div>'; return; }
+  if(j.mode !== 'resident'){
+    box.innerHTML = '<div class="as-card"><div class="as-p">' + (j.mode === 'assistant' ? 'Доступом управляет резидент.' :
+      'Это раздел резидента. Ассистентов и вход без Telegram команда видит в карточке резидента: Клуб → Резиденты.') + '</div></div>';
+    return;
+  }
+  var list = j.assistants || [], act = list.filter(function(a){ return a.status !== 'revoked'; }), old = list.filter(function(a){ return a.status === 'revoked'; });
+  var h = '<div class="as-card"><div class="as-lbl">Ассистенты</div>';
+  if(!act.length) h += '<div class="as-p">Пока никого. Пригласите ассистента ниже: он получит свой вход, ваши пароли и Telegram не нужны.</div>';
+  act.forEach(function(a){
+    var st = a.status === 'pending' ? '<span class="as-chip wait">ждёт принятия</span>' : '<span class="as-chip ok">активен</span>';
+    var sub = a.status === 'pending' ? 'Приглашение действует до ' + when(a.inviteExpires) + (a.label ? ' · ' + ea(a.label) : '') :
+      (a.telegram ? 'Входит через Telegram' : 'Входит по личной ссылке') + (a.lastUsed ? ' · был ' + when(a.lastUsed) : '');
+    h += '<div class="as-row" data-id="' + a.id + '"><div><div class="as-n">' + ea(a.name || a.label || 'Ассистент') + st + '</div><div class="as-h">' + sub + '</div></div>' +
+      '<div class="as-acts">' + presetSel(a.preset, j.presets, 'data-a="pre"') + '<button type="button" class="as-b red" data-a="rev">' + (a.status === 'pending' ? 'Отменить' : 'Отозвать') + '</button></div></div>';
+  });
+  h += '</div>';
+  // приглашение
+  var used = act.length;
+  h += '<div class="as-card"><div class="as-lbl">Пригласить ассистента</div>';
+  if(used >= 5) h += '<div class="as-p">Не больше 5 ассистентов и приглашений. Отзовите лишний доступ, чтобы пригласить нового.</div>';
+  else {
+    h += '<div class="as-p">Выберите права. Ссылка одноразовая и действует 72 часа: ассистент открывает её и входит своим Telegram.</div><div class="as-pre" role="radiogroup" aria-label="Права ассистента">' +
+      (j.presets || PRESETS).map(function(p){ return '<label class="' + (RA.pre === p.id ? 'on' : '') + '"><input type="radio" name="asPre" value="' + ea(p.id) + '"' + (RA.pre === p.id ? ' checked' : '') + '><div><b>' + ea(p.name) + (p.id === 'tasks' ? ' <span class="as-chip">по умолчанию</span>' : '') + '</b><span>' + ea(p.hint) + '</span></div></label>'; }).join('') +
+      '</div><input class="as-in" id="asLabel" maxlength="60" placeholder="Кто это (необязательно): например, Айгерим, помощник" aria-label="Кто ассистент"><div style="margin-top:10px"><button type="button" class="as-b p" data-a="inv">Создать ссылку-приглашение</button></div>';
+  }
+  if(RA.link){
+    var txt = 'Приглашение на платформу Business Surgery: вы будете моим ассистентом (' + presetName(RA.link.preset) + '). Откройте ссылку и войдите своим Telegram. Ссылка одноразовая, действует 72 часа: ';
+    h += '<div class="as-link"><code>' + ea(RA.link.url) + '</code><div class="as-acts" style="justify-content:flex-start">' +
+      '<button type="button" class="as-b" data-a="copy">Скопировать</button>' +
+      '<a class="as-b" style="display:inline-flex;align-items:center;text-decoration:none" target="_blank" rel="noopener" href="' + ea(waLink(txt + RA.link.url)) + '">Отправить в WhatsApp</a>' +
+      '<a class="as-b" style="display:inline-flex;align-items:center;text-decoration:none" target="_blank" rel="noopener" href="' + ea(tgLink(RA.link.url, txt)) + '">Отправить в Telegram</a></div>' +
+      '<div class="as-h" style="margin-top:8px">Ссылка показывается один раз. Потеряли: отмените приглашение и создайте новое.</div></div>';
+  }
+  if(RA.err) h += '<div class="as-err">' + ea(RA.err) + '</div>';
+  h += '</div>';
+  // журнал
+  var log = j.log || [];
+  h += '<div class="as-card as-log"><div class="as-lbl">Что делали ассистенты</div>' + (log.length ? log.map(function(l){
+    return '<div class="as-row"><div class="as-t">' + when(l.at) + '</div><div><b>' + ea(l.name) + '</b>: ' + ea(l.action) + (l.detail ? ' · ' + ea(l.detail) : '') + (l.n > 1 ? ' <span class="as-h">(' + l.n + ' раз с ' + when(l.firstAt) + ')</span>' : '') + '</div></div>';
+  }).join('') : '<div class="as-p">Здесь появится всё, что ассистент меняет в вашем кабинете: кто, что и когда.</div>') + '</div>';
+  // входы
+  var ss = j.sessions || [];
+  h += '<div class="as-card"><div class="as-lbl">Мои входы</div>' + ss.map(function(s){
+    return '<div class="as-row" data-sid="' + ea(s.id) + '"><div><div class="as-n">' + ea(s.device || 'Устройство') + (s.current ? '<span class="as-chip ok">это устройство</span>' : '') + '</div><div class="as-h">' + ea(s.how) + ' · вход ' + when(s.createdAt) + ' · активность ' + when(s.lastSeen) + '</div></div>' +
+      '<div class="as-acts"><button type="button" class="as-b red" data-a="out">Выйти</button></div></div>';
+  }).join('') + (ss.length ? '' : '<div class="as-p">Список входов появится после следующего входа.</div>') +
+    '<div style="margin-top:10px"><button type="button" class="as-b" data-a="outAll">Выйти на всех других устройствах</button></div></div>';
+  if(old.length) h += '<div class="as-card"><div class="as-lbl">Отозванные доступы</div>' + old.map(function(a){ return '<div class="as-row"><div><div class="as-n">' + ea(a.name || a.label || 'Ассистент') + '</div><div class="as-h">отозван ' + when(a.revokedAt) + '</div></div><div></div></div>'; }).join('') + '</div>';
+  box.innerHTML = h;
+  bindRes(box);
+}
+function bindRes(box){
+  box.querySelectorAll('input[name="asPre"]').forEach(function(r){ r.onchange = function(){ RA.pre = r.value; box.querySelectorAll('.as-pre label').forEach(function(l){ l.classList.toggle('on', l.contains(r)); }); }; });
+  box.querySelectorAll('[data-a="pre"]').forEach(function(s){ s.onchange = function(){
+    var id = +s.closest('[data-id]').dataset.id; s.disabled = true;
+    api('POST', '/assist/preset', {id: id, preset: s.value}).then(function(j){ s.disabled = false; if(j._s !== 200){ RA.err = errText(j); } else { RA.err = ''; alertNote('Права: ' + presetName(s.value)); } load(); });
+  }; });
+  box.onclick = function(e){
+    var b = e.target.closest && e.target.closest('button[data-a]'); if(!b || b.disabled) return;
+    var a = b.dataset.a;
+    if(a === 'inv'){
+      b.disabled = true; RA.err = '';
+      var lb = document.getElementById('asLabel');
+      api('POST', '/assist/invite', {preset: RA.pre, label: lb ? lb.value : ''}).then(function(j){
+        b.disabled = false;
+        if(j._s !== 200){ RA.err = errText(j); paint(); return; }
+        RA.link = {url: j.url, preset: RA.pre}; load();
+      });
+    } else if(a === 'copy'){ copy(RA.link.url, b); }
+    else if(a === 'rev'){
+      if(!sure(b, 'Точно отозвать?')) return;
+      b.disabled = true;
+      api('POST', '/assist/revoke', {id: +b.closest('[data-id]').dataset.id}).then(function(j){ if(j._s !== 200) RA.err = errText(j); else { RA.err = ''; RA.link = null; alertNote('Доступ отозван'); } load(); });
+    } else if(a === 'out'){
+      var sid = b.closest('[data-sid]').dataset.sid;
+      if(!sure(b, 'Выйти?')) return;
+      b.disabled = true;
+      api('POST', '/sessions/revoke', {sid: sid}).then(function(j){ if(j.self){ handoff({logout: true}); return; } load(); });
+    } else if(a === 'outAll'){
+      if(!sure(b, 'Выйти везде, кроме этого?')) return;
+      b.disabled = true;
+      api('POST', '/sessions/revoke-others', {}).then(function(j){ alertNote(j._s === 200 ? 'Другие устройства отключены' : errText(j)); load(); });
+    }
+  };
+}
+
+// ═══ 3. Команда: карточка резидента → «Доступ к платформе» ═══
+function teamOk(){ try{ return MODE === 'admin' && !!(window.BSSync && BSSync.api) && !asst(); }catch(e){ return false; } }
+var TC = {name: '', d: null, link: null, err: ''};
+var slot0 = window.r23ResSlot, load0 = window.r23ResLoad;
+window.r23ResSlot = function(r){
+  var h = slot0 ? slot0(r) : '';
+  if(!teamOk() || !r) return h;
+  return h + '<div class="as-card" id="asTeam" data-name="' + ea(r.name) + '"><div class="as-lbl">Доступ к платформе</div><div class="as-body"><div class="as-p">Загружаю…</div></div></div>';
+};
+window.r23ResLoad = function(name){
+  if(teamOk() && document.getElementById('asTeam')){
+    if(TC.name !== name){ TC.link = null; TC.err = ''; }
+    TC.name = name; teamLoad();
+  }
+  return load0 ? load0(name) : Promise.resolve();
+};
+function teamLoad(){
+  var name = TC.name;
+  return api('GET', '/access/resident?name=' + encodeURIComponent(name)).then(function(j){ if(TC.name !== name) return; TC.d = j; teamPaint(); });
+}
+function teamPaint(){
+  var box = document.getElementById('asTeam'); if(!box || box.dataset.name !== TC.name) return;
+  var body = box.querySelector('.as-body'), j = TC.d || {};
+  if(j._s !== 200){ body.innerHTML = '<div class="as-err">' + ea(errText(j)) + '</div>'; return; }
+  var h = '<div class="as-p">' + (j.telegram ? 'Входит через Telegram. Если удобнее без него, отправьте личную ссылку.' : 'Без Telegram: входит по личной ссылке, которую вы отправляете в WhatsApp.') + '</div>';
+  h += '<div class="as-acts" style="margin-top:10px;justify-content:flex-start"><button type="button" class="as-b p" data-t="link">Ссылка для входа (30 дней)</button></div>';
+  if(TC.link){
+    var first = String(j.resident || '').split(/\s+/)[0];
+    var txt = (TC.link.forAssistant ? 'Здравствуйте! Ваша личная ссылка для входа на платформу Business Surgery (ассистент: ' + j.resident + '): ' : first + ', ваша личная ссылка для входа на платформу Business Surgery: ') +
+      TC.link.url + ' . Действует 30 дней, не пересылайте её никому.';
+    h += '<div class="as-link"><div class="as-h" style="margin-bottom:6px">Для: ' + ea(TC.link.for) + '</div><code>' + ea(TC.link.url) + '</code><div class="as-acts" style="justify-content:flex-start">' +
+      '<button type="button" class="as-b" data-t="copy">Скопировать</button>' +
+      '<a class="as-b" style="display:inline-flex;align-items:center;text-decoration:none" target="_blank" rel="noopener" href="' + ea(waLink(txt)) + '">Отправить в WhatsApp</a></div>' +
+      '<div class="as-h" style="margin-top:8px">Ссылка показывается один раз. Работает на любом устройстве 30 дней или до отзыва.</div></div>';
+  }
+  if(TC.err) h += '<div class="as-err">' + ea(TC.err) + '</div>';
+  var act = (j.assistants || []).filter(function(a){ return a.status !== 'revoked'; });
+  h += '<div class="as-lbl" style="margin-top:16px">Ассистенты</div>';
+  h += act.length ? act.map(function(a){
+    var st = a.status === 'pending' ? '<span class="as-chip wait">ждёт принятия</span>' : '<span class="as-chip ok">' + (a.telegram ? 'Telegram' : 'по ссылке') + '</span>';
+    return '<div class="as-row" data-id="' + a.id + '"><div><div class="as-n">' + ea(a.name || a.label || 'Ассистент') + st + '</div><div class="as-h">' + ea(a.presetName) + (a.lastUsed ? ' · был ' + when(a.lastUsed) : '') + '</div></div>' +
+      '<div class="as-acts">' + (a.status === 'active' && !a.telegram ? '<button type="button" class="as-b" data-t="alink">Новая ссылка</button>' : '') +
+      presetSel(a.preset, j.presets, 'data-t="pre"') + '<button type="button" class="as-b red" data-t="rev">Отозвать</button></div></div>';
+  }).join('') : '<div class="as-p">Ассистентов нет. Резидент приглашает их сам: Профиль → «Доступ для ассистента».</div>';
+  h += '<div class="as-row"><div><div class="as-n">Ассистент без Telegram</div><div class="as-h">Получит личную ссылку входа на 30 дней</div></div><div></div></div>' +
+    '<div class="as-acts" style="justify-content:flex-start"><input class="as-in" id="asNewName" maxlength="60" placeholder="Имя ассистента" style="flex:1;min-width:160px">' +
+    presetSel('tasks', j.presets, 'id="asNewPre"') + '<button type="button" class="as-b" data-t="anew">Создать ссылку</button></div>';
+  var links = j.links || [];
+  if(links.length){
+    h += '<div class="as-lbl" style="margin-top:16px">Действующие ссылки входа</div>' + links.map(function(l){
+      return '<div class="as-row" data-lid="' + l.id + '"><div><div class="as-n">' + ea(l.for) + (l.assistant ? '<span class="as-chip">ассистент</span>' : '') + '</div><div class="as-h">выпущена ' + when(l.createdAt) + ' · до ' + when(l.expiresAt) + ' · входов: ' + l.uses + '</div></div>' +
+        '<div class="as-acts"><button type="button" class="as-b red" data-t="lrev">Отозвать</button></div></div>';
+    }).join('');
+  }
+  var ss = j.sessions || [];
+  if(ss.length){
+    h += '<div class="as-lbl" style="margin-top:16px">Открытые входы</div>' + ss.map(function(s){
+      return '<div class="as-row" data-sid="' + ea(s.id) + '"><div><div class="as-n">' + ea(s.name || '') + ' · ' + ea(s.device) + '</div><div class="as-h">' + ea(s.how) + ' · активность ' + when(s.lastSeen) + '</div></div>' +
+        '<div class="as-acts"><button type="button" class="as-b red" data-t="srev">Закрыть</button></div></div>';
+    }).join('');
+  }
+  body.innerHTML = h;
+  body.querySelectorAll('[data-t="pre"]').forEach(function(s){ s.onchange = function(){
+    s.disabled = true;
+    api('POST', '/access/assist/preset', {id: +s.closest('[data-id]').dataset.id, preset: s.value}).then(function(j2){ TC.err = j2._s === 200 ? '' : errText(j2); teamLoad(); });
+  }; });
+  body.onclick = function(e){
+    var b = e.target.closest && e.target.closest('button[data-t]'); if(!b || b.disabled) return;
+    var t = b.dataset.t, done = function(j2){ b.disabled = false; TC.err = j2._s === 200 ? '' : errText(j2); teamLoad(); };
+    var mk = function(body2, forA){
+      b.disabled = true;
+      api('POST', '/access/link', body2).then(function(j2){ if(j2._s === 200) TC.link = {url: j2.url, for: j2.for, forAssistant: forA}; done(j2); });
+    };
+    if(t === 'link') mk({name: TC.name}, false);
+    else if(t === 'alink') mk({name: TC.name, assistantId: +b.closest('[data-id]').dataset.id}, true);
+    else if(t === 'anew'){
+      var nm = (document.getElementById('asNewName') || {}).value || '';
+      if(!nm.trim()){ TC.err = 'Впишите имя ассистента'; teamPaint(); return; }
+      mk({name: TC.name, assistantName: nm.trim(), preset: (document.getElementById('asNewPre') || {}).value || 'tasks'}, true);
+    }
+    else if(t === 'copy') copy(TC.link.url, b);
+    else if(t === 'rev'){ if(!sure(b, 'Точно отозвать?')) return; b.disabled = true; api('POST', '/access/assist/revoke', {id: +b.closest('[data-id]').dataset.id}).then(done); }
+    else if(t === 'lrev'){ if(!sure(b, 'Точно отозвать?')) return; b.disabled = true; api('POST', '/access/link/revoke', {id: +b.closest('[data-lid]').dataset.lid}).then(done); }
+    else if(t === 'srev'){ if(!sure(b, 'Закрыть вход?')) return; b.disabled = true; api('POST', '/access/session/revoke', {sid: b.closest('[data-sid]').dataset.sid}).then(done); }
+  };
+}
+
+// Вход ассистента уже известен (сохранён в браузере): ограничения и баннер сразу
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyAssist); else setTimeout(applyAssist, 0);
+window.bsAssist = {apply: applyAssist, hidden: hidden, state: function(){ return ST; }};
+})();
+</script>
 </body>
 </html>

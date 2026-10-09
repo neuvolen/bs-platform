@@ -188,6 +188,39 @@ func filterForResident(boards []pg.PlatformBoard, docs []pg.PlatformDoc, name, u
 // Their own money, fines and meetings only once the seed is live data from
 // the server (LIVE): a snapshot baked into the page would show outdated money.
 // Other residents' money, fines and meetings, NPS, leads and the P&L never.
+// stripResidentMoney: the seed for an assistant: the resident's meetings stay,
+// their money and fines do not.
+func stripResidentMoney(docs []pg.PlatformDoc, name string) []pg.PlatformDoc {
+	for i := range docs {
+		if docs[i].Scope == "club" && docs[i].Key == platformSeedKey && !docs[i].Deleted {
+			docs[i].Value = residentSeedNoMoney(docs[i].Value)
+		}
+	}
+	return docs
+}
+
+// residentSeedNoMoney: a resident's seed cut without their money line and fines.
+func residentSeedNoMoney(seed string) string {
+	var s map[string]json.RawMessage
+	if json.Unmarshal([]byte(seed), &s) != nil {
+		return "{}"
+	}
+	var residents []map[string]any
+	_ = json.Unmarshal(s["RESIDENTS"], &residents)
+	for i, r := range residents {
+		residents[i] = map[string]any{"name": r["name"], "format": r["format"], "start": r["start"]}
+	}
+	if residents == nil {
+		residents = []map[string]any{}
+	}
+	b, _ := json.Marshal(residents)
+	s["RESIDENTS"] = b
+	s["FINES"] = json.RawMessage("[]")
+	s["PL_ROWS"] = json.RawMessage("[]")
+	out, _ := json.Marshal(s)
+	return string(out)
+}
+
 func residentSeed(seed, name string) string {
 	var s map[string]json.RawMessage
 	if json.Unmarshal([]byte(seed), &s) != nil {

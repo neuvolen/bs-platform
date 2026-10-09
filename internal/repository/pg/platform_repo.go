@@ -522,7 +522,12 @@ func (r *PlatformRepo) LiveBoards(ctx context.Context) ([]PlatformBoard, error) 
 func (r *PlatformRepo) ResidentByTg(ctx context.Context, tgID int64) (string, bool, error) {
 	var name string
 	var active bool
-	err := r.db.Pool.QueryRow(ctx, `SELECT name, active FROM platform_residents WHERE tg_id = $1`, tgID).Scan(&name, &active)
+	q := `SELECT name, active FROM platform_residents WHERE tg_id = $1`
+	if tgID < 0 {
+		// резидент без Telegram (вход личной ссылкой): кабинет -id строки клуба
+		q, tgID = `SELECT name, NOT former FROM club_residents WHERE id = $1 AND (tg_id IS NULL OR tg_id <= 0)`, -tgID
+	}
+	err := r.db.Pool.QueryRow(ctx, q, tgID).Scan(&name, &active)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
 	}

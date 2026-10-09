@@ -16,6 +16,14 @@ type errorResponse struct {
 // resident: they see only the lead home (/api/v1/platform/lead/*).
 const RoleLead = "lead"
 
+// SessionGuard, when set, checks a valid token against the server's sessions
+// (revoked, expired, an assistant's rights) before the handler runs. It
+// answers and aborts itself when the request may not go on (ok false); after,
+// when not nil, runs once the handler has answered (the assistant's journal).
+// Set by the platform module (assist_access.go); nil in tests that do not
+// need it.
+var SessionGuard func(c *gin.Context, claims jwt.MapClaims) (ok bool, after func())
+
 // AuthJWT checks the bearer token. A lead's token is refused here (403
 // lead_forbidden): every existing endpoint is closed to leads by default, and
 // only the routes registered with AuthJWTAllowLead let them in.
@@ -88,6 +96,18 @@ func authJWT(secret []byte, allowLead bool) gin.HandlerFunc {
 		}
 		c.Set("perms", perms)
 
+		if g := SessionGuard; g != nil {
+			ok, after := g(c, claims)
+			if !ok {
+				c.Abort()
+				return
+			}
+			c.Next()
+			if after != nil {
+				after()
+			}
+			return
+		}
 		c.Next()
 	}
 }
