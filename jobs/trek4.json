@@ -1,0 +1,24 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {
+  "stability": 0.55,
+  "similarity": 0.8,
+  "style": 0.1,
+  "speed": 1.0,
+  "speaker_boost": true
+ },
+ "context": false,
+ "lines": [
+  {
+   "id": "x_yat",
+   "seed": 11,
+   "text": "Трѣ́кинг. Здесь живут доски разборов."
+  },
+  {
+   "id": "x_syl",
+   "seed": 11,
+   "text": "Тре́-кинг. Здесь живут доски разборов."
+  }
+ ]
+}
