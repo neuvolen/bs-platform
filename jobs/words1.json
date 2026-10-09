@@ -1,0 +1,24 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {
+  "stability": 0.55,
+  "similarity": 0.8,
+  "style": 0.1,
+  "speed": 1.0,
+  "speaker_boost": true
+ },
+ "context": false,
+ "lines": [
+  {
+   "id": "w1",
+   "seed": 11,
+   "text": "Пи энд Эл, движение денег. Контрол Кей открывает поиск. До двадцати двух часов, десять тысяч те́нге."
+  },
+  {
+   "id": "w2",
+   "seed": 11,
+   "text": "Рефера́лы в Телегра́м. Клиент звони́т, догово́р подписан, облегчи́ть работу в Досты́к Хаб."
+  }
+ ]
+}
