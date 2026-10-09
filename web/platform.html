@@ -951,7 +951,7 @@ body.light .gs-n,body.light .gm-t{color:#141414}
  border-top:1px solid var(--bd)}
 .lc-next.over{color:#FF8A8A}
 .lc-next.none{color:var(--t3)}
-.lc-t{font-size:10.5px;color:var(--t3);margin-top:3px}
+.lead-card .lc-t{font-size:10.5px;color:var(--t3);margin-top:3px}
 .fn-row{display:flex;gap:12px;align-items:center;padding:9px 0;
  border-bottom:1px solid var(--bd)}
 .fn-n{width:130px;font-size:13.5px;font-weight:700;color:var(--t2)}
@@ -17975,7 +17975,7 @@ function crmCardHTML(l){
     '<div class="cx-t"><div class="cx-n">' + esc(l.name || crmPhone(l.phone) || 'Без имени') + '</div>' +
       (l.hot ? '<span class="cx-hotb" title="Горячий лид">🔥</span>' : '') +
       (un ? '<span class="cx-unb" title="Непрочитанные">' + un + '</span>' : '') +
-      '<span class="cx-mn" title="Действия" onclick="crmCardMenu(event,this.closest(\'.cx-card\').dataset.id)">⋯</span></div>' +
+      '</div>' +
     '<div class="cx-m">' + crmSrcBadge(l.source) +
       (l.phone ? '<span class="cx-ph">' + esc(crmPhone(l.phone)) + '</span>' : '') + '</div>' +
     ((l.niche || crmNum(l.sum)) ? '<div class="cx-ns">' + esc(l.niche || '') + (crmNum(l.sum) ? '<b>' + fmtN(crmNum(l.sum)) + ' ₸</b>' : '') + '</div>' : '') +
@@ -21441,8 +21441,7 @@ function kb12CardHTML(c){
   return '<div class="kb-card' + (dn ? ' done' : '') + (od ? ' od' : '') + '" draggable="true" data-id="' + escA(c.id) + '" ondragstart="kb12CardDrag(event,this.dataset.id)" ondragend="kb12End()" onclick="kb12CardClick(event,this.dataset.id)">' +
     (lbs.length ? '<div class="kb-lbs">' + lbs.map(function(l){ return '<span class="kb-lb c-' + l.c + '">' + esc(l.t) + '</span>'; }).join('') + '</div>' : '') +
     '<div class="kb-row"><span class="kb-ck' + (dn ? ' on' : '') + '" title="' + (dn ? 'Вернуть в работу' : 'Готово') + '" onclick="event.stopPropagation();kbToggleDone(this.closest(\'.kb-card\').dataset.id)"></span>' +
-      '<div class="kb-t">' + esc(c.t) + '</div>' +
-      '<span class="kb-cm" title="Действия" onclick="kb12CardMenu(event,this.closest(\'.kb-card\').dataset.id)">' + r12I(R12_IC.dots, 16) + '</span></div>' +
+      '<div class="kb-t">' + esc(c.t) + '</div></div>' +
     (bd || who ? '<div class="kb-bds">' + bd + (who ? '<span class="kb-av" title="' + escA(who) + '">' + esc(who.charAt(0).toUpperCase()) + '</span>' : '') + '</div>' : '') +
     (ck.length ? '<div class="kb-pg' + (cd === ck.length ? ' full' : '') + '"><i style="width:' + Math.round(cd / ck.length * 100) + '%"></i></div>' : '') +
   '</div>';
@@ -23766,9 +23765,25 @@ function renderMktHome(){
 function mhCut(s, n){ s = String(s || '').replace(/\s+/g, ' ').trim(); if(s.length <= n) return s; var c = s.slice(0, n), k = c.lastIndexOf(' '); return (k > n * 0.6 ? c.slice(0, k) : c).replace(/[\s,.:;«(-]+$/, '') + '…'; }
 
 // ═══ Старт ═══
+// R72: последний разбор человека. bs_curboard личный (сервер, все устройства человека), bsx_curboard только это устройство;
+// берётся более свежая запись, чей разбор есть в списке. Записи нет: разбор с самой поздней правкой
+var r72Rec = window.r72Rec = function(){
+  var best = null;
+  ['bs_curboard', 'bsx_curboard'].forEach(function(k){
+    var v = null; try{ v = JSON.parse(localStorage.getItem(k) || 'null'); }catch(e){}
+    if(v && v.id && boards.some(function(b){ return b && b.id === v.id; }) && (!best || (+v.at || 0) > (+best.at || 0))) best = v;
+  });
+  return best;
+};
+var r72Pick = window.r72Pick = function(){
+  var r = r72Rec(); if(r) return r.id;
+  var t = function(b){ return Date.parse(b && (b.updated || b.date) || '') || 0; };
+  return boards.slice().sort(function(a, b){ return t(b) - t(a); })[0].id;
+};
 function bsBoot(){
   r8DocMigrate(); loadAll(); loadQ(); loadContacts(); loadLibs(); loadInbox(); loadPL(); loadKanban(); loadCDev(); loadSPlan(); loadCRM(); loadCrmCols(); loadScripts(); loadResLib(); loadUseful(); loadStickers(); loadMe(); loadMkt(); loadKB(); loadCal(); loadLead(); loadAchDefs(); loadTheme(); applyOrder(); startSync(); applyView();
-  if(boards.length) openBoard(boards[0].id); else newBoard();
+  // R72: открывается разбор, с которым работали последним (запись человека на сервере и на этом устройстве), а не первый в списке
+  if(boards.length){ window.R72B = 1; try{ openBoard(r72Pick()); }finally{ window.R72B = 0; } } else newBoard();
   goBlock('track');
   if(window.__LZ && __LZ.when) __LZ.when(goHashSection); else goHashSection(); // R56: #раздел открывается, когда части платформы здесь (без синхронной загрузки)
   window.addEventListener('hashchange', goHashSection);
@@ -24285,12 +24300,6 @@ body.light #tr16.cta .tr16-btn.pri::after{border-color:#141414}
   "lup": "Резидентство. Что даёт участие в клубе и как в него попасть."
  },
  "actions": [
-  {
-   "sel": ".side-search",
-   "modes": "admin res lead",
-   "t": "Поиск и команды",
-   "d": "Разделы, люди и действия находятся здесь. Ctrl K открывает поиск из любого места."
-  },
   {
    "sel": "#modeSw",
    "modes": "admin",
@@ -29550,7 +29559,7 @@ body.r32t .side-subs{display:none}
   // ═══ 1. Выделение и копирование ═══
   // Перетаскиваемая карточка: если нажали на сам текст, браузер выделяет его (draggable снимается на время нажатия).
   // Зажать и подержать 350 мс без движения: карточка снова берётся в перенос. За поля и ручку перенос сразу.
-  var SKIP_DRAG = '.side .nv,.side .sv,.tbar,#quickBar,.pill,.kb-h,.g12-sh,.r32-tab,.bk-tab';
+  var SKIP_DRAG = '.side .nv,.side .sv,.tbar,#quickBar,.pill,.kb-h,.g12-sh,.r32-tab,.bk-tab,.kb-card,.cx-card'; // R72: карточки канбана и CRM переносятся за любое место
   function overText(el, x, y){
     var r = null;
     try{
@@ -42349,6 +42358,132 @@ window.r65Api = {join: join, leave: leave, share: shareStart, unshare: shareStop
 })();
 </script>
 <!-- /R65 -->
+<!-- R72: 1) карточки базы на доске («База диагнозов» и «Инструменты»): название 20 px 800 белое, орган 10.5 px тише, описание 14 px тише
+     (раньше правило карточки лида .lc-t 10.5 px серым перебивало название); 2) камера доски не уезжает вниз: поле в карточке
+     у края экрана при фокусе прокручивало сам #stage (overflow:hidden), сдвиг жил до перезагрузки и переходил между вкладками;
+     3) кнопки «Поиск» слева вверху нет, Ctrl/Cmd K остаётся; 4) карточки канбана и CRM переносятся за любое место, «⋯» убраны,
+     действия по правому клику и долгому нажатию; 5) «Доска» открывает разбор, с которым человек работал последним -->
+<style id="r72Style">
+.lcard .lc-in{padding:14px 16px 16px}
+.lcard .lc-o{font-size:10.5px;font-weight:800;letter-spacing:1.2px;color:var(--pl)!important;margin-bottom:6px}
+.lcard .lc-t{font-size:20px;font-weight:800;line-height:1.22;letter-spacing:-.2px;color:#fff;margin:0;overflow-wrap:break-word}
+body.light .lcard .lc-t{color:var(--ptx)}
+.lcard .lc-d{font-size:14px;line-height:1.45;color:var(--pm);margin-top:7px}
+.r15-gb .kb-t{font-size:20px}
+.r15-gb .r15-gm .gu-org{font-size:10.5px}
+.r15-gb .r15k-d{font-size:14px}
+@media(max-width:700px){.r15-gb .kb-t{font-size:20px}}
+#side .side-search{display:none!important}
+.kb-card,.cx-card{-webkit-user-select:none;user-select:none;cursor:grab;-webkit-touch-callout:none}
+.kb-card:active,.cx-card:active{cursor:grabbing}
+.kb-card:after,.cx-card:after{display:none!important}
+.kb-card .kb-cm,.cx-card .cx-mn{display:none!important}
+</style>
+<script id="r72Script">
+(function(){
+'use strict';
+var st = document.getElementById('stage');
+// ── 2. Камера доски: прокрутку #stage браузер делает сам (фокус поля, клавиатура iPad). Сдвиг уходит в вид доски ──
+var fixStage = function(){
+  if(!st) return;
+  var dx = st.scrollLeft, dy = st.scrollTop; if(!dx && !dy) return;
+  st.scrollLeft = 0; st.scrollTop = 0;
+  var a = document.activeElement;
+  // поле в карточке у края: оставляем его на виду так, как показал браузер, но уже через вид доски
+  if(a && a !== document.body && st.contains(a) && typeof view !== 'undefined'){ view.x -= dx; view.y -= dy; try{ applyView(); }catch(e){} }
+};
+if(st) st.addEventListener('scroll', fixStage, {passive: true});
+var editing = function(){ var a = document.activeElement; return !!(a && a.matches && a.matches('input,textarea,select,[contenteditable="true"],[contenteditable="plaintext-only"]')); };
+var onBoard = function(){ return typeof section !== 'undefined' && section === 'board'; };
+var fixWin = function(){ if(onBoard() && (window.scrollX || window.scrollY) && !editing()) window.scrollTo(0, 0); };
+window.addEventListener('scroll', fixWin, {passive: true});
+document.addEventListener('focusout', function(){ setTimeout(function(){ fixStage(); fixWin(); }, 250); }, true);
+if(window.visualViewport) visualViewport.addEventListener('resize', function(){ setTimeout(function(){ fixStage(); fixWin(); }, 120); });
+
+// ── 5. Последний разбор: открыли или правили на этом устройстве → запись человека (сервер) и устройства ──
+var R = window.R72 = {touch: Date.now(), user: false, wrote: 0};
+var rec = function(){ try{ return window.r72Rec ? r72Rec() : null; }catch(e){ return null; } };
+var mark = function(id, force){
+  if(!id) return;
+  var now = Date.now(); R.touch = now; R.user = true;
+  var r = rec();
+  if(!force && r && r.id === String(id) && now - R.wrote < 120000) return;
+  var v = JSON.stringify({id: String(id), at: now});
+  R.wrote = now;
+  try{ localStorage.setItem('bsx_curboard', v); }catch(e){}
+  try{ localStorage.setItem('bs_curboard', v); }catch(e){}
+};
+if(typeof openBoard === 'function'){
+  var _ob = openBoard;
+  window.openBoard = openBoard = function(id){
+    var r = _ob.apply(this, arguments);
+    if(window.R72B || R.auto) R.touch = Date.now();
+    else if(window.curBoard && curBoard.id === id) mark(id, true);
+    return r;
+  };
+}
+['saveBoardSilent', 'saveBoard'].forEach(function(k){
+  var f = window[k]; if(typeof f !== 'function') return;
+  window[k] = function(){
+    var had = window.curBoard ? curBoard.id : null;
+    var r = f.apply(this, arguments);
+    // правка или новый разбор (у нового id появился только сейчас): он и есть текущий
+    if(window.curBoard && curBoard.id && !window.viewingArchive) mark(curBoard.id, had !== curBoard.id);
+    return r;
+  };
+});
+// Запись свежее, чем то, что человек делал здесь (открыл разбор на другом устройстве): «Доска» переходит на него
+var follow = function(){
+  if(window.viewingArchive || typeof boards === 'undefined') return;
+  var r = rec(); if(!r || (window.curBoard && curBoard.id === r.id) || (+r.at || 0) <= R.touch) return;
+  try{ if(typeof boardChanged === 'function' && boardChanged() && window.curBoard) return; }catch(e){}
+  R.auto = 1; try{ openBoard(r.id); }finally{ R.auto = 0; }
+};
+if(typeof goSection === 'function'){
+  var _go = goSection;
+  window.goSection = goSection = function(s){
+    var prev = typeof section !== 'undefined' ? section : '';
+    if(s === 'board' && prev !== 'board'){ try{ follow(); }catch(e){} }
+    var r = _go.apply(this, arguments);
+    if(s === 'board'){ fixStage(); fixWin(); }
+    return r;
+  };
+}
+// Первая сверка с сервером принесла запись с другого устройства, а здесь ещё ничего не трогали
+var tries = 0, t = setInterval(function(){
+  if(++tries > 30 || R.user){ clearInterval(t); return; }
+  if(typeof section !== 'undefined' && section === 'board') try{ follow(); }catch(e){}
+}, 1000);
+
+// ── 4. Карточки канбана и CRM: меню по правому клику и долгому нажатию (вместо «⋯») ──
+var menuAt = function(card, x, y){
+  var id = card.dataset.id; if(!id) return;
+  var ev = {preventDefault: function(){}, stopPropagation: function(){}, clientX: x, clientY: y,
+    currentTarget: {getBoundingClientRect: function(){ return {left: x, right: x + 180, top: y, bottom: y}; }}};
+  if(card.classList.contains('kb-card') && typeof kb12CardMenu === 'function') kb12CardMenu(ev, id);
+  else if(card.classList.contains('cx-card') && typeof crmCardMenu === 'function') crmCardMenu(ev, id);
+};
+document.addEventListener('contextmenu', function(e){
+  var c = e.target && e.target.closest ? e.target.closest('.kb-card,.cx-card') : null; if(!c) return;
+  if(e.target.closest('a,input,textarea')) return;
+  e.preventDefault(); e.stopPropagation();
+  menuAt(c, e.clientX, e.clientY);
+}, true);
+var LP = {t: 0, x: 0, y: 0, c: null, fired: false};
+document.addEventListener('touchstart', function(e){
+  clearTimeout(LP.t); LP.fired = false;
+  var c = e.target && e.target.closest ? e.target.closest('.kb-card,.cx-card') : null; if(!c || e.touches.length !== 1) return;
+  LP.c = c; LP.x = e.touches[0].clientX; LP.y = e.touches[0].clientY;
+  LP.t = setTimeout(function(){ LP.fired = true; menuAt(c, LP.x, LP.y); }, 550);
+}, {passive: true, capture: true});
+document.addEventListener('touchmove', function(e){
+  if(!LP.c) return; var p = e.touches[0];
+  if(Math.abs(p.clientX - LP.x) > 8 || Math.abs(p.clientY - LP.y) > 8){ clearTimeout(LP.t); LP.c = null; }
+}, {passive: true, capture: true});
+document.addEventListener('touchend', function(e){ clearTimeout(LP.t); LP.c = null; if(LP.fired){ LP.fired = false; if(e.cancelable) e.preventDefault(); } }, {passive: false, capture: true});
+})();
+</script>
+<!-- /R72 -->
 <!-- R68: «Gallup-тест резиденты загружают, а он один на всех отправляет». Разбор по словарю (R52) брал порядок тем
      по первому упоминанию названия в тексте. Общий для всех текст отчёта (введение, легенда доменов) давал всем один
      и тот же порядок, а по нему из общего кэша приходил один и тот же разбор и PDF. Теперь порядок только из

@@ -43,6 +43,8 @@ var platformPersonalKeys = map[string]bool{
 	// R59: «Мой календарь» одного резидента; старая общая копия в области клуба
 	// (у команды календарь был один на всех) больше не раздаётся
 	"bs_mycal": true,
+	// R72: the разбор this person worked on last; «Доска» opens it on every device
+	"bs_curboard": true,
 }
 
 // Keys that are pure local bookkeeping and never leave the browser.
