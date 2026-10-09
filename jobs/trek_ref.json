@@ -1,0 +1,24 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {
+  "stability": 0.55,
+  "similarity": 0.8,
+  "style": 0.1,
+  "speed": 1.0,
+  "speaker_boost": true
+ },
+ "context": false,
+ "lines": [
+  {
+   "id": "ref_native",
+   "seed": 11,
+   "text": "Это тре́тий. Тре́тий видит то же самое."
+  },
+  {
+   "id": "ref_native2",
+   "seed": 11,
+   "text": "Тре́тий. Здесь живут доски разборов."
+  }
+ ]
+}
