@@ -18,7 +18,7 @@ import (
 // recounts the meetings from the log (a counter cannot drift).
 
 // R69ApplyDelay: between the dry run and the real run.
-var R69ApplyDelay = 10 * time.Minute
+var R69ApplyDelay = time.Minute // the dry run was reviewed in the logs (09.10.2026): a minute, so frequent deploys do not keep postponing it
 
 type r69Repo interface {
 	Master(ctx context.Context) (string, error)
