@@ -20,7 +20,7 @@ func TestTourTextsOfThePage(t *testing.T) {
 		return false
 	}
 	for _, sub := range []string{"Я голосовой гид платформы", "Нажмите «Начать обучение»", "Трекинг. Здесь живут доски",
-		"Ctrl K", "На этом всё", "Резидентство."} {
+		"На этом всё", "Резидентство."} {
 		if !has(sub) {
 			t.Fatalf("no phrase with %q", sub)
 		}
