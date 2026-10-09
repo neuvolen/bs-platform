@@ -1,0 +1,26 @@
+{
+ "voice_id": "ogi2DyUAKJb7CEdqqvlU",
+ "model": "eleven_multilingual_v2",
+ "settings": {
+  "stability": 0.55,
+  "similarity": 0.8,
+  "style": 0.1,
+  "speed": 1.0,
+  "speaker_boost": true
+ },
+ "context": false,
+ "lines": [
+  {
+   "id": "tour_a_cur",
+   "text": "Тре́кинг. Здесь живут доски разборов."
+  },
+  {
+   "id": "tour_e_hyph",
+   "text": "Тр-е-кинг. Здесь живут доски разборов."
+  },
+  {
+   "id": "tour_g_hyph1",
+   "text": "Тр-е́кинг. Здесь живут доски разборов."
+  }
+ ]
+}
