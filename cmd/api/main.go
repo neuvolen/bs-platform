@@ -100,6 +100,7 @@ func main() {
 	modules = append(modules, app.WireSysCheck(deps, platformMod, botSvc, cfg.PlatformTeam, cfg.JWTSecret)) // R36: «Проверка системы»
 	modules = append(modules, app.WireOutreach(deps, platformMod, botSvc, cfg.PlatformTeam, cfg.JWTSecret)) // R38c: мероприятия, рассылки, WhatsApp
 	modules = append(modules, app.WireSales(deps, platformMod, botSvc, cfg.PlatformTeam, cfg.JWTSecret))    // R51: продажи клуба, итоги, кейсы, отчёт недели
+	modules = append(modules, app.WireR83(deps, platformMod, botSvc, cfg.PlatformTeam, cfg.TelegramBotToken, cfg.JWTSecret)) // R83: заметки из бота, встречи следующего цикла
 	botCtx, botStop := context.WithCancel(context.Background())
 	defer botStop()
 	if botSvc.Enabled() {

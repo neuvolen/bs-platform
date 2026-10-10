@@ -73,6 +73,10 @@ type AssistAccess struct {
 	mu   sync.Mutex
 	sess map[string]sessEntry
 	cut  map[string]cutEntry
+
+	// R83: the sales managers (r83_managers.go): a "sales" token opens
+	// /api/v1/manager/* only, while the manager is active.
+	Mgr *SalesManagers
 }
 
 type sessEntry struct {
@@ -329,6 +333,9 @@ func (x *AssistAccess) Guard(c *gin.Context, claims jwt.MapClaims) (bool, func()
 	ctx := c.Request.Context()
 	sub, _ := claims["sub"].(string)
 	sid, _ := claims["sid"].(string)
+	if role, _ := claims["role"].(string); role == RoleSales {
+		return x.salesGuard(c, claims, sub, sid), nil
+	}
 	if sid == "" {
 		if claims["as"] != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "session_revoked"})
@@ -390,6 +397,40 @@ func (x *AssistAccess) Guard(c *gin.Context, claims jwt.MapClaims) (bool, func()
 			log.Printf("assist log %d: %v", a.ID, err)
 		}
 	}
+}
+
+// salesGuard (R83): the manager's token: a live session, an active manager,
+// and the manager's own API only. Everything else of the platform is closed
+// to him whatever role checks a route makes.
+func (x *AssistAccess) salesGuard(c *gin.Context, claims jwt.MapClaims, sub, sid string) bool {
+	if sid == "" || x.Mgr == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session_revoked"})
+		return false
+	}
+	ctx := c.Request.Context()
+	e := x.session(ctx, sid)
+	if e.err != nil {
+		if errors.Is(e.err, pg.ErrAssistNotFound) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "session_revoked"})
+		} else {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "try_again"})
+		}
+		return false
+	}
+	if s := e.s; s.RevokedAt != nil || !x.now().Before(s.ExpiresAt) || s.Sub != sub || s.Kind != "manager" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "session_revoked"})
+		return false
+	}
+	if !x.Mgr.Allowed(ctx, claimInt(claims["mg"]), sub) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "manager_revoked", "detail": "Доступ менеджера закрыт. Напишите владельцу клуба"})
+		return false
+	}
+	if !strings.HasPrefix(c.FullPath(), "/api/v1/manager/") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden", "reason": "sales_only"})
+		return false
+	}
+	c.Set("sid", sid)
+	return true
 }
 
 // Запросы POST, которые ничего не меняют (документ на печать, присутствие на доске).

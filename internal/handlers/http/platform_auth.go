@@ -196,6 +196,13 @@ func (h *PlatformAuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
+	if role == "lead" && h.access != nil && h.access.Mgr != nil {
+		// R83: менеджер по продажам входит своим Telegram прямо в CRM (/crm)
+		if out, ok := h.access.Mgr.LoginTg(c, u); ok {
+			c.JSON(http.StatusOK, out)
+			return
+		}
+	}
 	if role == "lead" && h.repo != nil {
 		// Ассистент резидента (не команда и не резидент): сразу в кабинет
 		// резидента, которого вёл последним; остальные в переключателе.

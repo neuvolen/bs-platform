@@ -26,6 +26,10 @@ type PlatformModule struct {
 	Access *AssistAccess
 	// R75 call: созвон по ссылке /call/<id> вместо Google Meet (callroom_r75.go)
 	Calls *CallLinks
+	// R83: менеджер по продажам: свой вход и своя CRM (r83_managers.go)
+	Managers *SalesManagers
+	// R83: «Быстрая заметка»: входящие команды с телефона и из бота (r83_inbox.go)
+	Inbox *QuickInbox
 }
 
 func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte) *PlatformModule {
@@ -50,6 +54,10 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 	if h.repo != nil {
 		m.Access = NewAssistAccess(h.repo, a, h.names)
 		a.access = m.Access
+		m.Managers = NewSalesManagers(h.repo, a, secret) // R83
+		m.Managers.Repo, m.Managers.AI = h.repo, m.AI
+		m.Access.Mgr = m.Managers
+		m.Inbox = NewQuickInbox(h.repo, m.AI) // R83
 	}
 	m.AI.KeySecret = secret // R34a: seals the Claude key saved in the settings
 	// R36: the tour's premium voice (ElevenLabs), picked in the settings
@@ -98,6 +106,10 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 // WireLeadBot lets the lead home send through the bot: the booking's
 // confirmation to the lead and its note to the team.
 func (m *PlatformModule) WireLeadBot(send func(ctx context.Context, chatID int64, text string, kb map[string]any) error, admins []int64) {
+	if m.Managers != nil && m.Managers.Send == nil { // R83: напоминания менеджеру в боте
+		m.Managers.Send, m.Managers.Admins = send, admins
+		go m.Managers.Loop(context.Background())
+	}
 	if m.lead == nil {
 		return
 	}
@@ -239,6 +251,9 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/ops", m.AI.OpsList)
 	g.POST("/threads/publish", m.AI.ThreadsNow)
 	g.GET("/crm/wa/status", m.AI.WAStatus)
+	g.PUT("/crm/wa/config", m.AI.WAConfig) // R83: ключи Green-API с платформы, QR на карточке (r83_wa_connect.go)
+	g.DELETE("/crm/wa/config", m.AI.WAForget)
+	g.GET("/crm/wa/qr", m.AI.WAQR)
 	g.GET("/crm/chats", m.AI.WAChats)
 	g.GET("/crm/chats/:phone", m.AI.WAMessages)
 	g.POST("/crm/chats/:phone/send", m.AI.WASend)
@@ -248,5 +263,11 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	RegisterVideo(r, g, m) // R54: Маркетинг → SMM → «Видео» (platform_video.go)
 	if m.Access != nil {
 		m.Access.Register(r, pub, g) // доступ для ассистента, личные ссылки, сессии
+	}
+	if m.Managers != nil {
+		m.Managers.Register(r, pub, g) // R83: менеджер по продажам (/crm, /api/v1/manager/*)
+	}
+	if m.Inbox != nil {
+		m.Inbox.Register(g) // R83: «Быстрая заметка»
 	}
 }

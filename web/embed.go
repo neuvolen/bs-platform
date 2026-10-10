@@ -83,7 +83,7 @@ func serveDL(c *gin.Context, secret []byte, cookie string) {
 		c.String(http.StatusUnauthorized, "Войдите в платформу Business Surgery, чтобы скачать файл")
 		return
 	}
-	if role == "lead" {
+	if role == "lead" || role == "sales" {
 		c.String(http.StatusForbidden, "Файлы библиотеки доступны резидентам Business Surgery")
 		return
 	}
@@ -241,8 +241,8 @@ func serve(c *gin.Context, p page) {
 
 // validSession checks the session cookie the same way the API checks tokens.
 func validSession(c *gin.Context, secret []byte, cookie string) bool {
-	ok, _ := session(c, secret, cookie)
-	return ok
+	ok, role := session(c, secret, cookie)
+	return ok && role != "sales" // R83: the sales manager gets /crm only
 }
 
 // session: whether the cookie holds a valid access token, and its role
@@ -275,6 +275,11 @@ func session(c *gin.Context, secret []byte, cookie string) (bool, string) {
 func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	secret := []byte(jwtSecret)
 	h := func(c *gin.Context) {
+		// R83: the sales manager has his own page, the CRM (handlers/http/r83_managers.go)
+		if ok, role := session(c, secret, sessionCookie); ok && role == "sales" {
+			c.Redirect(http.StatusFound, "/crm")
+			return
+		}
 		if validSession(c, secret, sessionCookie) {
 			serve(c, currentAppPage()) // R36: with the premium voice's files when it is on (voice.go)
 			return
@@ -298,6 +303,7 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	r.GET("/vendor/*path", serveVendor) // R75 call: MediaPipe, фон BS, bsfx.js (vendor.go)
 	r.HEAD("/vendor/*path", serveVendor)
 	r.POST("/clog", serveClientLog) // R83: the page's reports in the log (clientlog.go)
+	RegisterPWA(r)                  // R83b: the platform as a phone app (r83_pwa.go)
 	KWSPreload()                    // R79: the wake word model on the volume (kws_model.go)
 	RegisterPublic(r)               // R49: robots, sitemap, llms.txt, /about, /library (public_site.go)
 }

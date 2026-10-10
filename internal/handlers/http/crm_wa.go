@@ -32,6 +32,11 @@ type greenAPI struct{ id, token, base string }
 func greenFromEnv() *greenAPI {
 	id, tok := strings.TrimSpace(os.Getenv("GREEN_API_ID")), strings.TrimSpace(os.Getenv("GREEN_API_TOKEN"))
 	if id == "" || tok == "" {
+		// R83: the keys the owner saved on the platform (r83_wa_connect.go)
+		if g := waSaved.Load(); g != nil {
+			c := *g
+			return &c
+		}
 		return nil
 	}
 	base := strings.TrimRight(strings.TrimSpace(os.Getenv("GREEN_API_URL")), "/")
@@ -87,6 +92,9 @@ func publicBase() string {
 
 // SetupWhatsApp points Green-API's webhook at this server (at start).
 func (h *PlatformAI) SetupWhatsApp(ctx context.Context) {
+	if waSaved.Load() == nil {
+		h.LoadWACreds(ctx) // R83: keys saved on the platform
+	}
 	g := greenFromEnv()
 	base := publicBase()
 	if g == nil || base == "" {
@@ -244,20 +252,9 @@ func (h *PlatformAI) WAStatus(c *gin.Context) {
 	if !teamOnly(c) {
 		return
 	}
-	g := greenFromEnv()
-	if g == nil {
-		c.JSON(http.StatusOK, gin.H{"connected": false, "reason": "Нет GREEN_API_ID и GREEN_API_TOKEN в переменных Railway"})
-		return
-	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
-	defer cancel()
-	st, err := h.greenCall(ctx, g, "getStateInstance", "GET", nil)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"connected": false, "reason": err.Error()})
-		return
-	}
-	state, _ := st["stateInstance"].(string)
-	c.JSON(http.StatusOK, gin.H{"connected": state == "authorized", "state": state})
+	// R83: the reason in words and the next step (r83_wa_connect.go)
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, h.waStatusView(c.Request.Context()))
 }
 
 func (h *PlatformAI) WAChats(c *gin.Context) {
@@ -292,7 +289,7 @@ func (h *PlatformAI) WASend(c *gin.Context) {
 	}
 	g := greenFromEnv()
 	if g == nil {
-		c.JSON(http.StatusOK, gin.H{"error": "WhatsApp не подключён: нет GREEN_API_ID и GREEN_API_TOKEN"})
+		c.JSON(http.StatusOK, gin.H{"error": "WhatsApp не подключён: Продажи → CRM → «Подключить WhatsApp»"})
 		return
 	}
 	var req struct {

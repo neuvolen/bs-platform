@@ -348,6 +348,9 @@ func (s *Service) private(ctx context.Context, body []byte) {
 		if s.takeTrend(ctx, m, body) { // R53: a Threads link → «Тренды Threads» (trends_hook.go)
 			return
 		}
+		if s.takeInbox(ctx, m, body) { // R83: forwarded or written → «Быстрые заметки» (r83_inbox.go)
+			return
+		}
 		switch cmd {
 		case "/version":
 			_ = s.SendMessage(ctx, m.ChatID, "🤖 Бот работает на сервере платформы.\nТаблица: "+sheetModeName(ctx)+

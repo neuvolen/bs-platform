@@ -37,6 +37,11 @@
 <meta name="description" content="Платформа клуба Business Surgery: разбор каждые 10 дней, {{scale:text}}, замеры и трекинг. Вход для резидентов и команды через Telegram.">
 <!--ICONS-->
 <meta name="theme-color" content="#050505">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BS">
 <meta name="robots" content="noindex,nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -717,6 +722,10 @@ main.wrap{overflow-x:clip}
   window.addEventListener('resize', function(){ if(open) frame(); });
   window.BSDemo = {open: show, close: hide, go: function(i){ go(i); }, state: function(){ return {open: open, i: cur, n: steps.length, muted: muted, src: au ? au.getAttribute('src') || au.src : ''}; }};
 })();
+</script>
+<script>
+// R83: платформа ставится на телефон как приложение (manifest, service worker только для оформления)
+if('serviceWorker' in navigator && location.protocol === 'https:') window.addEventListener('load', function(){ setTimeout(function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }, 3000); });
 </script>
 </body>
 </html>
