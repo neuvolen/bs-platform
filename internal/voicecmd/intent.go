@@ -136,7 +136,7 @@ var (
 	rePoint   = regexp.MustCompile(`^(?:(?:запиши|заполни|поставь)\s+)?(?:в\s+)?точк[ауе]\s+(а|б|a|b)\s+(.+)$`)
 	reDiag    = regexp.MustCompile(`^(?:(?:поставь|добавь|создай|запиши|ставим|ставлю|поставить|добавить)\s+)?(?:новый\s+)?(?:диагноз|болезнь)\s+(.+)$`)
 	reTool    = regexp.MustCompile(`^(?:(?:назначь|добавь|поставь|создай|пропиши|назначить|добавить)\s+)?(?:новый\s+)?(?:инструмент|лечение)\s+(.+)$|^(?:назначь|пропиши)\s+(.+)$`)
-	reTask    = regexp.MustCompile(`^(?:(?:добавь|поставь|создай|запиши|заведи|сделай|поставить|добавить|новая)\s+)?(?:новую\s+)?(?:задачу|задача|таск)\s+(.+)$|^напомни(?:\s+мне)?\s+(.+)$`)
+	reTask    = regexp.MustCompile(`^(?:(?:добавь|поставь|создай|создая|создаю|создать|запиши|заведи|сделай|поставить|добавить|новая)\s+)?(?:новую\s+)?(?:задачу|задача|таск)\s+(.+)$|^напомни(?:\s+мне)?\s+(.+)$`)
 	reGoal    = regexp.MustCompile(`^(?:(?:добавь|поставь|создай|запиши)\s+)?(?:новую\s+)?цель\s+(.+)$`)
 	reQuest   = regexp.MustCompile(`^(?:(?:добавь|задай|запиши)\s+)?вопрос\s+(.+)$`)
 	reNote    = regexp.MustCompile(`^(?:(?:добавь|создай|сделай|запиши)\s+)?(?:заметку|заметка|запись)\s+(.+)$|^(?:запиши|записать|пометка|отметь что|зафиксируй)\s+(.+)$`)
@@ -476,8 +476,22 @@ var (
 	reWhoFor = regexp.MustCompile(`(?:^|\s)(?:для|на)\s+([а-яa-z]+)(?:\s|$)`)
 )
 
+// R83: «дедлайн» said in every way Whisper and the browser's model write it
+// («дед лайн», «дедлаин», «дидлайн», «дэдлайн», «deadline», «с дедлайном»,
+// «крайний срок») becomes the plain «срок» the deadline reader knows.
+var reDeadline = regexp.MustCompile(`(?:^|\s)(?:(?:с|со)\s+)?(?:крайн(?:ий|им|его)\s+срок(?:ом|а)?|сроком|срок|д[еэиа]д\s*-?\s*ла[йи]?н(?:ом|а|у|е|ы)?|dead\s*line|дедлайн(?:ом|а|у|е|ы)?)(?:\s+(?:исполнения|выполнения|сдачи|это|будет|ставим|ставлю|поставь|стоит))?(?:\s|$)`)
+
+// DeadlineWords: the deadline word of a task in one form («срок»).
+func DeadlineWords(s string) string {
+	for i := 0; i < 2; i++ { // twice: neighbours share the space between them
+		s = reDeadline.ReplaceAllString(s, " срок ")
+	}
+	return strings.Join(strings.Fields(s), " ")
+}
+
 // taskFields pulls the deadline and the owner out of a task's words.
 func taskFields(s string, c Context, now time.Time) (title string, date time.Time, who string) {
+	s = DeadlineWords(s)
 	ws := strings.Fields(s)
 	keep := make([]bool, len(ws))
 	for i := range keep {
@@ -487,10 +501,10 @@ func taskFields(s string, c Context, now time.Time) (title string, date time.Tim
 	for i := 0; i < len(ws); i++ {
 		j := i
 		pre := 0
-		if ws[i] == "до" || ws[i] == "да" || ws[i] == "к" || ws[i] == "на" || ws[i] == "в" || ws[i] == "во" || ws[i] == "срок" || ws[i] == "сроком" || ws[i] == "дедлайн" {
+		if ws[i] == "до" || ws[i] == "да" || ws[i] == "к" || ws[i] == "на" || ws[i] == "в" || ws[i] == "во" || ws[i] == "срок" {
 			j = i + 1
 			pre = 1
-			if j < len(ws) && (ws[j] == "до" || ws[j] == "в" || ws[j] == "на") {
+			if j < len(ws) && (ws[j] == "до" || ws[j] == "в" || ws[j] == "на" || ((ws[i] == "срок") && (ws[j] == "к" || ws[j] == "ко" || ws[j] == "во"))) {
 				j++
 				pre++
 			}

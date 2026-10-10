@@ -397,7 +397,8 @@ func RegisterPublic(r *gin.Engine) {
 		r.GET(p, h)
 		r.HEAD(p, h)
 	}
-	registerFree(r) // R76: the Threads magnets (free_pages.go)
+	registerIcons(r) // R83: the platform icon for every page and file (favicon.go)
+	registerFree(r)  // R76: the Threads magnets (free_pages.go)
 	club := func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/about") }
 	r.GET("/club", club)
 	r.HEAD("/club", club)
@@ -802,7 +803,7 @@ func pageHead(title, desc, canonical, ogType, ld string) string {
 	b.WriteString("<!doctype html>\n<html lang=\"ru\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n")
 	b.WriteString("<title>" + hx(title) + "</title>\n<meta name=\"description\" content=\"" + hx(desc) + "\">\n")
 	b.WriteString("<link rel=\"canonical\" href=\"" + hx(canonical) + "\">\n<meta name=\"robots\" content=\"index,follow,max-snippet:-1,max-image-preview:large\">\n")
-	b.WriteString("<meta name=\"theme-color\" content=\"#050505\">\n<link rel=\"icon\" type=\"image/png\" href=\"/site/logo.png\">\n")
+	b.WriteString("<meta name=\"theme-color\" content=\"#050505\">\n" + IconLinks + "\n")
 	b.WriteString("<link rel=\"alternate\" type=\"text/plain\" title=\"llms.txt\" href=\"/llms.txt\">\n")
 	for _, m := range [][2]string{{"og:type", ogType}, {"og:site_name", "Business Surgery"}, {"og:locale", "ru_RU"}, {"og:title", title}, {"og:description", desc}, {"og:url", canonical}, {"og:image", SiteURL + "/site/og.png"}, {"og:image:width", "1200"}, {"og:image:height", "630"}} {
 		b.WriteString("<meta property=\"" + m[0] + "\" content=\"" + hx(m[1]) + "\">\n")

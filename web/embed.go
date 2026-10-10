@@ -297,6 +297,7 @@ func Register(r *gin.Engine, jwtSecret, sessionCookie string) {
 	r.HEAD("/voice/login/:file", serveLoginVoice)
 	r.GET("/vendor/*path", serveVendor) // R75 call: MediaPipe, фон BS, bsfx.js (vendor.go)
 	r.HEAD("/vendor/*path", serveVendor)
-	KWSPreload()      // R79: the wake word model on the volume (kws_model.go)
-	RegisterPublic(r) // R49: robots, sitemap, llms.txt, /about, /library (public_site.go)
+	r.POST("/clog", serveClientLog) // R83: the page's reports in the log (clientlog.go)
+	KWSPreload()                    // R79: the wake word model on the volume (kws_model.go)
+	RegisterPublic(r)               // R49: robots, sitemap, llms.txt, /about, /library (public_site.go)
 }

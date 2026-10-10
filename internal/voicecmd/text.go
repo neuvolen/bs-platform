@@ -56,7 +56,7 @@ var trailPunct = regexp.MustCompile(`([^\d])[.:\-]+(\s|$)`)
 
 // wake words and the filler around them («Джарвис, пожалуйста, …»)
 var (
-	wakeRe   = regexp.MustCompile(`^(?:(?:слушай|эй|окей|ок|hey|ok)\s+)?(?:джарвис|жарвис|джервис|джавис|джарвиз|джарви с|джерви с|джави с|жарви с|джар вис|джер вис|jarvis|ассистент|асистент|помощник)(?:\s+|$)`)
+	wakeRe   = regexp.MustCompile(`^(?:(?:слушай|эй|окей|ок|hey|ok)\s+)?(?:джарвис|жарвис|джервис|джавис|джарвиз|джарви с|джерви с|джави с|жарви с|джар вис|джер вис|джарвес|жарвес|джарес|jarvis|ассистент|асистент|помощник)(?:\s+|$)|^(?:окей|океи|ок|о кей|а кей|окай|okay|ok|hey|эй)\s+(?:би\s*эс|би\s*ес|бэ\s*эс|бе\s*эс|бес|бис|бс|bs|b\s*s)(?:\s+|$)`)
 	fillerRe = regexp.MustCompile(`^(?:(?:пожалуйста|будь добр|давай|ну|так|слушай|короче|значит|а|и|теперь|еще|ещё)\s+)+`)
 	pleaseRe = regexp.MustCompile(`\s+пожалуйста(\s|$)`)
 )
@@ -93,12 +93,23 @@ var ordWords = map[string]int{
 	"двадцатого": 20, "тридцатого": 30,
 }
 
+// R83: the nominative of the ordinals too («дедлайн пятнадцатое октября»)
+func init() {
+	for k, v := range ordWords {
+		if strings.HasSuffix(k, "ого") {
+			ordWords[strings.TrimSuffix(k, "ого")+"ое"] = v
+		}
+	}
+	ordWords["третье"] = 3
+	delete(ordWords, "третьое")
+}
+
 // ordinal: «пятого», «двадцать пятого», «5-го», «5»
 func ordinal(ws []string, i int) (n, used int) {
 	if i >= len(ws) {
 		return 0, 0
 	}
-	if v, err := strconv.Atoi(strings.TrimSuffix(strings.TrimSuffix(ws[i], "-го"), "-е")); err == nil && v >= 1 && v <= 31 {
+	if v, err := strconv.Atoi(strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(ws[i], "-го"), "-ое"), "-е")); err == nil && v >= 1 && v <= 31 {
 		return v, 1
 	}
 	if v, ok := ordWords[ws[i]]; ok {
@@ -165,7 +176,7 @@ func dateAt(ws []string, i int, now time.Time) (time.Time, int) {
 		return day.AddDate(0, 0, 1), 1
 	case "послезавтра":
 		return day.AddDate(0, 0, 2), 1
-	case "конца":
+	case "конца", "концу":
 		if i+1 < len(ws) {
 			switch ws[i+1] {
 			case "недели":

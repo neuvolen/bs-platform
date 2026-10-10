@@ -5,9 +5,12 @@
    Во время команды та же модель пишет черновой текст команды ({type:'final'} по запросу страницы). */
 'use strict';
 var M = null, kws = null, kst = null, rec = null, rst = null, mode = 'wake', ready = false, lastText = '', sinceReset = 0;
+// R83: три обращения: «Джарвис», «Ассистент», «Окей, BS». Модель часто пишет «Джарвис» иначе
+// («джарвес», «джарлиз», «дявельс», «джарес»), поэтому сравнение идёт по звучанию, а не по буквам.
 var WAKE = ['джарвис', 'жарвис', 'джервис', 'джавис', 'ассистент', 'асистент'];
 // токены модели (bpe.model Vosk small ru): «джарвис» = ▁д жа р ви с и т. п.
-var KW = ['▁д жа р ви с @джарвис', '▁ жа р ви с @жарвис', '▁д же р ви с @джервис', '▁д жа р ви з @джарвиз', '▁а сси ст ент @ассистент', '▁а си ст ент @асистент'];
+var KW = ['▁д жа р ви с @джарвис', '▁ жа р ви с @жарвис', '▁д же р ви с @джервис', '▁д жа р ви з @джарвиз', '▁д жа р ве с @джарвес',
+  '▁а сси ст ент @ассистент', '▁а си ст ент @асистент', '▁о ке й ▁б и ▁э с @окей_bs'];
 
 function post(m){ try{ self.postMessage(m); }catch(e){} }
 function lev(a, b){
@@ -17,15 +20,29 @@ function lev(a, b){
   for(i = 1; i <= m; i++) for(j = 1; j <= n; j++) d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1));
   return d[m][n];
 }
-// слово-обращение в черновом тексте: расстояние 1 (2 для длинных слов)
+// звучание слова: дж → ж, дя → жа в начале, з → с, е/э → и, без мягкого знака и двойных букв
+function ph(w){
+  return w.replace(/[ьъ]/g, '').replace(/^дя/, 'жа').replace(/дж/g, 'ж').replace(/з/g, 'с').replace(/[еэ]/g, 'и').replace(/(.)\1+/g, '$1');
+}
+function isWake(w){
+  if(w.length < 4) return false;
+  if(/^j[ae]r?vi?[sz]$/.test(w)) return true;
+  for(var k = 0; k < WAKE.length; k++){ if(lev(w, WAKE[k]) <= (WAKE[k].length >= 8 ? 2 : 1)) return true; }
+  var p = ph(w);
+  if(p.charAt(0) === 'ж' && p.charAt(p.length - 1) === 'с' && p.length >= 4 && lev(p, 'жарвис') <= 2) return true;   // джарвес, джарлиз, дявельс, джарес
+  if(p.length >= 7 && lev(p, 'асистинт') <= 2) return true;                                                          // ассистен, асистент
+  return false;
+}
+// «Окей, BS»: «окей би эс», «окей бес», «а ки бес», «окей ги эс», «а кепиэс»
+var OKBS = /(?:^|\s)(?:[оа]\s?)?к[еэи][йи]?\s?[бгп][иеэ]?\s?[эе]?с(?=\s|$)/;
+// слово-обращение в черновом тексте: {word, rest} (rest: что сказано после него) или null
 function wakeIn(t){
-  var ws = String(t || '').toLowerCase().replace(/ё/g, 'е').split(/[^а-яa-z]+/);
-  for(var i = 0; i < ws.length; i++){
-    var w = ws[i]; if(w.length < 5) continue;
-    if(w === 'jarvis') return w;
-    for(var k = 0; k < WAKE.length; k++){ if(lev(w, WAKE[k]) <= (WAKE[k].length >= 8 ? 2 : 1)) return w; }
-  }
-  return '';
+  var s = String(t || '').toLowerCase().replace(/ё/g, 'е').replace(/[^а-яa-z]+/g, ' ');
+  var m = s.match(OKBS);
+  if(m) return {word: 'окей bs', rest: s.slice(m.index + m[0].length).trim()};
+  var re = /[а-яa-z]+/g, x;
+  while((x = re.exec(s))){ if(isWake(x[0])) return {word: x[0], rest: s.slice(x.index + x[0].length).trim()}; }
+  return null;
 }
 function api(src, names){ return new Function(src + '\nreturn {' + names.map(function(n){ return n + ':' + n; }).join(',') + '};')(); }
 function get(url, bin){
@@ -86,10 +103,11 @@ function feed(pcm){
       var r = kws.getResult(kst);
       if(r && r.keyword){ hit = r.keyword; kws.reset(kst); break; }
     }
-    if(!hit) hit = wakeIn(text);
+    var wi = wakeIn(text);
+    if(!hit && wi) hit = wi.word;
     if(hit){
       // что сказано после слова-обращения в том же дыхании, станет началом черновика команды
-      var after = text.replace(/^.*?(джарвис|жарвис|джервис|джавис|ассистент|асистент|jarvis)[а-я]*\s*/i, '');
+      var after = wi ? wi.rest : '';
       post({type: 'wake', word: hit, text: text});
       mode = 'cmd'; lastText = after;
       try{ rec.reset(rst); }catch(e){}

@@ -409,6 +409,7 @@ var cbPageTpl = template.Must(template.New("cb").Funcs(cbFuncs).Parse(`<!doctype
 <meta name="robots" content="noindex,nofollow,noarchive">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#0A0A0A">
+` + web.IconLinks + `
 <title>Ваш разбор · Business Surgery</title>
 {{safe .Fonts}}<style>` + cbCSS + `</style>
 </head><body>
@@ -537,7 +538,7 @@ var cbPageTpl = template.Must(template.New("cb").Funcs(cbFuncs).Parse(`<!doctype
 
 var cbGoneTpl = template.Must(template.New("gone").Funcs(cbFuncs).Parse(`<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Ваш разбор · Business Surgery</title>
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">` + web.IconLinks + `<title>Ваш разбор · Business Surgery</title>
 {{safe .Fonts}}<style>` + cbCSS + `
 .gone{min-height:80vh;display:flex;flex-direction:column;justify-content:center;max-width:520px;margin:0 auto;padding:40px 20px}
 .gone h1{font-size:30px}.gone p{color:#CFCFCF;margin:14px 0 24px}.gone .row{display:grid;gap:10px}</style></head>

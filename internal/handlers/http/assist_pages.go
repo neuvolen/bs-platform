@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/bnursik/business_surgery_backend/web"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +33,7 @@ const plainPageHead = `<!doctype html>
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="strict-origin">
 <meta name="theme-color" content="#050505">
-<link rel="icon" type="image/png" href="/site/logo.png">
+` + web.IconLinks + `
 <style>
 :root{--bg:#050505;--card:#0E0E0E;--line:rgba(255,255,255,.12);--mute:#9A9A9A;--soft:#C9C9C9;--ok:#3DD68C;--err:#FF6B6F}
 *{box-sizing:border-box;margin:0;padding:0}

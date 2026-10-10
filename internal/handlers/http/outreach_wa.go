@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bnursik/business_surgery_backend/web"
 	"html"
 	"io"
 	"log"
@@ -459,7 +460,7 @@ func (o *Outreach) WAOpen(c *gin.Context) {
 	}
 	if w.Status == "skipped" || w.Status == "expired" {
 		c.Header("Content-Type", "text/html; charset=utf-8")
-		c.String(http.StatusOK, `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font:16px system-ui;padding:24px">Это сообщение уже не нужно отправлять (`+html.EscapeString(map[string]string{"skipped": "пропущено", "expired": "устарело"}[w.Status])+`).</body>`)
+		c.String(http.StatusOK, `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">`+web.IconLinks+`<body style="font:16px system-ui;padding:24px">Это сообщение уже не нужно отправлять (`+html.EscapeString(map[string]string{"skipped": "пропущено", "expired": "устарело"}[w.Status])+`).</body>`)
 		return
 	}
 	if w.Status == "pending" {

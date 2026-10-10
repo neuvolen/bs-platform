@@ -38,6 +38,8 @@ var lazyKeep = map[string]bool{
 	"s1:rerender": true, "s2:loadStickerPack": true,
 	// R82: the header (switch row under the title), the lead menu order and «Система» are set while the page starts
 	"r82uScript:hdr": true, "r82uScript:leadOrder": true, "r82uScript:sys": true,
+	// R83: the top tab strip of «Учёт» follows the page from the first paint
+	"r83Script:fxTop": true,
 	// R52: the tab strip keeps its scroll, and the board signs edited cards (who, when) as it draws
 	"r52Script:keepStrip": true, "r52Script:edBadge": true, "r52Script:when": true,
 	// R52: the https guard in <head> runs before anything is fetched

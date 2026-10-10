@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
+	"github.com/bnursik/business_surgery_backend/web"
 	"html"
 	"log"
 	"net/http"
@@ -97,7 +98,7 @@ input{width:100%;box-sizing:border-box;background:#0f0f10;border:1px solid #333;
 func gcalPage(c *gin.Context, status int, body string) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("Referrer-Policy", "no-referrer")
-	c.Data(status, "text/html; charset=utf-8", []byte(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Google Календарь BS</title>`+
+	c.Data(status, "text/html; charset=utf-8", []byte(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">`+web.IconLinks+`<title>Google Календарь BS</title>`+
 		gcalCSS+`</head><body><div class="w">`+body+`</div></body></html>`))
 }
 
