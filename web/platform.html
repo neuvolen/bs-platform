@@ -38834,8 +38834,9 @@ function toBoard(e){
 document.addEventListener('mousemove', function(e){
   if(!PZ.joined) return;
   var p = toBoard(e);
-  if(!p){ if(PZ.cur){ PZ.cur = null; soon(); } return; }
-  PZ.cur = p; soon();
+  // R83e: alone on the board, the cursor goes with the 5 s pulse only (no one to show it to)
+  if(!p){ if(PZ.cur){ PZ.cur = null; if(PZ.peers.length) soon(); } return; }
+  PZ.cur = p; if(PZ.peers.length) soon();
 }, {passive: true});
 document.addEventListener('mouseleave', function(){ if(PZ.joined && PZ.cur){ PZ.cur = null; soon(); } });
 function nodeIdOf(el){ var n = el && el.closest ? el.closest('.node, .sticker-node') : null; return n && /^n/.test(n.id) ? n.id.slice(1) : ''; }

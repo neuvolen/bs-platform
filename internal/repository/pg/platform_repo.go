@@ -11,9 +11,12 @@ import (
 )
 
 // PlatformRepo stores what the BS platform used to keep in browser storage.
-type PlatformRepo struct{ db *DB }
+type PlatformRepo struct {
+	db   *DB
+	docs *docCache // R83e: copies of the big sections, checked by rev (doc_cache.go)
+}
 
-func NewPlatformRepo(db *DB) *PlatformRepo { return &PlatformRepo{db: db} }
+func NewPlatformRepo(db *DB) *PlatformRepo { return &PlatformRepo{db: db, docs: newDocCache()} }
 
 type PlatformBoard struct {
 	ID        string          `json:"id"`
@@ -80,19 +83,28 @@ func (r *PlatformRepo) Changes(ctx context.Context, since int64, userScope strin
 		return nil, nil, 0, err
 	}
 
+	// R83e: a big section's value comes from the server's copy when its rev
+	// is the one kept (doc_cache.go); Postgres sends only the small ones.
 	rows, err = r.db.Pool.Query(ctx, `
-		SELECT scope, key, CASE WHEN deleted THEN '' ELSE value END,
+		SELECT scope, key, CASE WHEN deleted THEN '' WHEN octet_length(value) >= $3 THEN NULL ELSE value END,
 		       version, rev, deleted, updated_at, updated_by
-		FROM platform_docs WHERE rev > $1 AND scope IN ('club', $2) ORDER BY rev`, since, userScope)
+		FROM platform_docs WHERE rev > $1 AND scope IN ('club', $2) ORDER BY rev`, since, userScope, docCacheMin)
 	if err != nil {
 		return nil, nil, 0, err
 	}
 	docs := []PlatformDoc{}
+	var big []int
 	for rows.Next() {
 		var d PlatformDoc
-		if err := rows.Scan(&d.Scope, &d.Key, &d.Value, &d.Version, &d.Rev, &d.Deleted, &d.UpdatedAt, &d.UpdatedBy); err != nil {
+		var val *string
+		if err := rows.Scan(&d.Scope, &d.Key, &val, &d.Version, &d.Rev, &d.Deleted, &d.UpdatedAt, &d.UpdatedBy); err != nil {
 			rows.Close()
 			return nil, nil, 0, err
+		}
+		if val != nil {
+			d.Value = *val
+		} else {
+			big = append(big, len(docs))
 		}
 		if d.Rev > maxRev {
 			maxRev = d.Rev
@@ -102,6 +114,18 @@ func (r *PlatformRepo) Changes(ctx context.Context, since int64, userScope strin
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, nil, 0, err
+	}
+	for _, i := range big {
+		d, err := r.cachedDoc(ctx, docs[i].Scope, docs[i].Key, docs[i].Rev)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		if d != nil {
+			docs[i] = *d // the same rev, or a newer one written meanwhile
+			if d.Rev > maxRev {
+				maxRev = d.Rev
+			}
+		}
 	}
 
 	// Nothing new for this caller, but others may have moved the counter
@@ -305,51 +329,62 @@ func (r *PlatformRepo) PutDoc(ctx context.Context, scope, key string, baseVersio
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	// R83e: the current value stays in Postgres: it is compared there, copied
+	// to the history there, and not sent back (a 24 MB section went out of the
+	// database three times per write before).
 	var curVersion int
-	var curValue, curBy string
-	var curDeleted bool
-	var curAt time.Time
-	err = tx.QueryRow(ctx, `SELECT version, value, deleted, updated_at, updated_by FROM platform_docs WHERE scope = $1 AND key = $2 FOR UPDATE`, scope, key).
-		Scan(&curVersion, &curValue, &curDeleted, &curAt, &curBy)
+	var curDeleted, same bool
+	err = tx.QueryRow(ctx, `SELECT version, deleted, value = $3 FROM platform_docs WHERE scope = $1 AND key = $2 FOR UPDATE`, scope, key, value).
+		Scan(&curVersion, &curDeleted, &same)
 	exists := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
 	if !exists {
-		var out PlatformDoc
+		out := PlatformDoc{Value: value}
 		err = tx.QueryRow(ctx, `
 			INSERT INTO platform_docs (scope, key, value, version, deleted, updated_by)
 			VALUES ($1, $2, $3, 1, $4, $5)
-			RETURNING scope, key, value, version, rev, deleted, updated_at, updated_by`,
+			RETURNING scope, key, version, rev, deleted, updated_at, updated_by`,
 			scope, key, value, deleted, by).
-			Scan(&out.Scope, &out.Key, &out.Value, &out.Version, &out.Rev, &out.Deleted, &out.UpdatedAt, &out.UpdatedBy)
+			Scan(&out.Scope, &out.Key, &out.Version, &out.Rev, &out.Deleted, &out.UpdatedAt, &out.UpdatedBy)
 		if err != nil {
 			return nil, err
 		}
-		return &out, tx.Commit(ctx)
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		r.docs.put(out)
+		return &out, nil
 	}
 
 	if curVersion != baseVersion {
-		cur, gerr := r.getDocTx(ctx, tx, scope, key)
+		cur, gerr := r.getDocTxCached(ctx, tx, scope, key)
 		if gerr != nil {
 			return nil, gerr
 		}
 		return cur, ErrPlatformConflict
 	}
-	if curDeleted == deleted && curValue == value {
-		cur, gerr := r.getDocTx(ctx, tx, scope, key)
-		if gerr != nil {
-			return nil, gerr
+	if curDeleted == deleted && same {
+		cur := PlatformDoc{Scope: scope, Key: key, Value: value}
+		if err := tx.QueryRow(ctx, `SELECT version, rev, deleted, updated_at, updated_by FROM platform_docs WHERE scope = $1 AND key = $2`, scope, key).
+			Scan(&cur.Version, &cur.Rev, &cur.Deleted, &cur.UpdatedAt, &cur.UpdatedBy); err != nil {
+			return nil, err
 		}
-		return cur, tx.Commit(ctx)
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		r.docs.put(cur)
+		return &cur, nil
 	}
 
 	// The state being replaced goes to history first.
 	if _, err = tx.Exec(ctx, `
 		INSERT INTO platform_doc_versions (scope, key, version, value, deleted, updated_at, updated_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
-		scope, key, curVersion, curValue, curDeleted, curAt, curBy); err != nil {
+		SELECT scope, key, version, value, deleted, updated_at, updated_by FROM platform_docs
+		WHERE scope = $1 AND key = $2 ON CONFLICT DO NOTHING`,
+		scope, key); err != nil {
 		return nil, err
 	}
 	if _, err = tx.Exec(ctx, `
@@ -357,29 +392,64 @@ func (r *PlatformRepo) PutDoc(ctx context.Context, scope, key string, baseVersio
 		scope, key, curVersion); err != nil {
 		return nil, err
 	}
-	var out PlatformDoc
+	out := PlatformDoc{Value: value}
 	err = tx.QueryRow(ctx, `
 		UPDATE platform_docs
 		SET value = $3, deleted = $4, version = version + 1,
 		    rev = nextval('platform_rev_seq'), updated_at = now(), updated_by = $5
 		WHERE scope = $1 AND key = $2
-		RETURNING scope, key, value, version, rev, deleted, updated_at, updated_by`,
+		RETURNING scope, key, version, rev, deleted, updated_at, updated_by`,
 		scope, key, value, deleted, by).
-		Scan(&out.Scope, &out.Key, &out.Value, &out.Version, &out.Rev, &out.Deleted, &out.UpdatedAt, &out.UpdatedBy)
+		Scan(&out.Scope, &out.Key, &out.Version, &out.Rev, &out.Deleted, &out.UpdatedAt, &out.UpdatedBy)
 	if err != nil {
 		return nil, err
 	}
-	return &out, tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	r.docs.put(out)
+	return &out, nil
 }
 
 // GetDoc returns the current copy of a keyed section or nil.
+// R83e: a big section comes from the server's copy while its rev is the
+// same (doc_cache.go); Postgres sends the value of the small ones only.
 func (r *PlatformRepo) GetDoc(ctx context.Context, scope, key string) (*PlatformDoc, error) {
-	tx, err := r.db.Pool.Begin(ctx)
+	var d PlatformDoc
+	var val *string
+	err := r.db.Pool.QueryRow(ctx, `
+		SELECT scope, key, CASE WHEN octet_length(value) >= $3 THEN NULL ELSE value END,
+		       version, rev, deleted, updated_at, updated_by
+		FROM platform_docs WHERE scope = $1 AND key = $2`, scope, key, docCacheMin).
+		Scan(&d.Scope, &d.Key, &val, &d.Version, &d.Rev, &d.Deleted, &d.UpdatedAt, &d.UpdatedBy)
+	if errors.Is(err, pgx.ErrNoRows) {
+		r.docs.drop(scope, key)
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	return r.getDocTx(ctx, tx, scope, key)
+	if val != nil {
+		d.Value = *val
+		return &d, nil
+	}
+	return r.cachedDoc(ctx, scope, key, d.Rev)
+}
+
+// getDocTxCached: getDocTx inside a write, the value from the copy when the
+// rev matches.
+func (r *PlatformRepo) getDocTxCached(ctx context.Context, tx pgx.Tx, scope, key string) (*PlatformDoc, error) {
+	var rev int64
+	if err := tx.QueryRow(ctx, `SELECT rev FROM platform_docs WHERE scope = $1 AND key = $2`, scope, key).Scan(&rev); err == nil {
+		if d, ok := r.docs.get(scope, key, rev); ok {
+			return &d, nil
+		}
+	}
+	d, err := r.getDocTx(ctx, tx, scope, key)
+	if err == nil && d != nil {
+		r.docs.put(*d)
+	}
+	return d, err
 }
 
 func (r *PlatformRepo) getBoardTx(ctx context.Context, tx pgx.Tx, id string) (*PlatformBoard, error) {

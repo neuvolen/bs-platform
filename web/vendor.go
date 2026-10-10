@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -103,6 +104,8 @@ func (f *vendorFile) plainBytes() []byte {
 	return f.plain
 }
 
+var vendorVersionedRe = regexp.MustCompile(`^[a-z][a-z0-9_]*-\d+\.\d+(\.\d+)?/`)
+
 func serveVendor(c *gin.Context) {
 	name := strings.TrimPrefix(c.Param("path"), "/")
 	if m, ok := strings.CutPrefix(name, "kws-model/"); ok { // R79: «Джарвис» (kws_model.go)
@@ -119,7 +122,9 @@ func serveVendor(c *gin.Context) {
 		return
 	}
 	cc := "public, no-cache"
-	if strings.HasPrefix(name, "mp-") {
+	if strings.HasPrefix(name, "mp-") || vendorVersionedRe.MatchString(name) {
+		// R83e: a folder with its version in the name (kws-1.13.8/) never
+		// changes under that name: no revalidation on every page load
 		cc = "public, max-age=31536000, immutable"
 	}
 	c.Writer.Header().Set("Cross-Origin-Resource-Policy", "same-origin")

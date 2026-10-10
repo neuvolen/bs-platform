@@ -41,17 +41,45 @@ func (r *PlatformRepo) PutFile(ctx context.Context, f PlatformFile, by string) e
 
 func (r *PlatformRepo) GetFile(ctx context.Context, id string) (*PlatformFile, error) {
 	var f PlatformFile
-	err := r.db.Pool.QueryRow(ctx, `SELECT id, name, mime, size, data, created_at FROM platform_files WHERE id=$1`, id).
+	fc := filesCache()
+	if fc == nil {
+		err := r.db.Pool.QueryRow(ctx, `SELECT id, name, mime, size, data, created_at FROM platform_files WHERE id=$1`, id).
+			Scan(&f.ID, &f.Name, &f.Mime, &f.Size, &f.Data, &f.CreatedAt)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return &f, err
+	}
+	// R83e: a big file comes from the volume's copy (file_cache.go)
+	err := r.db.Pool.QueryRow(ctx, `SELECT id, name, mime, size, CASE WHEN size >= $2 THEN NULL ELSE data END, created_at
+		FROM platform_files WHERE id=$1`, id, fileCacheMin).
 		Scan(&f.ID, &f.Name, &f.Mime, &f.Size, &f.Data, &f.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
+		fc.remove(id)
 		return nil, nil
 	}
-	return &f, err
+	if err != nil || f.Data != nil {
+		return &f, err
+	}
+	if b := fc.read(id, f.Size); b != nil {
+		f.Data = b
+		return &f, nil
+	}
+	if err := r.db.Pool.QueryRow(ctx, `SELECT data FROM platform_files WHERE id=$1`, id).Scan(&f.Data); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	f.Size = int64(len(f.Data))
+	fc.write(id, f.Data)
+	return &f, nil
 }
 
 // DeleteFile removes a kept file (R55: a video taken out of the funnel library).
 func (r *PlatformRepo) DeleteFile(ctx context.Context, id string) error {
 	_, err := r.db.Pool.Exec(ctx, `DELETE FROM platform_files WHERE id=$1`, id)
+	filesCache().remove(id)
 	return err
 }
 

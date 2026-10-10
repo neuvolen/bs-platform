@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -39,6 +40,14 @@ import (
 
 func main() {
 	_ = godotenv.Load()
+	// R83e: Railway bills the memory in use. Without a limit the Go heap
+	// grows to twice the live data between collections (big JSON sections
+	// decoded by the loops); a soft limit makes the GC work harder near it
+	// instead. GOMEMLIMIT in the service's variables overrides it.
+	if os.Getenv("GOMEMLIMIT") == "" {
+		debug.SetMemoryLimit(600 << 20)
+		log.Printf("memory: soft limit 600 MiB (GOMEMLIMIT unset)")
+	}
 
 	cfg := config.Load()
 	if cfg.Port == "" || cfg.DSN == "" || cfg.JWTSecret == "" || cfg.AccessTTL == "" || cfg.RefreshTTL == "" {
