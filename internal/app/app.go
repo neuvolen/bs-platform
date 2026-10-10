@@ -586,7 +586,8 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 	return []httpapi.RoutesRegistrar{httpapi.NewAppGatewayModule(g), httpapi.NewTildaModule(tilda, []byte(jwtSecret)),
 		httpapi.NewClubActionModule(action, []byte(jwtSecret)),
 		httpapi.NewMigrationModule(mig, []byte(jwtSecret)), httpapi.NewClubAuditModule(audit, []byte(jwtSecret)),
-		httpapi.NewClubResidentModule(action, []byte(jwtSecret)), sheetMod, calMod, gcalUsersMod}
+		httpapi.NewClubResidentModule(action, []byte(jwtSecret)), sheetMod, calMod, gcalUsersMod,
+		httpapi.NewClubPeople(g, d.PlatformRepo, []byte(jwtSecret))} // R78: клуб резидента, «Мои данные», ресурсы, мероприятия (club_people.go)
 }
 
 // parseBundleSample reads "admin:453800951,resident:490685605,lead:999".

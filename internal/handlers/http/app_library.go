@@ -127,7 +127,14 @@ func (g *AppGateway) Library_(c *gin.Context) {
 	var tools, diag, res []map[string]any
 	g.docJSON(ctx, "bs_tools", &tools)
 	g.docJSON(ctx, "bs_diag", &diag)
-	g.docJSON(ctx, "bs_reslib", &res)
+	// R78: the platform keeps «Ресурсы клуба» as {items:[…]}; an older copy as a bare list
+	var resDoc struct {
+		Items []map[string]any `json:"items"`
+	}
+	if g.docJSON(ctx, "bs_reslib", &res); res == nil {
+		g.docJSON(ctx, "bs_reslib", &resDoc)
+		res = resDoc.Items
+	}
 	c.Header("Cache-Control", "private, max-age=300")
 	c.JSON(http.StatusOK, gin.H{"items": BuildLibrary(tools, diag, res)})
 }

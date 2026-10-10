@@ -10058,7 +10058,8 @@ function r15KitGrid(){
 function editRes(i){
   if(!RESLIB) loadResLib();
   var x = (i!==null) ? RESLIB.items[i] : {cat:'Скидки партнёров', t:'', d:'', who:'', url:'', contact:''};
-  var cats = ['Скидки партнёров','Общие доступы','Помещения','Обучение','Контакты','Прочее'];
+  var cats = ['Скидки партнёров','Общие доступы','Помещения','Обучение','Контакты','От резидентов','Прочее']; // R78: карточки резидентов
+  if(x.cat && cats.indexOf(x.cat) < 0) cats.unshift(x.cat);
   document.getElementById('edTitle').textContent = i!==null ? 'Ресурс' : 'Новый ресурс';
   document.getElementById('edSub').textContent = '';
   document.getElementById('edBody').innerHTML =
@@ -10082,7 +10083,7 @@ function saveRes(i){
     d:document.getElementById('rsD').value.trim(), url:document.getElementById('rsU').value.trim(),
     contact:document.getElementById('rsK').value, who:document.getElementById('rsW').value.trim()};
   if(!o.t) return;
-  if(i===null) RESLIB.items.push(o); else RESLIB.items[i]=o;
+  if(i===null) RESLIB.items.push(o); else RESLIB.items[i]=Object.assign({}, RESLIB.items[i], o); // R78: владелец и id карточки резидента остаются
   saveResLib(); closeSheet('editSheet'); renderResources(); toast('Сохранено');
 }
 function delRes(i){
@@ -44440,5 +44441,488 @@ body.light .r71-club{background:#0b0b0b;color:#fff}
 /* Телефон: на доске кнопка меню и вкладки там же, где на остальных экранах (было на 2-3 px иначе) */
 @media(max-width:900px){html.onboard body.r32t #r32Tabs{left:56px}html.onboard .side-btn{top:10px}}
 </style>
+<style id="r78Css">
+/* R78: клуб резидента: участники с фото из Telegram, профиль, «Мои данные», ресурсы, мероприятия */
+html.r78-res .page .ph .psub{display:none}
+html.r78-res .numgrid{display:none}
+.r78{max-width:1180px}
+.r78-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.r78-tools .inp{flex:1 1 260px;max-width:420px;height:42px}
+.r78-h{font:800 12px 'Manrope',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--pm);margin:26px 0 12px}
+.r78-h:first-child{margin-top:0}
+.r78-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.r78-card{display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:18px;border:1px solid var(--pb);background:var(--pc);color:inherit;text-align:left;font:inherit;cursor:pointer;transition:border-color .15s,transform .12s;min-width:0}
+.r78-card:hover{border-color:var(--pi);transform:translateY(-1px)}
+.r78-card .m{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.r78-card b{font-size:15.5px;font-weight:800;line-height:1.25}
+.r78-card em{font-style:normal;font-size:12.5px;color:var(--pm);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.r78-card .k{font-size:11.5px;color:var(--pm);font-weight:700}
+.r78-me{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--pon);color:var(--pontx);margin-left:6px;vertical-align:2px}
+.r78-av{--s:52px;position:relative;flex:0 0 var(--s);width:var(--s);height:var(--s);border-radius:50%;background:var(--pi);display:inline-flex;align-items:center;justify-content:center;overflow:hidden;font:800 calc(var(--s) * .34) 'Manrope',sans-serif;color:var(--ptx)}
+.r78-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.r78-pf{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+.r78-pf-top{display:flex;gap:20px;align-items:center;padding:22px;border-radius:20px;border:1px solid var(--pb);background:var(--pc);margin-bottom:14px}
+.r78-pf-top h2{margin:0;font-size:26px;font-weight:900;line-height:1.15}
+.r78-pf-top .sub{color:var(--pm);font-size:14px;margin-top:4px}
+.r78-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.r78-chip{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid var(--pi);color:var(--ptx);background:none;font-family:inherit;cursor:default;display:inline-flex;gap:6px;align-items:center;text-decoration:none}
+button.r78-chip,a.r78-chip{cursor:pointer}
+.r78-box{padding:18px 20px;border-radius:18px;border:1px solid var(--pb);background:var(--pc);margin-bottom:12px}
+.r78-box h4{margin:0 0 8px;font:800 12px 'Manrope',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--pm)}
+.r78-box p{margin:0;font-size:14.5px;line-height:1.55;white-space:pre-wrap}
+.r78-ct{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--pb);color:inherit;text-decoration:none;font-size:14px}
+.r78-ct:first-of-type{border-top:0}
+.r78-ct span{color:var(--pm);margin-left:auto;font-size:13px}
+.r78-res{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--pb)}
+.r78-res:first-of-type{border-top:0}
+.r78-res .m{flex:1;min-width:0}
+.r78-res b{display:block;font-size:14.5px;font-weight:800}
+.r78-res em{display:block;font-style:normal;color:var(--pm);font-size:13px;line-height:1.45;margin-top:2px;white-space:pre-wrap}
+.r78-res .a{display:flex;gap:6px;flex-wrap:wrap;flex:0 0 auto}
+.r78-res .a .pf-b,.r78-res .a a{height:32px;padding:0 11px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none}
+.r78-who{display:inline-flex;align-items:center;gap:7px;margin-top:7px;font-size:12.5px;font-weight:700;color:var(--ptx);background:none;border:0;padding:0;cursor:pointer;font-family:inherit}
+.r78-empty{padding:18px 20px;border-radius:18px;border:1px dashed var(--pi);color:var(--pm);font-size:14px;line-height:1.5}
+.r78-back{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px}
+.r78-form{display:grid;gap:14px}
+.r78-form label{display:grid;gap:6px;font-size:12.5px;font-weight:700;color:var(--pm)}
+.r78-form textarea.inp{min-height:92px;resize:vertical;line-height:1.5}
+.r78-form .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.r78-acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.r78-note{font-size:12.5px;color:var(--pm);line-height:1.45}
+.r78-add{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:16px 18px;border-radius:16px;background:var(--pon);color:var(--pontx);margin-top:4px}
+.r78-add b{display:block;font-size:15px}
+.r78-add span{font-size:12.5px;opacity:.75}
+.r78-add .pf-b{background:var(--pontx);color:var(--pon);border-color:var(--pontx);flex:0 0 auto}
+.r78-ev{display:grid;grid-template-columns:86px minmax(0,1fr) auto;gap:16px;padding:16px 18px;border-top:1px solid var(--pb);align-items:start}
+.r78-ev:first-child{border-top:0}
+.r78-ev .d{font:800 13px 'Manrope',sans-serif;line-height:1.35}
+.r78-ev .d small{display:block;color:var(--pm);font-weight:700;font-size:12px}
+.r78-ev .t{font-size:15px;font-weight:800;line-height:1.3}
+.r78-ev .o{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--pm);margin-bottom:3px}
+.r78-ev .mt{font-size:12.5px;color:var(--pm);margin-top:4px;line-height:1.45}
+.r78-ev .ds{font-size:13px;line-height:1.5;margin-top:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.r78-ev .a{display:flex;flex-direction:column;gap:6px;align-items:stretch;min-width:120px}
+.r78-ev .a .pf-b,.r78-ev .a a{height:34px;padding:0 12px;font-size:12.5px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+.r78-ev .r78-cal{display:flex;gap:6px}
+.r78-ev .r78-cal a{flex:1}
+.r78-list{border-radius:18px;border:1px solid var(--pb);background:var(--pc);overflow:hidden}
+.r78-day{padding:12px 18px 4px;font:800 12px 'Manrope',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--pm);border-top:1px solid var(--pb)}
+.r78-day:first-child{border-top:0}
+@media(max-width:900px){.r78-pf{grid-template-columns:1fr}}
+@media(max-width:640px){
+  .r78-grid{grid-template-columns:1fr}
+  .r78-pf-top{padding:16px;gap:12px;flex-direction:column;align-items:flex-start}
+  .r78-pf-top .r78-av{--s:72px!important}
+  .r78-pf-top h2{font-size:21px}
+  .r78-form .row2{grid-template-columns:1fr}
+  .r78-ev{grid-template-columns:1fr;gap:8px;padding:14px}
+  .r78-ev .d{display:flex;gap:8px}
+  .r78-ev .a{flex-direction:row;flex-wrap:wrap;min-width:0}
+  .r78-add{flex-direction:column;align-items:stretch}
+  .r78-res{flex-wrap:wrap}
+}
+</style>
+<script id="r78Script">
+// R78: «У резидента в Клубе нужно, чтобы он мог зайти в профиль каждого, с аватарками из Telegram»;
+// «Профиль → Мои данные как в приложении, ресурсы клуба в один клик»; «Как пользоваться» убрана;
+// мелкий текст над заголовками у резидента убран; «Мероприятия» в «Клубе»
+(function(){
+  if(typeof BLOCKS === 'undefined') return;
+  var E = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var res = function(){ return typeof MODE !== 'undefined' && MODE === 'res'; };
+  var modeCls = function(){ try{ document.documentElement.classList.toggle('r78-res', res()); }catch(e){} };
+  var call = function(m, p, b){ return (typeof r6Api === 'function') ? r6Api(m, p, b) : Promise.resolve({error: 'Нет связи с сервером'}); };
+  var say = function(t){ try{ toast(t); }catch(e){} };
+  // ошибка сервера словами: коды вроде club_unavailable резиденту не показываются
+  var why = function(j){ var e = Stringwhy(j); return /[а-яё]/i.test(e) ? e : 'сервер не ответил, попробуйте через минуту'; };
+
+  // ═══ Меню резидента: «Как пользоваться» убрана, «Мероприятия» в «Клубе» ═══
+  try{
+    if(BLOCKS.rme) BLOCKS.rme.tabs = BLOCKS.rme.tabs.filter(function(t){ return t.id !== 'rOnboard'; });
+    // «BS в цифрах» резиденту считались по его одной доске (1 бизнес, 0 циклов): вкладка убрана, цифры в «О клубе» скрыты
+    if(BLOCKS.rclub) BLOCKS.rclub.tabs = BLOCKS.rclub.tabs.filter(function(t){ return t.id !== 'rNumbers'; });
+    if(BLOCKS.rclub && !BLOCKS.rclub.tabs.some(function(t){ return t.id === 'rEvents'; }))
+      BLOCKS.rclub.tabs.splice(1, 0, {id:'rEvents', n:'Мероприятия'});
+  }catch(e){}
+
+  // ═══ Мелкий текст над заголовком у резидента не показывается ═══
+  modeCls();
+  if(typeof pgSet === 'function'){
+    var ps0 = pgSet;
+    window.pgSet = pgSet = function(t, s){ modeCls(); return ps0.call(this, t, res() ? '' : s); };
+  }
+  if(typeof setMode === 'function'){
+    var sm0 = setMode;
+    window.setMode = setMode = function(){ var r = sm0.apply(this, arguments); modeCls(); return r; };
+  }
+  if(typeof goBlock === 'function'){
+    var gb0 = goBlock;
+    window.goBlock = goBlock = function(){ modeCls(); return gb0.apply(this, arguments); };
+  }
+
+  // ═══ Данные клуба с сервера ═══
+  var P = {d: null, at: 0, busy: null, open: '', q: ''};
+  var load = function(force){
+    if(!force && P.d && Date.now() - P.at < 60000) return Promise.resolve(P.d);
+    if(P.busy) return P.busy;
+    P.busy = call('GET', '/club/people').then(function(j){
+      P.busy = null;
+      if(j && !j.error && Array.isArray(j.people)){ P.d = j; P.at = Date.now(); }
+      else if(!P.d) P.d = {error: why(j), people: []};
+      return P.d;
+    });
+    return P.busy;
+  };
+  var initials = function(n){
+    var w = String(n || '').trim().split(/\s+/);
+    return ((w[0] || '').charAt(0) + ((w[1] || '').charAt(0) || '')).toUpperCase() || '·';
+  };
+  var av = function(p, size){
+    var id = String((p && p.tg) || '').replace(/[^0-9]/g, '');
+    return '<span class="r78-av" style="--s:' + (size || 52) + 'px" aria-hidden="true">' + E(initials(p && p.name)) +
+      (id ? '<img src="/api/v1/app/avatar/' + id + '" alt="" loading="lazy" onerror="this.remove()">' : '') + '</span>';
+  };
+  var person = function(name){ return ((P.d && P.d.people) || []).filter(function(x){ return x.name === name; })[0] || null; };
+  var isMe = function(p){ return !!(p && P.d && P.d.me && p.tg === P.d.me); };
+  var partnerOf = function(p){
+    if(!p) return '';
+    var x = String(p.partner || '').trim();
+    if(!x){ var back = ((P.d && P.d.people) || []).filter(function(o){ return String(o.partner || '').trim() === p.name; })[0]; if(back) x = back.name; }
+    return x && x !== p.name ? x : '';
+  };
+  window.r78Open = function(name){ P.open = name || ''; renderMyTeam(); try{ var m = document.querySelector('.main') || document.scrollingElement; if(m) m.scrollTop = 0; window.scrollTo(0, 0); }catch(e){} };
+
+  // ═══ Клуб → Участники: сетка с фото, поиск, профиль каждого ═══
+  var card = function(p){
+    var sub = p.niche || (p.team ? 'Команда Business Surgery' : 'Резидент Business Surgery');
+    return '<button type="button" class="r78-card" data-n="' + E(p.name) + '" onclick="r78Open(this.dataset.n)">' + av(p, 52) +
+      '<span class="m"><b>' + E(p.name) + (isMe(p) ? '<span class="r78-me">вы</span>' : '') + '</b><em>' + E(sub) + '</em>' +
+      (p.help ? '<em>' + E(p.help) + '</em>' : '') +
+      ((p.resources || []).length ? '<span class="k">Ресурсов в клубе: ' + p.resources.length + '</span>' : '') + '</span></button>';
+  };
+  var listHTML = function(){
+    var all = (P.d && P.d.people) || [];
+    var q = String(P.q || '').toLowerCase().replace(/ё/g, 'е').trim();
+    var hit = function(p){ return !q || [p.name, p.niche, p.bio, p.help].join(' ').toLowerCase().replace(/ё/g, 'е').indexOf(q) >= 0; };
+    var team = all.filter(function(p){ return p.team && hit(p); });
+    var club = all.filter(function(p){ return !p.team && hit(p); });
+    var five = null;
+    try{
+      var t = JSON.parse(localStorage.getItem('bs_teams') || 'null'); // только настоящие пятёрки команды
+      var mine = all.filter(isMe)[0];
+      if(t && mine) five = t.filter(function(x){ return (x.members || []).indexOf(mine.name) >= 0; })[0] || null;
+    }catch(e){}
+    var h = '';
+    if(five && !q){
+      var fm = five.members.map(person).filter(Boolean);
+      if(fm.length) h += '<div class="r78-h">Моя пятёрка · ' + E(five.n) + '</div><div class="r78-grid">' + fm.map(card).join('') + '</div>';
+    }
+    if(team.length) h += '<div class="r78-h">Команда клуба</div><div class="r78-grid">' + team.map(card).join('') + '</div>';
+    h += '<div class="r78-h">Резиденты · ' + club.length + '</div>' +
+      (club.length ? '<div class="r78-grid">' + club.map(card).join('') + '</div>' : '<div class="r78-empty">' + (q ? 'Никого не нашлось' : 'Список пуст') + '</div>');
+    return h;
+  };
+  window.r78Search = function(v){ P.q = v; var el = document.getElementById('r78List'); if(el) el.innerHTML = listHTML(); };
+  var profileHTML = function(p){
+    var pr = partnerOf(p), me = isMe(p);
+    var chips = [p.team ? 'Команда' : (p.format || ''), p.since ? 'В клубе с ' + p.since : ''].filter(Boolean)
+      .map(function(x){ return '<span class="r78-chip">' + E(x) + '</span>'; }).join('') +
+      (pr ? '<button type="button" class="r78-chip" data-n="' + E(pr) + '" onclick="r78Open(this.dataset.n)">Партнёр: ' + E(pr) + '</button>' : '');
+    var h = '<button type="button" class="btn pf-b r78-back" onclick="r78Open(\'\')">← Все участники</button>' +
+      '<div class="r78-pf-top">' + av(p, 88) + '<div style="min-width:0"><h2>' + E(p.name) + (me ? '<span class="r78-me">вы</span>' : '') + '</h2>' +
+      '<div class="sub">' + E(p.niche || (p.team ? 'Команда Business Surgery' : 'Резидент Business Surgery')) + '</div>' +
+      (chips ? '<div class="r78-chips">' + chips + '</div>' : '') + '</div></div>';
+    var main = '', side = '';
+    if(p.bio) main += '<div class="r78-box"><h4>Чем занимается</h4><p>' + E(p.bio) + '</p></div>';
+    if(p.help) main += '<div class="r78-box"><h4>Чем может быть полезен</h4><p>' + E(p.help) + '</p></div>';
+    if((p.resources || []).length) main += '<div class="r78-box"><h4>Ресурсы для клуба</h4>' + p.resources.map(function(x){
+      return '<div class="r78-res"><div class="m"><b>' + E(x.t) + '</b>' + (x.d ? '<em>' + E(x.d) + '</em>' : '') + '</div>' +
+        (x.url ? '<div class="a"><a class="btn pf-b" href="' + E(x.url) + '" target="_blank" rel="noopener">Открыть</a></div>' : '') + '</div>';
+    }).join('') + '</div>';
+    var ig = String(p.instagram || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').split(/[/?#\s]/)[0];
+    var ph = String(p.phone || '').replace(/[^0-9]/g, '');
+    if(ig || ph) side += '<div class="r78-box"><h4>Контакты</h4>' +
+      (ig ? '<a class="r78-ct" href="https://instagram.com/' + E(ig) + '" target="_blank" rel="noopener"><b>Instagram</b><span>@' + E(ig) + '</span></a>' : '') +
+      (ph ? '<a class="r78-ct" href="https://wa.me/' + E(ph) + '" target="_blank" rel="noopener"><b>WhatsApp</b><span>' + E(p.phone) + '</span></a>' : '') + '</div>';
+    if(!main) main = '<div class="r78-empty">' + (me ? 'Ваш профиль пока пуст. Расскажите клубу, чем занимаетесь и чем можете быть полезны: так вас быстрее найдут.' : 'Резидент пока не рассказал о себе') + '</div>';
+    if(me) side += '<div class="r78-box"><h4>Это вы</h4><p class="r78-note" style="white-space:normal">Так вас видят резиденты клуба. Изменить можно в «Профиль → Мои данные».</p>' +
+      '<div class="r78-acts" style="margin-top:12px"><button type="button" class="btn pf-b pf-p" onclick="goSection(\'rprofile\')">Изменить профиль</button></div></div>';
+    return h + '<div class="r78-pf"><div>' + main + '</div><div>' + side + '</div></div>';
+  };
+  var club0 = typeof renderMyTeam === 'function' ? renderMyTeam : null;
+  window.renderMyTeam = renderMyTeam = function(){
+    if(!res() && club0) return club0.apply(this, arguments);
+    var el = pgSet('Участники клуба', '');
+    var paint = function(){
+      if(!document.getElementById('r78Club')) return;
+      var box = document.getElementById('r78Club');
+      if(!P.d){ box.innerHTML = '<div class="pf-empty">Загружаю…</div>'; return; }
+      if(P.d.error && !(P.d.people || []).length){ box.innerHTML = '<div class="r78-empty">Список клуба не загрузился: ' + E(P.d.error) + '</div>'; return; }
+      var p = P.open ? person(P.open) : null;
+      if(p){ box.innerHTML = profileHTML(p); return; }
+      P.open = '';
+      box.innerHTML = '<div class="r78-tools"><input class="inp" type="search" placeholder="Имя, ниша или чем полезен" aria-label="Поиск по клубу" value="' + E(P.q) + '" oninput="r78Search(this.value)"></div><div id="r78List">' + listHTML() + '</div>';
+    };
+    el.innerHTML = '<div class="r78" id="r78Club"></div>';
+    paint();
+    load().then(paint);
+  };
+
+  // ═══ Профиль → Мои данные: как в приложении (тот же профиль на сервере) ═══
+  var ME = {d: null, busy: false};
+  var meLoad = function(){ return call('GET', '/club/profile').then(function(j){ if(j && !j.error) ME.d = j; return j; }); };
+  var myRes = function(){
+    var me = ME.d && ME.d.tg; if(!me) return [];
+    try{ if(!RESLIB) loadResLib(); }catch(e){}
+    return ((typeof RESLIB !== 'undefined' && RESLIB && RESLIB.items) || []).filter(function(x){ return x && x.ownerTg === me; });
+  };
+  var meResHTML = function(){
+    var L = myRes();
+    return L.length ? '<div class="r78-box" style="margin-top:12px"><h4>Мои ресурсы в клубе · ' + L.length + '</h4>' + L.map(function(x){
+      return '<div class="r78-res" data-id="' + E(x.id) + '"><div class="m"><b>' + E(x.t) + '</b>' + (x.d ? '<em>' + E(x.d) + '</em>' : '') + '</div>' +
+        '<div class="a"><button type="button" class="btn pf-b" data-ed="' + E(x.id) + '">Изменить</button><button type="button" class="btn pf-b" data-del="' + E(x.id) + '">Убрать</button></div></div>';
+    }).join('') + '</div>' : '';
+  };
+  var formHTML = function(){
+    var p = (ME.d && ME.d.profile) || {};
+    if(ME.d && ME.d.telegram === false) return '<div class="r78-empty">Профиль клуба заполняется после входа через Telegram: так он совпадает с приложением.</div>';
+    return '<div class="r78-pf"><div><div class="r78-box"><div class="r78-form" id="r78Form">' +
+      '<label>Чем занимаетесь<input class="inp" name="niche" maxlength="200" placeholder="Например: сеть кофеен, IT-аутсорс, логистика" value="' + E(p.niche) + '"></label>' +
+      '<label>О бизнесе<textarea class="inp" name="bio" maxlength="2000" placeholder="Коротко о вашем бизнесе: что продаёте, кому, сколько лет">' + E(p.bio) + '</textarea></label>' +
+      '<label>Чем могу быть полезен<textarea class="inp" name="help" maxlength="2000" placeholder="Какие задачи можете решить для резидентов: связи, поставщики, скидки, опыт">' + E(p.help) + '</textarea></label>' +
+      '<div class="r78-add"><div><b>Добавить в ресурсы клуба</b><span>Текст «Чем могу быть полезен» станет карточкой в «Материалы → Ресурсы клуба» с вашим именем</span></div>' +
+        '<button type="button" class="btn pf-b" id="r78AddRes">Добавить в 1 клик</button></div>' +
+      '<div class="row2"><label>Instagram<input class="inp" name="instagram" maxlength="100" placeholder="@username" value="' + E(p.instagram) + '"></label>' +
+      '<label>Телефон (WhatsApp)<input class="inp" name="phone" maxlength="40" inputmode="tel" placeholder="+7 700 000 0000" value="' + E(p.phone) + '"></label></div>' +
+      '<div class="r78-acts"><button type="button" class="btn pf-b pf-p" id="r78Save">Сохранить</button><span class="r78-note">То же, что «Мои данные» в приложении. Видно резидентам клуба в разделе «Клуб»</span></div>' +
+      '</div></div><div id="r78MyRes">' + meResHTML() + '</div></div><div id="r78Prev"></div></div>';
+  };
+  var formVals = function(){
+    var f = document.getElementById('r78Form'), o = {};
+    if(f) f.querySelectorAll('[name]').forEach(function(i){ o[i.name] = i.value.trim(); });
+    return o;
+  };
+  var preview = function(){
+    var box = document.getElementById('r78Prev'); if(!box) return;
+    var v = formVals(), me = (P.d && P.d.people || []).filter(isMe)[0] || {name: (ME.d && ME.d.name) || 'Вы', tg: ME.d && ME.d.tg};
+    box.innerHTML = '<div class="r78-box"><h4>Так вас видит клуб</h4><div class="r78-card" style="cursor:default;border:0;padding:6px 0 0;background:none">' + av(me, 52) +
+      '<span class="m"><b>' + E(me.name) + '</b><em>' + E(v.niche || 'Резидент Business Surgery') + '</em>' + (v.help ? '<em>' + E(v.help) + '</em>' : '') + '</span></div></div>';
+  };
+  var info = function(){
+    var i = (typeof curBoard !== 'undefined' && curBoard && curBoard.info) || {};
+    var rows = [['Имя', ((i.name || '') + ' ' + (i.last || '')).trim()], ['Дата рождения', i.birth], ['Город', i.city], ['Сфера', i.biz], ['Семья', i.fam]].filter(function(r){ return r[1]; });
+    return rows.length ? '<div class="r78-box" style="margin-top:12px"><h4>Анкета разбора</h4>' + rows.map(function(r){
+      return '<div class="r78-ct" style="cursor:default"><b style="font-weight:700;color:var(--pm);min-width:120px">' + E(r[0]) + '</b><span style="margin-left:0;color:inherit">' + E(r[1]) + '</span></div>';
+    }).join('') + '</div>' : '';
+  };
+  var rp0 = typeof renderRProfile === 'function' ? renderRProfile : null;
+  window.renderRProfile = renderRProfile = function(){
+    if(!res() && rp0) return rp0.apply(this, arguments);
+    modeCls();
+    var pt = document.querySelector('#pg-rprofile .pt'); if(pt) pt.textContent = 'Мои данные';
+    var b = document.getElementById('rpBody'); if(!b) return;
+    var paint = function(){
+      if(!document.getElementById('rpBody')) return;
+      if(!ME.d){ b.innerHTML = '<div class="pf-empty">Загружаю…</div>'; return; }
+      b.innerHTML = '<div class="r78">' + formHTML() + info() + '</div>';
+      preview();
+    };
+    paint();
+    meLoad().then(function(j){ if(!ME.d && j && j.error){ b.innerHTML = '<div class="r78-empty">Профиль не загрузился: ' + E(why(j)) + '</div>'; return; } paint(); load(); });
+  };
+  var saveProfile = function(){
+    var v = formVals(), btn = document.getElementById('r78Save');
+    if(btn){ btn.disabled = true; btn.textContent = 'Сохраняю…'; }
+    return call('PUT', '/club/profile', v).then(function(j){
+      if(btn){ btn.disabled = false; btn.textContent = 'Сохранить'; }
+      if(!j || j.error){ say('Не сохранилось: ' + why(j)); return false; }
+      ME.d = Object.assign({}, ME.d || {}, {profile: j.profile}); P.at = 0;
+      say('Сохранено. Видно в клубе и в приложении'); return true;
+    });
+  };
+  var resLocal = function(fn){
+    try{ if(!RESLIB) loadResLib(); fn(RESLIB.items); }catch(e){}
+    var box = document.getElementById('r78MyRes'); if(box) box.innerHTML = meResHTML();
+  };
+  var addRes = function(){
+    var v = formVals();
+    var help = String(v.help || '').trim();
+    if(!help){ say('Сначала напишите, чем можете быть полезны'); var t = document.querySelector('#r78Form [name=help]'); if(t) t.focus(); return; }
+    var first = help.split(/\n|[.!?](\s|$)/)[0].trim();
+    var title = (first.length > 70 ? first.slice(0, 67).replace(/\s+\S*$/, '') + '…' : first) || v.niche || 'Чем могу помочь';
+    var btn = document.getElementById('r78AddRes'); if(btn){ btn.disabled = true; btn.textContent = 'Добавляю…'; }
+    saveProfile().then(function(){
+      return call('POST', '/club/resources', {t: title, d: help, url: v.instagram ? 'https://instagram.com/' + v.instagram.replace(/^@/, '') : ''});
+    }).then(function(j){
+      if(btn){ btn.disabled = false; btn.textContent = 'Добавить в 1 клик'; }
+      if(!j || j.error){ say('Не добавилось: ' + why(j)); return; }
+      resLocal(function(items){ items.push(j.item); });
+      P.at = 0; say('Добавлено в «Ресурсы клуба»');
+    });
+  };
+  var editRes = function(id){
+    var x = myRes().filter(function(r){ return r.id === id; })[0] || ((RESLIB && RESLIB.items) || []).filter(function(r){ return r.id === id; })[0]; if(!x) return;
+    var row = document.querySelector('[data-id="' + id + '"]'); if(!row) return;
+    row.innerHTML = '<div class="r78-form" style="flex:1"><label>Название<input class="inp" data-f="t" maxlength="120" value="' + E(x.t) + '"></label>' +
+      '<label>Описание<textarea class="inp" data-f="d" maxlength="600">' + E(x.d) + '</textarea></label>' +
+      '<label>Ссылка<input class="inp" data-f="url" maxlength="400" placeholder="https://" value="' + E(x.url) + '"></label>' +
+      '<div class="r78-acts"><button type="button" class="btn pf-b pf-p" data-sv="' + E(id) + '">Сохранить</button><button type="button" class="btn pf-b" data-cn="1">Отмена</button></div></div>';
+  };
+  var saveRes = function(id){
+    var row = document.querySelector('[data-id="' + id + '"]'); if(!row) return;
+    var o = {}; row.querySelectorAll('[data-f]').forEach(function(i){ o[i.dataset.f] = i.value.trim(); });
+    if(!o.t){ say('Нужно название'); return; }
+    call('PUT', '/club/resources/' + encodeURIComponent(id), o).then(function(j){
+      if(!j || j.error){ say('Не сохранилось: ' + why(j)); return; }
+      resLocal(function(items){ items.forEach(function(r){ if(r.id === id){ r.t = o.t; r.d = o.d; r.url = /^https?:\/\//.test(o.url) || !o.url ? o.url : 'https://' + o.url; } }); });
+      P.at = 0; say('Сохранено'); if(section === 'rRes2') renderResources();
+    });
+  };
+  var delRes = function(id){
+    askConfirm('Убрать ресурс из клуба?', 'Карточка исчезнет из «Ресурсов клуба»', function(){
+      call('DELETE', '/club/resources/' + encodeURIComponent(id)).then(function(j){
+        if(!j || j.error){ say('Не получилось: ' + why(j)); return; }
+        resLocal(function(items){ for(var i = items.length - 1; i >= 0; i--) if(items[i] && items[i].id === id) items.splice(i, 1); });
+        P.at = 0; say('Убрано'); if(section === 'rRes2') renderResources();
+      });
+    }, 'Убрать');
+  };
+  document.addEventListener('click', function(ev){
+    var t = ev.target; if(!t || !t.closest || !t.closest('.r78')) return;
+    if(t.closest('#r78Save')){ saveProfile().then(function(){ preview(); }); return; }
+    if(t.closest('#r78AddRes')){ addRes(); return; }
+    var a;
+    if((a = t.closest('[data-ed]'))){ editRes(a.dataset.ed); return; }
+    if((a = t.closest('[data-del]'))){ delRes(a.dataset.del); return; }
+    if((a = t.closest('[data-sv]'))){ saveRes(a.dataset.sv); return; }
+    if(t.closest('[data-cn]')){ if(section === 'rRes2') renderResources(); else { var box = document.getElementById('r78MyRes'); if(box) box.innerHTML = meResHTML(); } return; }
+    if((a = t.closest('[data-go]'))){ goSection(a.dataset.go); return; }
+  });
+  document.addEventListener('input', function(ev){ if(ev.target && ev.target.closest && ev.target.closest('#r78Form')) preview(); });
+
+  // ═══ Материалы → Ресурсы клуба: от резидентов сверху, свои правятся ═══
+  var resR0 = typeof renderResources === 'function' ? renderResources : null;
+  window.renderResources = renderResources = function(){
+    if(!res() && resR0) return resR0.apply(this, arguments);
+    try{ if(!RESLIB) loadResLib(); }catch(e){}
+    var el = pgSet('Ресурсы клуба', '');
+    var items = ((RESLIB && RESLIB.items) || []).filter(function(x){ return x && x.t; });
+    var mine = (ME.d && ME.d.tg) || (P.d && P.d.me) || '';
+    var groups = {}, order = [];
+    items.forEach(function(x){ var c = x.cat || 'Прочее'; if(!groups[c]){ groups[c] = []; order.push(c); } groups[c].push(x); });
+    order.sort(function(a, b){ return (b === 'От резидентов') - (a === 'От резидентов'); });
+    var row = function(x){
+      var own = mine && x.ownerTg === mine;
+      var who = x.ownerName ? '<button type="button" class="r78-who" data-n="' + E(x.ownerName) + '" onclick="r78ToPerson(this.dataset.n)">' + av({name: x.ownerName, tg: x.ownerTg}, 24) + E(x.ownerName) + (own ? ' · вы' : '') + '</button>' : (x.who ? '<span class="r78-note">' + E(x.who) + '</span>' : '');
+      return '<div class="r78-res" data-id="' + E(x.id || '') + '"><div class="m"><b>' + E(x.t) + '</b>' + (x.d ? '<em>' + E(x.d) + '</em>' : '') + who + '</div>' +
+        '<div class="a">' + (x.url ? '<a class="btn pf-b" href="' + E(x.url) + '" target="_blank" rel="noopener">Открыть</a>' : '') +
+        (own ? '<button type="button" class="btn pf-b" data-ed="' + E(x.id) + '">Изменить</button><button type="button" class="btn pf-b" data-del="' + E(x.id) + '">Убрать</button>' : '') + '</div></div>';
+    };
+    el.innerHTML = '<div class="r78">' +
+      '<div class="r78-add" style="margin:0 0 18px"><div><b>Есть чем помочь клубу?</b><span>Связи, поставщики, скидки, опыт: добавьте в «Профиль → Мои данные» одной кнопкой</span></div>' +
+        '<button type="button" class="btn pf-b" data-go="rprofile">Добавить свой ресурс</button></div>' +
+      order.map(function(c){ return '<div class="r78-h">' + E(c) + ' · ' + groups[c].length + '</div><div class="r78-box" style="padding:6px 20px">' + groups[c].map(row).join('') + '</div>'; }).join('') +
+      (items.length ? '' : '<div class="r78-empty">Ресурсов пока нет</div>') + '</div>';
+    if(!ME.d) meLoad().then(function(){ if(section === 'rRes2') renderResources(); });
+  };
+  window.r78ToPerson = function(name){ P.open = name; goSection('rFiveList'); };
+
+  // ═══ Клуб → Мероприятия: лента сайтов и Telegram-каналов и мероприятия клуба ═══
+  var EV = {d: null, at: 0, f: 'all'};
+  var going = function(){ try{ return JSON.parse(localStorage.getItem('bs_r78_going') || '{}') || {}; }catch(e){ return {}; } };
+  var evLoad = function(){
+    if(EV.d && Date.now() - EV.at < 120000) return Promise.resolve(EV.d);
+    return call('GET', '/club/events').then(function(j){ if(j && !j.error && Array.isArray(j.items)){ EV.d = j; EV.at = Date.now(); } else if(!EV.d) EV.d = {error: why(j), items: []}; return EV.d; });
+  };
+  var dLbl = function(ds){
+    var d = new Date(String(ds || '') + 'T00:00:00'); if(isNaN(d)) return 'Дата уточняется';
+    var t = new Date(); t.setHours(0, 0, 0, 0); var n = Math.round((d - t) / 864e5);
+    return (n === 0 ? 'Сегодня, ' : n === 1 ? 'Завтра, ' : '') + d.toLocaleDateString('ru', {day: 'numeric', month: 'long', weekday: n > 1 ? 'long' : undefined});
+  };
+  var gcal = function(x){
+    var opp = x.kind === 'возможность', ds = String((opp && x.deadline) || x.date || '').replace(/-/g, '');
+    if(ds.length !== 8) return '';
+    var dates;
+    var m = /^(\d{1,2}):(\d{2})$/.exec(x.time || '');
+    if(m && !opp){
+      var st = Date.UTC(+ds.slice(0, 4), +ds.slice(4, 6) - 1, +ds.slice(6, 8), +m[1] - 5, +m[2]);
+      var f = function(t){ return new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); };
+      dates = f(st) + '/' + f(st + 2 * 36e5);
+    } else {
+      var nx = new Date(Date.UTC(+ds.slice(0, 4), +ds.slice(4, 6) - 1, +ds.slice(6, 8) + 1)).toISOString().slice(0, 10).replace(/-/g, '');
+      dates = ds + '/' + nx;
+    }
+    return 'https://calendar.google.com/calendar/render?' + new URLSearchParams({action: 'TEMPLATE', text: (opp ? 'Подать заявку: ' : '') + x.title, dates: dates,
+      details: [x.desc || '', x.url || x.post || ''].filter(Boolean).join('\n'), location: x.place || ''}).toString();
+  };
+  var evRow = function(x){
+    var opp = x.kind === 'возможность', go = going()[x.key];
+    var meta = [x.place || (x.online ? 'Онлайн' : ''), x.org, x.price ? (/^\d[\d\s]*$/.test(String(x.price)) ? Number(String(x.price).replace(/\s/g, '')).toLocaleString('ru-RU') + ' ₸' : x.price) : '', x.ours ? '' : x.source].filter(Boolean).join(' · ');
+    var g = gcal(x);
+    return '<div class="r78-ev"><div class="d">' + E(opp ? 'до ' + (x.deadline || x.date || '').slice(8, 10) + '.' + (x.deadline || x.date || '').slice(5, 7) : (x.time || 'Весь день')) + '</div>' +
+      '<div style="min-width:0"><span class="o">' + E(x.ours ? 'Клуб Business Surgery' : (opp ? 'Возможность' : (x.online ? 'Онлайн' : 'Алматы'))) + '</span><div class="t">' + E(x.title) + '</div>' +
+      (meta ? '<div class="mt">' + E(meta) + '</div>' : '') + (x.desc ? '<div class="ds">' + E(x.desc) + '</div>' : '') + '</div>' +
+      '<div class="a"><button type="button" class="btn pf-b' + (go ? ' pf-p' : '') + '" data-ev="' + E(x.key) + '">' + (go ? '✓ Иду' : (opp ? 'Подам заявку' : 'Иду')) + '</button>' +
+        (go && g ? '<div class="r78-cal"><a class="btn pf-b" href="' + E(g) + '" target="_blank" rel="noopener" title="Google Календарь">Google</a><a class="btn pf-b" href="/api/v1/public/event/' + E(x.key) + '.ics" title="Apple, Outlook и другие">.ics</a></div>' : '') +
+        (x.url ? '<a class="btn pf-b" href="' + E(x.url) + '" target="_blank" rel="noopener">Источник</a>' : '') +
+        (x.post && x.post !== x.url ? '<a class="btn pf-b" href="' + E(x.post) + '" target="_blank" rel="noopener">Пост в Telegram</a>' : '') + '</div></div>';
+  };
+  var FILT = [['all', 'Все'], ['city', 'Алматы'], ['online', 'Онлайн'], ['opp', 'Возможности'], ['ours', 'Клуб'], ['go', 'Иду']];
+  var fit = function(x, f){
+    var opp = x.kind === 'возможность';
+    return f === 'all' || (f === 'city' && !opp && !x.online && !x.ours) || (f === 'online' && !opp && x.online) || (f === 'opp' && opp) || (f === 'ours' && x.ours) || (f === 'go' && going()[x.key]);
+  };
+  var renderEv = function(){
+    var el = pgSet('Мероприятия', '');
+    var paint = function(){
+      var box = document.getElementById('r78Ev'); if(!box) return;
+      if(!EV.d){ box.innerHTML = '<div class="pf-empty">Загружаю…</div>'; return; }
+      var items = EV.d.items || [];
+      var list = items.filter(function(x){ return fit(x, EV.f); });
+      var h = '<div class="pf-filters" style="margin-bottom:16px">' + FILT.map(function(f){
+        var n = items.filter(function(x){ return fit(x, f[0]); }).length;
+        if(!n && f[0] !== 'all' && f[0] !== EV.f) return '';
+        return '<div class="pf-fl' + (EV.f === f[0] ? ' on' : '') + '" data-evf="' + f[0] + '" role="button" tabindex="0">' + f[1] + ' <span class="ev-n">' + n + '</span></div>';
+      }).join('') + '</div>';
+      if(!list.length) h += '<div class="r78-empty">' + (EV.d.error ? 'Лента не загрузилась: ' + E(EV.d.error) : (EV.f === 'go' ? 'Отметьте «Иду» у мероприятия: оно появится здесь и в календаре' : 'Ближайших мероприятий нет. Лента обновляется каждый день')) + '</div>';
+      else {
+        var out = '', last = null;
+        list.forEach(function(x){
+          var d = x.kind === 'возможность' ? (x.deadline || x.date) : x.date;
+          if(x.kind !== 'возможность' && d !== last){ out += '<div class="r78-day">' + E(dLbl(d)) + '</div>'; last = d; }
+          if(x.kind === 'возможность' && last !== '__opp'){ out += '<div class="r78-day">Возможности: гранты, программы, конкурсы</div>'; last = '__opp'; }
+          out += evRow(x);
+        });
+        h += '<div class="r78-list">' + out + '</div>';
+      }
+      box.innerHTML = h;
+    };
+    el.innerHTML = '<div class="r78" id="r78Ev"></div>';
+    paint();
+    evLoad().then(paint);
+    window.r78EvPaint = paint;
+  };
+  window.r78RenderEvents = renderEv;
+  var EVSORT = function(){ // возможности после мероприятий
+    if(!EV.d || !EV.d.items) return;
+    EV.d.items.sort(function(a, b){ return (a.kind === 'возможность') - (b.kind === 'возможность'); });
+  };
+  var evLoad0 = evLoad; evLoad = function(){ return evLoad0().then(function(d){ EVSORT(); return d; }); };
+  document.addEventListener('click', function(ev){
+    var t = ev.target; if(!t || !t.closest || !t.closest('#r78Ev')) return;
+    var f = t.closest('[data-evf]'); if(f){ EV.f = f.dataset.evf; if(window.r78EvPaint) r78EvPaint(); return; }
+    var b = t.closest('[data-ev]');
+    if(b){
+      var g = going(), k = b.dataset.ev;
+      if(g[k]) delete g[k]; else g[k] = Date.now();
+      try{ localStorage.setItem('bs_r78_going', JSON.stringify(g)); }catch(e){}
+      if(g[k]) say('Отмечено. Добавьте в календарь: Google или .ics');
+      if(window.r78EvPaint) r78EvPaint();
+    }
+  });
+  var st0 = window.renderStub || renderStub;
+  window.renderStub = renderStub = function(s){ if(s === 'rEvents') return renderEv(); return st0.apply(this, arguments); };
+})();
+</script>
 </body>
 </html>
