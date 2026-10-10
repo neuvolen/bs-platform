@@ -3892,8 +3892,8 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
   <div class="ph">
     <div><div class="pt">Библиотека болезней</div>
       <div class="psub" id="dlCount"></div></div>
-    <div class="search"><input id="dlSearch" placeholder="Поиск по названию" oninput="renderDiagLib()"></div>
-    <button class="btn bg" onclick="editDiag(null)">+ Добавить</button>
+    <div class="ph-act r75-pa"><div class="search"><input id="dlSearch" placeholder="Поиск по названию" oninput="renderDiagLib()"></div>
+    <button class="btn bg" onclick="editDiag(null)">+ Добавить</button></div>
   </div>
   <div id="dlBody"></div>
 </div></div>
@@ -3902,9 +3902,9 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
   <div class="ph">
     <div><div class="pt">Инструменты</div>
       <div class="psub" id="tlCount"></div></div>
-    <div class="search"><input id="tlSearch" placeholder="Поиск по названию" oninput="renderToolLib()"></div>
+    <div class="ph-act r75-pa"><div class="search"><input id="tlSearch" placeholder="Поиск по названию" oninput="renderToolLib()"></div>
     <label class="btn bs admin-only" style="cursor:pointer" title="Выберите сразу несколько PDF: файлы сами встанут к своим книгам">Загрузить книги<input type="file" multiple accept=".pdf,.epub,.txt,application/pdf" style="display:none" onchange="uploadBooks(this)"></label>
-    <button class="btn bg" onclick="editTool(null)">+ Добавить</button>
+    <button class="btn bg" onclick="editTool(null)">+ Добавить</button></div>
   </div>
   <div id="tlBody"></div>
 </div></div>
@@ -3913,8 +3913,8 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
   <div class="ph">
     <div><div class="pt">Контакты</div>
       <div class="psub" id="ctCount"></div></div>
-    <div class="search"><input id="ctSearch" placeholder="Поиск по имени или пользе" oninput="renderContPage()"></div>
-    <button class="btn bg" onclick="editContact(null)">+ Добавить</button>
+    <div class="ph-act r75-pa"><div class="search"><input id="ctSearch" placeholder="Поиск по имени или пользе" oninput="renderContPage()"></div>
+    <button class="btn bg" onclick="editContact(null)">+ Добавить</button></div>
   </div>
   <div id="ctBody"></div>
 </div></div>
@@ -8607,15 +8607,15 @@ function srRender(){
   var gr = bslApply(list, md, {t:function(r){ return r.name; }, g:function(r){ return r.format || 'Формат не указан'; }, n:function(r){ return bslDate(r.start); }});
   box.innerHTML = '<div class="pf-tbl rs-tbl"><div class="pf-tr pf-th"><span>Резидент</span><span>Формат</span><span>В клубе с</span>' +
     '<span>Встречи</span><span class="r">Осталось</span></div>' +
-    (list.length ? bslRender(gr, function(r){
-      var left = (r.granted||0) - (r.done||0);
+    (list.length ? (function(){ var no = 0; return bslRender(gr, function(r){
+      var left = (r.granted||0) - (r.done||0); no++; // R75: сквозная нумерация 1, 2, 3 по видимому списку
       return '<div class="pf-tr" onclick="openResident('+RESIDENTS.indexOf(r)+')">' +
-        '<span class="pf-nm"><i class="pf-av sm">'+esc((r.name||'?').charAt(0).toUpperCase())+'</i>'+esc(r.name)+'</span>' +
+        '<span class="pf-nm"><b class="r75-no">'+no+'</b><i class="pf-av sm">'+esc((r.name||'?').charAt(0).toUpperCase())+'</i>'+esc(r.name)+'</span>' +
         '<span class="m">'+esc(r.format||'-')+'</span>' +
         '<span>'+esc(r.start||'-')+'</span>' +
         '<span'+(left<0?' class="pf-red"':'')+'>'+(r.done||0)+'/'+(r.granted||0)+'</span>' +
         '<span class="r m">'+(left<0?'сверх '+(-left):left)+'</span></div>';
-    }) : '<div class="pf-empty">Никого не нашлось</div>') + '</div>';
+    }); })() : '<div class="pf-empty">Никого не нашлось</div>') + '</div>';
 }
 
 // ═══ KANBAN ═══
@@ -9440,15 +9440,13 @@ var BS_LINKS = [
   {n:'Telegram', u:'https://t.me/bsurgery_bot', i:'✈'}
 ];
 function renderAbout(){
-  var el = pgSet('', '');
-  var pg = document.getElementById('pg-stub');
-  pg.querySelector('.ph').style.display = 'none';
+  // R75: шапка как у соседних вкладок «Клуба»: экран не прыгает при переходе с «Участников» и «BS в цифрах»
+  var el = pgSet('О клубе', 'Business Surgery · bxclub.kz');
   el.innerHTML =
     '<div class="about-min">' +
       '<div class="hero-min">' +
         '<img src="'+BS_LOGO+'" class="hero-logo">' +
-        '<div class="hero-label">Business Surgery</div>' +
-        '<h1 class="hero-title">Хирургия бизнеса</h1>' +
+        '<div class="hero-label">Хирургия бизнеса</div>' +
         '<p class="hero-sub">Акселератор и трекинг-платформа с миссией укрепить ' +
           'здоровье бизнеса и энергию роста.</p>' +
       '</div>' +
@@ -9541,15 +9539,12 @@ var BS_RULES = [
     'Клуб настолько силён, насколько сильны люди в нём']}
 ];
 function renderRules(){
-  var el = pgSet('', '');
-  var pg = document.getElementById('pg-stub');
-  pg.querySelector('.ph').style.display = 'none';
+  var el = pgSet('Правила клуба', 'Как мы работаем вместе'); // R75: шапка как у соседних вкладок
   el.innerHTML =
     '<div class="about-min">' +
       '<div class="hero-min">' +
         '<img src="'+BS_LOGO+'" class="hero-logo">' +
         '<div class="hero-label">Резиденция</div>' +
-        '<h1 class="hero-title">Правила клуба</h1>' +
         '<p class="hero-sub">6 договорённостей, которые делают работу системной. ' +
           'Не бюрократия, а то, что отличает клуб от чата.</p>' +
       '</div>' +
@@ -12697,9 +12692,7 @@ var ONBOARD = [
 ];
 var obStep = 0;
 function renderOnboard(){
-  var el = pgSet('', '');
-  var pg = document.getElementById('pg-stub');
-  var ph = pg.querySelector('.ph'); if(ph) ph.style.display = 'none';
+  var el = pgSet('Как пользоваться', 'Короткий тур по платформе, шаг за шагом'); // R75: шапка как у соседних вкладок «Профиля»
   var s = ONBOARD[obStep];
   var done = false;
   try{ done = localStorage.getItem('bs_onboard') === 'done'; }catch(e){}
@@ -27520,7 +27513,7 @@ function lib2Decorate(box, kind, sel, attr, mkRe, reopen){
     if(ph && MODE === 'admin' && !document.getElementById('lb2Zip')){
       var b = document.createElement('button'); b.className = 'btn bs lb2-zip admin-only'; b.id = 'lb2Zip'; b.type = 'button';
       b.textContent = 'Скачать все шаблоны (ZIP)'; b.onclick = lib2ZipDownload;
-      var add = ph.querySelector('.btn.bg'); if(add) ph.insertBefore(b, add); else ph.appendChild(b);
+      var add = ph.querySelector('.btn.bg'); if(add) add.parentNode.insertBefore(b, add); else ph.appendChild(b); // R75: кнопки шапки одной строкой (.r75-pa)
     }
     if(!LIB2.data) lib2Load();
     return x;
@@ -30909,7 +30902,8 @@ function paint(){
   } else body = FX.tab === 'debts' ? '<div id="r69Debts"></div>' : legacyHTML();
   // R34b: показатели периода сверху (кроме «В цифрах»)
   var kp = FX.st === 'ready' && FX.tab !== 'num' && FX.tab !== 'fc' && FX.tab !== 'debts' ? '<div id="fxKpi">' + kpiHTML() + '</div>' : '';
-  el.innerHTML = '<div id="fxRoot">' + kp + tabsHTML() + '<div id="fxBody">' + body + '</div></div>';
+  // R75: вкладки сверху, показатели под ними: у «Долгов и штрафов», «В цифрах» и «Прогноза» показателей нет, строка вкладок не прыгает
+  el.innerHTML = '<div id="fxRoot">' + tabsHTML() + kp + '<div id="fxBody">' + body + '</div></div>';
   if(kp) fxMonScroll();
   if(FX.st === 'ready' && FX.tab === 'dds') mountGrid();
   if(FX.st === 'ready' && FX.tab === 'an') mountChart();
@@ -32520,7 +32514,9 @@ function paint(){
       '<div class="fx-kp k4">' + k.map(card).join('') + '</div>' +
       // R59: переключатель внутри вкладки (База знаний: Болезни, Инструменты…) отдельной строкой вкладок под меню
       // и показателями, как вкладки «Учёта» (ДДС, P&L…), а не справа в верхней строке
-      (g ? '<div class="fx-tabs bk-sub" role="tablist">' + g.ids.map(function(id){ return '<button type="button" class="fx-tab' + (id === section ? ' on' : '') + '" role="tab" data-s="' + id + '">' + E(g.sub[id]) + '</button>'; }).join('') + '</div>' : '');
+      (g ? '<div class="fx-tabs bk-sub" role="tablist">' + g.ids.map(function(id){ return '<button type="button" class="fx-tab' + (id === section ? ' on' : '') + '" role="tab" data-s="' + id + '">' + E(g.sub[id]) + '</button>'; }).join('') + '</div>' :
+      // R75: у раздела есть вкладки с переключателем внутри: у остальных вкладок та же строка пустой, экран под ней не прыгает
+      ((MERGE[blk] || []).length ? '<div class="fx-tabs bk-sub r75-ph" aria-hidden="true"><button type="button" class="fx-tab" tabindex="-1">&nbsp;</button></div>' : ''));
     if(el._h !== h){ el.innerHTML = h; el._h = h; }
     var sub = el.querySelector('.bk-sub'), so = sub && sub.querySelector('.fx-tab.on'); // R59: на телефоне выбранная видна
     if(so && sub.scrollWidth > sub.clientWidth){ var rs = sub.getBoundingClientRect(), ro = so.getBoundingClientRect(); if(ro.left < rs.left || ro.right > rs.right) sub.scrollLeft += ro.left - rs.left - 16; }
@@ -33377,12 +33373,15 @@ function day(k){ var d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDat
 var DAY = 864e5;
 
 // ═══ 1. Разделы ═══
-// «Трекинг» админа: Доска · Резиденты · Карта диагнозов · База знаний (Болезни, Инструменты, Чек-листы, Стикеры) · Ресурсы и контакты.
+// «Трекинг» админа: Доска · Резиденты · База знаний (Болезни, Инструменты, Чек-листы, Стикеры) · Ресурсы и контакты.
 // «Идеи и заметки» (с аналитикой и инсайтами всей платформы) переехали в «BS». Адреса #notes, #diagLib, #guides и т. п. прежние
 var T = BLOCKS.track.tabs, L = BLOCKS.lib.tabs;
 function take(arr, id){ var i = arr.findIndex(function(t){ return t.id === id; }); return i < 0 ? null : arr.splice(i, 1)[0]; }
 var nt = take(T, 'notes');
 if(nt && !L.some(function(t){ return t.id === 'notes'; })){ var ei = L.findIndex(function(t){ return t.id === 'events'; }); L.splice(ei < 0 ? L.length : ei + 1, 0, nt); }
+// R75: «Карта диагнозов» в разделе «BS» (просьба владельца), адрес #diagMap прежний
+var dmt = take(T, 'diagMap');
+if(dmt && !L.some(function(t){ return t.id === 'diagMap'; })) L.push(dmt);
 T.forEach(function(t){ if(t.id === 'board') t.n = 'Доска'; if(t.id === 'boards') t.n = 'Резиденты'; });
 if(!T.some(function(t){ return t.id === 'guides'; })){ var ti = T.findIndex(function(t){ return t.id === 'toolLib'; }); T.splice(ti < 0 ? T.length : ti + 1, 0, {id: 'guides', n: 'Чек-листы'}); }
 // Порядок по умолчанию: доска, резиденты, карта, база знаний, ресурсы и контакты
@@ -33481,6 +33480,7 @@ function libData(){
   return {work: work.length, od: od.length, doneW: doneW, ev: evWeek(), ins: nw.length, insW: nwW, an: an, ideas: C.filter(function(c){ return c.col === 'idea' && !isDone(c); }).length};
 }
 function libKpi(){
+  if(typeof section !== 'undefined' && section === 'diagMap') return trackKpi(); // R75: у «Карты диагнозов» свои показатели (резиденты в цикле, здоровье, просрочки)
   var D = libData(), ev = D.ev.ours + D.ev.feed;
   return [
     {k: 'work', c: 'c-pro', l: 'Задачи в работе', v: nf(D.work), s: (D.doneW ? 'закрыто за неделю ' + D.doneW : 'карточек на доске') + (D.ideas ? ' · идей ' + D.ideas : ''), go: "goSection('kanban')"},
@@ -44408,5 +44408,37 @@ body.light .r71-club{background:#0b0b0b;color:#fff}
 })();
 </script>
 <!-- /R71g -->
+<style id="r75Style">
+/* ═══ R75: экран не прыгает при переключении вкладок ═══
+   «Когда в Долги захожу, экран прыгает между вкладками». Строка вкладок стоит на месте, шапка одной высоты
+   у всех вкладок раздела, место под переключатель внутри вкладки есть у каждой вкладки, полоса прокрутки
+   не меняет ширину экрана */
+.page{scrollbar-gutter:stable}
+.page.on>.pw>.ph>div:first-child{flex:1 1 0;min-width:0;max-width:100%}
+.page.on>.pw>.ph .psub,.page.on>.pw>.ph .pt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.page.on>.pw>.ph>.ph-act{flex:0 0 auto}
+.r75-ph{pointer-events:none}
+.r75-ph .fx-tab{visibility:hidden}
+/* Продажи → Рефералы: блок выплат грузится с сервера, место под него занято сразу (список ниже не съезжает) */
+#r75Pay>.r75-box{min-height:95px}
+@media(max-width:640px){#r75Pay>.r75-box{min-height:181px}}
+/* Клуб → Резиденты: номер по порядку */
+.r75-no{flex:0 0 auto;min-width:20px;margin-right:2px;font:700 12.5px 'Manrope',sans-serif;color:var(--pm);font-variant-numeric:tabular-nums;text-align:right}
+@media(max-width:640px){
+  /* Кнопки шапки одной строкой (лишние прокручиваются вбок): шапка не растёт в две-три строки на одних вкладках */
+  .page.on>.pw>.ph>.ph-act{width:100%;flex:0 0 100%;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .page.on>.pw>.ph>.ph-act::-webkit-scrollbar{display:none}
+  .page.on>.pw>.ph>.ph-act:not(:empty),body.bk-on .page.on>.pw>.ph>#phAct{display:flex;height:40px;min-height:40px;align-items:center}
+  .page.on>.pw>.ph>.ph-act>*{flex:0 0 auto}
+  .page.on>.pw>.ph>.ph-act .search{flex:0 0 170px}
+  .page.on>.pw>.ph>.ph-act .search input{height:36px;padding-top:0;padding-bottom:0}
+  .page.on>.pw>.ph>.ph-act .fx-tools{flex-wrap:nowrap;flex:0 0 auto}
+  .page.on>.pw>.ph>.ph-act .fx-tools>*{flex:0 0 auto}
+  .page.on>.pw>.ph>.ph-act .fx-sel{max-width:170px}
+  .page.on>.pw>.ph>.ph-act .btn,.page.on>.pw>.ph>.ph-act .bk-a,.page.on>.pw>.ph>.ph-act .fx-btn,.page.on>.pw>.ph>.ph-act .fx-sel{height:36px;white-space:nowrap}
+}
+/* Телефон: на доске кнопка меню и вкладки там же, где на остальных экранах (было на 2-3 px иначе) */
+@media(max-width:900px){html.onboard body.r32t #r32Tabs{left:56px}html.onboard .side-btn{top:10px}}
+</style>
 </body>
 </html>
