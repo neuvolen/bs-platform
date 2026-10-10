@@ -1,0 +1,2931 @@
+[
+{
+"id": "tg-kapitalkz",
+"name": "Kapital.kz",
+"url": "https://t.me/kapitalkz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес, экономика, финансы РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-forbeskaz",
+"name": "Forbes Kazakhstan",
+"url": "https://t.me/ForbesKaz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес, рейтинги, интервью собственников",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 11778
+},
+{
+"id": "tg-atamekenbusiness",
+"name": "Atameken Business",
+"url": "https://t.me/atamekenbusiness",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Новости бизнеса, финансов, предпринимательства",
+"lang": "ru/kz",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-digitalbussinesskz",
+"name": "DigitalBusiness.kz",
+"url": "https://t.me/digitalbussinesskz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "IT, стартапы, бизнес РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://digitalbusiness.kz/2022-07-28/most-ventures-zapuskaet-media-o-venchure-i-startapah-v-kazahstane/",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-thetechkz",
+"name": "The Tech",
+"url": "https://t.me/thetechkz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "IT, стартапы, диджитал Центральной Азии",
+"lang": "ru",
+"city": "Центральная Азия",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://the-tech.kz/?p=38975",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-kursivm",
+"name": "Kursiv",
+"url": "https://t.me/kursivm",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Деловые новости, деньги, рынки",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://kz.kursiv.media/en/advertising/",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-inbusinesskz",
+"name": "Inbusiness.kz",
+"url": "https://t.me/inbusinesskz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Деловые новости РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://www.inbusiness.kz/ru/news/v_kazahstane_poyavitsya_chat_dlya_predprinimateley",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-lsnews",
+"name": "LS (lsm.kz)",
+"url": "https://t.me/LSnews",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Экономика и бизнес-аналитика РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://lsm.kz/gde-privlech-dengi-dlya-startap-proekta-v-kazahstane",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-bessimptomno",
+"name": "BES.media",
+"url": "https://t.me/bessimptomno",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес, экономика, общество",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://bes.media/news/telegram-ofitsialno-stal-uchastnikom-astana-hub-4c06c1/",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-orda_kz",
+"name": "ORDA",
+"url": "https://t.me/orda_kz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Новости и аналитика РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-we_project",
+"name": "WE Project (Creative Asia)",
+"url": "https://t.me/we_project",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Истории предпринимателей Центральной Азии, возможности",
+"lang": "ru",
+"city": "Центральная Азия",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-bluescreenkz",
+"name": "BlueScreen | Digital Kazakhstan",
+"url": "https://t.me/bluescreenkz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "IT и диджитал РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-gotoitkz",
+"name": "Go to IT",
+"url": "https://t.me/gotoitkz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Цифровизация и IT в РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-infokazakhstan",
+"name": "InfoKazakhstan (НПП «Атамекен»)",
+"url": "https://t.me/infokazakhstan",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Платформа палаты предпринимателей: меры поддержки",
+"lang": "ru/kz",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://informburo.kz/novosti/npp-atameken-zapustila-telegram-bot-elektronnoy-platformy-infokazakhstan.html",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-uchet_kz",
+"name": "Учёт.kz",
+"url": "https://t.me/uchet_kz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Финансы, учёт, тендеры",
+"topic": "Налоги, бухгалтерия, изменения для бизнеса",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://uchet.kz/webinar/business-club-atameken/788485.html",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-sxodimcom",
+"name": "Давай сходим (sxodim)",
+"url": "https://t.me/sxodimcom",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Афиша Алматы и Астаны: бизнес-события",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://sxodim.com/almaty/event/startup-grind-almaty",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-incrussiamedia",
+"name": "Инк. (Inc. Russia)",
+"url": "https://t.me/incrussiamedia",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Медиа для предпринимателей СНГ",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://incrussia.ru/specials/chto-chitayut-predprinimateli-v-telegram-itogi-oprosa-inka/",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-biznesshtabalmaty",
+"name": "Бизнес Штаб Алматы",
+"url": "https://t.me/biznesshtabalmaty",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Чаты предпринимателей",
+"topic": "Бизнес-новости и объявления Алматы",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 14079
+},
+{
+"id": "tg-sbkaz",
+"name": "Система {Бизнес Казахстан}",
+"url": "https://t.me/sbkaz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Системный бизнес в РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды",
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 440
+},
+{
+"id": "tg-bizkaz",
+"name": "Бизнес в Казахстане",
+"url": "https://t.me/bizkaz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Бизнес в РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 49
+},
+{
+"id": "tg-qazaqbiznes",
+"name": "Бизнес по-казахски (Rumi Group)",
+"url": "https://t.me/qazaqbiznes",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Кейсы и инсайты основателей Rumi Group",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://spark.ru/user/82142/blog/33935/6-telegramm-kanalov-dlya-predprinimatelej-v-kazahstane",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-astana_hub",
+"name": "Astana Hub",
+"url": "https://t.me/astana_hub",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Стартапы и венчур",
+"topic": "Технопарк: программы, гранты, события",
+"lang": "ru/kz",
+"city": "Астана",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-u87b2x51iowyndji",
+"name": "Чат стартапов Astana Hub (Silkway)",
+"url": "https://t.me/+u87b2X51IOwyNDJi",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Стартапы и венчур",
+"topic": "Чат фаундеров программ Astana Hub",
+"lang": "ru",
+"city": "Астана",
+"join": "по ссылке",
+"why": [
+"лиды",
+"партнёрства"
+],
+"src": "https://astanahub.com/l/silkwayaccelerator2025",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-tvkrg",
+"name": "Terricon Valley",
+"url": "https://t.me/tvkrg",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Стартапы и венчур",
+"topic": "IT-хаб Караганды: акселератор, инкубатор, школа трекеров",
+"lang": "ru",
+"city": "Караганда",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://terricon.kz/ru/tracker",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-startup_course_com",
+"name": "Возможности Startup Course",
+"url": "https://t.me/startup_course_com",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Стартапы и венчур",
+"topic": "Гранты, конкурсы, программы для стартапов",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://t.me/s/startup_course_com",
+"checked": "2026-10-10",
+"size": 10200
+},
+{
+"id": "tg-opportunities_zula",
+"name": "Opportunities with Zula",
+"url": "https://t.me/opportunities_zula",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Стартапы и венчур",
+"topic": "Гранты, стажировки, программы",
+"lang": "ru/en",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "Лента мероприятий BS (R70): канал найден сервером по названию",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-goviralca",
+"name": "Go Viral",
+"url": "https://t.me/goviralca",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Маркетинг и продажи",
+"topic": "Медиа, маркетинг, нетворкинг ЦА",
+"lang": "ru",
+"city": "Центральная Азия",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-kyzylordahub",
+"name": "Kyzylorda Hub community",
+"url": "https://t.me/kyzylordahub",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Стартапы и венчур",
+"topic": "IT-сообщество Кызылорды",
+"lang": "ru/kz",
+"city": "Кызылорда",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 516
+},
+{
+"id": "tg-startuper_kz",
+"name": "Типичный недостартапер",
+"url": "https://t.me/startuper_kz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Стартапы и венчур",
+"topic": "Стартапы РК изнутри",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 208
+},
+{
+"id": "tg-naimikz",
+"name": "Naimi Founder",
+"url": "https://t.me/naimikz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Заметки фаундера Naimi",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 1111
+},
+{
+"id": "tg-myrocketscience",
+"name": "My Rocket Science",
+"url": "https://t.me/myrocketscience",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Стартапы и венчур",
+"topic": "Стартапы и технологии",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 1100
+},
+{
+"id": "tg-vladimir_merkushev",
+"name": "Продукторий Владимира Меркушева",
+"url": "https://t.me/vladimir_merkushev",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Маркетинг и продажи",
+"topic": "Продуктовый менеджмент",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 6196
+},
+{
+"id": "tg-projectmanagerskz",
+"name": "Project Managers KZ",
+"url": "https://t.me/projectmanagerskz",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Проектные менеджеры РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 972
+},
+{
+"id": "tg-kz_bi",
+"name": "KZ BI community",
+"url": "https://t.me/kz_bi",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Аналитики данных РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 6968
+},
+{
+"id": "tg-neupust",
+"name": "Neupusti",
+"url": "https://t.me/neupust",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Саморазвитие и навыки",
+"topic": "Образование, работа, предпринимательство",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-kazakhstanbusinessmen",
+"name": "№1 Бизнес чат Казахстан",
+"url": "https://t.me/KazakhstanBusinessmen",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Мероприятия, нетворкинг, реклама",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства",
+"выступления"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 8001
+},
+{
+"id": "tg-qazbiznesf",
+"name": "Бизнес форум Казахстана",
+"url": "https://t.me/QAZbiznesF",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Предприниматели, тендеры, оптовики",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 1961
+},
+{
+"id": "tg-ip_too_kazakhstan",
+"name": "ИП/ТОО Казахстана (Sellers.kz)",
+"url": "https://t.me/ip_too_kazakhstan",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Вопросы ИП и ТОО",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 5812
+},
+{
+"id": "tg-qazbf",
+"name": "Бизнес Казахстан",
+"url": "https://t.me/qazbf",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Чат предпринимателей",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 169
+},
+{
+"id": "tg-probusiness4",
+"name": "Реальный бизнес",
+"url": "https://t.me/probusiness4",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Чат о бизнесе",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 228
+},
+{
+"id": "tg-prodajatookz",
+"name": "Продажа/покупка ТОО по Казахстану",
+"url": "https://t.me/Prodajatookz",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Покупка и продажа бизнеса",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 5354
+},
+{
+"id": "tg-terrakazakhstan",
+"name": "Бизнес-клуб ТЕРРА.Казахстан",
+"url": "https://t.me/TerraKazakhstan",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Клубы и ассоциации",
+"topic": "Чат бизнес-клуба",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства",
+"выступления"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 871
+},
+{
+"id": "tg-bizpride",
+"name": "BizPride",
+"url": "https://t.me/bizpride",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Клубы и ассоциации",
+"topic": "Клуб предпринимателей Алматы: события",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства",
+"выступления"
+],
+"src": "https://bizpride.kz/blog/luchshie-soobshchestva-predprinimatelej/",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-bizfam_ru",
+"name": "Business Family",
+"url": "https://t.me/bizfam_ru",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Клубы и ассоциации",
+"topic": "Нетворкинг-встречи по отраслям (есть Алматы)",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства",
+"выступления"
+],
+"src": "https://almaty.bizfam.ru",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-zamirbolisbek",
+"name": "Замир Болысбек",
+"url": "https://t.me/zamirbolisbek",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Клубы и ассоциации",
+"topic": "Основатель клуба предпринимателей Астаны",
+"lang": "ru",
+"city": "Астана",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 123
+},
+{
+"id": "tg-agrobiz_kz",
+"name": "Сельское хозяйство Казахстан",
+"url": "https://t.me/agrobiz_kz",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Отраслевые",
+"topic": "Агробизнес РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://chats.kz/chats/business",
+"checked": "2026-10-10",
+"size": 3341
+},
+{
+"id": "tg-kzchina",
+"name": "Китай - KZ",
+"url": "https://t.me/kzchina",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Отраслевые",
+"topic": "Торговля с Китаем",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 177
+},
+{
+"id": "tg-china_businesss",
+"name": "Китай для бизнеса",
+"url": "https://t.me/china_businesss",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Отраслевые",
+"topic": "Поставки из Китая",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 1324
+},
+{
+"id": "tg-wb_kazakhstan",
+"name": "Wildberries Казахстан (Sellers.kz)",
+"url": "https://t.me/wb_kazakhstan",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетплейсы и e-com",
+"topic": "Продавцы WB в РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 8394
+},
+{
+"id": "tg-kaspi_kazakhstan",
+"name": "Kaspi чат (Sellers.kz)",
+"url": "https://t.me/kaspi_kazakhstan",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетплейсы и e-com",
+"topic": "Продавцы Kaspi",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 8268
+},
+{
+"id": "tg-kaspikznomer1",
+"name": "Продавцы маркетплейса #1",
+"url": "https://t.me/kaspikznomer1",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетплейсы и e-com",
+"topic": "Продавцы Kaspi",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 3231
+},
+{
+"id": "tg-ozon_kazakhstan",
+"name": "Ozon Казахстан (Sellers.kz)",
+"url": "https://t.me/ozon_kazakhstan",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетплейсы и e-com",
+"topic": "Продавцы Ozon в РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 2596
+},
+{
+"id": "tg-wobkaspiozonwbkz",
+"name": "WB-OZON-KASPI Казахстан",
+"url": "https://t.me/wobkaspiozonwbkz",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетплейсы и e-com",
+"topic": "Продавцы маркетплейсов",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 2521
+},
+{
+"id": "tg-buhifinkaz",
+"name": "Бухгалтерия Казахстана",
+"url": "https://t.me/buhifinkaz",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Финансы, учёт, тендеры",
+"topic": "Бухгалтеры и собственники",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 8582
+},
+{
+"id": "tg-buhkznews",
+"name": "Бухгалтеры Казахстана. Новости 1С",
+"url": "https://t.me/buhkznews",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Финансы, учёт, тендеры",
+"topic": "Учёт и 1С",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 494
+},
+{
+"id": "tg-my_tender",
+"name": "MHelp.kz: тендеры и закупки",
+"url": "https://t.me/my_tender",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Финансы, учёт, тендеры",
+"topic": "Госзакупки РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 453
+},
+{
+"id": "tg-mcfr_kz",
+"name": "МЦФЭР Госзакупки",
+"url": "https://t.me/mcfr_kz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Финансы, учёт, тендеры",
+"topic": "Госзакупки РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 5075
+},
+{
+"id": "tg-baidilda",
+"name": "Нурлан Байдильда",
+"url": "https://t.me/baidilda",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Тендеры, бизнес, семья (Tender First)",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://forbes.kz/articles/kj",
+"checked": "2026-10-10",
+"size": 8300
+},
+{
+"id": "tg-investordiary",
+"name": "Дневник инвестора",
+"url": "https://t.me/INVESTORDIARY",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Финансы, учёт, тендеры",
+"topic": "Инвестиции",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 8910
+},
+{
+"id": "tg-ikapitalist",
+"name": "iKapitalist",
+"url": "https://t.me/ikapitalist",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Финансы, учёт, тендеры",
+"topic": "Инвестиции для бизнеса, краудфандинг",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 5292
+},
+{
+"id": "tg-savingandinvesting",
+"name": "Сбережения и инвестиции",
+"url": "https://t.me/savingandinvesting",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Финансы, учёт, тендеры",
+"topic": "Финансовое планирование",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-marketologyblog",
+"name": "Маркетинг в Казахстане",
+"url": "https://t.me/marketologyblog",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Маркетинг и продажи",
+"topic": "Маркетинг и реклама РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-smmunity",
+"name": "SMM Community | Казахстан",
+"url": "https://t.me/smmunity",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетинг и продажи",
+"topic": "SMM-специалисты РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 4865
+},
+{
+"id": "tg-kzsalesb2b",
+"name": "KZ Sales B2B",
+"url": "https://t.me/KzSalesB2b",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетинг и продажи",
+"topic": "B2B-продажи РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства"
+],
+"src": "https://kaz.tgstat.com/en/ratings/chats/business?sort=mau",
+"checked": "2026-10-10",
+"size": 212
+},
+{
+"id": "tg-smmdaurova",
+"name": "Daurova про SMM",
+"url": "https://t.me/smmdaurova",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Маркетинг и продажи",
+"topic": "SMM и соцсети",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-kebeyevcom",
+"name": "Даурен Кубеев",
+"url": "https://t.me/kebeyevcom",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Маркетинг и продажи",
+"topic": "Продажи и бизнес-советы",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://forbes.kz/articles/kj",
+"checked": "2026-10-10",
+"size": 6700
+},
+{
+"id": "tg-basic_skill",
+"name": "Основной навык",
+"url": "https://t.me/basic_skill",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Маркетинг и продажи",
+"topic": "Продажи, переговоры, саморазвитие",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://spark.ru/user/82142/blog/33935/6-telegramm-kanalov-dlya-predprinimatelej-v-kazahstane",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-hommeskz",
+"name": "Шерлок HOMMES",
+"url": "https://t.me/hommeskz",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Бизнес-блог",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 2630
+},
+{
+"id": "tg-q3channel",
+"name": "Кайрат Кудайберген",
+"url": "https://t.me/Q3CHANNEL",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Жизнь, бизнес, технологии",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://forbes.kz/articles/kj",
+"checked": "2026-10-10",
+"size": 9300
+},
+{
+"id": "tg-yussupovablay",
+"name": "Аблай Юсупов",
+"url": "https://t.me/YussupovAblay",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Саморазвитие и навыки",
+"topic": "Личностный и бизнес-рост, подкасты",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://forbes.kz/articles/kj",
+"checked": "2026-10-10",
+"size": 6200
+},
+{
+"id": "tg-shonbay",
+"name": "Куаныш Шонбай",
+"url": "https://t.me/shonbay",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Онлайн-университет, бизнес (на казахском)",
+"lang": "kz",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://forbes.kz/articles/kj",
+"checked": "2026-10-10",
+"size": 25200
+},
+{
+"id": "tg-arayalimkhan",
+"name": "Арай Алимхан",
+"url": "https://t.me/arayalimkhan",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Владелица салона красоты: бизнес и жизнь",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://forbes.kz/articles/kj",
+"checked": "2026-10-10",
+"size": 6400
+},
+{
+"id": "tg-askarsat",
+"name": "Блог Аскара Сатабалдиева",
+"url": "https://t.me/askarsat",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "IT, бизнес, образование",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://spark.ru/user/82142/blog/33935/6-telegramm-kanalov-dlya-predprinimatelej-v-kazahstane",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-almaz_ziatdinov",
+"name": "Канал Алмаза Зиатдинова",
+"url": "https://t.me/almaz_ziatdinov",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Блоги предпринимателей",
+"topic": "Бизнес",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://tgrm.su/kz/business/",
+"checked": "2026-10-10",
+"size": 296
+},
+{
+"id": "tg-biztrackers",
+"name": "Сообщество трекеров",
+"url": "https://t.me/biztrackers",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Трекинг и наставники",
+"topic": "Бизнес-трекинг: кейсы, методы",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://telemetr.io/en/channels/1246177392-biztrackers/posts",
+"checked": "2026-10-10",
+"size": 1656
+},
+{
+"id": "tg-shkola_trekerov",
+"name": "Школа трекеров (Е. Калинин)",
+"url": "https://t.me/Shkola_trekerov",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Трекинг и наставники",
+"topic": "Профессия трекера",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"партнёрства",
+"контент"
+],
+"src": "https://shkolatrekerov.ru/trackers-school/",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-grebenukm",
+"name": "Михаил Гребенюк (Аномалия)",
+"url": "https://t.me/grebenukm",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Трекинг и наставники",
+"topic": "Бизнес-сообщество «Аномалия»",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://anomalia.fm/",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-alexander_visotsky",
+"name": "Александр Высоцкий",
+"url": "https://t.me/alexander_visotsky",
+"platform": "telegram",
+"kind": "канал",
+"cat": "Трекинг и наставники",
+"topic": "Систематизация бизнеса, Business Booster",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://visotsky.com/knowledges/business-booster-istoriya-programmy-chem-ona-mozhet-byt-polezna-dlya-predprinimateley",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-freelead",
+"name": "Бизнес чат | Предприниматели | Маркетинг",
+"url": "https://t.me/freelead",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Клиенты, инвесторы, маркетинг",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10",
+"size": 120000
+},
+{
+"id": "tg-onpeak_chat",
+"name": "Сообщество «На вершину»",
+"url": "https://t.me/onpeak_chat",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Бизнес и маркетинг, эфиры экспертов",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды",
+"выступления"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-chat_kovalev",
+"name": "Бизнес-чат Андрея Ковалева",
+"url": "https://t.me/chat_kovalev",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Инвесторы, клиенты, партнёры",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-biznes_chat",
+"name": "Бизнес-чат №1 | Предприниматели",
+"url": "https://t.me/biznes_chat",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Подрядчики, юр. вопросы, продажи",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-biznes_chat8",
+"name": "Бизнес чат | Предприниматели",
+"url": "https://t.me/biznes_chat8",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Идеи, эксперты, партнёры",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://www.sostav.ru/blogs/269554/53245",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-smp37",
+"name": "Сообщество молодых предпринимателей",
+"url": "https://t.me/smp37",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Старт бизнеса, советы, гранты",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-rudolf_chat",
+"name": "Бизнес как система",
+"url": "https://t.me/rudolf_chat",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Собственники с оборотом от 50 млн ₽",
+"lang": "ru",
+"city": "СНГ",
+"join": "по заявке",
+"why": [
+"лиды",
+"партнёрства"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-biz_fakt_networking",
+"name": "Бизнес факт Нетворкинг",
+"url": "https://t.me/biz_fakt_networking",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "События и нетворкинг",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды",
+"выступления"
+],
+"src": "https://www.sostav.ru/blogs/269554/53245",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-sportivnye_predprinimateli",
+"name": "Спортивные предприниматели",
+"url": "https://t.me/sportivnye_predprinimateli",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Чаты предпринимателей",
+"topic": "Бизнес и спорт",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-smmruschats",
+"name": "Чат русского маркетинга",
+"url": "https://t.me/smmruschats",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетинг и продажи",
+"topic": "Реклама: SEO, таргет, контент",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-imweek_ru",
+"name": "IMExpert",
+"url": "https://t.me/imweek_ru",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетинг и продажи",
+"topic": "Интернет-маркетинг",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-people360_marketing",
+"name": "Маркетологи International",
+"url": "https://t.me/people360_marketing",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетинг и продажи",
+"topic": "Маркетологи за рубежом, чаты стран",
+"lang": "ru",
+"city": "Мир",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-supbiz",
+"name": "Бизнес: сайты и приложения",
+"url": "https://t.me/supbiz",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Маркетинг и продажи",
+"topic": "Цифровой бизнес и продвижение",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-resto_business",
+"name": "Бизнес, деньги, общепит",
+"url": "https://t.me/resto_business",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Отраслевые",
+"topic": "Владельцы HoReCa",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-vseprobeauty",
+"name": "Всё про бьюти-бизнес",
+"url": "https://t.me/vseprobeauty",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Отраслевые",
+"topic": "Владельцы салонов и студий",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "tg-chinatodaychat",
+"name": "Предприниматели, работающие с Китаем",
+"url": "https://t.me/chinatodaychat",
+"platform": "telegram",
+"kind": "чат",
+"cat": "Отраслевые",
+"topic": "Поставщики, логистика",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"лиды"
+],
+"src": "https://vc.ru/marketing/2140376-biznes-chaty-v-telegram-dlya-predprinimateley-top-20-soobshchestv",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-biz-pride",
+"name": "BizPride Club",
+"url": "https://www.instagram.com/biz.pride/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Клубы и ассоциации",
+"topic": "Клуб предпринимателей Алматы",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"лиды",
+"партнёрства",
+"выступления"
+],
+"src": "https://bizpride.kz/blog/luchshie-soobshchestva-predprinimatelej/",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-burn-kz",
+"name": "BURN Club",
+"url": "https://www.instagram.com/burn_kz/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Клубы и ассоциации",
+"topic": "Закрытый клуб предпринимателей Алматы",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://github.com/tammat11/BURNadmin",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-astanahub-for-startups",
+"name": "Astana Hub для стартапов",
+"url": "https://www.instagram.com/astanahub_for_startups/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Стартапы и венчур",
+"topic": "Программы для стартапов",
+"lang": "ru/kz",
+"city": "Астана",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://astanahub.com/l/silkwayaccelerator2025",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-terriconvalley",
+"name": "Terricon Valley",
+"url": "https://www.instagram.com/terriconvalley/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Стартапы и венчур",
+"topic": "IT-хаб Караганды",
+"lang": "ru",
+"city": "Караганда",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://terricon.kz/ru/tracker",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-digitalbusinesskazakhstan",
+"name": "DigitalBusiness.kz",
+"url": "https://www.instagram.com/digitalbusinesskazakhstan/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "IT и бизнес РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://digitalbusiness.kz/2022-07-28/most-ventures-zapuskaet-media-o-venchure-i-startapah-v-kazahstane/",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-thetech-media",
+"name": "The Tech",
+"url": "https://www.instagram.com/thetech.media/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Стартапы Центральной Азии",
+"lang": "ru",
+"city": "Центральная Азия",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://the-tech.kz/?p=38975",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-kursiv-eng",
+"name": "Kursiv (English)",
+"url": "https://www.instagram.com/kursiv_eng/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Деловые новости на английском",
+"lang": "en",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://kz.kursiv.media/en/advertising/",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-inbusinesskz",
+"name": "Inbusiness.kz",
+"url": "https://www.instagram.com/inbusinesskz/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Деловые новости",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://www.inbusiness.kz/ru/news/v_kazahstane_poyavitsya_chat_dlya_predprinimateley",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-kapital-kz",
+"name": "Kapital.kz",
+"url": "https://www.instagram.com/kapital.kz/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес и финансы",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://kapital.kz/business",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-forbes-kz",
+"name": "Forbes Kazakhstan",
+"url": "https://www.instagram.com/forbes_kz/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес, рейтинги",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://forbes.kz/articles/kj",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-lsm-kz",
+"name": "LS",
+"url": "https://www.instagram.com/lsm.kz/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Экономика РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://lsm.kz/gde-privlech-dengi-dlya-startap-proekta-v-kazahstane",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-bes-media",
+"name": "BES.media",
+"url": "https://www.instagram.com/bes.media_/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес и общество",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://bes.media/news/telegram-ofitsialno-stal-uchastnikom-astana-hub-4c06c1/",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-we-project",
+"name": "WE Project",
+"url": "https://www.instagram.com/we_project/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Предприниматели Центральной Азии",
+"lang": "ru",
+"city": "Центральная Азия",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-sxodim-com",
+"name": "Давай сходим",
+"url": "https://www.instagram.com/sxodim_com/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Афиша событий",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://sxodim.com/almaty/event/startup-grind-almaty",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-uchet-kz",
+"name": "Учёт.kz",
+"url": "https://www.instagram.com/uchet.kz/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Финансы, учёт, тендеры",
+"topic": "Учёт и налоги",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://uchet.kz/webinar/business-club-atameken/788485.html",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-almaty-toastmasters",
+"name": "Almaty Toastmasters",
+"url": "https://www.instagram.com/almaty.toastmasters/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Саморазвитие и навыки",
+"topic": "Клуб ораторского мастерства, KIMEP, среда 19:30",
+"lang": "en",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://www.toastmasters.org/Find-a-Club/2686258-2686258",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-qazaq-toastmasters-almaty",
+"name": "Qazaq Toastmasters",
+"url": "https://www.instagram.com/qazaq.toastmasters.almaty/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Саморазвитие и навыки",
+"topic": "Ораторский клуб Алматы, пятница 19:30",
+"lang": "ru/kz",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://www.toastmasters.org/Find-a-Club/28678115-almaty-kazakhstan-pros-club",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-harvardalumnientrepreneurs",
+"name": "Harvard Alumni Entrepreneurs",
+"url": "https://www.instagram.com/harvardalumnientrepreneurs/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Клубы и ассоциации",
+"topic": "Сеть предпринимателей-выпускников Гарварда",
+"lang": "en",
+"city": "Мир",
+"join": "по заявке",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://www.harvardae.org/central-asia",
+"checked": "2026-10-10"
+},
+{
+"id": "in-instagram-com-margulan-seissembai",
+"name": "Маргулан Сейсембай",
+"url": "https://www.instagram.com/margulan_seissembai/",
+"platform": "instagram",
+"kind": "аккаунт",
+"cat": "Трекинг и наставники",
+"topic": "Бизнес-наставник, платформа обучения",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://socialveins.com/influencer/instagram/margulan_seissembai",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-terriconvalley",
+"name": "Terricon Valley",
+"url": "https://www.facebook.com/terriconvalley/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Стартапы и венчур",
+"topic": "IT-хаб Караганды",
+"lang": "ru",
+"city": "Караганда",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://terricon.kz/ru/tracker",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-almaty-toastmasters",
+"name": "Almaty Toastmasters",
+"url": "https://www.facebook.com/Almaty.Toastmasters/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Саморазвитие и навыки",
+"topic": "Ораторский клуб",
+"lang": "en",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://www.toastmasters.org/Find-a-Club/2686258-2686258",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-kursivnewsinenglish",
+"name": "Kursiv News in English",
+"url": "https://www.facebook.com/KursivNewsinEnglish/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Бизнес-медиа",
+"topic": "Деловые новости",
+"lang": "en",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://kz.kursiv.media/en/advertising/",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-inbusinessqaz",
+"name": "Inbusiness.kz",
+"url": "https://www.facebook.com/inbusinessqaz/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Бизнес-медиа",
+"topic": "Деловые новости",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://www.inbusiness.kz/ru/news/v_kazahstane_poyavitsya_chat_dlya_predprinimateley",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-weproject-kz",
+"name": "WE Project",
+"url": "https://www.facebook.com/weproject.kz/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Бизнес-медиа",
+"topic": "Предприниматели Центральной Азии",
+"lang": "ru",
+"city": "Центральная Азия",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://www.weproject.media/articles/detail/chto-chitat-v-telegram-52-interesnykh-kanala-iz-tsentralnoy-azii/?amp=y",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-sxodim",
+"name": "Давай сходим",
+"url": "https://www.facebook.com/sxodim/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Бизнес-медиа",
+"topic": "Афиша событий",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://sxodim.com/almaty/event/startup-grind-almaty",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-bbooster-online",
+"name": "Business Booster",
+"url": "https://www.facebook.com/bbooster.online/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Трекинг и наставники",
+"topic": "Систематизация бизнеса",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://www.facebook.com/bbooster.online/",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-kapital-kz",
+"name": "Kapital.kz",
+"url": "https://www.facebook.com/kapital.kz/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес и финансы",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://kapital.kz/business",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-forbes-kz",
+"name": "Forbes Kazakhstan",
+"url": "https://www.facebook.com/forbes.kz/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес, рейтинги",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://forbes.kz/articles/kj",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-lsanalytics",
+"name": "LS Analytics",
+"url": "https://www.facebook.com/LSAnalytics/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Бизнес-медиа",
+"topic": "Экономика РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://lsm.kz/gde-privlech-dengi-dlya-startap-proekta-v-kazahstane",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-people-besmedia-61565593580738",
+"name": "BES.media",
+"url": "https://www.facebook.com/people/BESmedia/61565593580738/",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес и общество",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://bes.media/news/telegram-ofitsialno-stal-uchastnikom-astana-hub-4c06c1/",
+"checked": "2026-10-10"
+},
+{
+"id": "fa-facebook-com-profile-php-id-61572766784585",
+"name": "Harvard Alumni Entrepreneurs",
+"url": "https://www.facebook.com/profile.php?id=61572766784585",
+"platform": "facebook",
+"kind": "страница",
+"cat": "Клубы и ассоциации",
+"topic": "Сеть выпускников-предпринимателей",
+"lang": "en",
+"city": "Мир",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://www.harvardae.org/central-asia",
+"checked": "2026-10-10"
+},
+{
+"id": "li-linkedin-com-company-american-chamber-of-commerce-in-kazakhs",
+"name": "AmCham Kazakhstan",
+"url": "https://www.linkedin.com/company/american-chamber-of-commerce-in-kazakhstan/",
+"platform": "linkedin",
+"kind": "компания",
+"cat": "Клубы и ассоциации",
+"topic": "Американская торговая палата в РК",
+"lang": "en",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://amcham.kz",
+"checked": "2026-10-10"
+},
+{
+"id": "li-kz-linkedin-com-company-digitalbusinesskz",
+"name": "DigitalBusiness.kz",
+"url": "https://kz.linkedin.com/company/digitalbusinesskz",
+"platform": "linkedin",
+"kind": "компания",
+"cat": "Бизнес-медиа",
+"topic": "IT и бизнес РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://digitalbusiness.kz/2022-07-28/most-ventures-zapuskaet-media-o-venchure-i-startapah-v-kazahstane/",
+"checked": "2026-10-10"
+},
+{
+"id": "li-linkedin-com-company-the-tech-media-central-asia",
+"name": "The Tech Media",
+"url": "https://www.linkedin.com/company/the-tech-media-central-asia",
+"platform": "linkedin",
+"kind": "компания",
+"cat": "Бизнес-медиа",
+"topic": "Стартапы ЦА",
+"lang": "ru",
+"city": "Центральная Азия",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://the-tech.kz/?p=38975",
+"checked": "2026-10-10"
+},
+{
+"id": "li-linkedin-com-company-kursiv",
+"name": "Kursiv",
+"url": "https://www.linkedin.com/company/kursiv/",
+"platform": "linkedin",
+"kind": "компания",
+"cat": "Бизнес-медиа",
+"topic": "Деловые новости",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://kz.kursiv.media/en/advertising/",
+"checked": "2026-10-10"
+},
+{
+"id": "li-linkedin-com-company-harvardae",
+"name": "Harvard Alumni Entrepreneurs",
+"url": "https://www.linkedin.com/company/harvardae/",
+"platform": "linkedin",
+"kind": "компания",
+"cat": "Клубы и ассоциации",
+"topic": "Сеть предпринимателей",
+"lang": "en",
+"city": "Мир",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://www.harvardae.org/central-asia",
+"checked": "2026-10-10"
+},
+{
+"id": "li-linkedin-com-company-be5media",
+"name": "BES.media",
+"url": "https://www.linkedin.com/company/be5media/",
+"platform": "linkedin",
+"kind": "компания",
+"cat": "Бизнес-медиа",
+"topic": "Бизнес-медиа",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://bes.media/news/telegram-ofitsialno-stal-uchastnikom-astana-hub-4c06c1/",
+"checked": "2026-10-10"
+},
+{
+"id": "th-threads-com-kursiv-media",
+"name": "Kursiv",
+"url": "https://www.threads.com/@kursiv.media",
+"platform": "threads",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Деловые новости",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://kz.kursiv.media/en/advertising/",
+"checked": "2026-10-10"
+},
+{
+"id": "th-threads-com-inbusinesskz",
+"name": "Inbusiness.kz",
+"url": "https://www.threads.com/@inbusinesskz",
+"platform": "threads",
+"kind": "аккаунт",
+"cat": "Бизнес-медиа",
+"topic": "Деловые новости",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://www.inbusiness.kz/ru/news/v_kazahstane_poyavitsya_chat_dlya_predprinimateley",
+"checked": "2026-10-10"
+},
+{
+"id": "wh-whatsapp-com-channel-0029vbac0xtcmy0hhqhsvn1v",
+"name": "AmCham Kazakhstan (канал)",
+"url": "https://www.whatsapp.com/channel/0029VbAc0xTCMY0HHqHSVN1V",
+"platform": "whatsapp",
+"kind": "канал",
+"cat": "Клубы и ассоциации",
+"topic": "События палаты",
+"lang": "en",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://amcham.kz",
+"checked": "2026-10-10"
+},
+{
+"id": "vk-vk-com-terriconvalley",
+"name": "Terricon Valley",
+"url": "https://vk.com/terriconvalley",
+"platform": "vk",
+"kind": "группа",
+"cat": "Стартапы и венчур",
+"topic": "IT-хаб Караганды",
+"lang": "ru",
+"city": "Караганда",
+"join": "открыто",
+"why": [
+"партнёрства"
+],
+"src": "https://terricon.kz/ru/tracker",
+"checked": "2026-10-10"
+},
+{
+"id": "vk-vk-com-sxodim",
+"name": "Давай сходим",
+"url": "https://vk.com/sxodim",
+"platform": "vk",
+"kind": "группа",
+"cat": "Бизнес-медиа",
+"topic": "Афиша событий",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://sxodim.com/almaty/event/startup-grind-almaty",
+"checked": "2026-10-10"
+},
+{
+"id": "yo-youtube-com-bizpride",
+"name": "BizPride",
+"url": "https://youtube.com/@bizpride",
+"platform": "youtube",
+"kind": "канал",
+"cat": "Клубы и ассоциации",
+"topic": "Встречи клуба",
+"lang": "ru",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://bizpride.kz/blog/luchshie-soobshchestva-predprinimatelej/",
+"checked": "2026-10-10"
+},
+{
+"id": "yo-youtube-com-forbeskazakhstanyoutube",
+"name": "Forbes Kazakhstan",
+"url": "https://www.youtube.com/@ForbesKazakhstanYouTube",
+"platform": "youtube",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Интервью собственников",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления",
+"контент"
+],
+"src": "https://forbes.kz/articles/kj",
+"checked": "2026-10-10"
+},
+{
+"id": "yo-youtube-com-digitalbusiness2022",
+"name": "DigitalBusiness.kz",
+"url": "https://www.youtube.com/@DigitalBusiness2022",
+"platform": "youtube",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "IT и бизнес",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://digitalbusiness.kz/2022-07-28/most-ventures-zapuskaet-media-o-venchure-i-startapah-v-kazahstane/",
+"checked": "2026-10-10"
+},
+{
+"id": "yo-youtube-com-the-tech-media",
+"name": "The Tech",
+"url": "https://www.youtube.com/@The_Tech_media",
+"platform": "youtube",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Стартапы ЦА",
+"lang": "ru",
+"city": "Центральная Азия",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://the-tech.kz/?p=38975",
+"checked": "2026-10-10"
+},
+{
+"id": "yo-youtube-com-kursivm",
+"name": "Kursiv",
+"url": "https://www.youtube.com/@kursivm",
+"platform": "youtube",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Деловое видео",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент"
+],
+"src": "https://kz.kursiv.media/en/advertising/",
+"checked": "2026-10-10"
+},
+{
+"id": "yo-youtube-com-terriconvalley",
+"name": "Terricon Valley",
+"url": "https://youtube.com/terriconvalley",
+"platform": "youtube",
+"kind": "канал",
+"cat": "Стартапы и венчур",
+"topic": "IT-хаб Караганды",
+"lang": "ru",
+"city": "Караганда",
+"join": "открыто",
+"why": [
+"выступления"
+],
+"src": "https://terricon.kz/ru/tracker",
+"checked": "2026-10-10"
+},
+{
+"id": "of-bizpride-kz",
+"name": "BizPride Club",
+"url": "https://bizpride.kz/",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Клубы и ассоциации",
+"topic": "Бизнес-завтраки, ужины, мастермайнды; гостевой визит 10 000 ₸",
+"lang": "ru",
+"city": "Алматы",
+"join": "платно",
+"why": [
+"лиды",
+"партнёрства",
+"выступления"
+],
+"src": "https://bizpride.kz/blog/luchshie-soobshchestva-predprinimatelej/",
+"checked": "2026-10-10",
+"size": 120
+},
+{
+"id": "of-burn-club-kz",
+"name": "BURN Club",
+"url": "https://burn-club.kz/",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Клубы и ассоциации",
+"topic": "Закрытый клуб: совет директоров, 900 000 ₸ в год, оборот от 200 млн ₸",
+"lang": "ru",
+"city": "Алматы",
+"join": "по заявке",
+"why": [
+"партнёрства"
+],
+"src": "https://github.com/tammat11/BURNadmin",
+"checked": "2026-10-10"
+},
+{
+"id": "of-amcham-kz-join",
+"name": "AmCham Kazakhstan",
+"url": "https://amcham.kz/join",
+"platform": "offline",
+"kind": "ассоциация",
+"cat": "Клубы и ассоциации",
+"topic": "Американская торговая палата: события и комитеты",
+"lang": "en",
+"city": "Алматы",
+"join": "платно",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://amcham.kz",
+"checked": "2026-10-10"
+},
+{
+"id": "of-toastmasters-org-find-a-club-2686258-2686258",
+"name": "Almaty Toastmasters (KIMEP)",
+"url": "https://www.toastmasters.org/Find-a-Club/2686258-2686258",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Саморазвитие и навыки",
+"topic": "Ораторский клуб, среда 19:30",
+"lang": "en",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://www.toastmasters.org/Find-a-Club/2686258-2686258",
+"checked": "2026-10-10"
+},
+{
+"id": "of-toastmasters-org-find-a-club-28678115-almaty-kazakhstan-pros",
+"name": "Qazaq Toastmasters",
+"url": "https://www.toastmasters.org/Find-a-Club/28678115-almaty-kazakhstan-pros-club",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Саморазвитие и навыки",
+"topic": "Ораторский клуб, пятница 19:30",
+"lang": "ru/kz",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://www.toastmasters.org/Find-a-Club/28678115-almaty-kazakhstan-pros-club",
+"checked": "2026-10-10"
+},
+{
+"id": "of-almaty-bizfam-ru",
+"name": "Business Family Алматы",
+"url": "https://almaty.bizfam.ru",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Клубы и ассоциации",
+"topic": "Нетворкинг-встречи по 30 отраслям",
+"lang": "ru",
+"city": "Алматы",
+"join": "платно",
+"why": [
+"лиды",
+"партнёрства",
+"выступления"
+],
+"src": "https://almaty.bizfam.ru",
+"checked": "2026-10-10"
+},
+{
+"id": "of-abclub-kz",
+"name": "Atameken Business Club",
+"url": "https://abclub.kz/",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Клубы и ассоциации",
+"topic": "Встречи и вебинары палаты предпринимателей",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://uchet.kz/webinar/business-club-atameken/788485.html",
+"checked": "2026-10-10"
+},
+{
+"id": "of-globi-globalchamber-org-locations-almaty",
+"name": "Global Chamber Almaty",
+"url": "https://globi.globalchamber.org/locations/almaty",
+"platform": "offline",
+"kind": "ассоциация",
+"cat": "Клубы и ассоциации",
+"topic": "Международная бизнес-палата, запуск отделения",
+"lang": "en",
+"city": "Алматы",
+"join": "по заявке",
+"why": [
+"партнёрства"
+],
+"src": "https://globi.globalchamber.org/locations/almaty",
+"checked": "2026-10-10"
+},
+{
+"id": "of-harvardae-org-central-asia",
+"name": "Harvard Alumni Entrepreneurs: Central Asia",
+"url": "https://www.harvardae.org/central-asia",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Клубы и ассоциации",
+"topic": "Встречи и спикеры для выпускников Гарварда",
+"lang": "en",
+"city": "Центральная Азия",
+"join": "по заявке",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://www.harvardae.org/central-asia",
+"checked": "2026-10-10"
+},
+{
+"id": "of-avpn-asia-organisation-impact-hub-almaty",
+"name": "Impact Hub Almaty",
+"url": "https://avpn.asia/organisation/impact-hub-almaty/",
+"platform": "offline",
+"kind": "хаб",
+"cat": "Стартапы и венчур",
+"topic": "Социальные предприниматели: менторство, гранты",
+"lang": "ru/en",
+"city": "Алматы",
+"join": "открыто",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://avpn.asia/organisation/impact-hub-almaty/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-astanaventure-com",
+"name": "Astana Venture Club",
+"url": "https://astanaventure.com/",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Стартапы и венчур",
+"topic": "Клуб бизнес-ангелов при Astana Hub",
+"lang": "ru",
+"city": "Астана",
+"join": "по заявке",
+"why": [
+"партнёрства"
+],
+"src": "https://digitalbusiness.kz/2023-05-22/soobshhestvo-biznes-angelov-poyavilos-v-astane/amp/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-astanahub-com-en-l-silkwayaccelerator2026",
+"name": "Silkway Accelerator",
+"url": "https://astanahub.com/en/l/silkwayaccelerator2026",
+"platform": "offline",
+"kind": "программа",
+"cat": "Стартапы и венчур",
+"topic": "Акселератор Astana Hub и Google for Startups",
+"lang": "en",
+"city": "Астана",
+"join": "по заявке",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://astanahub.com/l/silkwayaccelerator2025",
+"checked": "2026-10-10"
+},
+{
+"id": "of-astanahub-com-ru-l-incubation20231",
+"name": "Startup Garage (Astana Hub)",
+"url": "https://astanahub.com/ru/l/incubation20231",
+"platform": "offline",
+"kind": "программа",
+"cat": "Стартапы и венчур",
+"topic": "Инкубация стартапов",
+"lang": "ru",
+"city": "Астана",
+"join": "по заявке",
+"why": [
+"партнёрства"
+],
+"src": "https://the-tech.kz/startup-orda-startup-garage-i-drugie-programmy-dlya-startapov-czentralnoj-azii/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-astanahub-com-ru-l-startupodra",
+"name": "Startup Orda",
+"url": "https://astanahub.com/ru/l/StartupOdra",
+"platform": "offline",
+"kind": "программа",
+"cat": "Стартапы и венчур",
+"topic": "Программа для стартапов регионов РК",
+"lang": "ru",
+"city": "Казахстан",
+"join": "по заявке",
+"why": [
+"партнёрства"
+],
+"src": "https://the-tech.kz/startup-orda-startup-garage-i-drugie-programmy-dlya-startapov-czentralnoj-azii/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-terricon-kz-ru-accelerator",
+"name": "Акселератор МСБ Terricon Valley",
+"url": "https://terricon.kz/ru/accelerator",
+"platform": "offline",
+"kind": "программа",
+"cat": "Стартапы и венчур",
+"topic": "Акселератор малого и среднего бизнеса",
+"lang": "ru",
+"city": "Караганда",
+"join": "по заявке",
+"why": [
+"лиды",
+"партнёрства"
+],
+"src": "https://the-tech.kz/startup-orda-startup-garage-i-drugie-programmy-dlya-startapov-czentralnoj-azii/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-terricon-kz-ru-incubator",
+"name": "Инкубатор Terricon Valley",
+"url": "https://terricon.kz/ru/incubator",
+"platform": "offline",
+"kind": "программа",
+"cat": "Стартапы и венчур",
+"topic": "Инкубатор стартап-проектов",
+"lang": "ru",
+"city": "Караганда",
+"join": "по заявке",
+"why": [
+"партнёрства"
+],
+"src": "https://the-tech.kz/startup-orda-startup-garage-i-drugie-programmy-dlya-startapov-czentralnoj-azii/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-terricon-kz-ru-tracker",
+"name": "Школа трекеров Terricon Valley",
+"url": "https://terricon.kz/ru/tracker",
+"platform": "offline",
+"kind": "программа",
+"cat": "Трекинг и наставники",
+"topic": "Курс трекеров онлайн и офлайн",
+"lang": "ru",
+"city": "Караганда",
+"join": "по заявке",
+"why": [
+"партнёрства",
+"выступления"
+],
+"src": "https://terricon.kz/ru/tracker",
+"checked": "2026-10-10"
+},
+{
+"id": "of-mostfund-vc-ira",
+"name": "Investment Readiness Accelerator (MOST Ventures)",
+"url": "https://mostfund.vc/ira",
+"platform": "offline",
+"kind": "программа",
+"cat": "Стартапы и венчур",
+"topic": "Подготовка к инвестициям",
+"lang": "en",
+"city": "Алматы",
+"join": "по заявке",
+"why": [
+"партнёрства"
+],
+"src": "https://the-tech.kz/startup-orda-startup-garage-i-drugie-programmy-dlya-startapov-czentralnoj-azii/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-anomalia-fm",
+"name": "Аномалия",
+"url": "https://anomalia.fm/",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Трекинг и наставники",
+"topic": "Десятки предпринимателей, 5 000 ₽ в месяц",
+"lang": "ru",
+"city": "СНГ",
+"join": "платно",
+"why": [
+"контент"
+],
+"src": "https://anomalia.fm/",
+"checked": "2026-10-10",
+"size": 15000
+},
+{
+"id": "of-shkolatrekerov-ru-trackers-school",
+"name": "Школа трекеров (Е. Калинин)",
+"url": "https://shkolatrekerov.ru/trackers-school/",
+"platform": "offline",
+"kind": "программа",
+"cat": "Трекинг и наставники",
+"topic": "Обучение трекеров онлайн",
+"lang": "ru",
+"city": "СНГ",
+"join": "платно",
+"why": [
+"партнёрства"
+],
+"src": "https://shkolatrekerov.ru/trackers-school/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-bbooster-online",
+"name": "Business Booster",
+"url": "https://bbooster.online/",
+"platform": "offline",
+"kind": "программа",
+"cat": "Трекинг и наставники",
+"topic": "Онлайн-акселератор системного управления",
+"lang": "ru",
+"city": "СНГ",
+"join": "платно",
+"why": [
+"контент"
+],
+"src": "https://bbooster.online/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-economist-kg-all-2025-01-18-v-almaty-sozdadut-biznies-klub-k",
+"name": "Бизнес-клуб кыргызских предпринимателей в Алматы",
+"url": "https://economist.kg/all/2025/01/18/v-almaty-sozdadut-biznies-klub-kyrghyzskikh-priedprinimatieliei/",
+"platform": "offline",
+"kind": "клуб",
+"cat": "Клубы и ассоциации",
+"topic": "Создаётся с 2025 года",
+"lang": "ru",
+"city": "Алматы",
+"join": "по заявке",
+"why": [
+"партнёрства"
+],
+"src": "https://economist.kg/all/2025/01/18/v-almaty-sozdadut-biznies-klub-kyrghyzskikh-priedprinimatieliei/",
+"checked": "2026-10-10"
+},
+{
+"id": "of-forbes-kz-articles-v-almatyi-proydet-ejegodnyiy-delovoy-foru",
+"name": "Women in Business (Forbes Kazakhstan)",
+"url": "https://forbes.kz/articles/v_almatyi_proydet_ejegodnyiy_delovoy_forum_women_in_business",
+"platform": "offline",
+"kind": "событие",
+"cat": "Клубы и ассоциации",
+"topic": "Ежегодный деловой форум для женщин-предпринимательниц",
+"lang": "ru",
+"city": "Алматы",
+"join": "платно",
+"why": [
+"лиды",
+"выступления"
+],
+"src": "https://forbes.kz/articles/v_almatyi_proydet_ejegodnyiy_delovoy_forum_women_in_business",
+"checked": "2026-10-10"
+}
+]

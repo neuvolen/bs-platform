@@ -72,6 +72,7 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		go m.AI.LibExtLoop(context.Background())         // library_ext.go
 		go m.AI.RecsLoop(context.Background())           // ai_recs.go
 		go m.AI.SeedMarketingAll(context.Background())   // mkt_competitors.go
+		go m.AI.CommunitiesLoop(context.Background())    // R77: Маркетинг → «Сообщества» (r77_communities.go)
 		go m.AI.ThreadsLoop(context.Background())
 		go m.AI.SetupWhatsApp(context.Background())
 		m.Partners = NewPartners(h.repo)
@@ -190,6 +191,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.GET("/ai/callsum/settings", m.AI.CallSumSettings)
 	g.PUT("/ai/callsum/settings", m.AI.PutCallSumSettings)
 	g.POST("/ai/events", m.AI.RefreshEvents)
+	g.POST("/communities/refresh", m.AI.CommunitiesRefresh) // R77: «Сообщества» → «Обновить сейчас»
 	g.GET("/ai/events", m.AI.EventsStatus)
 	g.POST("/ai/recs", m.AI.RecsNow)
 	g.POST("/ai/recs/:id", m.AI.RecAction)

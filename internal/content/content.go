@@ -26,6 +26,17 @@ var Marketing []byte
 //go:embed competitors_direct.json
 var CompetitorsDirect []byte
 
+// CompetitorsR77: Аномалия, Школа трекеров, BURN, Business Booster (R77),
+// merged once the same way, with sources and the date of the research.
+//
+//go:embed competitors_r77.json
+var CompetitorsR77 []byte
+
+// Communities: the researched seed of Маркетинг → «Сообщества» (R77).
+//
+//go:embed communities.json
+var Communities []byte
+
 // HowToApp: the picture in the bot's welcome showing how to open the app.
 //
 //go:embed howto_app.jpg

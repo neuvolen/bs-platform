@@ -19142,9 +19142,17 @@ function secCompetitors(comp, base){
         '<div class="ma-ccn">' + mE(p + '.name', c.name, '', 'Название') + '</div>' +
         '<div class="ma-ccp"><span>Цена</span>' + mE(p + '.price', c.price, '', 'не известна') + '</div>' +
         '<div class="ma-cco">' + mE(p + '.offer', c.offer, '', 'Что предлагают') + '</div>' +
+        // R77: для кого, формат, что взять себе (новые конкуренты с исследованием)
+        ((c.audience || c.format || c.borrow) ? '<div class="ma-xi">' + [['audience', 'Для кого'], ['format', 'Формат'], ['borrow', 'Что взять себе']].map(function(f){
+          return c[f[0]] ? '<div><div class="ma-k">' + f[1] + '</div>' + mE(p + '.' + f[0], c[f[0]], '', f[1]) + '</div>' : ''; }).join('') + '</div>' : '') +
         '<div class="ma-sw"><div><div class="ma-k pl">Сильные стороны</div>' + mL(p + '.strengths', c.strengths, 'plus', 'Сильная сторона') + '</div>' +
           '<div><div class="ma-k mn">Слабые стороны</div>' + mL(p + '.weaknesses', c.weaknesses, 'minus', 'Слабая сторона') + '</div></div>' +
         '<div class="ma-edge"><div class="ma-k">Наше преимущество</div>' + mE(p + '.our_edge', c.our_edge, '', 'Чем BS сильнее') + '</div>' +
+        // R77: соцсети, источники и дата исследования
+        (((c.links || []).length || (c.sources || []).length || c.asof) ? '<div class="ma-src">' +
+          (c.links || []).map(function(l){ var lu = maUrl(l && l.u); return lu ? '<a href="' + escA(lu) + '" target="_blank" rel="noopener">' + esc(l.t || lu) + ' ↗</a>' : ''; }).join('') +
+          ((c.sources || []).length ? '<span>Источники: ' + c.sources.map(function(su, si){ return '<a href="' + escA(maUrl(su)) + '" target="_blank" rel="noopener">[' + (si + 1) + ']</a>'; }).join(' ') + '</span>' : '') +
+          (c.asof ? '<span>Данные на ' + esc(c.asof) + '</span>' : '') + (c.note ? '<div class="ma-srcn">' + esc(c.note) + '</div>' : '') + '</div>' : '') +
         (MA_RO ? '' : '<div class="ma-urlf"><span>Ссылка</span>' + mE(p + '.url', c.url, '', 'https://') + '</div>') +
       '</div>';
     }).join('') + '</div>';
@@ -45011,5 +45019,296 @@ button.r78-chip,a.r78-chip{cursor:pointer}
   window.renderStub = renderStub = function(s){ if(s === 'rEvents') return renderEv(); return st0.apply(this, arguments); };
 })();
 </script>
+<!-- R77: Маркетинг → «Сообщества». «Добавь парсинг различных сообществ в соцсетях по бизнесу или саморазвитию, чтобы у меня было очень
+     много ссылок и мог вступить. Сделай отдельную вкладку в Маркетинге». Каталог bs_comm_cat пишет только сервер (исследованный список,
+     числа Telegram раз в день, найденные в каналах «новые»); статусы и заметки владельца в своём документе bs_communities -->
+<style id="r77Style">
+.r77{max-width:1180px}
+.ma-xi{display:grid;gap:8px;margin:2px 0 0}
+.ma-xi .ma-k{margin-bottom:2px}
+.ma-xi>div{font-size:12.5px;line-height:1.45}
+.ma-src{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:10px;padding-top:8px;border-top:1px solid var(--ph);font-size:11.5px;color:var(--pm)}
+.ma-src a{color:var(--ptx);font-weight:700;text-decoration:none}
+.ma-src a:hover{text-decoration:underline}
+.ma-srcn{flex-basis:100%;line-height:1.4}
+.r77-sum{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.r77-sum>div{background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:10px 12px;min-width:0}
+.r77-sum b{display:block;font-size:20px;font-weight:800;letter-spacing:-.4px;color:var(--ptx);white-space:nowrap;font-variant-numeric:tabular-nums}
+.r77-sum span{display:block;font-size:11.5px;font-weight:700;color:var(--pm);line-height:1.35}
+.r77-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+.r77-bar input[type=search]{flex:1 1 220px;min-width:0;height:36px;box-sizing:border-box;border-radius:9px;border:1px solid var(--pi);background:var(--pc);color:var(--ptx);font:inherit;font-size:13px;padding:0 12px}
+.r77 select{height:36px;max-width:100%;border-radius:9px;border:1px solid var(--pi);background:var(--pc);color:var(--ptx);font:inherit;font-size:12.5px;font-weight:700;padding:0 8px}
+.r77-pl{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.r77-pl .pf-fl{height:32px}
+.r77 .ev-n{opacity:.6;margin-left:5px}
+.r77 button.b{height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--pi);background:var(--pc);color:var(--ptx);font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+.r77 button.b.p{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r77 button.b:disabled{opacity:.55;cursor:default}
+.r77-new{background:var(--pc);border:1px solid var(--ptx);border-radius:12px;padding:12px;margin:0 0 12px}
+.r77-new h4{margin:0 0 4px;font-size:13.5px;font-weight:800;color:var(--ptx)}
+.r77-new .k{font-size:12px;color:var(--pm);margin:0 0 8px;line-height:1.45}
+.r77-tbl{background:var(--pc);border:1px solid var(--pb);border-radius:14px;overflow:hidden}
+.r77-r{display:grid;grid-template-columns:minmax(200px,2.4fr) 92px 1.2fr 90px 96px 132px minmax(120px,1fr);gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--ph);font-size:12.5px}
+.r77-r:last-child{border-bottom:none}
+.r77-r.th{font-size:11px;font-weight:800;color:var(--pm);text-transform:uppercase;letter-spacing:.3px}
+.r77-r .n a{color:var(--ptx);font-weight:800;font-size:13.5px;text-decoration:none;word-break:break-word}
+.r77-r .n a:hover{text-decoration:underline}
+.r77-r .n small{display:block;color:var(--pm);font-size:11.5px;line-height:1.35;margin-top:2px}
+.r77-r .m{color:var(--pm);line-height:1.35}
+.r77-r .m b{color:var(--ptx);font-weight:700}
+.r77-r .num{font-variant-numeric:tabular-nums;font-weight:800;color:var(--ptx)}
+.r77-r .num i{display:block;font-style:normal;font-weight:600;font-size:11px;color:var(--pm)}
+.r77-pb{display:inline-block;border:1px solid var(--pb);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:800;color:var(--ptx);white-space:nowrap}
+.r77-w{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.r77-w span{font-size:10.5px;font-weight:700;color:var(--pm);border:1px dashed var(--pb);border-radius:999px;padding:1px 7px}
+.r77-st{width:100%}
+.r77-st.s1{border-color:var(--ptx)}
+.r77-st.s2{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r77-st.s3{border-style:dashed}
+.r77-note{width:100%;box-sizing:border-box;height:32px;border-radius:8px;border:1px solid var(--pb);background:var(--ph);color:var(--ptx);font:inherit;font-size:12px;padding:0 8px}
+.r77-err{color:var(--pred);font-size:11px;font-weight:700}
+.r77-more{display:flex;justify-content:center;padding:12px}
+.r77-empty{padding:28px 14px;text-align:center;color:var(--pm);font-size:13px}
+.r77-foot{font-size:11.5px;color:var(--pm);margin:10px 2px 0;line-height:1.5}
+.r77-add{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:12px;margin:0 0 12px}
+.r77-add input,.r77-add select{height:36px;box-sizing:border-box;border-radius:9px;border:1px solid var(--pi);background:var(--ph);color:var(--ptx);font:inherit;font-size:13px;padding:0 10px;width:100%}
+.r77-add .act{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end}
+@media(max-width:900px){
+  .r77-sum{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .r77-r.th{display:none}
+  .r77-r{grid-template-columns:1fr 1fr;gap:6px 10px;padding:12px}
+  .r77-r .n{grid-column:1/-1}
+  .r77-r .r77-nc{grid-column:1/-1}
+  .r77-add{grid-template-columns:1fr}
+}
+</style>
+<script id="r77Script">
+(function(){
+'use strict';
+var CAT_KEY = 'bs_comm_cat', MY_KEY = 'bs_communities';
+var PL = {telegram: 'Telegram', instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn', threads: 'Threads', whatsapp: 'WhatsApp',
+  vk: 'VK', discord: 'Discord', youtube: 'YouTube', offline: 'Офлайн', site: 'Сайт'};
+var ST = ['не вступил', 'вступил', 'активен'];
+var WHY = {'лиды': 'лиды', 'партнёрства': 'партнёрства', 'выступления': 'выступить', 'контент': 'идеи'};
+var V = {q: '', pl: '', cat: '', city: '', st: '', sort: 'size', lim: 60, add: false, busy: false, sig: ''};
+try{ var sv = JSON.parse(localStorage.getItem('bsx_r77_view') || '{}'); ['pl', 'cat', 'city', 'st', 'sort'].forEach(function(k){ if(typeof sv[k] === 'string') V[k] = sv[k]; }); }catch(e){}
+var E = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); };
+var nf = function(v){ return String(Math.round(Number(v) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); };
+var say = function(t){ try{ if(typeof toast === 'function') toast(t); }catch(e){} };
+var rd = function(k, d){ try{ var v = JSON.parse(localStorage.getItem(k) || 'null'); return v && typeof v === 'object' ? v : d; }catch(e){ return d; } };
+var cat = function(){ return rd(CAT_KEY, {items: [], tg: {}}); };
+var mine = function(){ var m = rd(MY_KEY, {}); m.st = m.st || {}; m.own = Array.isArray(m.own) ? m.own : []; m.ok = m.ok || {}; m.hide = m.hide || {}; return m; };
+var saveMine = function(m){ try{ localStorage.setItem(MY_KEY, JSON.stringify(m)); }catch(e){ say('Не сохранилось'); } };
+var saveView = function(){ try{ localStorage.setItem('bsx_r77_view', JSON.stringify({pl: V.pl, cat: V.cat, city: V.city, st: V.st, sort: V.sort})); }catch(e){} };
+var tgUser = function(u){ var m = /(?:t|telegram)\.me\/(?:s\/)?([A-Za-z][A-Za-z0-9_]{3,31})(?:[\/?#]|$)/.exec(String(u || '')); return m ? m[1].toLowerCase() : ''; };
+var isAdm = function(){ try{ return typeof md === 'function' ? md() === 'admin' : true; }catch(e){ return true; } };
+var ago = function(iso){
+  if(!iso) return '';
+  var d = new Date(iso); if(isNaN(d)) return '';
+  var days = Math.floor((Date.now() - d.getTime()) / 864e5);
+  if(days <= 0) return 'сегодня';
+  if(days === 1) return 'вчера';
+  if(days < 31) return days + ' дн. назад';
+  return d.toLocaleDateString('ru', {day: 'numeric', month: 'short', year: days > 300 ? 'numeric' : undefined});
+};
+// все строки: каталог сервера + добавленные владельцем, с числами и статусом
+var rows = function(){
+  var c = cat(), m = mine(), tg = c.tg || {}, out = [];
+  (c.items || []).concat(m.own.map(function(o){ o = Object.assign({}, o); o.origin = 'own'; return o; })).forEach(function(it){
+    if(!it || !it.id || m.hide[it.id]) return;
+    var u = it.platform === 'telegram' ? tgUser(it.url) : '', s = u ? tg[u] : null, my = m.st[it.id] || {};
+    var fresh = it.origin === 'found' && !m.ok[it.id] && !my.s;
+    out.push({it: it, u: u, tg: s, size: (s && s.subs) || it.size || 0, last: (s && s.last) || '', err: s && s.err ? s.err : '',
+      st: fresh ? 'новое' : (my.s || 'не вступил'), note: my.n || '', fresh: fresh});
+  });
+  return out;
+};
+var filt = function(all){
+  var q = V.q.trim().toLowerCase();
+  return all.filter(function(r){
+    var it = r.it;
+    if(V.pl && it.platform !== V.pl) return false;
+    if(V.cat && it.cat !== V.cat) return false;
+    if(V.city && it.city !== V.city) return false;
+    if(V.st && r.st !== V.st) return false;
+    if(q && (it.name + ' ' + it.topic + ' ' + it.url + ' ' + it.cat + ' ' + it.city + ' ' + r.note + ' ' + ((r.tg && r.tg.title) || '')).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+};
+var sorters = {
+  size: function(a, b){ return (b.size || 0) - (a.size || 0) || String(a.it.name).localeCompare(b.it.name, 'ru'); },
+  act: function(a, b){ return String(b.last || '').localeCompare(String(a.last || '')) || (b.size || 0) - (a.size || 0); },
+  name: function(a, b){ return String(a.it.name).localeCompare(b.it.name, 'ru'); },
+  st: function(a, b){ return ST.indexOf(b.st) - ST.indexOf(a.st) || (b.size || 0) - (a.size || 0); }
+};
+var count = function(list, f){ var o = {}; list.forEach(function(r){ var k = f(r); if(k) o[k] = (o[k] || 0) + 1; }); return o; };
+var opts = function(cur, all, label, map){
+  return '<option value="">' + E(label) + '</option>' + Object.keys(all).sort(function(a, b){ return all[b] - all[a]; }).map(function(k){
+    return '<option value="' + E(k) + '"' + (cur === k ? ' selected' : '') + '>' + E((map && map[k]) || k) + ' · ' + all[k] + '</option>';
+  }).join('');
+};
+var rowHTML = function(r){
+  var it = r.it, sz = r.size ? nf(r.size) : '', ti = ST.indexOf(r.st);
+  var why = (it.why || []).map(function(w){ return '<span>' + E(WHY[w] || w) + '</span>'; }).join('');
+  var act = r.last ? ago(r.last) : (it.platform === 'telegram' && r.tg && r.tg.group ? 'чат' : '');
+  var stSel = '<select class="r77-st s' + (r.fresh ? 3 : ti + 1) + '" data-st="' + E(it.id) + '">' + (r.fresh ? '<option selected>новое</option>' : '') +
+    ST.map(function(s){ return '<option' + (s === r.st ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '<option value="__hide">скрыть</option></select>';
+  return '<div class="r77-r" data-id="' + E(it.id) + '">' +
+    '<div class="n"><a href="' + E(it.url) + '" target="_blank" rel="noopener">' + E(it.name) + '</a><small>' + E(it.topic || '') +
+      (r.err ? ' <span class="r77-err" title="' + E(r.err) + '">не открылся при проверке</span>' : '') + '</small><div class="r77-w">' + why + '</div></div>' +
+    '<div><span class="r77-pb">' + E(PL[it.platform] || it.platform) + '</span><div class="m" style="margin-top:4px">' + E(it.kind || '') + '</div></div>' +
+    '<div class="m"><b>' + E(it.cat || '') + '</b><br>' + E(it.city || '') + (it.lang ? ' · ' + E(it.lang) : '') + '</div>' +
+    '<div class="num">' + (sz || '<i>нет данных</i>') + (sz ? '<i>' + (r.tg && r.tg.group ? 'участников' : (it.platform === 'offline' ? 'участников' : 'подписчиков')) + '</i>' : '') + '</div>' +
+    '<div class="num">' + (act ? E(act) : '<i>нет данных</i>') + '<i>' + E(it.join || '') + '</i></div>' +
+    '<div>' + stSel + '</div>' +
+    '<div class="r77-nc"><input class="r77-note" data-note="' + E(it.id) + '" value="' + E(r.note) + '" placeholder="Заметка"></div>' +
+  '</div>';
+};
+var csv = function(list){
+  var c = function(v){ v = String(v == null ? '' : v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  var head = ['Название', 'Ссылка', 'Платформа', 'Тип', 'Категория', 'Тема', 'Язык', 'Город', 'Размер', 'Последний пост', 'Вступление', 'Чем полезно', 'Статус', 'Заметка', 'Источник', 'Проверено'];
+  var lines = [head.join(';')].concat(list.map(function(r){
+    var it = r.it;
+    return [it.name, it.url, PL[it.platform] || it.platform, it.kind, it.cat, it.topic, it.lang, it.city, r.size || '', r.last ? String(r.last).slice(0, 10) : '',
+      it.join, (it.why || []).join(', '), r.st, r.note, it.src, (r.tg && r.tg.at ? String(r.tg.at).slice(0, 10) : it.checked)].map(c).join(';');
+  }));
+  var blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'soobshchestva_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  say('CSV: ' + list.length + ' строк');
+};
+var paint = function(){
+  var box = document.getElementById('r77Box'); if(!box) return;
+  var c = cat(), all = rows(), list = filt(all).sort(sorters[V.sort] || sorters.size);
+  V.sig = String((c.updated || '') + '|' + (localStorage.getItem(MY_KEY) || '').length + '|' + (c.items || []).length);
+  var byPl = count(all, function(r){ return r.it.platform; });
+  var stc = count(all, function(r){ return r.st; });
+  var fresh = all.filter(function(r){ return r.fresh; });
+  var run = c.run || null;
+  var people = all.reduce(function(s, r){ return s + (r.it.platform === 'telegram' ? (r.size || 0) : 0); }, 0);
+  var h = '<div class="r77-sum">' +
+    '<div><b>' + nf(all.length) + '</b><span>сообществ в каталоге</span></div>' +
+    '<div><b>' + nf(byPl.telegram || 0) + '</b><span>в Telegram, охват ' + nf(people) + '</span></div>' +
+    '<div><b>' + nf((stc['вступил'] || 0) + (stc['активен'] || 0)) + '</b><span>вступил, из них активен ' + nf(stc['активен'] || 0) + '</span></div>' +
+    '<div><b>' + nf(stc['не вступил'] || 0) + '</b><span>ещё не вступил</span></div>' +
+    '<div><b>' + nf(fresh.length) + '</b><span>новых из каналов на проверку</span></div>' +
+    '<div><b>' + (run ? E(ago(run.at)) : 'ещё нет') + '</b><span>обновление Telegram' + (run ? ': ' + nf(run.ok) + ' из ' + nf(run.checked) : '') + '</span></div></div>';
+  if(fresh.length && V.st !== 'новое'){
+    h += '<div class="r77-new"><h4>Новые сообщества: ' + fresh.length + '</h4><div class="k">Сервер нашёл их по ссылкам в постах каналов каталога: публичные, про бизнес, от 300 человек. Оставьте нужные, лишние скройте.</div>' +
+      '<button class="b p" data-a="shownew">Посмотреть новые</button> <button class="b" data-a="oknew">Оставить все</button></div>';
+  }
+  h += '<div class="r77-pl">' + [['', 'Все', all.length]].concat(Object.keys(PL).filter(function(k){ return byPl[k]; }).map(function(k){ return [k, PL[k], byPl[k]]; })).map(function(f){
+    return '<div class="pf-fl' + (V.pl === f[0] ? ' on' : '') + '" data-pl="' + f[0] + '">' + E(f[1]) + '<span class="ev-n">' + f[2] + '</span></div>';
+  }).join('') + '</div>';
+  h += '<div class="r77-bar"><input type="search" id="r77Q" placeholder="Поиск: название, тема, город, заметка" value="' + E(V.q) + '">' +
+    '<select data-f="cat">' + opts(V.cat, count(all, function(r){ return r.it.cat; }), 'Все темы') + '</select>' +
+    '<select data-f="city">' + opts(V.city, count(all, function(r){ return r.it.city; }), 'Все города') + '</select>' +
+    '<select data-f="st">' + opts(V.st, stc, 'Все статусы') + '</select>' +
+    '<select data-f="sort">' + [['size', 'Сначала большие'], ['act', 'Сначала активные'], ['st', 'Сначала мои'], ['name', 'По названию']].map(function(o){
+      return '<option value="' + o[0] + '"' + (V.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+    '<button class="b" data-a="add">+ Добавить</button><button class="b" data-a="csv">Экспорт CSV</button>' +
+    (isAdm() ? '<button class="b" data-a="refresh"' + (V.busy ? ' disabled' : '') + '>' + (V.busy ? 'Обновляю…' : 'Обновить сейчас') + '</button>' : '') + '</div>';
+  if(V.add){
+    h += '<div class="r77-add"><input id="r77aN" placeholder="Название"><input id="r77aU" placeholder="Ссылка https://…"><select id="r77aP">' +
+      Object.keys(PL).map(function(k){ return '<option value="' + k + '">' + PL[k] + '</option>'; }).join('') + '</select>' +
+      '<input id="r77aT" placeholder="Тема"><input id="r77aC" placeholder="Город" value="Алматы"><select id="r77aJ"><option>открыто</option><option>по заявке</option><option>платно</option></select>' +
+      '<div class="act"><button class="b" data-a="addx">Отмена</button><button class="b p" data-a="addok">Добавить</button></div></div>';
+  }
+  if(!list.length){
+    h += '<div class="r77-tbl"><div class="r77-empty">' + (all.length ? 'Ничего не нашлось: смягчите фильтры' : 'Каталог загружается с сервера. Если пусто дольше минуты, обновите страницу') + '</div></div>';
+  } else {
+    h += '<div class="r77-tbl"><div class="r77-r th"><div>Сообщество</div><div>Где</div><div>Тема и город</div><div>Размер</div><div>Активность</div><div>Статус</div><div>Заметка</div></div>' +
+      list.slice(0, V.lim).map(rowHTML).join('') +
+      (list.length > V.lim ? '<div class="r77-more"><button class="b" data-a="more">Показать ещё ' + Math.min(60, list.length - V.lim) + ' из ' + (list.length - V.lim) + '</button></div>' : '') + '</div>';
+  }
+  h += '<div class="r77-foot">Показано ' + Math.min(V.lim, list.length) + ' из ' + list.length + '. Каждая ссылка взята со страницы-источника (каталог, статья или сайт организации) и проверена 10.10.2026; ' +
+    'Telegram-каналы и группы сервер перечитывает каждый день: подписчики, участники и дата последнего поста. ' +
+    'Размер в Instagram, Facebook и LinkedIn публично недоступен, его можно вписать в заметку. Ненужное скрывается в статусе.</div>';
+  var q = document.activeElement && document.activeElement.id === 'r77Q';
+  box.innerHTML = h;
+  if(q){ var qi = document.getElementById('r77Q'); if(qi){ qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); } }
+};
+var setSt = function(id, s){
+  var m = mine(); m.st[id] = Object.assign({}, m.st[id] || {}, {s: s, at: new Date().toISOString()}); m.ok[id] = 1;
+  saveMine(m); paint(); say('Статус: ' + s);
+};
+document.addEventListener('click', function(ev){
+  var t = ev.target; if(!t || !t.closest || !t.closest('#r77Box')) return;
+  var pl = t.closest('[data-pl]'); if(pl){ V.pl = pl.dataset.pl; V.lim = 60; saveView(); paint(); return; }
+  var b = t.closest('[data-a]'); if(!b) return;
+  var a = b.dataset.a;
+  if(a === 'more'){ V.lim += 60; paint(); return; }
+  if(a === 'csv'){ csv(filt(rows()).sort(sorters[V.sort] || sorters.size)); return; }
+  if(a === 'shownew'){ V.st = 'новое'; V.lim = 200; saveView(); paint(); return; }
+  if(a === 'oknew'){ var m = mine(); rows().forEach(function(r){ if(r.fresh) m.ok[r.it.id] = 1; }); saveMine(m); paint(); say('Новые оставлены в каталоге'); return; }
+  if(a === 'add'){ V.add = !V.add; paint(); var n = document.getElementById('r77aN'); if(n) n.focus(); return; }
+  if(a === 'addx'){ V.add = false; paint(); return; }
+  if(a === 'addok'){
+    var g = function(i){ var el = document.getElementById(i); return el ? String(el.value || '').trim() : ''; };
+    var url = g('r77aU'), name = g('r77aN');
+    if(!name || !/^https?:\/\/\S+\.\S+/.test(url)){ say('Нужны название и ссылка https://…'); return; }
+    var m2 = mine();
+    if(rows().some(function(r){ return r.it.url.replace(/\/$/, '').toLowerCase() === url.replace(/\/$/, '').toLowerCase(); })){ say('Такая ссылка уже есть'); return; }
+    m2.own.push({id: 'own-' + Date.now().toString(36), name: name, url: url, platform: g('r77aP') || 'site', kind: '', cat: 'Мои', topic: g('r77aT'),
+      lang: 'ru', city: g('r77aC'), join: g('r77aJ'), why: ['лиды'], src: 'добавлено вручную', checked: new Date().toISOString().slice(0, 10)});
+    saveMine(m2); V.add = false; paint(); say('Добавлено'); return;
+  }
+  if(a === 'refresh'){
+    if(!window.BSSync || !BSSync.api){ say('Нет связи с сервером'); return; }
+    V.busy = true; paint();
+    Promise.resolve().then(function(){ return BSSync.api('POST', '/communities/refresh'); }).then(function(r){ return r && r.json ? r.json() : null; }).then(function(j){
+      say(j && j.started ? 'Сервер обновляет Telegram (несколько минут), данные придут сами' : (j && j.busy ? 'Обновление уже идёт' : 'Не получилось запустить'));
+    }).catch(function(){ say('Не получилось запустить'); }).then(function(){ setTimeout(function(){ V.busy = false; paint(); }, 4000); });
+  }
+});
+document.addEventListener('change', function(ev){
+  var t = ev.target; if(!t || !t.closest || !t.closest('#r77Box')) return;
+  if(t.dataset.st){
+    if(t.value === 'новое') return;
+    if(t.value === '__hide'){ var mh = mine(); mh.hide[t.dataset.st] = 1; saveMine(mh); paint(); say('Скрыто из списка'); return; }
+    setSt(t.dataset.st, t.value); return;
+  }
+  if(t.dataset.note !== undefined && t.dataset.note){
+    var m = mine(), id = t.dataset.note; m.st[id] = Object.assign({}, m.st[id] || {}, {n: String(t.value || '').slice(0, 500)}); m.ok[id] = 1;
+    saveMine(m); say('Заметка сохранена'); return;
+  }
+  if(t.dataset.f){ V[t.dataset.f] = t.value; V.lim = 60; saveView(); paint(); }
+});
+document.addEventListener('input', function(ev){
+  var t = ev.target; if(!t || t.id !== 'r77Q') return;
+  V.q = t.value; V.lim = 60; clearTimeout(V.qt); V.qt = setTimeout(paint, 180);
+});
+// Enter в заметке сохраняет её (change)
+document.addEventListener('keydown', function(ev){
+  if(ev.key === 'Enter' && ev.target && ev.target.classList && ev.target.classList.contains('r77-note')) ev.target.blur();
+});
+var render = function(){
+  var el = pgSet('Сообщества', 'Где сидят собственники: вступить, знакомиться, выступать, находить клиентов');
+  el.innerHTML = '<div class="r77" id="r77Box"></div>';
+  paint();
+};
+window.renderMComm = render;
+window.r77 = {rows: rows, paint: paint, csv: csv, view: V};
+// данные пришли синхронизацией: перерисовать, если вкладка открыта и никто не печатает
+setInterval(function(){
+  var box = document.getElementById('r77Box'); if(!box || !box.offsetParent) return;
+  var a = document.activeElement; if(a && a.closest && a.closest('#r77Box') && (a.tagName === 'INPUT' || a.tagName === 'SELECT')) return;
+  var c = cat(), sig = String((c.updated || '') + '|' + (localStorage.getItem(MY_KEY) || '').length + '|' + (c.items || []).length);
+  if(sig !== V.sig) paint();
+}, 4000);
+try{
+  if(typeof BLOCKS !== 'undefined' && BLOCKS.mkt && !BLOCKS.mkt.tabs.some(function(t){ return t.id === 'mComm'; })){
+    var at = BLOCKS.mkt.tabs.findIndex(function(t){ return t.id === 'mPartners'; });
+    BLOCKS.mkt.tabs.splice(at >= 0 ? at + 1 : BLOCKS.mkt.tabs.length, 0, {id: 'mComm', n: 'Сообщества'});
+  }
+  var rs0 = window.renderStub || renderStub;
+  window.renderStub = renderStub = function(s){ if(s === 'mComm') return render(); return rs0.apply(this, arguments); };
+}catch(x){}
+})();
+</script>
+<!-- /R77 -->
 </body>
 </html>
