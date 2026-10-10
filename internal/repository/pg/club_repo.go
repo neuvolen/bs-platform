@@ -259,7 +259,7 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 	rows.Close()
 
 	rows, err = r.db.Pool.Query(ctx, `SELECT resident, type, amount, date, paid, COALESCE(sheet_row,0), status,
-		amount - COALESCE((SELECT sum(x.amount) FROM club_pay_alloc x WHERE x.fine_id = club_fines.id), 0)
+		amount - COALESCE((SELECT sum(x.amount) FROM club_pay_alloc x WHERE x.fine_id = club_fines.id), 0), id
 		FROM club_fines ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -268,7 +268,7 @@ func (r *ClubRepo) Load(ctx context.Context) (*club.Snapshot, error) {
 		var f club.Fine
 		var d *time.Time
 		var owed int64
-		if err := rows.Scan(&f.Name, &f.Type, &f.Amount, &d, &f.Paid, &f.Row, &f.Status, &owed); err != nil {
+		if err := rows.Scan(&f.Name, &f.Type, &f.Amount, &d, &f.Paid, &f.Row, &f.Status, &owed, &f.ID); err != nil {
 			rows.Close()
 			return nil, err
 		}

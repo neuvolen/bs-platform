@@ -65,6 +65,12 @@ type BundleFine struct {
 	Amount int64  `json:"amount"`
 	Date   string `json:"date"`
 	Status string `json:"status"`
+	// R81: from the payments ledger («Учёт → Долги и штрафы»): the fine's id,
+	// the resident it counts for, what is paid on it and what is still owed
+	ID   int64  `json:"id,omitempty"`
+	Res  string `json:"res,omitempty"`
+	Paid int64  `json:"paid,omitempty"`
+	Left int64  `json:"left"`
 }
 
 type BundleLog struct {
@@ -271,7 +277,7 @@ func AppBundle(s *Snapshot, now time.Time) (map[string]any, []string) {
 	var unpaidSum int64
 	unpaidCnt := 0
 	for _, f := range s.Fines {
-		b := BundleFine{Row: f.Row, Name: f.Name, Kind: f.Type, Amount: f.Amount, Status: f.Status}
+		b := BundleFine{Row: f.Row, Name: f.Name, Kind: f.Type, Amount: f.Amount, Status: f.Status, ID: f.ID, Left: f.Due()}
 		if b.Row == 0 { // written by the server, the sheet has not placed it yet
 			next++
 			b.Row = next
@@ -279,11 +285,15 @@ func AppBundle(s *Snapshot, now time.Time) (map[string]any, []string) {
 		if !f.Date.IsZero() {
 			b.Date = dmy(f.Date)
 		}
-		if b.Status == "" {
+		// R81: as the ledger reads it: written off stays, the «paid» mark wins
+		// over an old «Не оплатил» text (the platform's old «Оплатил» set only the mark)
+		switch {
+		case strings.TrimSpace(b.Status) == "Списан":
+			b.Status = "Списан"
+		case f.Paid || strings.TrimSpace(b.Status) == "Оплатил":
+			b.Status = "Оплатил"
+		default:
 			b.Status = "Не оплатил"
-			if f.Paid {
-				b.Status = "Оплатил"
-			}
 		}
 		if b.Status != "Оплатил" && b.Status != "Списан" {
 			unpaidSum += f.Due() // R69: a part paid by the ledger is not owed

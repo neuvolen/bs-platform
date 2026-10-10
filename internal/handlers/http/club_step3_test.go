@@ -63,12 +63,12 @@ func TestAppSectionsFromTheServer(t *testing.T) {
 	ctx := context.Background()
 	importSheet(t, e.repo, sectionSnap(), e.now.Add(-time.Minute))
 
-	// The server builds every section; whose checklists differ by person.
+	// The server builds every section (R81: and «ledger»); whose checklists differ by person.
 	parts, built, err := e.g.ServerBundle(ctx, 490685605)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(built) != 19 || !strings.Contains(string(parts["leadmagnets"]), `"taken":{"unit":true}`) || string(parts["myAvatar"]) != `""` {
+	if len(built) != 20 || !strings.Contains(string(parts["leadmagnets"]), `"taken":{"unit":true}`) || string(parts["myAvatar"]) != `""` {
 		t.Fatalf("built %v: %s %s", built, parts["leadmagnets"], parts["myAvatar"])
 	}
 	if parts, _, _ := e.g.ServerBundle(ctx, 999); !strings.Contains(string(parts["leadmagnets"]), `"taken":{}`) {
@@ -134,7 +134,7 @@ func TestAppSectionsFromTheServer(t *testing.T) {
 	if e.count(t, `SELECT count(*) FROM club_writes WHERE action = 'saveProblem' AND NOT applied AND apply_error = ''`) != 1 {
 		t.Fatal("not applied without the sections")
 	}
-	if _, built, _ := e.g.ServerBundle(ctx, 1); len(built) != 9 {
+	if _, built, _ := e.g.ServerBundle(ctx, 1); len(built) != 10 { // R81: with «ledger»
 		t.Fatalf("without the sections: %v", built)
 	}
 }

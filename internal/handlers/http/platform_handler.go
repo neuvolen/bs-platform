@@ -45,6 +45,8 @@ var platformPersonalKeys = map[string]bool{
 	"bs_mycal": true,
 	// R72: the разбор this person worked on last; «Доска» opens it on every device
 	"bs_curboard": true,
+	// R81: one person's settings shared with the Telegram app (hide_events: «Мероприятия» under «Расписание»)
+	"bs_prefs": true,
 }
 
 // Keys that are pure local bookkeeping and never leave the browser.

@@ -63,6 +63,11 @@ func (g *AppGateway) ServerBundle(ctx context.Context, tgID int64) (map[string]j
 		return nil, nil, err
 	}
 	parts, built := club.AppBundle(snap, now)
+	// R81: debts and fines from the payments ledger, as «Учёт → Долги и штрафы»
+	if rep, at, ok := g.ledger(ctx); ok {
+		applyLedger(parts, snap, rep, at)
+		built = append(built, "ledger")
+	}
 	cid := ""
 	if tgID != 0 {
 		cid = strconv.FormatInt(tgID, 10)

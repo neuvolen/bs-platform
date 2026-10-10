@@ -64,6 +64,8 @@ type Fine struct {
 	Row int `json:"row,omitempty"`
 	// Status is the «Статус» cell as is ("Не оплатил" when empty).
 	Status string `json:"status,omitempty"`
+	// ID: the server's row id (club_fines.id); 0 for the sheet's data
+	ID int64 `json:"-"`
 	// Owed: R69: what is still owed by the payments ledger (a part paid);
 	// nil when not known (the sheet's data): then the whole amount.
 	Owed *int64 `json:"-"`

@@ -91,6 +91,7 @@ type AppGateway struct {
 	auxBusy  map[string]bool
 	calls    map[string]*scriptCall // the script's bundle being fetched, per person
 	gen      int                    // bumped when data changes: older fetches are not kept
+	ledgerC  ledgerCache            // R81: the payments ledger for the bundle, a few seconds
 	srvStats struct{ served, fallbacks, interim int }
 
 	// Done tells which meetings already happened (from the import).

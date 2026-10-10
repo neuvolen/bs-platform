@@ -71,7 +71,14 @@ type DebtsReport struct {
 }
 
 // Debts builds the report (read only).
-func (r *ClubRepo) Debts(ctx context.Context) (*DebtsReport, error) {
+func (r *ClubRepo) Debts(ctx context.Context) (*DebtsReport, error) { return r.debts(ctx, true) }
+
+// DebtsLite is the same ledger without the payments, the audit and the
+// history: what the Telegram app shows (debts, fines with what is paid on
+// each), the numbers of «Учёт → Долги и штрафы» to the tenge.
+func (r *ClubRepo) DebtsLite(ctx context.Context) (*DebtsReport, error) { return r.debts(ctx, false) }
+
+func (r *ClubRepo) debts(ctx context.Context, full bool) (*DebtsReport, error) {
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -171,6 +178,15 @@ func (r *ClubRepo) Debts(ctx context.Context) (*DebtsReport, error) {
 			d.FinesPaid += f.Paid
 		}
 		d.Fines = append(d.Fines, f)
+	}
+
+	if !full {
+		for _, id := range order {
+			d := byID[id]
+			d.Total = d.Debt + d.FinesOpen
+			out.Residents = append(out.Residents, *d)
+		}
+		return out, nil
 	}
 
 	// payments with their lines

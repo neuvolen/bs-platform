@@ -67,7 +67,11 @@ func (p *ClubPeople) Register(r *gin.Engine) {
 	g.PUT("/resources/:id", p.EditResource)
 	g.DELETE("/resources/:id", p.DeleteResource)
 	g.GET("/events", p.Events)
+	g.GET("/prefs", p.prefsGet(p.prefsScopePlatform))             // R81: «Скрыть мероприятия» и др. (bs_prefs)
+	g.PUT("/prefs", p.prefsPut(p.prefsScopePlatform, "platform")) // R81
 	r.GET("/api/v1/app/events", appGzip, p.AppEvents)
+	r.GET("/api/v1/app/prefs", p.prefsGet(p.prefsScopeApp)) // R81: the same doc from the Telegram app
+	r.PUT("/api/v1/app/prefs", p.prefsPut(p.prefsScopeApp, "app"))
 	r.GET("/api/v1/public/event/:file", p.EventICS)
 }
 
