@@ -55,7 +55,7 @@ var (
 
 var vendorTypes = map[string]string{
 	".mjs": "text/javascript; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".wasm": "application/wasm",
-	".tflite": "application/octet-stream", ".jpg": "image/jpeg", ".txt": "text/plain; charset=utf-8",
+	".tflite": "application/octet-stream", ".onnx": "application/octet-stream", ".jpg": "image/jpeg", ".txt": "text/plain; charset=utf-8",
 }
 
 func vendorGet(name string) *vendorFile {
@@ -105,6 +105,10 @@ func (f *vendorFile) plainBytes() []byte {
 
 func serveVendor(c *gin.Context) {
 	name := strings.TrimPrefix(c.Param("path"), "/")
+	if m, ok := strings.CutPrefix(name, "kws-model/"); ok { // R79: «Джарвис» (kws_model.go)
+		serveKWSModel(c, m)
+		return
+	}
 	if strings.HasSuffix(name, ".gz") {
 		c.String(http.StatusNotFound, "not found")
 		return

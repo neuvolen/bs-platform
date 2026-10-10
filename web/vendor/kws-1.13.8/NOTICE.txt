@@ -1,0 +1,7 @@
+sherpa-onnx 1.13.8 (k2-fsa, Apache-2.0): npm package «sherpa-onnx», WebAssembly build and its JS
+wrappers (sherpa-onnx-kws.js, sherpa-onnx-asr.js). sherpa-onnx-wasm.js is the package's
+sherpa-onnx-wasm-nodejs.js with one change: the Node-only raw file system is used only under Node,
+so in a browser the in-memory file system holds the model.
+Model (downloaded by the server, web/kws_model.go): Vosk small streaming Russian Zipformer
+(alphacep, Apache-2.0) as packed by sherpa-onnx (sherpa-onnx-streaming-zipformer-small-ru-vosk-int8-2025-08-16).
+bskws.js: Business Surgery.

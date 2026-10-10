@@ -114,8 +114,13 @@ func TestPlatformFilesAndAI(t *testing.T) {
 	}
 	role = "admin"
 
-	// Voice command: a phrase becomes actions.
-	w = do("POST", "/ai/command", "application/json", []byte(`{"text":"добавь задачу позвонить бухгалтеру","context":{"nodes":[]}}`), nil)
+	// Voice command: R79: the rules understand a plain command without the AI.
+	w = do("POST", "/ai/command", "application/json", []byte(`{"text":"Джарвис, добавь задачу позвонить бухгалтеру","context":{"nodes":[]}}`), nil)
+	if !strings.Contains(w.Body.String(), `"op":"add_node"`) || !strings.Contains(w.Body.String(), `"via":"rules"`) || len(calls) != 0 {
+		t.Fatalf("command by rules: %s %v", w.Body.String(), calls)
+	}
+	// What the rules do not understand goes to the AI and becomes actions.
+	w = do("POST", "/ai/command", "application/json", []byte(`{"text":"ну вот бухгалтеру бы позвонить как-нибудь","context":{"nodes":[]}}`), nil)
 	if !strings.Contains(w.Body.String(), `"op":"add_node"`) || !strings.Contains(w.Body.String(), "Добавил задачу") {
 		t.Fatalf("command: %s", w.Body.String())
 	}

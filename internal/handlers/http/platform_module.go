@@ -175,6 +175,8 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.DELETE("/ai/key", m.AI.DeleteAIKey)
 	g.POST("/ai/key/test", m.AI.TestAIKey)
 	g.POST("/ai/command", m.AI.Command)
+	g.POST("/ai/voice", m.AI.Voice)       // R79: «Джарвис»: команда голосом (voice_r79.go)
+	g.POST("/ai/notekind", m.AI.NoteKind) // R79: заметки по типам: цифры, заметка, диагноз, инструмент
 	g.POST("/ai/call", m.AI.Call)
 	g.GET("/ai/jobs/:id", m.AI.Job)
 	g.GET("/ai/jobs", m.AI.Jobs)

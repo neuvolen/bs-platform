@@ -192,7 +192,7 @@ task (задача), goal (цель), quest (вопрос), note (заметка
 
 ОТВЕТ: только JSON {"actions":[...], "say":"коротко по-русски, что сделано или что уточнить"}.
 ДЕЙСТВИЯ:
-{"op":"add_node","type":"task|note|goal|quest|strat|cont|diag|tool","title":"...","desc":"...","parent":<id|null>,"date":"ДД.ММ"}
+{"op":"add_node","type":"task|note|goal|quest|strat|cont|diag|tool","title":"...","desc":"...","parent":<id|null>,"date":"ДД.ММ","who":"ответственный"}
 {"op":"edit_node","id":<id>,"title":"...","desc":"..."}   {"op":"delete_node","id":<id>}
 {"op":"link","a":<id>,"b":<id>}   {"op":"unlink","a":<id>,"b":<id>}
 {"op":"set_point","which":"A|B","text":"..."}   {"op":"set_strategy","text":"..."}
@@ -203,6 +203,8 @@ task (задача), goal (цель), quest (вопрос), note (заметка
 {"op":"rename_board","title":"..."}   {"op":"new_cycle"}   {"op":"presentation","on":true|false}   {"op":"save"}   {"op":"undo"}   {"op":"redo"}
 {"op":"fit"}   {"op":"zoom","dir":"in|out"}   {"op":"theme"}   {"op":"health","on":true|false}   {"op":"draw","on":true|false}
 {"op":"start_call"}   {"op":"stop_call"}   {"op":"mode","value":"admin|res|lead"}
+{"op":"attach","id":<id>,"to":<id>} (перенести узел к другому)   {"op":"plan_add","title":"...","date":"ДД.ММ","who":"..."} (в план команды)
+{"op":"timer","sec":300}   {"op":"read_summary"} (прочитать итоги доски вслух)   {"op":"stop_listen"} (выключить прослушивание)
 {"op":"add_contact","name":"...","phone":"...","category":"...","telegram":"...","instagram":"..."}   {"op":"search","query":"..."}   {"op":"add_sticker","query":"..."}
 
 ПРАВИЛА:
@@ -212,7 +214,9 @@ task (задача), goal (цель), quest (вопрос), note (заметка
 4. Несколько команд в одной фразе = несколько действий по порядку.
 5. Если фраза не команда, а мысль, наблюдение или цитата резидента: add_node type note, title = мысль коротко и грамотно.
 6. Исправляй ошибки распознавания по смыслу («касовые разрывы» = Кассовые разрывы, «точка а» = pointA).
-7. Не выдумывай действий. Если непонятно, верни пустой actions и в say короткий вопрос.
+7. Цифры, суммы, проценты, даты и телефоны («выручка 4 млн», «конверсия 12%») это не диагноз и не инструмент: add_node type note (или set_point, если сказано про точку А/Б).
+8. Диагноз ставь только когда прямо сказано «диагноз» или явно названа проблема из diag_library.
+9. Не выдумывай действий. Если непонятно, верни пустой actions и в say короткий вопрос.
 
 ПРИМЕРЫ:
 «поставь диагноз кассовые разрывы» → {"actions":[{"op":"pick_diag","query":"Кассовые разрывы","parent":null}],"say":"Диагноз «Кассовые разрывы» на доске"}
@@ -239,19 +243,8 @@ func (h *PlatformAI) Command(c *gin.Context) {
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
-	today := time.Now().In(time.FixedZone("Almaty", 5*3600)).Format("02.01.2006, Monday")
-	ans, err := h.AI.JSON(ctx, commandSystem, "today: "+today+"\nСостояние платформы:\n"+string(r.Context)+"\n\nФраза трекера: «"+r.Text+"»")
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"error": ai.UserMessage(err), "noKey": err == ai.ErrNoKey, "quota": ai.IsQuota(err)})
-		return
-	}
-	js := ai.JSONFrom(ans)
-	var out map[string]any
-	if js == "" || json.Unmarshal([]byte(js), &out) != nil {
-		c.JSON(http.StatusOK, gin.H{"actions": []any{}, "say": "Не понял команду"})
-		return
-	}
-	c.JSON(http.StatusOK, out)
+	// R79: rules first, then the AI (light), then a note (voice_r79.go)
+	c.JSON(http.StatusOK, h.runCommand(ctx, r.Text, "", r.Context))
 }
 
 func (h *PlatformAI) Job(c *gin.Context) {

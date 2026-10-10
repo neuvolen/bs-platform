@@ -45310,5 +45310,667 @@ try{
 })();
 </script>
 <!-- /R77 -->
+<script id="r79Script">
+/* R79: «Джарвис». Голосовой помощник без рук и заметки по типам.
+   1) Кнопка «Слушать "Джарвис"» на доске. Слово-обращение ищет сам браузер: Web Worker с маленькой
+      русской моделью (/vendor/kws-1.13.8/bskws.js). До слова «Джарвис» (или «Ассистент») звук никуда
+      не уходит. После него: сигнал, индикатор, запись команды до 1,5 с тишины, команда уходит на сервер
+      (/ai/voice: Whisper, правила, лёгкая модель ИИ), действия выполняются, «Отменить» рядом.
+      Снова ждёт слово-обращение; 10 минут без команд: выключается. История фраз: «История».
+      Распознавание Chrome (звук уходит в Google) только если выбрать его явно в «Голосовой помощник».
+   2) Заметки: цифры («выручка 4 млн», «конверсия 12%», даты, телефоны) становятся «Цифрами» для
+      Точки А/Б, наблюдения остаются заметками, явная проблема: предложение диагноза (подтвердить),
+      действие или инструмент: предложение инструмента. Тип меняется вручную на карточке. */
+(function(){
+  'use strict';
+  var KV = 'kws-1.13.8', IDLE = 10 * 60000, SIL = 1500, NOSPEECH = 6000, MAXCMD = 15000, PRE = 0.8;
+  var S = {on:false, phase:'off', w:null, ctx:null, stream:null, node:null, src:null, sink:null,
+    ring:new Float32Array(16000 * 2), ringPos:0, out:[], frac:0, acc:0, accN:0, need:3,
+    floor:0.004, cmd:null, lastAct:0, idleT:0, speaking:false, timer:null, chrome:null, seq:0, finals:{}, undoT:0, lastUndo:null};
+  var LS = 'bs_r79';
+  function pref(){ try{ return JSON.parse(localStorage.getItem(LS) || '{}') || {}; }catch(e){ return {}; } }
+  function setPref(k, v){ var p = pref(); p[k] = v; try{ localStorage.setItem(LS, JSON.stringify(p)); }catch(e){} }
+  var HIST = (function(){ var h = pref().hist; return Array.isArray(h) ? h.slice(0, 40) : []; })();
+  function saveHist(){ setPref('hist', HIST.slice(0, 40)); }
+  function E(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function T(s){ try{ toast(s); }catch(e){} }
+  function admin(){ return typeof MODE !== 'undefined' && MODE === 'admin'; }
+
+  // ── вид ──
+  var css = document.createElement('style'); css.id = 'r79css';
+  css.textContent =
+    '.r79-btn.on{background:var(--gold);color:var(--bg)}.r79-btn.on svg{stroke:var(--bg)}' +
+    '.r79-btn.ld{opacity:.6}' +
+    '.r79-bar{position:fixed;bottom:150px;left:50%;transform:translateX(-50%);z-index:96;display:none;align-items:center;gap:10px;padding:10px 12px 10px 16px;border-radius:14px;' +
+      'background:rgba(20,20,22,.96);backdrop-filter:blur(18px);border:1px solid var(--gl);font-size:13px;color:var(--t2);width:min(560px,calc(100vw - 32px));box-shadow:0 12px 34px rgba(0,0,0,.6)}' +
+    'body.light .r79-bar{background:rgba(255,255,255,.97);box-shadow:0 12px 34px rgba(0,0,0,.18)}' +
+    '.r79-bar.on{display:flex}.r79-tx{flex:1;min-width:0}' +
+    '#r79St{font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#r79Say{font-size:12px;color:var(--t2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#r79Say:empty{display:none}' +
+    '.r79-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;background:var(--t3)}' +
+    '.r79-bar[data-p="wake"] .r79-dot{background:var(--gold);opacity:.7}' +
+    '.r79-bar[data-p="cmd"] .r79-dot{background:#FF4D4D;animation:vpulse 1s infinite}' +
+    '.r79-bar[data-p="busy"] .r79-dot,.r79-bar[data-p="load"] .r79-dot{background:var(--gold);animation:vpulse .6s infinite}' +
+    '.r79-bar[data-p="cmd"]{border-color:#FF4D4D}' +
+    '.r79-bar button{flex-shrink:0;border:1px solid var(--bd2);background:transparent;color:var(--tx);border-radius:9px;padding:6px 10px;font:inherit;font-size:12px;cursor:pointer}' +
+    '.r79-bar button.pr{background:var(--gold);color:var(--bg);border-color:var(--gold)}' +
+    '.r79-bar button[hidden]{display:none}' +
+    '.r79-tm{position:fixed;top:76px;right:20px;z-index:96;display:none;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:var(--card2);border:1px solid var(--bd2);color:var(--tx);font-weight:700;font-variant-numeric:tabular-nums}' +
+    '.r79-tm.on{display:flex}.r79-tm button{border:0;background:transparent;color:var(--t2);cursor:pointer;font-size:14px;padding:0 2px}' +
+    '.r79-hs{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);z-index:120;background:var(--card);border-left:1px solid var(--bd2);display:none;flex-direction:column;box-shadow:-12px 0 34px rgba(0,0,0,.4)}' +
+    '.r79-hs.on{display:flex}.r79-hh{display:flex;align-items:center;gap:10px;padding:18px 16px;border-bottom:1px solid var(--bd)}' +
+    '.r79-hh b{flex:1;font-size:16px;color:var(--tx)}.r79-hh button{border:1px solid var(--bd2);background:transparent;color:var(--tx);border-radius:9px;padding:6px 10px;cursor:pointer;font:inherit;font-size:12px}' +
+    '.r79-hl{flex:1;overflow:auto;padding:8px 16px 24px}.r79-hi{padding:12px 0;border-bottom:1px solid var(--bd)}' +
+    '.r79-hi .q{color:var(--tx);font-weight:600;font-size:13.5px;line-height:1.4}.r79-hi .a{color:var(--t2);font-size:12.5px;margin-top:4px;line-height:1.4}' +
+    '.r79-hi .m{color:var(--t3);font-size:11px;margin-top:4px;display:flex;gap:8px;align-items:center}.r79-hi .m button{border:1px solid var(--bd2);background:transparent;color:var(--tx);border-radius:7px;padding:3px 8px;font-size:11px;cursor:pointer}' +
+    '.r79-nkw{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}' +
+    '.r79-nk,.r79-na{border:1px solid var(--bd2);background:transparent;color:var(--t2);border-radius:8px;padding:3px 8px;font:inherit;font-size:11px;cursor:pointer;line-height:1.3}' +
+    '.r79-nk{color:var(--tx);font-weight:700}.r79-nk.k-metric{background:var(--gs)}.r79-na:hover,.r79-nk:hover{border-color:var(--gold);color:var(--tx)}' +
+    '.r79-menu{position:fixed;z-index:130;background:var(--card2);border:1px solid var(--bd2);border-radius:10px;padding:4px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;min-width:160px}' +
+    '.r79-menu button{border:0;background:transparent;color:var(--tx);text-align:left;padding:8px 10px;border-radius:7px;font:inherit;font-size:13px;cursor:pointer}.r79-menu button:hover,.r79-menu button.on{background:var(--gs)}' +
+    '.r79-ib{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end;max-width:360px}' +
+    '.r79-ibk{display:flex;gap:2px;border:1px solid var(--bd);border-radius:9px;padding:2px}.r79-ibk button{border:0;background:transparent;color:var(--t3);border-radius:7px;padding:4px 7px;font:inherit;font-size:11px;cursor:pointer}' +
+    '.r79-ibk button.on{background:var(--gs);color:var(--tx);font-weight:700}.r79-ibm{font-size:11px;color:var(--t3);width:100%;text-align:right}' +
+    '.r79-set{border:1px solid var(--bd2);border-radius:12px;padding:14px 16px;margin-bottom:18px}.r79-set label{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--t2);margin-top:8px;cursor:pointer;line-height:1.4}' +
+    '.r79-set b{color:var(--tx)}' +
+    '@media (max-width:640px){.r79-bar{bottom:150px;padding:8px 8px 8px 12px;gap:6px}.r79-bar button{padding:6px 8px}.r79-ib{max-width:none;justify-content:flex-start;margin-top:8px}}';
+  document.head.appendChild(css);
+
+  var EAR = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.5a6 6 0 0 1 12 0c0 3.5-3.5 4.5-3.5 7.5a3 3 0 0 1-5.5 1.6"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-1.5 2-1.5 3"/><path d="M3 4.5l2 1.5M21 4.5l-2 1.5"/></svg>';
+  function mountUI(){
+    var mic = document.getElementById('micBtn');
+    if(mic && !document.getElementById('r79Btn')){
+      mic.insertAdjacentHTML('afterend', '<div class="ic board-mic admin-only r79-btn" id="r79Btn" role="button" aria-pressed="false" title="Слушать «Джарвис»: команды голосом без кнопки" onclick="R79.toggle()">' + EAR + '</div>');
+    }
+    if(!document.getElementById('r79Bar')){
+      var b = document.createElement('div'); b.className = 'r79-bar'; b.id = 'r79Bar'; b.setAttribute('role', 'status'); b.setAttribute('aria-live', 'polite');
+      b.innerHTML = '<span class="r79-dot"></span><div class="r79-tx"><div id="r79St"></div><div id="r79Say"></div></div>' +
+        '<button type="button" data-a="undo" hidden>Отменить</button><button type="button" data-a="hist">История</button><button type="button" data-a="off">Выключить</button>';
+      b.addEventListener('click', function(e){ var x = e.target.closest('button'); if(!x) return; var a = x.getAttribute('data-a');
+        if(a === 'off') stop('Прослушивание выключено'); else if(a === 'hist') R79.history(); else if(a === 'undo') R79.undo(); });
+      document.body.appendChild(b);
+    }
+    if(!document.getElementById('r79Tm')){
+      var t = document.createElement('div'); t.className = 'r79-tm'; t.id = 'r79Tm';
+      t.innerHTML = '<span id="r79TmV"></span><button type="button" title="Остановить таймер" onclick="R79.timer(0)">✕</button>';
+      document.body.appendChild(t);
+    }
+  }
+  function bar(phase, st, say){
+    mountUI();
+    var b = document.getElementById('r79Bar'); if(!b) return;
+    if(phase) b.setAttribute('data-p', phase);
+    b.classList.toggle('on', S.on || phase === 'load');
+    if(st != null) document.getElementById('r79St').textContent = st;
+    if(say != null) document.getElementById('r79Say').textContent = say;
+    var btn = document.getElementById('r79Btn');
+    if(btn){ btn.classList.toggle('on', S.on); btn.classList.toggle('ld', phase === 'load'); btn.setAttribute('aria-pressed', S.on ? 'true' : 'false'); }
+  }
+  function phase(p, st, say){ S.phase = p; bar(p, st, say); }
+  var WAIT = 'Жду «Джарвис». Например: «Джарвис, добавь задачу позвонить поставщику до пятницы»';
+
+  // ── звук ──
+  function chime(kind){
+    try{
+      var ac = S.ctx || new (window.AudioContext || window.webkitAudioContext)();
+      var t0 = ac.currentTime + 0.01, notes = kind === 'end' ? [880, 660] : (kind === 'timer' ? [880, 880, 880] : [660, 990]);
+      notes.forEach(function(f, i){
+        var o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t0 + i * 0.14); g.gain.exponentialRampToValueAtTime(0.18, t0 + i * 0.14 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.14 + 0.13);
+        o.connect(g); g.connect(ac.destination); o.start(t0 + i * 0.14); o.stop(t0 + i * 0.14 + 0.14);
+      });
+    }catch(e){}
+  }
+  function speak(t){
+    if(!t || pref().speak === false || !window.speechSynthesis) return;
+    try{
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(String(t).slice(0, 600)); u.lang = 'ru-RU'; u.rate = 1.05;
+      var v = speechSynthesis.getVoices().filter(function(x){ return /^ru/i.test(x.lang); })[0]; if(v) u.voice = v;
+      S.speaking = true; u.onend = u.onerror = function(){ S.speaking = false; };
+      setTimeout(function(){ S.speaking = false; }, 30000);
+      speechSynthesis.speak(u);
+    }catch(e){ S.speaking = false; }
+  }
+
+  // ── микрофон и поток 16 кГц ──
+  function startAudio(){
+    var md = navigator.mediaDevices;
+    if(!md || !md.getUserMedia) return Promise.reject(new Error('Браузер не даёт микрофон: откройте платформу в Chrome, Edge или Safari по https'));
+    return md.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1}}).then(function(st){
+      S.stream = st;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      S.ctx = new AC(); S.need = S.ctx.sampleRate / 16000; S.frac = 0; S.acc = 0; S.accN = 0; S.out = [];
+      S.src = S.ctx.createMediaStreamSource(st);
+      S.sink = S.ctx.createGain(); S.sink.gain.value = 0; S.sink.connect(S.ctx.destination);
+      var code = "class P extends AudioWorkletProcessor{process(i){var c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true}}registerProcessor('r79p',P)";
+      if(S.ctx.audioWorklet && window.AudioWorkletNode){
+        var url = URL.createObjectURL(new Blob([code], {type: 'application/javascript'}));
+        return S.ctx.audioWorklet.addModule(url).then(function(){
+          S.node = new AudioWorkletNode(S.ctx, 'r79p'); S.node.port.onmessage = function(e){ frame(e.data); };
+          S.src.connect(S.node); S.node.connect(S.sink);
+        });
+      }
+      var sp = S.ctx.createScriptProcessor(4096, 1, 1);
+      sp.onaudioprocess = function(e){ frame(new Float32Array(e.inputBuffer.getChannelData(0))); };
+      S.src.connect(sp); sp.connect(S.sink); S.node = sp;
+    });
+  }
+  function stopAudio(){
+    try{ if(S.node){ S.node.disconnect(); if(S.node.port) S.node.port.onmessage = null; } }catch(e){}
+    try{ if(S.src) S.src.disconnect(); }catch(e){}
+    try{ if(S.stream) S.stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+    try{ if(S.ctx) S.ctx.close(); }catch(e){}
+    S.node = S.src = S.stream = S.ctx = S.sink = null;
+  }
+  // входной звук (44,1 / 48 кГц) → 16 кГц усреднением, кусками по 100 мс
+  function frame(x){
+    if(!S.on) return;
+    for(var i = 0; i < x.length; i++){
+      S.acc += x[i]; S.accN++; S.frac += 1;
+      if(S.frac >= S.need){ S.out.push(S.acc / S.accN); S.acc = 0; S.accN = 0; S.frac -= S.need; }
+    }
+    while(S.out.length >= 1600){ chunk(new Float32Array(S.out.splice(0, 1600))); }
+  }
+  function rms(a, from, to){ var s = 0; for(var i = from; i < to; i++) s += a[i] * a[i]; return Math.sqrt(s / Math.max(1, to - from)); }
+  function chunk(pcm){
+    // кольцо последних 2 с: начало команды, сказанной на одном дыхании со словом-обращением
+    for(var i = 0; i < pcm.length; i++){ S.ring[S.ringPos] = pcm[i]; S.ringPos = (S.ringPos + 1) % S.ring.length; }
+    if(S.speaking) return;
+    if(S.phase === 'wake'){
+      var r = rms(pcm, 0, pcm.length); S.floor = Math.max(0.0015, Math.min(0.05, S.floor * 0.97 + r * 0.03));
+      if(S.w && S.wReady) S.w.postMessage({type: 'audio', pcm: pcm}, [pcm.buffer]);
+      return;
+    }
+    if(S.phase !== 'cmd' || !S.cmd) return;
+    var c = S.cmd, thr = Math.max(0.01, S.floor * 3.2);
+    c.parts.push(pcm.slice(0));
+    for(var f = 0; f < pcm.length; f += 320){
+      var v = rms(pcm, f, Math.min(pcm.length, f + 320));
+      if(v > thr){ c.speech = true; c.sil = 0; } else if(c.speech) c.sil += 20;
+    }
+    if(S.w && S.wReady) S.w.postMessage({type: 'audio', pcm: pcm}, [pcm.buffer]);
+    var el = Date.now() - c.t0;
+    if(c.speech && c.sil >= SIL) finishCmd();
+    else if(!c.speech && el > NOSPEECH) cancelCmd('Не расслышал команду');
+    else if(el > MAXCMD) finishCmd();
+  }
+  function preroll(sec){
+    var n = Math.min(S.ring.length, Math.round(16000 * sec)), out = new Float32Array(n), st = (S.ringPos - n + S.ring.length) % S.ring.length;
+    for(var i = 0; i < n; i++) out[i] = S.ring[(st + i) % S.ring.length];
+    return out;
+  }
+  function wav(parts){
+    var n = parts.reduce(function(s, p){ return s + p.length; }, 0), b = new ArrayBuffer(44 + n * 2), v = new DataView(b), o = 44;
+    function str(off, s){ for(var i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); }
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+    parts.forEach(function(p){ for(var i = 0; i < p.length; i++){ var s = Math.max(-1, Math.min(1, p[i])); v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); o += 2; } });
+    return new Blob([b], {type: 'audio/wav'});
+  }
+
+  // ── слово-обращение в браузере (Web Worker) ──
+  function startWorker(){
+    if(window.R79_TEST && window.R79_TEST.noWorker) return Promise.resolve();
+    return new Promise(function(res, rej){
+      var w;
+      try{ w = new Worker('/vendor/' + KV + '/bskws.js'); }catch(e){ rej(new Error('Браузер не запускает распознавание на устройстве')); return; }
+      S.w = w; S.wReady = false;
+      var to = setTimeout(function(){ rej(new Error('Модель распознавания грузится слишком долго, попробуйте ещё раз')); }, 120000);
+      w.onmessage = function(e){
+        var m = e.data || {};
+        if(m.type === 'ready'){ clearTimeout(to); S.wReady = true; res(); }
+        else if(m.type === 'progress'){ if(S.phase === 'load') bar('load', 'Загружаю модель «Джарвис» в браузер (один раз)…', 'Звук не уходит с устройства до слова «Джарвис»'); }
+        else if(m.type === 'error'){ clearTimeout(to); rej(new Error(m.msg || 'ошибка модели')); }
+        else if(m.type === 'wake'){ if(S.phase === 'wake') onWake(m.word); }
+        else if(m.type === 'partial'){ if(S.phase === 'cmd') bar(null, null, '«' + m.text + '»'); }
+        else if(m.type === 'final'){ var f = S.finals[m.id]; if(f){ delete S.finals[m.id]; f(m.text || ''); } }
+      };
+      w.onerror = function(e){ clearTimeout(to); rej(new Error((e && e.message) || 'ошибка распознавания')); };
+      w.postMessage({type: 'init', base: '/vendor/' + KV + '/', model: '/vendor/kws-model/'});
+    });
+  }
+  function flushWorker(){
+    if(!S.w || !S.wReady) return Promise.resolve('');
+    var id = ++S.seq;
+    return new Promise(function(res){ S.finals[id] = res; S.w.postMessage({type: 'flush', id: id}); setTimeout(function(){ if(S.finals[id]){ delete S.finals[id]; res(''); } }, 1500); });
+  }
+
+  // ── Chrome (только по явному выбору: звук уходит в Google) ──
+  var WAKE_RE = /(?:^|\s)(джарвис|жарвис|джервис|джавис|jarvis|ассистент|асистент)[а-я]*[,.!]?\s*/i;
+  function startChrome(){
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR) return Promise.reject(new Error('Распознавание Chrome есть только в Chrome и Edge'));
+    var pend = null;
+    var r = new SR(); r.lang = 'ru-RU'; r.continuous = true; r.interimResults = false;
+    r.onresult = function(e){
+      for(var i = e.resultIndex; i < e.results.length; i++){
+        if(!e.results[i].isFinal) continue;
+        var tx = String(e.results[i][0].transcript || '').trim(); if(!tx) continue;
+        var m = tx.match(WAKE_RE);
+        if(m){ var rest = tx.slice(m.index + m[0].length).trim(); chime('start');
+          if(rest){ sendText(rest); } else { pend = Date.now(); phase('cmd', 'Слушаю команду…', ''); } }
+        else if(pend && Date.now() - pend < NOSPEECH){ pend = null; sendText(tx); }
+      }
+    };
+    r.onend = function(){ if(S.on && S.chrome === r) setTimeout(function(){ try{ r.start(); }catch(e){} }, 250); };
+    r.onerror = function(e){ if(e && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) stop('Нет доступа к микрофону'); };
+    S.chrome = r; r.start();
+    return Promise.resolve();
+  }
+
+  // ── вкл / выкл ──
+  function start(){
+    if(S.on) return Promise.resolve();
+    if(!admin()){ T('Голосовой помощник работает у команды'); return Promise.resolve(); }
+    if(typeof recOn !== 'undefined' && recOn) try{ stopVoice(); }catch(e){}
+    var engine = pref().engine === 'chrome' ? 'chrome' : 'local';
+    S.on = true; S.lastAct = Date.now();
+    phase('load', engine === 'chrome' ? 'Включаю распознавание Chrome…' : 'Загружаю модель «Джарвис»…', engine === 'chrome' ? 'Звук уходит в Google: вы выбрали это в настройках' : 'Звук не уходит с устройства до слова «Джарвис»');
+    var p = engine === 'chrome' ? startChrome() : startAudio().then(startWorker);
+    return p.then(function(){
+      if(!S.on) return;
+      phase('wake', WAIT, '');
+      clearInterval(S.idleT);
+      var idle = (window.R79_TEST && R79_TEST.idle) || IDLE;
+      S.idleT = setInterval(function(){ if(S.on && S.phase === 'wake' && Date.now() - S.lastAct > idle) stop('10 минут без команд: прослушивание выключено'); }, Math.min(15000, idle / 4));
+    }, function(err){
+      var msg = (err && err.message) || 'Не удалось включить';
+      if(/Permission|NotAllowed|denied/i.test(msg)) msg = 'Нет доступа к микрофону: разрешите его для платформы в настройках браузера';
+      stop(null);
+      bar('off', 'Не включилось', msg); var b = document.getElementById('r79Bar'); if(b){ b.classList.add('on'); setTimeout(function(){ if(!S.on) b.classList.remove('on'); }, 9000); }
+    });
+  }
+  function stop(msg){
+    var was = S.on;
+    S.on = false; S.cmd = null; clearInterval(S.idleT);
+    try{ if(S.chrome){ var r = S.chrome; S.chrome = null; r.onend = null; r.stop(); } }catch(e){}
+    try{ if(S.w){ S.w.terminate(); } }catch(e){}
+    S.w = null; S.wReady = false;
+    stopAudio();
+    phase('off', '', '');
+    if(was && msg){ chime('end'); T(msg); }
+  }
+
+  // ── команда ──
+  function onWake(word){
+    S.lastAct = Date.now();
+    chime('start');
+    S.cmd = {parts: [preroll(PRE)], speech: false, sil: 0, t0: Date.now()};
+    phase('cmd', 'Слушаю команду…', '');
+  }
+  function cancelCmd(msg){
+    S.cmd = null;
+    if(S.w && S.wReady) S.w.postMessage({type: 'mode', mode: 'wake'});
+    phase('wake', WAIT, msg || '');
+  }
+  function finishCmd(){
+    var c = S.cmd; if(!c) return; S.cmd = null;
+    phase('busy', 'Распознаю…', '');
+    var audio = wav(c.parts);
+    flushWorker().then(function(local){ return send(audio, local); });
+  }
+  function ctxJSON(){
+    var c = null; try{ c = voiceContext(); }catch(e){}
+    c = c || {};
+    try{ c.team = (typeof KB12_WHO !== 'undefined' ? KB12_WHO : ['Рустам', 'Береке']).slice(); }catch(e){}
+    return c;
+  }
+  function send(audio, local){
+    if(!window.BSSync || !BSSync.api){ done({say: 'Нет связи с сервером', actions: []}, local); return Promise.resolve(); }
+    var bd = '----bs79' + Date.now().toString(36);
+    var head = function(n){ return '--' + bd + '\r\nContent-Disposition: form-data; name="' + n + '"\r\n\r\n'; };
+    var body = new Blob([head('context'), JSON.stringify(ctxJSON()), '\r\n', head('local'), local || '', '\r\n',
+      '--' + bd + '\r\nContent-Disposition: form-data; name="audio"; filename="cmd.wav"\r\nContent-Type: audio/wav\r\n\r\n', audio, '\r\n--' + bd + '--\r\n']);
+    return Promise.resolve(BSSync.api('POST', '/ai/voice', body, {'Content-Type': 'multipart/form-data; boundary=' + bd}))
+      .then(function(r){ return r.json(); })
+      .then(function(j){ done(j || {}, local); }, function(){ done({say: 'Сервер не ответил, команда не выполнена', actions: []}, local); });
+  }
+  function sendText(text){
+    S.lastAct = Date.now();
+    phase('busy', 'Выполняю…', '«' + text + '»');
+    return Promise.resolve(BSSync.api('POST', '/ai/command', {text: text, context: ctxJSON()})).then(function(r){ return r.json(); })
+      .then(function(j){ j = j || {}; if(!j.text) j.text = text; done(j, text); }, function(){ done({say: 'Сервер не ответил', actions: []}, text); });
+  }
+
+  // ── выполнение и отмена ──
+  var BOARD_OPS = {add_node:1, edit_node:1, delete_node:1, link:1, unlink:1, set_point:1, set_strategy:1, pick_diag:1, pick_tool:1, task_done:1, attach:1, select:0};
+  function done(j, local){
+    S.lastAct = Date.now();
+    var heard = String(j.heard || j.text || local || '').trim();
+    var acts = Array.isArray(j.actions) ? j.actions : [];
+    var res = run(acts);
+    var say = res.say || j.say || (acts.length ? (res.n ? 'Готово' : 'Не получилось выполнить') : (j.error || 'Не понял команду'));
+    if(res.stop){ stop(say); addHist(heard, say, j, null); return; }
+    var entry = addHist(heard, say, j, res.undo);
+    S.lastUndo = res.undo ? entry : null;
+    if(S.on) phase('wake', heard ? '«' + heard + '»' : WAIT, say);
+    var ub = document.querySelector('#r79Bar [data-a="undo"]');
+    if(ub){ ub.hidden = !res.undo; clearTimeout(S.undoT); S.undoT = setTimeout(function(){ ub.hidden = true; if(S.on && S.phase === 'wake') bar(null, WAIT); }, 15000); }
+    if(say) T(say);
+    speak(res.speak || say);
+    if(window.R79_TEST) window.R79_TEST.last = {heard: heard, say: say, n: res.n, via: j.via};
+  }
+  function run(acts){
+    var out = {n: 0, say: '', speak: '', stop: false, undo: null};
+    var snap = null, kb = null, hasBoard = acts.some(function(a){ return a && BOARD_OPS[String(a.op || '').toLowerCase()]; });
+    try{ if(hasBoard && typeof snapState === 'function') snap = snapState(); }catch(e){}
+    acts.forEach(function(a){
+      if(!a || typeof a !== 'object') return;
+      var op = String(a.op || '').toLowerCase();
+      try{
+        if(op === 'stop_listen'){ out.stop = true; out.n++; }
+        else if(op === 'timer'){ R79.timer(+a.sec || 0, true); out.n++; }
+        else if(op === 'read_summary'){ out.speak = summary(); out.say = 'Итоги доски'; out.n++; }
+        else if(op === 'undo'){ R79.undo(true); out.n++; }
+        else if(op === 'plan_add'){ if(!kb){ if(!KANBAN) loadKanban(); kb = JSON.stringify(KANBAN); } if(planAdd(a)) out.n++; }
+        else if(op === 'attach'){ if(attach(a)) out.n++; }
+        else {
+          var k = runVoiceActions([a]) || 0; out.n += k;
+          if(k && op === 'add_node'){
+            var n = nodes.find(function(x){ return x.id === recentIds[0]; });
+            if(n && a.who && n.task){ n.task.who = a.who; n.desc = (n.desc ? n.desc + '\n' : '') + 'Ответственный: ' + a.who; vRerender(n); }
+            if(n && n.type === 'note') nkSoon(n.id);
+          }
+        }
+      }catch(e){ console.error('R79 action', a, e); }
+    });
+    if(out.n && (snap || kb)){
+      out.undo = function(){
+        if(snap){ applyState(snap); try{ saveBoardSilent(); }catch(e){} }
+        if(kb){ KANBAN = kb12Norm(JSON.parse(kb)); saveKanban(); try{ if(section === 'kanban') renderKanban(); }catch(e){} }
+      };
+    }
+    return out;
+  }
+  function planAdd(a){
+    if(!KANBAN) loadKanban();
+    var cols = KANBAN.cols || [], col = (cols.find(function(x){ return x.id === 'idea'; }) || cols[0] || {id: 'idea'}).id;
+    var t = String(a.title || '').trim(); if(!t) return false;
+    var c = {id: r12Id(), col: col, t: t.slice(0, 140), who: a.who || '', pri: 'mid', done: false, created: new Date().toISOString()};
+    if(/^\d{4}-\d\d-\d\d$/.test(a.date || '')) c.due = a.date;
+    kb12Log(c, 'Карточка создана голосом («Джарвис»)');
+    var i = KANBAN.cards.findIndex(function(x){ return x.col === col; });
+    if(i < 0) KANBAN.cards.push(c); else KANBAN.cards.splice(i, 0, c);
+    saveKanban(); try{ if(section === 'kanban') renderKanban(); }catch(e){}
+    return true;
+  }
+  function attach(a){
+    var x = vNode(a.id), to = vNode(a.to);
+    if(!x || !to || x.id === to.id || x.role || x.type === 'root') return false;
+    var par = vParents()[x.id];
+    if(par != null && par !== to.id) links = links.filter(function(l){ return !((l.a === par && l.b === x.id) || (l.a === x.id && l.b === par)); });
+    if(!hasLink(to.id, x.id)) makeLink(to.id, x.id);
+    try{
+      var el = document.getElementById('n' + x.id), w = (el && el.offsetWidth) || 240, h = (el && el.offsetHeight) || 120;
+      var sp = fcPlace(to, w, h, x.id); x.x = sp.x; x.y = sp.y;
+      if(el){ el.style.left = x.x + 'px'; el.style.top = x.y + 'px'; }
+    }catch(e){}
+    drawLinks(); try{ saveBoardSilent(); }catch(e){}
+    return true;
+  }
+  function summary(){
+    var by = function(t){ return nodes.filter(function(n){ return n.type === t; }); };
+    var pa = nodes.find(function(n){ return n.role === 'pointA'; }), pb = nodes.find(function(n){ return n.role === 'pointB'; });
+    var name = (curBoard && curBoard.info && curBoard.info.res) || ((document.getElementById('bName') || {}).value) || 'резидента';
+    var parts = ['Доска: ' + name + '.'];
+    function pt(n, l){ if(n){ var t = [n.title, n.desc].filter(function(s){ return s && !/^Точка/i.test(s); }).join('. '); if(t) parts.push(l + ': ' + t + '.'); } }
+    pt(pa, 'Точка А'); pt(pb, 'Точка Б');
+    var d = by('diag').map(function(n){ return n.title; }), tl = by('tool').map(function(n){ return n.title; });
+    var tk = by('task').filter(function(n){ return !(n.task && n.task.completed); });
+    parts.push(d.length ? 'Диагнозы: ' + d.slice(0, 8).join(', ') + '.' : 'Диагнозов пока нет.');
+    if(tl.length) parts.push('Лечение: ' + tl.slice(0, 8).join(', ') + '.');
+    if(tk.length) parts.push('Открытых задач: ' + tk.length + '. ' + tk.slice(0, 5).map(function(n){ var dt = n.task && n.task.date; return n.title + (dt ? ', до ' + String(dt).slice(8, 10) + '.' + String(dt).slice(5, 7) : ''); }).join('; ') + '.');
+    else parts.push('Открытых задач нет.');
+    var t = parts.join(' ');
+    bar(null, null, t);
+    return t;
+  }
+  function addHist(heard, say, j, undoFn){
+    var e = {id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), at: new Date().toISOString(), q: heard, a: say, via: j && j.via || '', ms: j && j.asr_ms || 0, n: (j && j.actions || []).length};
+    HIST.unshift(e); if(HIST.length > 40) HIST.length = 40; saveHist();
+    if(undoFn) UNDO[e.id] = undoFn;
+    paintHist();
+    return e;
+  }
+  var UNDO = {};
+  var VIA = {rules: 'правила', 'rules-local': 'правила', ai: 'ИИ', note: 'заметка'};
+  function paintHist(){
+    var l = document.getElementById('r79HL'); if(!l) return;
+    l.innerHTML = HIST.length ? HIST.map(function(e){
+      var d = new Date(e.at), hm = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+      return '<div class="r79-hi"><div class="q">' + E(e.q || '(тишина)') + '</div><div class="a">' + E(e.a || '') + '</div>' +
+        '<div class="m"><span>' + hm + (VIA[e.via] ? ' · ' + VIA[e.via] : '') + '</span>' +
+        (UNDO[e.id] ? '<button type="button" onclick="R79.undo(false,\'' + e.id + '\')">Отменить</button>' : '') + '</div></div>';
+    }).join('') : '<div class="empt">Здесь появятся фразы, которые услышал помощник, и что он сделал</div>';
+  }
+
+  // ── таймер ──
+  function tmPaint(){
+    var el = document.getElementById('r79Tm'), v = document.getElementById('r79TmV'); if(!el || !v) return;
+    if(!S.timer){ el.classList.remove('on'); return; }
+    var s = Math.max(0, Math.round((S.timer.end - Date.now()) / 1000));
+    v.textContent = '⏱ ' + Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2);
+    el.classList.add('on');
+    if(s <= 0){ clearInterval(S.timer.iv); S.timer = null; el.classList.remove('on'); chime('timer'); T('Время вышло'); speak('Время вышло'); }
+  }
+
+  // ═══ Заметки по типам ═══
+  var NK = {metric: 'Цифры', note: 'Заметка', diag: 'Диагноз', tool: 'Инструмент'};
+  var PLACE = {'': 1, 'заметка': 1, 'подтема': 1, 'новый узел': 1};
+  function libs(){
+    return {diag: (typeof DIAG !== 'undefined' ? DIAG : []).map(function(d){ return d.title; }),
+      tools: (typeof TOOLS !== 'undefined' ? TOOLS : []).map(function(d){ return d.title; })};
+  }
+  function classify(texts){
+    if(!window.BSSync || !BSSync.api || !texts.length) return Promise.resolve([]);
+    var L = libs();
+    return Promise.resolve(BSSync.api('POST', '/ai/notekind', {items: texts, diag: L.diag, tools: L.tools}))
+      .then(function(r){ return r && r.ok ? r.json() : null; }).then(function(j){ return (j && j.kinds) || []; }, function(){ return []; });
+  }
+  var nkQ = {}, nkT = 0;
+  function nkSoon(id){ nkQ[id] = 1; clearTimeout(nkT); nkT = setTimeout(nkRun, 900); }
+  function nkRun(){
+    var ids = Object.keys(nkQ).map(Number); nkQ = {};
+    var list = ids.map(function(id){ return nodes.find(function(n){ return n.id === id; }); }).filter(function(n){
+      return n && n.type === 'note' && !PLACE[String(n.title || '').trim().toLowerCase()] && !(n.nk && (n.nk.manual || n.nk.t === n.title));
+    });
+    if(!list.length || !admin()) return;
+    classify(list.map(function(n){ return n.title; })).then(function(ks){
+      list.forEach(function(n, i){ var k = ks[i]; if(!k || !nodes.includes(n) || n.type !== 'note') return;
+        n.nk = {kind: k.kind, match: k.match || '', label: k.label || '', value: k.value || '', point: k.point || '', t: n.title};
+        deco(n);
+        var it = (typeof INBOX !== 'undefined' ? INBOX : []).find(function(x){ return x.nodeId === n.id && x.boardId === (curBoard ? curBoard.id : ''); });
+        if(it && !it.kindManual){ it.kind = k.kind; it.match = k.match || ''; it.point = k.point || ''; try{ saveInbox(); }catch(e){} }
+      });
+      try{ saveBoardSilent(); }catch(e){}
+    });
+  }
+  // строка типа под текстом заметки: тип (меняется вручную) и что с ней сделать
+  function deco(n){
+    var el = n && document.getElementById('n' + n.id); if(!el) return;
+    var old = el.querySelector('.r79-nkw'); if(old) old.remove();
+    if(n.type !== 'note' || !n.nk || !NK[n.nk.kind] || !admin() || (typeof viewingArchive !== 'undefined' && viewingArchive)) return;
+    var k = n.nk.kind, id = n.id, h = '<button type="button" class="r79-nk k-' + k + '" title="Тип заметки: нажмите, чтобы поменять" onclick="event.stopPropagation();R79.nkMenu(' + id + ',event)">' + NK[k] + (k === 'diag' ? '?' : '') + ' ▾</button>';
+    if(k === 'metric') h += '<button type="button" class="r79-na" onclick="event.stopPropagation();R79.toPoint(' + id + ',\'A\')">В точку А</button><button type="button" class="r79-na" onclick="event.stopPropagation();R79.toPoint(' + id + ',\'B\')">В точку Б</button>';
+    if(k === 'diag') h += '<button type="button" class="r79-na" onclick="event.stopPropagation();R79.convert(' + id + ',\'diag\')">Поставить диагноз' + (n.nk.match ? ' «' + E(n.nk.match) + '»' : '') + '</button>';
+    if(k === 'tool') h += '<button type="button" class="r79-na" onclick="event.stopPropagation();R79.convert(' + id + ',\'tool\')">Назначить' + (n.nk.match ? ' «' + E(n.nk.match) + '»' : ' инструментом') + '</button>';
+    var box = el.querySelector('.n-in') || el;
+    box.insertAdjacentHTML('beforeend', '<div class="r79-nkw" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">' + h + '</div>');
+  }
+  function menu(x, y, items){
+    var m = document.getElementById('r79Menu'); if(m) m.remove();
+    m = document.createElement('div'); m.className = 'r79-menu'; m.id = 'r79Menu'; m.setAttribute('role', 'menu');
+    m.innerHTML = items.map(function(it, i){ return '<button type="button" role="menuitem" data-i="' + i + '" class="' + (it[2] ? 'on' : '') + '">' + E(it[0]) + '</button>'; }).join('');
+    document.body.appendChild(m);
+    var r = m.getBoundingClientRect();
+    m.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px'; m.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + 'px';
+    m.addEventListener('click', function(e){ var b = e.target.closest('button'); if(!b) return; m.remove(); var f = items[+b.getAttribute('data-i')][1]; if(f) f(); });
+    setTimeout(function(){ document.addEventListener('mousedown', function off(e){ if(!m.contains(e.target)){ m.remove(); document.removeEventListener('mousedown', off); } }); }, 0);
+  }
+  function libIdx(src, title, match){
+    var i = -1;
+    if(match) i = src.findIndex(function(d){ return d.title === match; });
+    if(i < 0){ try{ i = vFind(src, title); }catch(e){} }
+    return i;
+  }
+
+  // ── «Идеи и заметки → С досок»: тип и действие у каждой заметки ──
+  var ibBusy = false;
+  function ibDecorate(){
+    if(typeof section === 'undefined' || section !== 'notes' || typeof R8V === 'undefined' || R8V.notes === 'kb' || R8V.notes === 'an' || !admin()) return;
+    var body = document.getElementById('stubBody'); if(!body) return;
+    var need = [];
+    body.querySelectorAll('.ct-b[onclick^="noteToLib("]').forEach(function(b){
+      var box = b.parentNode; if(!box || box.getAttribute('data-r79')) return;
+      var i = +(String(b.getAttribute('onclick')).match(/noteToLib\((\d+)/) || [])[1]; var x = INBOX[i]; if(!x) return;
+      box.setAttribute('data-r79', '1');
+      if(!x.kind){ need.push(i); }
+      var k = x.kind || '';
+      var h = '<div class="r79-ibk" role="group" aria-label="Тип заметки">' + ['metric', 'note', 'diag', 'tool'].map(function(t){
+        return '<button type="button" class="' + (k === t ? 'on' : '') + '" onclick="R79.ibKind(' + i + ',\'' + t + '\')">' + NK[t] + '</button>'; }).join('') + '</div>';
+      if(k === 'metric') h += x.boardId ? '<button type="button" class="ct-b" onclick="R79.ibPoint(' + i + ',\'A\')">В точку А</button><button type="button" class="ct-b" onclick="R79.ibPoint(' + i + ',\'B\')">В точку Б</button>' : '';
+      if(k === 'diag') h += '<div class="ct-b" onclick="noteToLib(' + i + ',\'diag\')">Подтвердить диагноз</div>';
+      if(k === 'tool') h += '<div class="ct-b" onclick="noteToLib(' + i + ',\'tool\')">В инструменты</div>';
+      if(k === 'metric' || k === 'note') h += '<div class="ct-b" onclick="R79.ibKeep(' + i + ')">' + (k === 'metric' ? 'Оставить в цифрах' : 'Оставить заметкой') + '</div>';
+      if(!k) h += '<div class="ct-b" onclick="noteToLib(' + i + ',\'diag\')">В болезни</div><div class="ct-b" onclick="noteToLib(' + i + ',\'tool\')">В инструменты</div>';
+      h += '<button type="button" class="hi-del" onclick="dropNote(' + i + ')" aria-label="Удалить">✕</button>';
+      if(x.match && (k === 'diag' || k === 'tool')) h += '<div class="r79-ibm">Похоже на «' + E(x.match) + '»</div>';
+      box.className = 'r79-ib'; box.removeAttribute('style'); box.innerHTML = h;
+    });
+    if(need.length && !ibBusy){
+      ibBusy = true;
+      classify(need.map(function(i){ return INBOX[i].text + (INBOX[i].desc ? '. ' + INBOX[i].desc : ''); })).then(function(ks){
+        var ch = 0;
+        need.forEach(function(i, j){ var k = ks[j], x = INBOX[i]; if(k && x && !x.kind){ x.kind = k.kind; x.match = k.match || ''; x.point = k.point || ''; ch++; } });
+        if(ch){ try{ saveInbox(); }catch(e){} try{ renderNotes(); }catch(e){} }
+        ibBusy = false;
+      });
+    }
+  }
+
+  // ── встраивание ──
+  (function hook(){
+    var _rn = window.renderNode;
+    if(typeof _rn === 'function') window.renderNode = renderNode = function(n){ var r = _rn.apply(this, arguments); try{ if(n && n.type === 'note' && n.nk) deco(n); }catch(e){} return r; };
+    var _ed = window.editNode;
+    if(typeof _ed === 'function') window.editNode = editNode = function(id, f, v){
+      var r = _ed.apply(this, arguments);
+      try{ var n = nodes.find(function(x){ return x.id === id; }); if(n && n.type === 'note' && f === 'title' && !(n.nk && n.nk.manual)) nkSoon(id); }catch(e){}
+      return r;
+    };
+    var _notes = window.renderNotes;
+    if(typeof _notes === 'function') window.renderNotes = renderNotes = function(){ var r = _notes.apply(this, arguments); try{ ibDecorate(); }catch(e){ console.error(e); } return r; };
+    var _tv = window.toggleVoice;
+    if(typeof _tv === 'function') window.toggleVoice = toggleVoice = function(){ if(S.on) stop('«Джарвис» выключен: включаю обычный микрофон'); return _tv.apply(this, arguments); };
+    var _vh = window.openVoiceHelp;
+    if(typeof _vh === 'function') window.openVoiceHelp = openVoiceHelp = function(){
+      var r = _vh.apply(this, arguments);
+      try{
+        var b = document.getElementById('edBody'), p = pref();
+        if(b) b.insertAdjacentHTML('afterbegin', '<div class="r79-set"><div class="dh" style="margin:0">Слушать «Джарвис»</div>' +
+          '<div style="font-size:13px;color:var(--t2);line-height:1.5;margin-top:6px">Включите кнопку с ухом на доске и говорите: «Джарвис, добавь задачу … до пятницы, ответственный Береке», «Джарвис, поставь диагноз …», «Джарвис, открой доску Асета», «Джарвис, таймер на 10 минут», «Джарвис, прочитай итоги», «Джарвис, отмени». После команды помощник снова ждёт обращения, через 10 минут тишины выключается сам.</div>' +
+          '<label><input type="radio" name="r79e" value="local"' + (p.engine !== 'chrome' ? ' checked' : '') + ' onchange="R79.engine(this.value)"><span><b>На устройстве</b> (рекомендуется). Слово «Джарвис» распознаёт сам браузер, звук не уходит никуда, пока вы не обратились. Команда распознаётся на сервере платформы.</span></label>' +
+          '<label><input type="radio" name="r79e" value="chrome"' + (p.engine === 'chrome' ? ' checked' : '') + ' onchange="R79.engine(this.value)"><span><b>Распознавание Chrome</b>. Работает без загрузки модели, но весь звук, пока включено, уходит в Google.</span></label>' +
+          '<label><input type="checkbox"' + (p.speak !== false ? ' checked' : '') + ' onchange="R79.speakPref(this.checked)"><span>Отвечать голосом</span></label></div>');
+      }catch(e){}
+      return r;
+    };
+  })();
+
+  window.R79 = {
+    toggle: function(){ return S.on ? stop('Прослушивание выключено') : start(); },
+    start: start, stop: stop,
+    state: function(){ return {on: S.on, phase: S.phase, ready: !!S.wReady}; },
+    // тест и отладка: слово-обращение услышано (как от модели в Web Worker)
+    wake: function(){ if(S.on && S.phase === 'wake') onWake('test'); },
+    text: function(t){ return sendText(t); },
+    undo: function(silent, id){
+      var e = id ? HIST.find(function(x){ return x.id === id; }) : (S.lastUndo || HIST.find(function(x){ return UNDO[x.id]; }));
+      var f = e && UNDO[e.id];
+      if(!f){ if(silent){ try{ undo(); }catch(err){} } else T('Нечего отменять'); return; }
+      delete UNDO[e.id]; if(S.lastUndo === e) S.lastUndo = null;
+      try{ f(); }catch(err){ console.error(err); }
+      e.a = (e.a ? e.a + '. ' : '') + 'Отменено'; saveHist(); paintHist();
+      var ub = document.querySelector('#r79Bar [data-a="undo"]'); if(ub) ub.hidden = true;
+      if(!silent) T('Отменено');
+    },
+    history: function(){
+      var h = document.getElementById('r79Hist');
+      if(!h){
+        h = document.createElement('div'); h.className = 'r79-hs'; h.id = 'r79Hist'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-label', 'История голосовых команд');
+        h.innerHTML = '<div class="r79-hh"><b>Что услышал «Джарвис»</b><button type="button" onclick="R79.clearHist()">Очистить</button><button type="button" onclick="document.getElementById(\'r79Hist\').classList.remove(\'on\')" aria-label="Закрыть">✕</button></div><div class="r79-hl" id="r79HL"></div>';
+        document.body.appendChild(h);
+      }
+      paintHist(); h.classList.toggle('on');
+    },
+    clearHist: function(){ HIST.length = 0; UNDO = {}; saveHist(); paintHist(); },
+    timer: function(sec, quiet){
+      if(S.timer){ clearInterval(S.timer.iv); S.timer = null; }
+      mountUI();
+      if(sec > 0){ S.timer = {end: Date.now() + sec * 1000, iv: setInterval(tmPaint, 500)}; }
+      else if(!quiet) T('Таймер остановлен');
+      tmPaint();
+    },
+    engine: function(v){ setPref('engine', v === 'chrome' ? 'chrome' : 'local'); if(S.on){ stop(null); start(); } },
+    speakPref: function(on){ setPref('speak', !!on); },
+    // заметки
+    nkMenu: function(id, ev){
+      var n = nodes.find(function(x){ return x.id === id; }); if(!n) return;
+      var k = n.nk && n.nk.kind;
+      menu(ev ? ev.clientX : 200, ev ? ev.clientY + 12 : 200, [
+        ['Цифры (данные для точки А/Б)', function(){ R79.setKind(id, 'metric'); }, k === 'metric'],
+        ['Заметка', function(){ R79.setKind(id, 'note'); }, k === 'note'],
+        ['Диагноз: поставить', function(){ R79.convert(id, 'diag'); }, k === 'diag'],
+        ['Инструмент: назначить', function(){ R79.convert(id, 'tool'); }, k === 'tool']]);
+    },
+    setKind: function(id, k){
+      var n = nodes.find(function(x){ return x.id === id; }); if(!n) return;
+      n.nk = Object.assign({}, n.nk || {}, {kind: k, manual: true, t: n.title});
+      deco(n); try{ saveBoardSilent(); }catch(e){}
+      var it = (typeof INBOX !== 'undefined' ? INBOX : []).find(function(x){ return x.nodeId === n.id; }); if(it){ it.kind = k; it.kindManual = true; try{ saveInbox(); }catch(e){} }
+    },
+    // заметка становится диагнозом или инструментом только по нажатию (подтверждение)
+    convert: function(id, kind){
+      var n = nodes.find(function(x){ return x.id === id; }); if(!n || viewingArchive) return;
+      var src = kind === 'diag' ? DIAG : TOOLS, i = libIdx(src, n.title, n.nk && n.nk.match), orig = n.title;
+      pushUndo();
+      n.type = kind; delete n.nk; delete n.insight;
+      if(i >= 0){ var d = src[i]; n.title = d.title; n.desc = d.short || d.desc || ''; n.color = d.color; n.organ = d.icon + ' ' + d.organ; n.libIdx = i; if(orig && orig !== d.title) n.desc = (n.desc ? n.desc + '\n' : '') + 'Заметка: ' + orig; }
+      vRerender(n); drawLinks(); try{ saveBoardSilent(); }catch(e){} setTimeout(function(){ try{ checkAI(); }catch(e){} }, 300);
+      var it = (typeof INBOX !== 'undefined' ? INBOX : []).find(function(x){ return x.nodeId === id && x.boardId === (curBoard ? curBoard.id : ''); });
+      if(it){ it.status = 'done'; try{ saveInbox(); }catch(e){} }
+      T(kind === 'diag' ? 'Диагноз поставлен' : 'Инструмент назначен');
+    },
+    toPoint: function(id, which){
+      var n = nodes.find(function(x){ return x.id === id; }); if(!n || viewingArchive) return false;
+      var p = nodes.find(function(x){ return x.role === (which === 'B' ? 'pointB' : 'pointA'); });
+      if(!p){ T('На доске нет точки ' + (which === 'B' ? 'Б' : 'А')); return false; }
+      pushUndo();
+      var line = n.nk && n.nk.label && n.nk.value && n.nk.label !== 'Цифры' ? n.nk.label + ': ' + n.nk.value : n.title;
+      if(String(p.desc || '').indexOf(line) < 0) p.desc = (p.desc ? p.desc + '\n' : '') + line;
+      var par = vParents()[n.id];
+      if(par != null && par !== p.id) links = links.filter(function(l){ return !((l.a === par && l.b === n.id) || (l.a === n.id && l.b === par)); });
+      if(!hasLink(p.id, n.id)) makeLink(p.id, n.id);
+      n.nk = Object.assign({}, n.nk || {}, {kind: 'metric', at: which, manual: true, t: n.title});
+      vRerender(p); vRerender(n); drawLinks(); try{ saveBoardSilent(); }catch(e){}
+      var it = (typeof INBOX !== 'undefined' ? INBOX : []).find(function(x){ return x.nodeId === id && x.boardId === (curBoard ? curBoard.id : ''); });
+      if(it){ it.status = 'done'; it.kind = 'metric'; try{ saveInbox(); }catch(e){} }
+      T('Цифры в точке ' + (which === 'B' ? 'Б' : 'А'));
+      return true;
+    },
+    ibKind: function(i, k){ var x = INBOX[i]; if(!x) return; x.kind = k; x.kindManual = true; saveInbox(); renderNotes(); },
+    ibKeep: function(i){ var x = INBOX[i]; if(!x) return; x.status = 'done'; saveInbox(); renderNotes(); },
+    ibPoint: function(i, which){
+      var x = INBOX[i]; if(!x || !x.boardId) return;
+      var go = function(){ if(R79.toPoint(x.nodeId, which)){ x.status = 'done'; saveInbox(); } };
+      if(curBoard && curBoard.id === x.boardId && section === 'board'){ go(); return; }
+      try{ openBoard(x.boardId); goSection('board'); }catch(e){}
+      setTimeout(go, 500);
+    },
+    classify: classify
+  };
+  try{ mountUI(); }catch(e){}
+})();
+</script>
 </body>
 </html>
