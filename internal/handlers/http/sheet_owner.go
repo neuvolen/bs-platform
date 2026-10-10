@@ -24,9 +24,8 @@ import (
 //
 //   - the export: the dormant script takes an hourly read-only copy of the
 //     server's data (ДДС, PL and copy tabs of residents, fines, meetings,
-//     reports). On by default for the first week after the cutover, then off;
-//     an admin turns it on or off on the platform (bot_meta sheet_export),
-//     SHEET_EXPORT=on|off sets the default without a code change. Nothing on
+//     reports). R77: only with SHEET_MODE=mirror; there an admin's switch
+//     (bot_meta sheet_export) or SHEET_EXPORT=on|off turns it off or on. Nothing on
 //     the server waits for it: the sheet or the script may disappear.
 //   - the reconciliation: once, at the first deploy, the server asks the
 //     sheet for a copy and compares it with its own data (club.Reconcile).
@@ -46,8 +45,6 @@ const (
 	metaReconcile     = "sheet_reconcile" // "wanted:<RFC3339>" | "done:<RFC3339>" | "skipped:<RFC3339>"
 	metaReconcileRes  = "sheet_reconcile_result"
 
-	// ExportWeek: how long the copy runs by default after the cutover.
-	ExportWeek = 7 * 24 * time.Hour
 	// reconcileWait: how long the server waits for the sheet's copy.
 	reconcileWait = 48 * time.Hour
 )
@@ -133,6 +130,12 @@ func (s *SheetOwner) Export(ctx context.Context) ExportState {
 	if club.SheetLegacy() {
 		return ExportState{Why: "legacy"}
 	}
+	// R77: SHEET_MODE=off (the default) is the full detachment: the sheet
+	// gets no copy at all, whatever the switch or SHEET_EXPORT say. Only
+	// SHEET_MODE=mirror (an env choice) brings the hourly copy back.
+	if club.SheetMode() != club.SheetModeMirror {
+		return ExportState{Why: "off"}
+	}
 	switch s.get(ctx, metaSheetExport) {
 	case "on":
 		return ExportState{On: true, Why: "admin", By: s.get(ctx, metaSheetExportBy), At: s.get(ctx, metaSheetExportAt)}
@@ -145,19 +148,7 @@ func (s *SheetOwner) Export(ctx context.Context) ExportState {
 	case "off", "0", "false", "no":
 		return ExportState{Why: "env"}
 	}
-	if club.SheetMode() == club.SheetModeMirror {
-		return ExportState{On: true, Why: "env"}
-	}
-	st, at := s.cut.State(ctx)
-	if st != "done" {
-		return ExportState{On: true, Why: "week"} // the week starts with the cutover
-	}
-	t, err := time.Parse(time.RFC3339, at)
-	if err != nil {
-		return ExportState{On: true, Why: "week"}
-	}
-	until := t.Add(ExportWeek)
-	return ExportState{On: s.now().Before(until), Why: "week", Until: until.UTC().Format(time.RFC3339)}
+	return ExportState{On: true, Why: "env"}
 }
 
 // SetExport: an admin's choice; "" goes back to the default.
@@ -183,7 +174,7 @@ func (s *SheetOwner) ReconcileState(ctx context.Context) (string, string) {
 }
 
 func (s *SheetOwner) ReconcileWanted(ctx context.Context) bool {
-	if club.SheetLegacy() {
+	if !sheetMirror() {
 		return false
 	}
 	st, _ := s.ReconcileState(ctx)
@@ -202,7 +193,7 @@ func (s *SheetOwner) Request(ctx context.Context, by string) error {
 
 // Begin runs at start: the first deploy asks for the reconciliation once.
 func (s *SheetOwner) Begin(ctx context.Context) {
-	if club.SheetLegacy() {
+	if !sheetMirror() {
 		return
 	}
 	if st, _ := s.ReconcileState(ctx); st == "" {
@@ -227,8 +218,8 @@ func (s *SheetOwner) Check(ctx context.Context) {
 }
 
 func (s *SheetOwner) Loop(ctx context.Context) {
-	if club.SheetLegacy() {
-		return
+	if !sheetMirror() {
+		return // R77: no timer while the sheet is detached
 	}
 	s.Begin(ctx)
 	t := time.NewTicker(10 * time.Minute)
@@ -242,6 +233,11 @@ func (s *SheetOwner) Loop(ctx context.Context) {
 		}
 	}
 }
+
+// sheetMirror (R77): the sheet still takes part as a copy (SHEET_MODE=mirror).
+// Off (the default) is the full detachment: no export, no reconciliation
+// copy asked of the sheet, no timer; legacy is the emergency rollback.
+func sheetMirror() bool { return club.SheetMode() == club.SheetModeMirror }
 
 // ReconcileResult is kept in bot_meta and shown on the platform.
 type ReconcileResult struct {

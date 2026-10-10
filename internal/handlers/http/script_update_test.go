@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"github.com/bnursik/business_surgery_backend/internal/club"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -98,6 +99,20 @@ func TestScriptLatestIsSignedAndShipsTheEmbeddedCode(t *testing.T) {
 	if v, _ := pg.NewBotRepo(e.db).GetMeta(ctx, bot.MetaScriptVersion); v != "2026-10-01-1" {
 		t.Fatalf("asking version not noted: %q", v)
 	}
+
+	// R77: detached (SHEET_MODE=off): the dormant script on an old version is
+	// told it is up to date, gets no code and no deployments to move, so its
+	// hourly self-update stops failing in the Apps Script API (403)
+	restore := club.SetSheetMode(club.SheetModeOff)
+	q.Set("version", "2026-10-02-32")
+	r = e.signedGet("/api/v1/script/latest", q, "")
+	if files, _ := r["files"].([]any); r["_code"] != 200 || r["upToDate"] != true || len(files) != 0 || r["version"] != "2026-10-02-32" || r["relay"] != "" {
+		t.Fatalf("detached: %v", r)
+	}
+	if apps, _ := r["apps"].([]any); len(apps) != 0 {
+		t.Fatalf("detached apps: %v", r["apps"])
+	}
+	restore()
 
 	// The latest script: nothing to download
 	q.Set("version", bot.LatestScript)

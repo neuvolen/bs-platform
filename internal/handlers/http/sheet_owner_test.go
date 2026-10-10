@@ -106,8 +106,22 @@ func TestSheetExportSwitch(t *testing.T) {
 	if st, _ := e.cut.State(ctx); st != "done" {
 		t.Fatalf("cutover %q", st)
 	}
-	// The first week after the cutover: on, the script is told "mirror".
-	if x := e.owner.Export(ctx); !x.On || x.Why != "week" || x.Until == "" {
+	// R77: SHEET_MODE=off is the full detachment: no copy, not even the first
+	// week, whatever SHEET_EXPORT or the admin's switch say.
+	t.Setenv("SHEET_EXPORT", "on")
+	if x := e.owner.Export(ctx); x.On || x.Why != "off" {
+		t.Fatalf("export when detached %+v", x)
+	}
+	if ctl := e.signed("/api/v1/bot/control", map[string]any{"version": bot.LatestScript}); ctl["sheetMode"] != "off" {
+		t.Fatalf("control when detached %v", ctl)
+	}
+	if code, out := e.signedCode("/api/v1/club/export", map[string]any{}); code != http.StatusConflict || out["error"] != "export_off" {
+		t.Fatalf("export when detached: %d %v", code, out)
+	}
+	t.Setenv("SHEET_EXPORT", "")
+	// SHEET_MODE=mirror: the copy runs, the script is told "mirror".
+	defer club.SetSheetMode(club.SheetModeMirror)()
+	if x := e.owner.Export(ctx); !x.On || x.Why != "env" {
 		t.Fatalf("export %+v", x)
 	}
 	if ctl := e.signed("/api/v1/bot/control", map[string]any{"version": bot.LatestScript}); ctl["sheetMode"] != "mirror" {
@@ -124,13 +138,9 @@ func TestSheetExportSwitch(t *testing.T) {
 	if strings.Join(names, ",") != "Резиденты,Штрафы,Встречи,Отчёты" || out["payments"] == nil {
 		t.Fatalf("copy tabs %v", names)
 	}
-	// A week later: off by itself.
-	e.owner.now = func() time.Time { return time.Now().Add(ExportWeek + time.Hour) }
+	t.Setenv("SHEET_EXPORT", "off")
 	if x := e.owner.Export(ctx); x.On {
-		t.Fatalf("after the week %+v", x)
-	}
-	if ctl := e.signed("/api/v1/bot/control", map[string]any{"version": bot.LatestScript}); ctl["sheetMode"] != "off" {
-		t.Fatalf("control after the week %v", ctl)
+		t.Fatalf("SHEET_EXPORT=off %+v", x)
 	}
 	if code, out := e.signedCode("/api/v1/club/export", map[string]any{}); code != http.StatusConflict || out["error"] != "export_off" {
 		t.Fatalf("export when off: %d %v", code, out)
@@ -169,6 +179,16 @@ func TestSheetReconcileOnceAtDeploy(t *testing.T) {
 	imported := time.Now().Add(-48 * time.Hour)
 	e := newOwnerEnv(t, "server", &imported)
 	ctx := context.Background()
+	// R77: detached (SHEET_MODE=off): the deploy asks the sheet for nothing
+	e.owner.Begin(ctx)
+	if e.owner.ReconcileWanted(ctx) {
+		t.Fatal("the detached server asked the sheet for a copy")
+	}
+	if ctl := e.signed("/api/v1/bot/control", map[string]any{"version": bot.LatestScript}); ctl["reconcile"] == true {
+		t.Fatalf("control when detached %v", ctl)
+	}
+	// The comparison with the sheet runs only with SHEET_MODE=mirror
+	defer club.SetSheetMode(club.SheetModeMirror)()
 	e.owner.Begin(ctx)
 	if !e.owner.ReconcileWanted(ctx) {
 		t.Fatal("the deploy did not ask for the sheet's copy")

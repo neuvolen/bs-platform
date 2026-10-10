@@ -1810,11 +1810,11 @@ html #bsxPill,html #bsxMenu{left:calc(var(--sw) + 14px)}
 .side .modes{padding:3px}
 .side .mo{padding:8px 0;font-size:12.5px;color:var(--pm)}
 .side .mo:hover{color:var(--ptx)}
-.side-acc{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:9px 4px 0;font-size:11.5px;font-weight:700;color:var(--pdim)}
+.side-acc{display:flex;justify-content:center;align-items:center;gap:8px;margin:10px 4px 0;font-size:11.5px;font-weight:600;color:var(--pdim)}
 .side-acc:empty{display:none}
 .sa-n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sa-x{cursor:pointer;color:var(--pm)}
-.sa-x:hover{color:var(--ptx)}
+.sa-x{cursor:pointer;color:var(--pdim);padding:4px 10px;border-radius:8px;transition:color .15s,background .15s}
+.sa-x:hover{color:var(--ptx);background:color-mix(in srgb,var(--ptx) 6%,transparent)}
 html.res-user .side-foot{display:none!important}
 #bsxPill.off{display:flex}
 
@@ -3782,7 +3782,7 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
 
 <div class="side-btn" id="sideBtn" onclick="document.documentElement.classList.toggle('side-open')" title="Меню"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></div>
 <aside class="side" id="side">
-  <div class="side-brand" onclick="goBlock(MODE==='res'?'rtrack':(MODE==='lead'?'lbs':'track'))">
+  <div class="side-brand" role="link" title="Открыть сайт bxclub.kz" onclick="window.open('https://bxclub.kz','_blank','noopener')">
     <img class="logo" src="data:image/png;base64,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" alt="Business Surgery">
     <div class="side-cap">БИЗНЕС-ТРЕКИНГ</div>
   </div>
@@ -7683,7 +7683,7 @@ var BLOCKS = {
     {id:'sCreo',    n:'Креативы'}]},   // R32b: «Заметки» скрыты (данные в bs_mkt), #mNotes ведёт в «Обзор»
   // R32b: «Интерактивные чек-листы» переехали в Трекинг → Инструменты (вкладка внутри), #guides работает
   lib:     {name:'BS', tabs:[
-    {id:'kanban',   n:'Цели и задачи'},
+    {id:'kanban',   n:'Задачи'},
     {id:'events',   n:'Мероприятия'},     // R26: из «Клуба» в «BS», ссылка #events та же
     {id:'aiRec',    n:'Решения ИИ'}]},      // R66: решения по рекомендациям ИИ здесь, не в боте
   // R32b: у резидента четыре раздела, внутри вкладки сверху (не список в меню). Старые rtask, rrep, rcont,
@@ -8581,15 +8581,16 @@ function renderSalesRes(){
   var pg = document.getElementById('pg-stub');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   pg.querySelector('.pt').textContent = 'Резиденты';
-  pg.querySelector('.psub').textContent = 'Клуб · ' + RESIDENTS.length + ' резидентов · данные из BS - Finance';
+  pg.querySelector('.psub').textContent = '';
   var F = [['all','Все',RESIDENTS.length],
     ['on','Онлайн',RESIDENTS.filter(r=>srFmt(r,'онлайн')).length],['off','Офлайн',RESIDENTS.filter(r=>srFmt(r,'офлайн')).length]];
-  pg.querySelector('#stubBody').innerHTML = bsTeamBar([['+ Резидент','bsAddResident()']]) +
+  pg.querySelector('#stubBody').innerHTML =
     '<div class="pf-tools"><div class="search pf-search"><input id="srSearch" placeholder="Имя резидента" oninput="srRender()"></div>' +
     '<div class="pf-filters">' + F.filter(f=>f[0]==='all'||f[2]).map(function(f){
       return '<div class="pf-fl'+(srF===f[0]?' on':'')+'" data-f="'+f[0]+'" onclick="srF=\''+f[0]+'\';document.querySelectorAll(\'.pf-fl\').forEach(x=>x.classList.toggle(\'on\',x.dataset.f===srF));srRender()">'+f[1]+' · '+f[2]+'</div>';
-    }).join('') + '</div>' + bslBar('residents', ['az','fmt','new'], bslMode('residents', ['az','fmt','new']), 'srRender') + '</div>' +
-    (bsIsTeam() ? '<div class="pf-note" style="margin-bottom:12px">Долги, штрафы и оплаты: <span class="pf-link" onclick="r69OpenDebts()">Учёт → Долги и штрафы</span></div>' : '') +
+    }).join('') + '</div>' + bslBar('residents', ['az','fmt','new'], bslMode('residents', ['az','fmt','new']), 'srRender') +
+    // R77: вместо строки «Долги, штрафы и оплаты: Учёт → Долги и штрафы» кнопка «+ Резидент» в конце строки фильтров (одна, в шапке её нет)
+    (bsIsTeam() ? '<div class="r77-add"><button type="button" class="btn pf-b pf-p" id="r77AddRes" onclick="bsAddResident()">+ Резидент</button></div>' : '') + '</div>' +
     '<div id="srTbl"></div>';
   srRender();
   pg.classList.add('on');
@@ -17687,7 +17688,8 @@ function renderSideAcc(){
   var el = document.getElementById('sideAcc'); if(!el) return;
   var u = window.BSSync && BSSync.user ? BSSync.user() : null;
   if(!u || !BSSync.online()){ el.innerHTML = ''; return; }
-  el.innerHTML = '<span class="sa-n">' + esc(u.name || 'Вы') + '</span><span class="sa-x" onclick="BSSync.logout()">Выйти</span>';
+  // R77: без имени (аватар и так виден на доске), «Выйти» по центру и тише
+  el.innerHTML = '<span class="sa-x" onclick="BSSync.logout()">Выйти</span>';
 }
 function pf3Init(){
   loadPack();
@@ -17965,14 +17967,7 @@ function renderCrmMain(){
   var mon = crmISO().slice(0, 7);
   var wonM = all.filter(function(l){ return l.col === 'won' && String(l.wonAt || '').slice(0, 7) === mon; });
   box.innerHTML = crmSelHTML() +
-    '<div class="cx-kpi">' +
-      '<div><span>В работе</span><b>' + fmtN(act.length) + '</b></div>' +
-      '<div><span>Сумма в воронке</span><b>' + fmtN(pipe) + ' ₸</b></div>' +
-      '<div><span>Шаги на сегодня</span><b>' + today + '</b></div>' +
-      '<div' + (over ? ' class="bad"' : '') + '><span>Просрочено</span><b>' + over + '</b></div>' +
-      '<div><span>Непрочитанные чаты</span><b>' + unread + '</b></div>' +
-      '<div><span>Резиденты за месяц</span><b>' + wonM.length + '</b></div>' +
-    '</div>' +
+    // R77: ряд счётчиков над канбаном убран (те же цифры в колонках и вкладке «CRM лидов»)
     '<div class="cx-kb">' + CRM_COLS.map(function(c){
       var items = byCol[c.id];
       items.sort(function(a, b){
@@ -21207,6 +21202,7 @@ function r32dSub(){
 }
 // Одна строка админа в Настройках: «Экспорт в Google Таблицу» и переключатель
 function r32dSetRow(){
+  return ''; // R77: таблица отключена полностью, переключателя экспорта нет (сервер его не слушает при SHEET_MODE=off)
   var st = X32D.st, ex = st && st.export, on = !!(ex && ex.on), dis = !st || X32D.busy || (ex && ex.why === 'legacy');
   return '<div class="r32-row" id="x32dSet"><div style="min-width:0"><div class="r32-k">Экспорт в Google Таблицу</div>' +
     '<div class="r32-h">Раз в час копия для просмотра. ' + esc(r32dSub()) + '</div></div>' +
@@ -21214,6 +21210,7 @@ function r32dSetRow(){
     (dis ? ' disabled' : '') + ' onclick="r32dSetExport(' + !on + ')"><i></i></button></div>';
 }
 function r32dSheetCard(){
+  return ''; // R77: см. r32dSetRow
   var st = X32D.st, ex = st && st.export, on = !!(ex && ex.on);
   var sub;
   if(!st) sub = X32D.err ? 'Статус недоступен: ' + X32D.err : 'Загружаем…';
@@ -21627,17 +21624,16 @@ function renderKanban(){
   var pg = document.getElementById('pg-stub');
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('on'); });
   var ph0 = pg.querySelector('.ph'); if(ph0) ph0.style.display = '';
-  pg.querySelector('.pt').textContent = 'Цели и задачи';
+  pg.querySelector('.pt').textContent = 'Задачи';
   var na = KANBAN.archive.length, nc = KANBAN.cards.length;
   var od = KANBAN.cards.filter(kb12Overdue).length;
   pg.querySelector('.psub').textContent = KB12.arch ? 'Архив · ' + na + ' ' + r12Pl(na, 'карточка', 'карточки', 'карточек') :
     nc + ' ' + r12Pl(nc, 'карточка', 'карточки', 'карточек') + (od ? ' · просрочено ' + od : '') + ' · перетаскивайте карточки и колонки';
+  // R77: без «Истории», «Архива» и «+ Добавить» сверху (карточка добавляется в колонке) и без блока «Цели BS»
+  KB12.arch = false;
   var pa = document.getElementById('phAct');
-  if(pa) pa.innerHTML =
-    dhBtn('kbHistBtn', 'kb12History') +
-    '<button class="btn pf-b kb-archb' + (KB12.arch ? ' on' : '') + '" id="kbArchBtn" onclick="kb12ArchView()">' + (KB12.arch ? r12I(R12_IC.back, 15) + 'К доске' : r12I(R12_IC.arch, 15) + 'Архив' + (na ? ' <b>' + na + '</b>' : '')) + '</button>' +
-    '<button class="btn pf-b pf-p kb-addtop" id="kbAddTop" onclick="addCard(KANBAN.cols[0].id)">+ Добавить</button>';
-  pg.querySelector('#stubBody').innerHTML = g12HTML() + (KB12.arch ? kb12ArchHTML() : kb12BoardHTML());
+  if(pa) pa.innerHTML = '';
+  pg.querySelector('#stubBody').innerHTML = kb12BoardHTML();
   pg.classList.add('on');
 }
 function kb12BoardHTML(){
@@ -25518,6 +25514,12 @@ body.light .dxi-t{color:#E5484D}
 .dxi-tl{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
 .dxi-tl span{font-size:11.5px;padding:3px 8px;border-radius:7px;border:1px solid var(--bd2);color:var(--t2)}
 .dxi-tl em{font-style:normal;font-size:11.5px;color:var(--t3)}
+.dxi.tk .dxi-t{color:var(--tx)}
+.dxi.tk .dxi-d{background:var(--t3)}
+.dxi.tk.od .dxi-d{background:#FF6B6F}
+.dxi.tk.od .dxi-m{color:#FF6B6F}
+.dxi.tk.dn .dxi-t{color:var(--t3);text-decoration:line-through}
+.dxi.tk.dn .dxi-d{background:transparent;box-shadow:inset 0 0 0 1.5px var(--t3)}
 .node.r21-flash{box-shadow:0 0 0 3px #FF6B6F,0 0 34px rgba(255,107,111,.45)!important;transition:box-shadow .3s}
 /* R21 · 1, 2: запись разбора без демонстрации экрана, компактная плашка внизу */
 #callBar{display:none!important}
@@ -25806,50 +25808,46 @@ function renderLib(){
 }
 function setLibOrgan(o){ libOrgan = o; var si = document.getElementById('libSearch'); if(si) si.value = ''; renderLib(); }
 
-// ── 7. Кнопка «Диагнозы (N)» на доске ──
+// ── 7. Кнопка «Задачи (N)» на доске (R77: была «Диагнозы»; диагнозы и так видны на доске) ──
 (function(){
   var hb = document.getElementById('hltBtn'); if(!hb) return;
   var b = document.createElement('button');
-  b.type = 'button'; b.id = 'dxBtn'; b.className = 'dx-btn zero'; b.title = 'Все диагнозы доски';
-  b.innerHTML = '<i></i><span>Диагнозы</span><b id="dxCnt">0</b>';
+  b.type = 'button'; b.id = 'dxBtn'; b.className = 'dx-btn zero'; b.title = 'Задачи доски: сроки и что сделано';
+  b.innerHTML = '<i></i><span>Задачи</span><b id="dxCnt">0</b>';
   b.onclick = function(){ toggleDx(); };
   hb.parentNode.insertBefore(b, hb);
   var p = document.createElement('div'); p.className = 'dxp'; p.id = 'dxPanel'; document.body.appendChild(p);
-  var last = -1;
+  var last = '';
   setInterval(function(){
     if(document.hidden) return; // R45: в фоновой вкладке не считает
-    var n = (typeof nodes !== 'undefined' && nodes) ? nodes.filter(function(x){ return x.type === 'diag'; }).length : 0;
-    if(n !== last){ last = n; var c = document.getElementById('dxCnt'); if(c) c.textContent = n; b.classList.toggle('zero', !n);
+    var c0 = window.dxTaskCount ? dxTaskCount() : {open: 0, over: 0}, k = c0.open + ':' + c0.over;
+    if(k !== last){ last = k; var c = document.getElementById('dxCnt'); if(c) c.textContent = c0.open; b.classList.toggle('zero', !c0.over);
       if(p.classList.contains('on')) renderDx(); }
   }, 700);
 })();
-function dxSeverity(d){
-  var org = String(d.organ || '').replace(/^[^A-Za-zА-Яа-яЁё]+/, '').trim();
-  var key = (typeof HLT_ORG !== 'undefined' && HLT_ORG[org]) || null;
-  var v = key && curBoard && curBoard.health ? curBoard.health[key] : null;
-  if(v === null || v === undefined || v === '') return null;
-  v = Number(v);
-  return {v: v, l: v <= 3 ? 'Острое' : (v <= 6 ? 'Среднее' : 'Лёгкое'), hi: v <= 3};
-}
+// Открытые задачи доски и просроченные среди них (красная точка на кнопке только при просрочке)
+window.dxTaskCount = function(){
+  var t = (typeof nodes !== 'undefined' && nodes) ? nodes.filter(function(x){ return x.type === 'task'; }) : [], today = new Date().toISOString().slice(0, 10), o = 0, v = 0;
+  t.forEach(function(n){ var k = n.task || {}; if(dxDone(k)) return; o++; if(k.date && String(k.date).slice(0, 10) < today) v++; });
+  return {open: o, over: v};
+};
+function dxDone(k){ return !!(k && (k.completed || (k.kind === 'repeat' && (k.done || 0) >= (k.times || 3)))); }
 function renderDx(){
   var p = document.getElementById('dxPanel'); if(!p) return;
-  var ds = nodes.filter(function(n){ return n.type === 'diag'; });
-  p.innerHTML = '<div class="dxp-h"><div class="dxp-t">Диагнозы доски · ' + ds.length + '</div>' +
+  var today = new Date().toISOString().slice(0, 10);
+  var ts = nodes.filter(function(n){ return n.type === 'task'; }).map(function(n){ var k = n.task || {}; return {n: n, k: k, dn: dxDone(k), d: k.date ? String(k.date).slice(0, 10) : ''}; });
+  ts.sort(function(a, b){ return (a.dn - b.dn) || ((a.d || '9') < (b.d || '9') ? -1 : (a.d || '9') > (b.d || '9') ? 1 : 0); });
+  var open = ts.filter(function(x){ return !x.dn; }).length;
+  p.innerHTML = '<div class="dxp-h"><div class="dxp-t">Задачи доски · ' + open + (ts.length > open ? ' из ' + ts.length : '') + '</div>' +
     '<div class="dxp-x" onclick="toggleDx(false)" title="Закрыть"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div></div>' +
-    (ds.length ? ds.map(function(d){
-      var tl = [];
-      links.forEach(function(l){
-        var o = l.a === d.id ? l.b : (l.b === d.id ? l.a : null);
-        var t = o != null && nodes.find(function(n){ return n.id === o && n.type === 'tool'; });
-        if(t) tl.push(t.title);
-      });
-      var sv = dxSeverity(d), org = String(d.organ || '').replace(/^[^A-Za-zА-Яа-яЁё]+/, '').trim();
-      return '<div class="dxi" onclick="focusDx(' + d.id + ')"><div class="dxi-d"></div><div class="dxi-b">' +
-        '<div class="dxi-t">' + esc(d.title) + '</div>' +
-        '<div class="dxi-m">' + esc(org || 'Без органа') + (sv ? '<span class="dxi-s' + (sv.hi ? ' hi' : '') + '">' + sv.l + ' · ' + sv.v + '/10</span>' : '') + '</div>' +
-        '<div class="dxi-tl">' + (tl.length ? tl.map(function(t){ return '<span>' + esc(t) + '</span>'; }).join('') : '<em>Лечение не назначено</em>') + '</div>' +
+    (ts.length ? ts.map(function(x){
+      var k = x.k, od = !x.dn && x.d && x.d < today;
+      var sub = k.kind === 'repeat' ? (k.done || 0) + ' из ' + (k.times || 3) : (k.kind === 'always' ? 'постоянная' : (x.d ? 'до ' + x.d.split('-').reverse().join('.') : 'без срока'));
+      return '<div class="dxi tk' + (x.dn ? ' dn' : '') + (od ? ' od' : '') + '" onclick="focusDx(' + x.n.id + ')"><div class="dxi-d"></div><div class="dxi-b">' +
+        '<div class="dxi-t">' + esc(x.n.title || 'Задача') + '</div>' +
+        '<div class="dxi-m">' + (x.dn ? 'сделано' : (od ? 'просрочено · ' : '') + sub) + '</div>' +
       '</div></div>';
-    }).join('') : '<div class="dxp-e">На доске пока нет диагнозов. Нажмите «+ Диагноз» внизу.</div>');
+    }).join('') : '<div class="dxp-e">На доске пока нет задач. Нажмите «Задача» внизу.</div>');
 }
 function toggleDx(on){
   var p = document.getElementById('dxPanel'), b = document.getElementById('dxBtn'); if(!p) return;
@@ -29253,21 +29251,8 @@ window.r32VoiceSettings = function(){
   sheet(); paint(V() && V().manifest()); openSheet('r32SetSheet'); refresh();
 };
 window.r32TtsStatus = statusLine;
-// Вход в настройки: рядом с «Выйти» в сайдбаре
-if(typeof window.renderSideAcc === 'function'){
-  var origAcc = window.renderSideAcc;
-  window.renderSideAcc = function(){
-    var r = origAcc.apply(this, arguments);
-    var el = document.getElementById('sideAcc');
-    if(el && el.innerHTML && !el.querySelector('.r32-sa')){
-      var s = document.createElement('span'); s.className = 'sa-x r32-sa'; s.textContent = 'Настройки';
-      s.onclick = function(e){ e.stopPropagation(); r32VoiceSettings(); };
-      el.insertBefore(s, el.querySelector('.sa-x'));
-    }
-    return r;
-  };
-  setTimeout(function(){ try{ renderSideAcc(); }catch(e){} }, 0);
-}
+// R77: кнопки «Настройки» в меню нет ни у кого: голос гида в «Профиль → Как пользоваться»,
+// настройки продаж и проверка системы в «⋯» своих разделов (r77Script)
 
 // ═══════════ Режим резидента: саммари разборов вместо записей ═══════════
 // Офлайн-резидент (формат «Офлайн» в данных клуба) записей не видит вовсе. Онлайн-резидент
@@ -30142,9 +30127,9 @@ body.r32t .side-subs{display:none}
       saveKanban();
     }
     a.status = 'work'; a.task = c.id; a.statusAt = new Date().toISOString();
-    if(!a.note) a.note = 'Задача на доске «Цели и задачи», шаги внутри.';
+    if(!a.note) a.note = 'Задача в BS → «Задачи», шаги внутри.';
     maSave(); renderMktA();
-    toast('Задача создана: BS → Цели и задачи');
+    toast('Задача создана: BS → Задачи');
   };
   window.r32OpenTask = function(id){
     goSection('kanban');
@@ -30316,7 +30301,7 @@ body.r32t .side-subs{display:none}
     kb12Log(k, 'Задача из аналитики');
     var j = KANBAN.cards.findIndex(function(x){ return x.col === col; });
     if(j < 0) KANBAN.cards.push(k); else KANBAN.cards.splice(j, 0, k);
-    saveKanban(); markSent(id, 'task'); toast('Задача добавлена: BS → Цели и задачи');
+    saveKanban(); markSent(id, 'task'); toast('Задача добавлена: BS → Задачи');
   };
 })();
 </script>
@@ -30856,8 +30841,8 @@ function statusHTML(){
   if(FX.st !== 'ready') return '';
   if(!FX.editable) return '<span class="fx-st" title="' + (roLegacy() ? 'ДДС сейчас ведётся в Google Таблице' : 'Правка включится, когда закончится перенос данных') + '"><i></i>Только просмотр</span>';
   if(FX.saveErr) return '<span class="fx-st err"><i></i>Не сохранено: ' + E(FX.saveErr) + ' · <u onclick="fxRetry()">Повторить</u></span>';
-  if(FX.inflight || pendingCount()) return '<span class="fx-st"><i></i>Сохраняю…</span>';
-  return '<span class="fx-st ok"><i></i>Сохранено</span>';
+  // R77: «Сохранено» и «Сохраняю…» в шапке не показываются (шум); видна только ошибка и режим просмотра
+  return '';
 }
 function statusPaint(){ var s = document.getElementById('fxSt'); if(s) s.innerHTML = statusHTML(); var t = document.getElementById('fxTabN'); if(t) t.textContent = nf(FX.rows.length); kpiPaint(); }
 function headerTools(){
@@ -30882,13 +30867,8 @@ function tabsHTML(){
   return '<div class="fx-tabs" role="tablist" data-tabrow="fx">' + t.map(function(x){
     return '<button class="fx-tab' + (FX.tab === x[0] ? ' on' : '') + '" role="tab" data-t="' + x[0] + '" onclick="fxTab(\'' + x[0] + '\')">' + x[1] + x[2] + '</button>'; }).join('') + '</div>';
 }
-function subtitle(){
-  if(FX.st !== 'ready') return 'Движение денег, прибыль и анализ клуба';
-  var p = FX.per, n = periods().find(function(x){ return p && x.k === p.k; });
-  return (n ? n.n : '') + (roLegacy() ? ' · ДДС в Google Таблице' : ' · ДДС на сервере' + (FX.master === 'server' ? '' : ', идёт перенос'));
-}
 function paint(){
-  var el = pgSet('Учёт', subtitle());
+  var el = pgSet('Учёт', ''); // R77: шапка как у остальных разделов: название и кнопки
   var pa = document.getElementById('phAct'); if(pa) pa.innerHTML = headerTools();
   var body = '';
   if(FX.st === 'loading' || FX.st === 'idle') body = '<div class="fx-empty"><b>Загружаем ДДС…</b>Операции, статьи и P&L с сервера</div>';
@@ -32503,7 +32483,6 @@ function paint(){
     var pt = document.querySelector('.page.on .pt') || document.querySelector('#pg-stub .pt'); if(pt && pt.textContent !== BLOCKS[blk].name) pt.textContent = BLOCKS[blk].name;
     actions();
     var tabs = tabsOf(blk), g = grpOf(blk, section);
-    var k = KPI[blk]();
     // R52: вкладки и переключатель внутри вкладки в одной строке сверху экрана (.bk-top), как на доске:
     // строка не двигается при переходе между вкладками, показатели и экран идут под ней
     var h = '<div class="bk-top"><div class="bk-tabs" role="tablist">' + tabs.map(function(t, i){
@@ -32512,7 +32491,7 @@ function paint(){
           (b ? '<small' + (b.red ? ' class="red"' : '') + '>' + nf(b.n) + '</small>' : '') + '</button>';
       }).join('') + '</div>' +
       '</div>' +
-      '<div class="fx-kp k4">' + k.map(card).join('') + '</div>' +
+      // R77: полосы показателей над разделами нет (просьба владельца: «мешает»); цифры живут в самих экранах
       // R59: переключатель внутри вкладки (База знаний: Болезни, Инструменты…) отдельной строкой вкладок под меню
       // и показателями, как вкладки «Учёта» (ДДС, P&L…), а не справа в верхней строке
       (g ? '<div class="fx-tabs bk-sub" role="tablist">' + g.ids.map(function(id){ return '<button type="button" class="fx-tab' + (id === section ? ' on' : '') + '" role="tab" data-s="' + id + '">' + E(g.sub[id]) + '</button>'; }).join('') + '</div>' :
@@ -33555,6 +33534,114 @@ try{ if(typeof section !== 'undefined'){ strip(); if(window.bkPaint) bkPaint(); 
 })();
 </script>
 <!-- /R38a -->
+<!-- R77: меньше шума. Без полос показателей и серых подзаголовков над названием раздела, без кнопки «Настройки»
+     в меню (настройки в «⋯» своих разделов), вкладки помнят прокрутку -->
+<style id="r77Style">
+/* Серые строки над названием раздела («16 резидентов с разбором · 16 досок» и т. п.) не показываются нигде */
+.ph .psub{display:none!important}
+/* Повторы цифр над списками: «Всего встреч · онлайн · офлайн», «Резидентов · сдали · не сдали» */
+body[data-sec="aSched"] #stubBody>.card-sum,body[data-sec="aReports"] #stubBody>.card-sum{display:none}
+/* Клуб → Резиденты: «+ Резидент» под фильтрами, на месте строки про долги */
+.r77-add{display:flex;margin-left:auto}
+.r77-add .btn{height:36px;padding:0 14px;border-radius:10px;font-size:13px;font-weight:800}
+/* «⋯» раздела в шапке */
+body.bk-on #phAct .bk-a.r77-more{width:38px;padding:0;font-size:17px;letter-spacing:1px;display:inline-flex;align-items:center;justify-content:center}
+@media (max-width:640px){body.bk-on #phAct .bk-a.r77-more{width:36px}}
+/* Настройки открываются из «⋯» раздела: в окне только нужный блок */
+#r32SetBody[data-only]>*{display:none!important}
+#r32SetBody[data-only="sales"]>#tdSetBox,#r32SetBody[data-only="sales"]>#r51sSet,
+#r32SetBody[data-only="sys"]>#r36Box,
+#r32SetBody[data-only="voice"]>.r32-set:not(#r36Box):not(#r51sSet):not(#tdSetBox){display:block!important}
+#r32SetBody[data-only] .r32-row#x32dSet{display:none!important}
+/* Пустая строка-заглушка под вкладками (R75, чтобы экран не прыгал) без линии: не читается как разделитель */
+.r75-ph{border-color:transparent!important;box-shadow:none!important;background:none!important}
+.r75-ph:before,.r75-ph:after{display:none!important}
+/* Шапка без подзаголовка: одна высота на всех вкладках (кнопки 36–40 px), строка вкладок и экран не прыгают */
+@media (min-width:641px){.page>.pw>.ph{min-height:40px;align-items:center;box-sizing:border-box}}
+.r77-voice{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
+.r77-voice h4{margin-bottom:4px}
+.r77-voice span{font-size:13px;color:var(--pm)}
+.side-brand:focus-visible{outline:2px solid var(--pm);outline-offset:4px;border-radius:10px}
+</style>
+<script id="r77Script">
+(function(){
+'use strict';
+var MORE = {
+  sales: [['sales', 'Заявки с сайта и сценарии продаж', 'Настройки продаж', 'Заявки Tilda, сценарии, продление, отчёт недели']],
+  lib: [['sys', 'Проверка системы', 'Проверка системы', 'ИИ, заявки, голос, бот и база'], ['voice', 'Голос гида и ИИ', 'Голос гида', 'Тембр гида и ключ ИИ']]
+};
+var blkOf = function(s){
+  if(typeof BLOCKS === 'undefined') return '';
+  return ['sales', 'lib'].filter(function(k){ return BLOCKS[k] && BLOCKS[k].tabs.some(function(t){ return t.id === s; }); })[0] || '';
+};
+// Окно настроек с одним блоком (данные и сохранение прежние: r32VoiceSettings и блоки R36, R51, Tilda)
+window.r77Settings = function(only, title, sub){
+  if(typeof window.r32VoiceSettings !== 'function') return;
+  r32VoiceSettings();
+  var b = document.getElementById('r32SetBody'); if(b) b.setAttribute('data-only', only);
+  var sh = document.getElementById('r32SetSheet');
+  if(sh){ var st = sh.querySelector('.st'), ss = sh.querySelector('.ss'); if(st) st.textContent = title; if(ss) ss.textContent = sub || ''; }
+};
+var closeMenu = function(){ var p = document.getElementById('r77Pop'); if(p) p.remove(); document.removeEventListener('mousedown', outside, true); };
+var outside = function(e){ var p = document.getElementById('r77Pop'); if(p && !p.contains(e.target) && !(e.target.closest && e.target.closest('.r77-more'))) closeMenu(); };
+window.r77Menu = function(btn, blk){
+  if(document.getElementById('r77Pop')){ closeMenu(); return; }
+  var p = document.createElement('div'); p.id = 'r77Pop'; p.className = 'fx-pop'; p.setAttribute('role', 'menu');
+  p.innerHTML = (MORE[blk] || []).map(function(x, i){ return '<button type="button" class="it" role="menuitem" data-i="' + i + '">' + x[1] + '</button>'; }).join('');
+  p.addEventListener('click', function(e){
+    var it = e.target.closest('.it'); if(!it) return;
+    var x = MORE[blk][+it.dataset.i]; closeMenu(); r77Settings(x[0], x[2], x[3]);
+  });
+  document.body.appendChild(p);
+  var r = btn.getBoundingClientRect(), w = p.offsetWidth;
+  p.style.left = Math.min(innerWidth - w - 10, Math.max(10, r.right - w)) + 'px'; p.style.top = (r.bottom + 6) + 'px';
+  setTimeout(function(){ document.addEventListener('mousedown', outside, true); }, 0);
+};
+// «⋯» в шапке Продаж и BS: последним в строке кнопок раздела
+if(window.BK_EXT){
+  var act0 = BK_EXT.act;
+  BK_EXT.act = function(s, pa){
+    if(act0) act0.apply(this, arguments);
+    var blk = typeof MODE !== 'undefined' && MODE === 'admin' ? blkOf(s) : '';
+    var have = pa.querySelector('.r77-more');
+    if(!blk){ if(have) have.remove(); return; }
+    if(!have){ have = document.createElement('button'); have.type = 'button'; have.className = 'bk-a r77-more'; have.title = 'Ещё'; have.setAttribute('aria-label', 'Ещё'); have.textContent = '⋯'; }
+    have.onclick = function(e){ e.stopPropagation(); r77Menu(have, blk); };
+    if(have !== pa.lastElementChild) pa.appendChild(have);
+  };
+}
+// Резидент: голос гида в «Профиль → Мои данные», отдельной строкой под профилем (R78 убрал «Как пользоваться»)
+var voiceBtn = function(){
+  if(typeof section === 'undefined' || section !== 'rprofile' || typeof MODE === 'undefined' || MODE !== 'res') return;
+  var rp = document.getElementById('rpBody'); if(!rp || document.getElementById('r77Voice')) return;
+  var d = document.createElement('div'); d.id = 'r77Voice'; d.className = 'r78-box r77-voice';
+  d.innerHTML = '<div><h4>Голос гида</h4><span>Каким голосом говорит гид в «Обучении»</span></div><button type="button" class="btn pf-b">Выбрать голос</button>';
+  d.querySelector('button').onclick = function(){ r77Settings('voice', 'Голос гида', 'Тембр, которым говорит гид платформы'); };
+  rp.parentNode.insertBefore(d, rp.nextSibling);
+};
+// Прокрутка каждой вкладки запоминается: вернулись на вкладку, она там же, где была
+var SCR = {};
+var scroller = function(){ var pg = document.querySelector('.page.on'); return pg && pg.scrollHeight > pg.clientHeight + 1 ? pg : document.scrollingElement; };
+var tabKey = function(){ return typeof section === 'undefined' ? '' : section + (section === 'pl' && window.FX ? ':' + FX.tab : ''); };
+var go0 = window.goSection;
+window.goSection = goSection = function(s){
+  var was = tabKey(), sc = scroller();
+  if(was && sc) SCR[was] = sc.scrollTop;
+  closeMenu();
+  var r = go0.apply(this, arguments);
+  try{ document.body.setAttribute('data-sec', section); }catch(e){}
+  try{ voiceBtn(); }catch(e){}
+  var k = tabKey();
+  if(k && k !== was && s !== 'board'){
+    var y = SCR[k] || 0, put = function(){ var x = scroller(); if(x && Math.abs(x.scrollTop - y) > 1) x.scrollTop = y; };
+    put(); if(y) requestAnimationFrame(put);
+  }
+  return r;
+};
+try{ if(typeof section !== 'undefined') document.body.setAttribute('data-sec', section); }catch(e){}
+})();
+</script>
+<!-- /R77 -->
 <!-- R38b: Маркетинг → «Партнёрства и UGC» (bs_partners), воронки CRM, база из сервера -->
 <style id="r38bStyle">
 .pt-wrap{display:flex;flex-direction:column;gap:14px}
@@ -36478,7 +36565,7 @@ function r46Act(a){
       if(j < 0) KANBAN.cards.push(c); else KANBAN.cards.splice(j, 0, c);
       saveKanban();
     }
-    r46Mark('work', x.id, 1); toast('Задача с шагами: BS → Цели и задачи'); r46Repaint(); return;
+    r46Mark('work', x.id, 1); toast('Задача с шагами: BS → Задачи'); r46Repaint(); return;
   }
   if(a === 'disc'){
     if(M === 'res'){
@@ -44534,7 +44621,7 @@ button.r78-chip,a.r78-chip{cursor:pointer}
   var call = function(m, p, b){ return (typeof r6Api === 'function') ? r6Api(m, p, b) : Promise.resolve({error: 'Нет связи с сервером'}); };
   var say = function(t){ try{ toast(t); }catch(e){} };
   // ошибка сервера словами: коды вроде club_unavailable резиденту не показываются
-  var why = function(j){ var e = Stringwhy(j); return /[а-яё]/i.test(e) ? e : 'сервер не ответил, попробуйте через минуту'; };
+  var why = function(j){ var e = String((j && (j.detail || j.error)) || ''); return /[а-яё]/i.test(e) ? e : 'сервер не ответил, попробуйте через минуту'; };
 
   // ═══ Меню резидента: «Как пользоваться» убрана, «Мероприятия» в «Клубе» ═══
   try{

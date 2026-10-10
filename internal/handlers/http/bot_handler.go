@@ -367,7 +367,14 @@ func (h *BotHandler) ScriptLatest(c *gin.Context) {
 	// app's and the platform's club writes go to APP_SCRIPT_URL): the sheet
 	// moves them to the new version too (v38), not only the bot's relay.
 	out := gin.H{"version": v, "relay": h.svc.RelayURL(), "apps": []string{AppScriptURL()}, "files": []content.ScriptFile{}}
-	if have == v {
+	if !club.SheetLegacy() && have != "" {
+		// R77: the sheet is detached. Its dormant script (still on an old
+		// version) tried to update itself every hour and failed with 403 in
+		// the Apps Script API: it is told it is up to date, gets no files and
+		// no other deployments to move, so it stops trying. Only the rollback
+		// (SHEET_MODE=legacy) ships the code again.
+		out = gin.H{"version": have, "relay": "", "apps": []string{}, "files": []content.ScriptFile{}, "upToDate": true, "latest": v, "sheetMode": club.SheetMode()}
+	} else if have == v {
 		out["upToDate"] = true
 	} else {
 		out["files"] = content.ScriptFiles()
