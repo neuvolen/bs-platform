@@ -145,6 +145,12 @@ var bsProfile = struct {
 		// R62: вопросы так, как собственник задаёт их ИИ (7+ слов), ответ в первых двух предложениях с цифрой
 		{"Где в Алматы найти бизнес-трекера для собственника малого бизнеса?", "Business Surgery: клуб бизнес-трекинга в Алматы, проспект Достык, 44, Dostyk Hub. Основатели клуба Береке Ерниязов и Рустам Кабден провели более 700 разборов бизнеса. Первый шаг: экспресс-разбор за 1 час, 50 000 ₸, запись в WhatsApp +7 702 403 50 36 или в Telegram-боте @bsurgery_bot."},
 		{"Что делать собственнику, если бизнес упёрся в потолок и держится на нём самом?", "Начать с диагноза: найти, какой из 7 органов бизнеса тормозит рост, и одну главную причину. В Business Surgery это делают на экспресс-разборе за 1 час, стоимость 50 000 ₸. Дальше план задач на 10 дней, ежедневный отчёт о выполнении и следующий разбор с проверкой цифр."},
+		// R83: ещё 5 длинных вопросов, как их задают ИИ; ответ до 60 слов с цифрой
+		{"Как выбрать бизнес-трекера в Казахстане и что проверить до начала работы?", "Проверь три вещи: сколько разборов провёл трекер, есть ли постоянный ритм встреч и проверяется ли результат в цифрах. В Business Surgery разбор каждые 10 дней, ежедневный отчёт резидента и более 700 проведённых разборов. Формат можно проверить на своём бизнесе: экспресс-разбор за 1 час, 50 000 ₸."},
+		{"Сколько стоит бизнес-трекинг для собственника малого бизнеса в Алматы?", "В Business Surgery экспресс-разбор стоит 50 000 ₸, резидентство на 3 месяца 500 000 ₸, на 12 месяцев 1 500 000 ₸. В резидентство входят разбор каждые 10 дней, план задач на цикл, ежедневная отчётность и группа из 5 резидентов."},
+		{"Чем бизнес-трекинг отличается от консалтинга и наставничества для собственника?", "Консультант даёт рекомендации, наставник делится своим опытом, трекер ведёт собственника к цели в цифрах и проверяет выполнение. В Business Surgery это цикл из 10 дней: разбор, план задач, ежедневный отчёт и проверка цифр на следующем разборе. Решения в бизнесе принимает сам собственник."},
+		{"Есть ли в Алматы бизнес-клуб для собственников с прибылью от 2 млн ₸ в месяц?", "Да, Business Surgery: клуб бизнес-трекинга на проспекте Достык, 44, в Dostyk Hub. Основная аудитория клуба: собственники с чистой прибылью от 2 до 20 млн ₸ в месяц. Резиденты работают в группах по 5 человек, разбор бизнеса каждые 10 дней."},
+		{"Как понять, что бизнесу пора к трекеру после нескольких пройденных курсов?", "Признаки: знания из курсов не внедряются, прибыль год стоит на одном уровне, бизнес держится на собственнике. Трекер работает с внедрением: в Business Surgery план на 10 дней, ежедневный отчёт и штраф 10 000 ₸ за пропущенный отчёт. Начать можно с экспресс-разбора за 1 час."},
 		{"Кому подходит клуб?", "Собственникам действующего бизнеса, которые упёрлись в потолок: бизнес держится на владельце, прибыль годами на одном уровне, команда не принимает решений сама, знания из курсов не внедряются. Основная аудитория клуба: собственники с чистой прибылью от 2 до 20 млн ₸ в месяц."},
 		{"Кому клуб не подойдёт?", "Тем, кто ищет курс с уроками или разовую консультацию без внедрения, и тем, у кого нет нескольких минут в день на отчёт о выполнении задач."},
 		{"Сколько стоит участие?", "Экспресс-разбор: 50 000 ₸. Резидентство на 3 месяца: 500 000 ₸. Резидентство на 12 месяцев: 1 500 000 ₸. Актуальные условия уточняйте при записи."},
@@ -397,8 +403,9 @@ func RegisterPublic(r *gin.Engine) {
 		r.GET(p, h)
 		r.HEAD(p, h)
 	}
-	registerIcons(r) // R83: the platform icon for every page and file (favicon.go)
-	registerFree(r)  // R76: the Threads magnets (free_pages.go)
+	registerIcons(r)   // R83: the platform icon for every page and file (favicon.go)
+	registerFree(r)    // R76: the Threads magnets (free_pages.go)
+	registerAnswers(r) // R83: answer pages /answers (r83_answers.go)
 	club := func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/about") }
 	r.GET("/club", club)
 	r.HEAD("/club", club)
@@ -443,7 +450,7 @@ var robotsClosed = []string{"/api/", "/platform", "/dl/", "/sum/", "/voice/", "/
 
 func robotsRules() string {
 	var b strings.Builder
-	b.WriteString("Allow: /about\nAllow: /library\nAllow: /privacy\nAllow: /terms\nAllow: /llms.txt\nAllow: /llms-full.txt\nAllow: /site/\n")
+	b.WriteString("Allow: /about\nAllow: /answers\nAllow: /library\nAllow: /privacy\nAllow: /terms\nAllow: /llms.txt\nAllow: /llms-full.txt\nAllow: /site/\n")
 	for _, p := range robotsClosed {
 		b.WriteString("Disallow: " + p + "\n")
 	}
@@ -470,12 +477,16 @@ func sitemapXML() string {
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
 	add := func(loc, pri string) {
-		b.WriteString("  <url><loc>" + html.EscapeString(loc) + "</loc><lastmod>" + siteUpdated + "</lastmod><priority>" + pri + "</priority></url>\n")
+		b.WriteString("  <url><loc>" + html.EscapeString(loc) + "</loc><lastmod>" + seoLastmod(loc) + "</lastmod><priority>" + pri + "</priority></url>\n") // R83: the SEO job's lastmod
 	}
 	add(SiteURL+"/about", "1.0")
 	add(SiteURL+"/library", "0.8")
 	add(SiteURL+"/privacy", "0.3")
 	add(SiteURL+"/terms", "0.3")
+	add(SiteURL+"/answers", "0.9") // R83: answer pages
+	for _, q := range qaPages {
+		add(qaURL(q.Slug), "0.8")
+	}
 	for _, e := range l.items {
 		add(libURL(e.Slug), "0.6")
 	}
@@ -532,11 +543,15 @@ func llmsTxt() string {
 	var b strings.Builder
 	b.WriteString(llmsHead())
 	b.WriteString("\n## Главное\n\n")
-	b.WriteString("- [О клубе Business Surgery](" + SiteURL + "/about): метод, 10-дневный цикл, цены, основатели, 15 ответов на частые вопросы\n")
+	b.WriteString("- [О клубе Business Surgery](" + SiteURL + "/about): метод, 10-дневный цикл, цены, основатели, " + strconv.Itoa(len(bsProfile.FAQ)) + " ответов на частые вопросы\n")
 	b.WriteString("- [Полное описание для ИИ](" + SiteURL + "/llms-full.txt): всё из этого файла, FAQ и вся открытая библиотека одним текстом\n")
 	b.WriteString("- [Сайт клуба](" + bsProfile.MainSite + "): запись на экспресс-разбор\n")
 	b.WriteString("- [Telegram-бот](" + bsProfile.Bot + "): 99 бесплатных чек-листов и диагностика бизнеса\n")
 	b.WriteString("- Библиотека клуба на платформе: " + content.ScaleText() + "\n")
+	b.WriteString("\n## Ответы на частые запросы\n\n") // R83
+	for _, q := range qaPages {
+		b.WriteString("- [" + q.Q + "](" + qaURL(q.Slug) + "): " + q.A + "\n")
+	}
 	b.WriteString("\n## Открытая библиотека: диагнозы бизнеса\n\n")
 	for _, e := range l.items {
 		if e.Kind == "diag" {
@@ -569,6 +584,10 @@ func llmsFullTxt() string {
 	b.WriteString("\n## Частые вопросы\n\n")
 	for _, f := range p.FAQ {
 		b.WriteString("### " + f.Q + "\n\n" + f.A + "\n\n")
+	}
+	b.WriteString("## Ответы на частые запросы\n\n") // R83
+	for _, q := range qaPages {
+		b.WriteString("### " + q.Q + "\n\n" + q.A + " " + qaURL(q.Slug) + "\n\n")
 	}
 	b.WriteString("## Открытая библиотека\n\nКарточки клуба по органам бизнеса. Полный текст на странице каждой карточки.\n\n")
 	for _, e := range l.items {
@@ -799,6 +818,7 @@ footer p+p{margin-top:6px}
  ol.cy,.pr,.fd,.ct,.ix ul,.cs{grid-template-columns:1fr}.cta .b{width:100%;padding:0 16px}.org{grid-template-columns:1fr 1fr}.hero{padding:40px 0 28px}}`
 
 func pageHead(title, desc, canonical, ogType, ld string) string {
+	desc = seoDesc(canonical, desc) // R83: a description the SEO job filled in (seo.go)
 	var b strings.Builder
 	b.WriteString("<!doctype html>\n<html lang=\"ru\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n")
 	b.WriteString("<title>" + hx(title) + "</title>\n<meta name=\"description\" content=\"" + hx(desc) + "\">\n")
@@ -906,6 +926,12 @@ func aboutHTML() string {
 		b.WriteString("<h3>" + hx(f.Q) + "</h3><p>" + hx(f.A) + "</p>")
 	}
 	b.WriteString(`</div></section>` + "\n")
+
+	b.WriteString(`<section id="answers" class="ix"><div class="w"><h2>Короткие ответы</h2><ul>`) // R83
+	for _, q := range qaPages {
+		b.WriteString(`<li><a href="/answers/` + q.Slug + `"><b>` + hx(q.Q) + `</b></a></li>`)
+	}
+	b.WriteString(`</ul><div class="cta"><a class="b" href="/answers">Все ответы</a></div></div></section>` + "\n")
 
 	b.WriteString(`<section id="library" class="ix"><div class="w"><h2>Открытая библиотека клуба</h2><p class="mute">Диагнозы, которые клуб чаще всего находит на разборах, и инструменты, которыми их лечат. Без регистрации.</p><ul>`)
 	n := 0

@@ -7183,8 +7183,8 @@ function openCard(kind, i){
   var org = String(d.organ||'').replace(/^[^А-Яа-яA-Za-z]+/,'').trim();
   var om = ORG_MAP.find(function(o){ return o.n===org; });
   var lab = om ? om.label : '';
-  var tag = (isD ? 'Диагноз' : (d.isBook ? 'Книга' : 'Инструмент')) + (lab ? ' · ' + lab : '') + (org ? ' · ' + org : '');
-  document.getElementById('cardCover').innerHTML = coverHTML(org, d.title, isD ? 'diag' : 'tool', true, d.isBook ? 'КНИГА' : '') +
+  var tag = (isD ? 'Диагноз' : (d.isBook ? 'Книга' : (d.isExt ? 'Внешний материал' : 'Инструмент'))) + (lab ? ' · ' + lab : '') + (org ? ' · ' + org : '');
+  document.getElementById('cardCover').innerHTML = coverHTML(org, d.title, isD ? 'diag' : 'tool', true, d.isBook ? 'КНИГА' : (d.isExt ? 'ВНЕШНИЙ МАТЕРИАЛ' : '')) +
     '<div class="cc-x" onclick="closeSheet(\'cardSheet\')" title="Закрыть"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>';
   var cs = document.getElementById('cardSheet');
   cs.classList.toggle('tool', !isD);
@@ -7207,6 +7207,7 @@ function openCard(kind, i){
       '<button class="btn pf-b pf-p" onclick="closeSheet(\'cardSheet\');openLib(\'tool\')">Подобрать инструменты</button>' +
       '<button class="btn pf-b" onclick="closeSheet(\'cardSheet\');editDiag('+i+')">Изменить</button></div>';
   } else {
+    if(d.isExt && typeof r83ExtBanner === 'function') h += r83ExtBanner(d); // R83: внешний материал, источник и ссылка
     if(d.why) h+='<div class="dsec"><div class="dh">Зачем</div><div class="cd-p">'+esc(d.why)+'</div></div>';
     if(d.how&&d.how.length){
       h+='<div class="dsec"><div class="dh">Как внедрить</div>';
@@ -36259,6 +36260,7 @@ function r46Mine(kind, title){
 }
 function r46Badges(kind, d, r, used){
   var b = [];
+  if(d && d.isExt) b.push('<span class="r46-bd ext">' + r46E(d.srcBadge || 'Внешний') + '</span>'); // R83
   if(r && kind === 'diag'){
     try{ var sc = lib2TestScore(r, lib2TestState(r.id).cur); if(sc.done) b.push('<span class="r46-bd' + (sc.band && sc.band.i > 0 ? ' ac' : '') + '">Тест: ' + r46E(sc.band ? sc.band.l : 'пройден') + '</span>'); }catch(e){}
   }
@@ -36276,7 +36278,7 @@ function r46Card(kind, i, o){
   var click = o.locked ? '' : (o.click || ('openCard(\'' + kind + '\',' + i + ')'));
   var st = r46Stats(kind, d, r);
   return '<div class="gu-card r15gc r46c' + (o.locked ? ' lk' : '') + '" data-k="' + kind + '" data-i="' + i + '" data-o="' + r46E(org) + '"' + (click ? ' onclick="' + click + '"' : '') + '>' +
-    '<div class="r15-cvw">' + coverHTML(org, title, kind, false, d.isBook ? 'КНИГА' : '').replace('class="cv-title', 'class="gu-t cv-title') +
+    '<div class="r15-cvw">' + coverHTML(org, title, kind, false, d.isBook ? 'КНИГА' : (d.isExt ? 'ВНЕШНИЙ' : '')).replace('class="cv-title', 'class="gu-t cv-title') +
       '<div class="r46-mo ' + (kind === 'diag' ? 'dx' : 'tl') + '"></div>' +
       '<div class="r15-bdg">' + (o.locked ? '<span class="r46-bd gh">Для резидентов</span>' : r46Badges(kind, d, r, o.used)) + '</div>' +
       (o.locked ? '' : '<div class="gu-hov"><span class="gu-hk">' + (kind === 'diag' ? 'Диагноз' : 'Инструмент') + ' · ' + r46E(org || 'BS') + '</span>' + (hov ? '<div class="gu-pr">' + r46E(hov) + '</div>' : '') + '<span class="gu-go">Открыть →</span></div>') +
@@ -36290,11 +36292,28 @@ function r46Card(kind, i, o){
 function r46OrgBar(kind, items, fn){
   var cnt = {}; items.forEach(function(x){ var o = r46Org(x.d.organ) || 'Другое'; cnt[o] = (cnt[o] || 0) + 1; });
   var ks = Object.keys(cnt).sort(function(a, b){ return (typeof gdOrgRank === 'function' ? gdOrgRank(a) - gdOrgRank(b) : 0) || a.localeCompare(b, 'ru'); });
-  var cur = R46.org[kind]; if(cur && !cnt[cur]) R46.org[kind] = cur = '';
+  var nExt = items.filter(function(x){ return x.d && x.d.isExt; }).length; // R83: «Внешние материалы»
+  var cur = R46.org[kind]; if(cur && !cnt[cur] && !(cur === '__ext' && nExt)) R46.org[kind] = cur = '';
   return '<div class="pf-filters gu-of r46-of">' +
     '<div class="pf-fl gu-all' + (!cur ? ' on' : '') + '" data-o="" onclick="R46.org.' + kind + '=\'\';' + fn + '()"><svg class="gu-oi" width="22" height="22" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="12" y="12" width="16" height="16" rx="3"/><rect x="36" y="12" width="16" height="16" rx="3"/><rect x="12" y="36" width="16" height="16" rx="3"/><rect x="36" y="36" width="16" height="16" rx="3"/></svg><span>Все</span><b class="ev-n">' + items.length + '</b></div>' +
     ks.map(function(o){ return '<div class="pf-fl gu-oc' + (cur === o ? ' on' : '') + '" data-o="' + r46E(o) + '" title="' + r46E(o) + '" onclick="R46.org.' + kind + '=R46.org.' + kind + '===this.dataset.o?\'\':this.dataset.o;' + fn + '()">' + (typeof gdOrgIc === 'function' ? gdOrgIc(o, 22) : '') + '<span>' + r46E(o) + '</span><b class="ev-n">' + cnt[o] + '</b></div>'; }).join('') +
+    (nExt ? '<div class="pf-fl gu-oc r83-ext' + (cur === '__ext' ? ' on' : '') + '" data-o="__ext" title="Внешние материалы: таблицы, калькуляторы и разборы из открытых каналов" onclick="R46.org.' + kind + '=R46.org.' + kind + '===\'__ext\'?\'\':\'__ext\';' + fn + '()"><svg class="gu-oi" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span>Внешние материалы</span><b class="ev-n">' + nExt + '</b></div>' : '') +
   '</div>';
+}
+// R83: фильтр по органу или «Внешние материалы» (карточки isExt из открытых каналов)
+function r83OrgOk(kind, x){
+  var cur = R46.org[kind];
+  if(!cur) return true;
+  if(cur === '__ext') return !!(x.d && x.d.isExt);
+  return r46Org(x.d.organ) === cur;
+}
+// R83: внешний материал в карточке: источник, бейдж и кнопка «Открыть»
+function r83ExtBanner(d){
+  var E = function(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var ok = /^https:\/\//.test(String(d.link || ''));
+  return '<div class="dsec r83-xb"><div class="dh">Внешний материал</div><div class="r83-xbb">' +
+    '<span class="r46-bd ext">' + E(d.srcBadge || 'Внешний') + '</span><span class="r83-xs">Источник: ' + E(d.source || 'открытый канал') + '. Материал автора, мы описали его своими словами и не копируем текст.</span>' +
+    (ok ? '<a class="btn pf-b pf-p r83-xo" href="' + E(d.link) + '" target="_blank" rel="noopener">Открыть в ' + E(d.srcBadge || 'источнике') + '</a>' : '') + '</div></div>';
 }
 function r46Match(kind, x, q){
   if(!q) return true;
@@ -36308,7 +36327,7 @@ function r46AdminGrid(kind){
   var qi = document.getElementById(kind === 'diag' ? 'dlSearch' : 'tlSearch'), q = String(qi && qi.value || '').trim().toLowerCase();
   if(qi) qi.placeholder = kind === 'diag' ? 'Поиск: название, орган, признак' : 'Поиск: название, орган, описание';
   var all = list.map(function(d, i){ return {d:d, i:i}; }).filter(function(x){ return x.d && x.d.title && !(kind === 'tool' && x.d.isBook); }); // книги: своя вкладка «Книги»
-  var vis = all.filter(function(x){ return (!R46.org[kind] || r46Org(x.d.organ) === R46.org[kind]) && r46Match(kind, x, q); });
+  var vis = all.filter(function(x){ return r83OrgOk(kind, x) && r46Match(kind, x, q); });
   var MD = ['az', 'organ', 'new', 'used'], md = bslMode(kind === 'diag' ? 'diag' : 'tools', MD), used = bslUsed(kind);
   var gr = bslApply(vis, md, {t:function(x){ return x.d.title; }, g:function(x){ return r46Org(x.d.organ); }, n:function(x){ return x.i; }, u:function(x){ return used[x.d.title] || 0; }});
   var edit = function(x){ var r = null; try{ r = lib2Find(kind, x.d); }catch(e){} return r ? null : (kind === 'diag' ? 'editDiag(' + x.i + ')' : 'editTool(' + x.i + ')'); };
@@ -36347,7 +36366,7 @@ function r46KitGrid(){
   var kind = R15KIT.f === 'diag' ? 'diag' : 'tool', list = kind === 'diag' ? DIAG : TOOLS;
   var q = String(R15KIT.q || '').trim().toLowerCase();
   var all = (list || []).map(function(d, i){ return {d:d, i:i}; }).filter(function(x){ return x.d && x.d.title && !x.d.isBook; });
-  var vis = all.filter(function(x){ return (!R46.org[kind] || r46Org(x.d.organ) === R46.org[kind]) && r46Match(kind, x, q); });
+  var vis = all.filter(function(x){ return r83OrgOk(kind, x) && r46Match(kind, x, q); });
   // свои сверху: диагнозы с доски и инструменты в задачах
   vis.sort(function(a, b){ return (r46Mine(kind, b.d.title) ? 1 : 0) - (r46Mine(kind, a.d.title) ? 1 : 0); });
   var of = document.getElementById('r46KitOf');
@@ -45231,10 +45250,15 @@ button.r78-chip,a.r78-chip{cursor:pointer}
 .r77-err{color:var(--pred);font-size:11px;font-weight:700}
 .r77-more{display:flex;justify-content:center;padding:12px}
 .r77-empty{padding:28px 14px;text-align:center;color:var(--pm);font-size:13px}
+.r77-r .n a.r77-src{display:inline;font-size:11px;font-weight:700;color:var(--pm);text-decoration:underline}
 .r77-foot{font-size:11.5px;color:var(--pm);margin:10px 2px 0;line-height:1.5}
 .r77-add{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:12px;margin:0 0 12px}
 .r77-add input,.r77-add select{height:36px;box-sizing:border-box;border-radius:9px;border:1px solid var(--pi);background:var(--ph);color:var(--ptx);font:inherit;font-size:13px;padding:0 10px;width:100%}
 .r77-add .act{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end}
+.r46-bd.ext{border-color:var(--ptx);color:var(--ptx)}
+.r83-xbb{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.r83-xs{flex:1 1 240px;font-size:12.5px;line-height:1.45;color:var(--pm)}
+.r83-xo{text-decoration:none}
 @media(max-width:900px){
   .r77-sum{grid-template-columns:repeat(3,minmax(0,1fr))}
   .r77-r.th{display:none}
@@ -45317,7 +45341,8 @@ var rowHTML = function(r){
     ST.map(function(s){ return '<option' + (s === r.st ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '<option value="__hide">скрыть</option></select>';
   return '<div class="r77-r" data-id="' + E(it.id) + '">' +
     '<div class="n"><a href="' + E(it.url) + '" target="_blank" rel="noopener">' + E(it.name) + '</a><small>' + E(it.topic || '') +
-      (r.err ? ' <span class="r77-err" title="' + E(r.err) + '">не открылся при проверке</span>' : '') + '</small><div class="r77-w">' + why + '</div></div>' +
+      (r.err ? ' <span class="r77-err" title="' + E(r.err) + '">не открылся при проверке</span>' : '') +
+      (it.platform === 'whatsapp' && /^https?:\/\//.test(it.src || '') ? ' <a class="r77-src" href="' + E(it.src) + '" target="_blank" rel="noopener">где найдено</a>' : '') + '</small><div class="r77-w">' + why + '</div></div>' +
     '<div><span class="r77-pb">' + E(PL[it.platform] || it.platform) + '</span><div class="m" style="margin-top:4px">' + E(it.kind || '') + '</div></div>' +
     '<div class="m"><b>' + E(it.cat || '') + '</b><br>' + E(it.city || '') + (it.lang ? ' · ' + E(it.lang) : '') + '</div>' +
     '<div class="num">' + (sz || '<i>нет данных</i>') + (sz ? '<i>' + (r.tg && r.tg.group ? 'участников' : (it.platform === 'offline' ? 'участников' : 'подписчиков')) + '</i>' : '') + '</div>' +
@@ -45386,7 +45411,9 @@ var paint = function(){
       list.slice(0, V.lim).map(rowHTML).join('') +
       (list.length > V.lim ? '<div class="r77-more"><button class="b" data-a="more">Показать ещё ' + Math.min(60, list.length - V.lim) + ' из ' + (list.length - V.lim) + '</button></div>' : '') + '</div>';
   }
-  h += '<div class="r77-foot">Показано ' + Math.min(V.lim, list.length) + ' из ' + list.length + '</div>';
+  var wr = c.waRun || null; // R83: поиск WhatsApp-сообществ на страницах и в постах Telegram
+  h += '<div class="r77-foot">Показано ' + Math.min(V.lim, list.length) + ' из ' + list.length +
+    '<br>WhatsApp: ' + nf(byPl.whatsapp || 0) + ' в каталоге. ' + (wr ? 'Поиск ссылок chat.whatsapp.com и whatsapp.com/channel ' + E(ago(wr.at)) + ': страниц ' + nf(wr.pages) + ', чтений Telegram ' + nf(wr.tg) + ', ссылок ' + nf(wr.links) + ', открыто ' + nf(wr.opened) + ', добавлено ' + nf(wr.added) + '. В каталог попадает только живая ссылка, найденная на настоящей странице: «где найдено» под названием.' : 'Сервер ищет ссылки на WhatsApp-группы и каналы на страницах источников и в постах Telegram раз в день.') + '</div>';
   var q = document.activeElement && document.activeElement.id === 'r77Q';
   box.innerHTML = h;
   if(q){ var qi = document.getElementById('r77Q'); if(qi){ qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); } }
@@ -45470,6 +45497,157 @@ try{
 })();
 </script>
 <!-- /R77 -->
+<!-- R83: Маркетинг → SEO. «Хочу, чтобы ты сам всё это делал и также ежедневно оптимизировал SEO». Документ bs_seo пишет только сервер
+     (internal/handlers/http/r83_seo.go): ежедневная проверка открытых страниц, исправления, раз в неделю ИИ-видимость -->
+<style id="r83Style">
+.r83{max-width:1180px}
+.r83-what{background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:12.5px;line-height:1.5;color:var(--pm)}
+.r83-what b{color:var(--ptx)}
+.r83-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.r83-sum>div{background:var(--pc);border:1px solid var(--pb);border-radius:12px;padding:10px 12px;min-width:0}
+.r83-sum b{display:block;font-size:20px;font-weight:800;color:var(--ptx);white-space:nowrap;font-variant-numeric:tabular-nums}
+.r83-sum span{display:block;font-size:11.5px;font-weight:700;color:var(--pm);line-height:1.35}
+.r83-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.r83 button.b{height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--pi);background:var(--pc);color:var(--ptx);font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+.r83 button.b.p{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r83 button.b:disabled{opacity:.55;cursor:default}
+.r83 h3{font-size:14px;font-weight:800;color:var(--ptx);margin:18px 2px 8px}
+.r83-tbl{background:var(--pc);border:1px solid var(--pb);border-radius:14px;overflow:hidden}
+.r83-r{display:grid;grid-template-columns:110px 120px minmax(0,1.3fr) minmax(0,2fr);gap:10px;align-items:start;padding:9px 14px;border-bottom:1px solid var(--ph);font-size:12.5px;line-height:1.4}
+.r83-r:last-child{border-bottom:none}
+.r83-r.th{font-size:11px;font-weight:800;color:var(--pm);text-transform:uppercase;letter-spacing:.3px}
+.r83-r a{color:var(--ptx);font-weight:700;word-break:break-all}
+.r83-ai{grid-template-columns:120px minmax(0,1.2fr) minmax(0,2fr)}
+.r83-h{grid-template-columns:repeat(6,minmax(0,1fr))}
+.r83-bd{display:inline-block;border:1px solid var(--pb);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:800;color:var(--ptx);white-space:nowrap}
+.r83-bd.error,.r83-bd.yes{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r83-bd.info,.r83-bd.nd{border-style:dashed;color:var(--pm)}
+.r83-m{color:var(--pm)}
+.r83-empty{padding:24px 14px;text-align:center;color:var(--pm);font-size:13px}
+@media(max-width:900px){
+  .r83-sum{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .r83-r.th{display:none}
+  .r83-r,.r83-ai{grid-template-columns:1fr 1fr;padding:12px}
+  .r83-r>div:nth-child(n+3){grid-column:1/-1}
+  .r83-h{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .r83-h>div:nth-child(n+3){grid-column:auto}
+}
+</style>
+<script id="r83Script">
+(function(){
+'use strict';
+var KEY = 'bs_seo';
+var V = {sev: '', busy: false, sig: ''};
+var E = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); };
+var nf = function(v){ return String(Math.round(Number(v) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); };
+var say = function(t){ try{ if(typeof toast === 'function') toast(t); }catch(e){} };
+var doc = function(){ try{ var v = JSON.parse(localStorage.getItem(KEY) || 'null'); return v && typeof v === 'object' ? v : {}; }catch(e){ return {}; } };
+var adm = function(){ try{ return typeof md === 'function' ? md() === 'admin' : true; }catch(e){ return true; } };
+var when = function(iso){
+  var t = Date.parse(iso || ''); if(!t) return '';
+  var d = new Date(t), p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return p(d.getDate()) + '.' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+};
+var CHECK = {title: 'Заголовок', description: 'Описание', h1: 'H1', canonical: 'Canonical', jsonld: 'JSON-LD', link: 'Ссылка', status: 'Ответ страницы',
+  sitemap: 'Sitemap', robots: 'robots.txt', llms: 'llms.txt', lastmod: 'lastmod'};
+var SEV = {error: 'ошибка', warn: 'внимание', info: 'исправлено'};
+var paint = function(){
+  var box = document.getElementById('r83Box'); if(!box) return;
+  var d = doc(), r = d.report, h = '';
+  V.sig = String(d.updated || '') + '|' + ((d.ai && d.ai[0] && d.ai[0].at) || '');
+  h += '<div class="r83-what"><b>Что делает сервер каждый день.</b> Открывает все страницы sitemap (страница клуба, ответы, библиотека, идеи, бесплатные материалы) и проверяет: длину заголовка и описания, один H1, canonical, JSON-LD, внутренние ссылки, sitemap, robots.txt, размер llms.txt и llms-full.txt. ' +
+    'Сам исправляет безопасное: lastmod в sitemap по изменению страницы, описание из первого абзаца, если его нет или оно слишком короткое или длинное. Заголовки, H1 и битые ссылки остаются в списке для человека. ' +
+    '<b>Раз в неделю</b> задаёт бесплатному ИИ с поиском в интернете ' + nf((d.prompts || []).length || 8) + ' вопросов, как их задают собственники, и записывает, называет ли он Business Surgery. Если поиск ИИ недоступен, неделя отмечается «нет данных».</div>';
+  if(adm()){
+    h += '<div class="r83-bar"><button class="b p" data-a="run"' + (V.busy ? ' disabled' : '') + '>' + (V.busy ? 'Проверяю…' : 'Проверить сейчас') + '</button>' +
+      '<button class="b" data-a="ai"' + (V.busy ? ' disabled' : '') + '>Проверить и спросить ИИ</button>' +
+      '<span class="r83-m">' + (r ? 'Последняя проверка ' + E(when(r.at)) + ', ' + E(r.took || '') + (d.next ? '. Следующая ' + E(when(d.next)) : '') : '') + '</span></div>';
+  }
+  if(!r){
+    box.innerHTML = h + '<div class="r83-tbl"><div class="r83-empty">Первая проверка пройдёт через несколько минут после запуска сервера, отчёт придёт сюда сам</div></div>';
+    return;
+  }
+  h += '<div class="r83-sum">' +
+    '<div><b>' + nf(r.score) + '%</b><span>страниц без ошибок и замечаний: ' + nf(r.okPages) + ' из ' + nf(r.pages) + '</span></div>' +
+    '<div><b>' + nf(r.errors) + '</b><span>ошибок, предупреждений ' + nf(r.warns) + '</span></div>' +
+    '<div><b>' + nf(r.fixed) + '</b><span>исправлено автоматически</span></div>' +
+    '<div><b>' + nf(r.broken) + '</b><span>битых ссылок из ' + nf(r.links) + ' внутренних</span></div>' +
+    '<div><b>' + nf(r.changed) + '</b><span>страниц изменилось, lastmod обновлён</span></div>' +
+    '<div><b>' + nf(r.sitemap) + '</b><span>адресов в sitemap</span></div>' +
+    '<div><b>' + nf((r.llms || 0) / 1024) + ' КБ</b><span>llms.txt</span></div>' +
+    '<div><b>' + nf((r.llmsFull || 0) / 1024) + ' КБ</b><span>llms-full.txt</span></div></div>';
+  // ИИ-видимость
+  var ai = d.ai || [];
+  h += '<h3>ИИ-видимость' + (ai[0] ? ': ' + nf(ai[0].mentioned) + ' из ' + nf(ai[0].asked) + ' ответов называют BS, ' + E(when(ai[0].at)) : '') + (d.nextAI ? ' · следующая ' + E(when(d.nextAI)) : '') + '</h3>';
+  if(!ai.length){
+    h += '<div class="r83-tbl"><div class="r83-empty">Вопросы ИИ зададим при первой проверке</div></div>';
+  } else {
+    h += '<div class="r83-tbl"><div class="r83-r r83-ai th"><div>Результат</div><div>Вопрос</div><div>Что ответил ИИ</div></div>' + (ai[0].items || []).map(function(it){
+      var cls = it.status === 'упомянут' ? 'yes' : (it.status === 'нет данных' ? 'nd' : '');
+      return '<div class="r83-r r83-ai"><div><span class="r83-bd ' + cls + '">' + E(it.status) + '</span>' + (it.model ? '<div class="r83-m" style="margin-top:4px">' + E(it.model) + '</div>' : '') + '</div><div>' + E(it.q) + '</div><div class="r83-m">' + E(it.snippet || it.err || '') + '</div></div>';
+    }).join('') + '</div>';
+    if(ai.length > 1){
+      h += '<div class="r83-tbl" style="margin-top:8px"><div class="r83-r r83-h th"><div>Неделя</div><div>Называют BS</div><div>Спросили</div><div>Нет данных</div><div></div><div></div></div>' + ai.slice(0, 12).map(function(x){
+        return '<div class="r83-r r83-h"><div>' + E(x.day) + '</div><div><b>' + nf(x.mentioned) + '</b></div><div>' + nf(x.asked) + '</div><div>' + nf(x.noData) + '</div><div></div><div></div></div>';
+      }).join('') + '</div>';
+    }
+  }
+  // замечания
+  var is = r.issues || [];
+  var cnt = {'': is.length}; is.forEach(function(x){ cnt[x.sev] = (cnt[x.sev] || 0) + 1; });
+  h += '<h3>Замечания проверки</h3><div class="r83-bar">' + [['', 'Все'], ['error', 'Ошибки'], ['warn', 'Внимание'], ['info', 'Исправлено']].map(function(f){
+    return '<div class="pf-fl' + (V.sev === f[0] ? ' on' : '') + '" data-sev="' + f[0] + '">' + f[1] + ' <b class="ev-n">' + nf(cnt[f[0]] || 0) + '</b></div>';
+  }).join('') + '</div>';
+  var vis = is.filter(function(x){ return !V.sev || x.sev === V.sev; });
+  h += '<div class="r83-tbl">' + (vis.length ? '<div class="r83-r th"><div>Тип</div><div>Проверка</div><div>Страница</div><div>Что не так</div></div>' + vis.slice(0, 150).map(function(x){
+      var u = String(x.url || '');
+      return '<div class="r83-r"><div><span class="r83-bd ' + E(x.sev) + '">' + E(SEV[x.sev] || x.sev) + '</span></div><div>' + E(CHECK[x.check] || x.check) + '</div>' +
+        '<div>' + (u.charAt(0) === '/' ? '<a href="' + E(u) + '" target="_blank" rel="noopener">' + E(u) + '</a>' : E(u)) + '</div><div class="r83-m">' + E(x.msg) + '</div></div>';
+    }).join('') : '<div class="r83-empty">Замечаний нет</div>') + '</div>';
+  if(r.moreIssues) h += '<div class="r83-m" style="margin:8px 2px">И ещё ' + nf(r.moreIssues) + ' замечаний того же рода</div>';
+  // история
+  var hi = d.history || [];
+  if(hi.length){
+    h += '<h3>История по дням</h3><div class="r83-tbl"><div class="r83-r r83-h th"><div>День</div><div>Оценка</div><div>Ошибки</div><div>Внимание</div><div>Исправлено</div><div>Изменилось</div></div>' + hi.slice(0, 30).map(function(x){
+      return '<div class="r83-r r83-h"><div>' + E(x.day) + '</div><div><b>' + nf(x.score) + '%</b></div><div>' + nf(x.errors) + '</div><div>' + nf(x.warns) + '</div><div>' + nf(x.fixed) + '</div><div>' + nf(x.changed) + '</div></div>';
+    }).join('') + '</div>';
+  }
+  box.innerHTML = h;
+};
+document.addEventListener('click', function(ev){
+  var t = ev.target && ev.target.closest ? ev.target.closest('#r83Box [data-a], #r83Box [data-sev]') : null; if(!t) return;
+  if(t.dataset.sev !== undefined && !t.dataset.a){ V.sev = t.dataset.sev; paint(); return; }
+  var a = t.dataset.a;
+  if(a === 'run' || a === 'ai'){
+    if(!window.BSSync || !BSSync.api){ say('Нет связи с сервером'); return; }
+    V.busy = true; paint();
+    Promise.resolve().then(function(){ return BSSync.api('POST', '/seo/run' + (a === 'ai' ? '?ai=1' : '')); }).then(function(r){ return r && r.json ? r.json() : null; }).then(function(j){
+      say(j && j.started ? 'Сервер проверяет страницы, отчёт придёт сам через 1-3 минуты' : 'Не получилось запустить');
+    }).catch(function(){ say('Не получилось запустить'); }).then(function(){ setTimeout(function(){ V.busy = false; paint(); }, 5000); });
+  }
+});
+var render = function(){
+  var el = pgSet('SEO', 'Проверка открытых страниц каждый день и ИИ-видимость раз в неделю');
+  el.innerHTML = '<div class="r83" id="r83Box"></div>';
+  paint();
+};
+window.renderMSeo = render;
+setInterval(function(){
+  var box = document.getElementById('r83Box'); if(!box || !box.offsetParent) return;
+  var d = doc(), sig = String(d.updated || '') + '|' + ((d.ai && d.ai[0] && d.ai[0].at) || '');
+  if(sig !== V.sig) paint();
+}, 5000);
+try{
+  if(typeof BLOCKS !== 'undefined' && BLOCKS.mkt && !BLOCKS.mkt.tabs.some(function(t){ return t.id === 'mSeo'; })){
+    var at = BLOCKS.mkt.tabs.findIndex(function(t){ return t.id === 'mComm'; });
+    BLOCKS.mkt.tabs.splice(at >= 0 ? at + 1 : BLOCKS.mkt.tabs.length, 0, {id: 'mSeo', n: 'SEO'});
+  }
+  var rs0 = window.renderStub || renderStub;
+  window.renderStub = renderStub = function(s){ if(s === 'mSeo') return render(); return rs0.apply(this, arguments); };
+}catch(x){}
+})();
+</script>
+<!-- /R83 -->
 <script id="r79Script">
 /* R79: «Джарвис». Голосовой помощник без рук и заметки по типам.
    1) Кнопка «Слушать "Джарвис"» на доске. Слово-обращение ищет сам браузер: Web Worker с маленькой

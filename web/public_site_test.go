@@ -238,8 +238,8 @@ func TestAboutPage(t *testing.T) {
 		t.Fatal("no FAQPage")
 	}
 	qs := faq[0]["mainEntity"].([]any)
-	if len(qs) < 10 || len(qs) > 18 {
-		t.Errorf("FAQ has %d questions, want 10-18", len(qs))
+	if len(qs) < 10 || len(qs) > 24 { // R83: +5 long questions
+		t.Errorf("FAQ has %d questions, want 10-24", len(qs))
 	}
 	for _, q := range qs {
 		m := q.(map[string]any)
@@ -303,7 +303,7 @@ func TestSitemapAndLibraryPages(t *testing.T) {
 		t.Fatalf("library: %v", err)
 	}
 	// /about, /library, /privacy, /terms; R76: /ideas, its ideas and the magnet pages
-	if want := len(items) + 4 + 1 + len(ideaIDs()) + len(freePaths()); len(sm.URLs) != want {
+	if want := len(items) + 4 + 1 + len(ideaIDs()) + len(freePaths()) + 1 + len(qaPages); len(sm.URLs) != want { // R83: /answers
 		t.Errorf("sitemap has %d urls, want %d", len(sm.URLs), want)
 	}
 	seen := map[string]bool{}

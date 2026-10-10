@@ -84,6 +84,10 @@ func TestLibExtContent(t *testing.T) {
 		check("diag", it, []string{"color", "icon", "desc", "risk"}, map[string]int{"signs": 4, "questions": 3, "cure": 1})
 	}
 	for _, it := range ext.Tools {
+		if it["isExt"] == true { // R83: an external material: a description and the link to it
+			check("tool", it, []string{"color", "icon", "short", "why", "time", "link", "source"}, map[string]int{"how": 3})
+			continue
+		}
 		check("tool", it, []string{"color", "icon", "short", "why", "example", "time"}, map[string]int{"how": 5, "check": 3})
 	}
 	n := 0

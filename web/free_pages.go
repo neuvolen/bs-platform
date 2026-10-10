@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/bnursik/business_surgery_backend/internal/content"
 	"github.com/gin-gonic/gin"
@@ -394,7 +395,7 @@ func ideaPageHTML(id string) (string, bool) {
 		b.WriteString(`<section><div class="w"><h2>Ещё в направлении «` + hx(ideasCatName[it.Cat]) + `»</h2><div class="ig">` + near.String() + `</div><div class="cta"><a class="b" href="/ideas">Весь каталог идей</a></div></div></section>`)
 	}
 	b.WriteString(MagnetCTA("ideas", "Разобрать эту идею на ваших цифрах", "Экспресс-разбор: час с основателями клуба. Считаем бюджет, спрос и первые 10 дней запуска под ваш город и ваши деньги."))
-	return PublicShell(it.Title+": бизнес-идея с расчётом | Business Surgery", cut(it.Short+" Старт от "+money(it.Budget[0])+", окупаемость "+it.Payback+".", 280), "/ideas/"+it.ID, ideasCSS, b.String(), ""), true
+	return PublicShell(ideaTitle(it.Title), cut(it.Short+" Старт от "+money(it.Budget[0])+", окупаемость "+it.Payback+".", 280), "/ideas/"+it.ID, ideasCSS, b.String(), ""), true
 }
 
 // ── Карта диагнозов ──
@@ -571,4 +572,15 @@ func ideaIDs() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// ideaTitle (R83, the SEO job): the longest title that fits 70 characters,
+// the idea's name always first.
+func ideaTitle(name string) string {
+	for _, t := range []string{name + ": бизнес-идея с расчётом | Business Surgery", name + ": бизнес-идея с расчётом", name + " | Business Surgery"} {
+		if utf8.RuneCountInString(t) <= 70 {
+			return t
+		}
+	}
+	return name
 }

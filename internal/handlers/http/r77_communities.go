@@ -104,6 +104,8 @@ type commCat struct {
 	TG      map[string]*commTG   `json:"tg,omitempty"`
 	Cand    map[string]*commCand `json:"cand,omitempty"`
 	Run     *commRunInfo         `json:"run,omitempty"`
+	WARun   *waRunInfo           `json:"waRun,omitempty"` // R83: the WhatsApp discovery (r83_whatsapp.go)
+	WA      map[string]*waCand   `json:"-"`               // R83: kept in the server doc comm_wa_cand
 }
 
 func commSeed() []commItem {
