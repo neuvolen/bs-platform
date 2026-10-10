@@ -30,6 +30,8 @@ var lazyKeep = map[string]bool{
 	// undefined and the write threw); big sections go to IndexedDB before the first sync
 	"*:spare": true, "*:toIdb": true, "*:idbOpen": true, "*:idbPut": true, "*:idbFlush": true,
 	"*:budget": true, "*:budgetSoon": true, "*:cleanupOnce": true, "*:quotaNote": true,
+	// R80: called while the page starts (found by the r45 trace after R69/R72/R79)
+	"asScript:applyAssist": true, "r38cJs:refreshBadge": true, "r69Script:buttons": true, "r79Script:mountUI": true,
 	"r46Script:r46LeadTeaser": true, // R46: the lead home's «Бизнес-идеи» block
 	"*:lxVideo":               true, // R73: the lead home's video starts as the page draws
 	// R52: the tab strip keeps its scroll, and the board signs edited cards (who, when) as it draws
