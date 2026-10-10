@@ -23,7 +23,7 @@ func TestTeamReminders(t *testing.T) {
 		t.Fatalf("2 hours before: nothing yet, got %v", r)
 	}
 	r := TeamReminders(ms, at(9, 0))
-	if len(r) != 1 || !strings.Contains(r[0].Text, "Мади Актобе · онлайн") || !strings.Contains(r[0].Text, "meet.google.com/ouc") {
+	if len(r) != 1 || !strings.Contains(r[0].Text, "Мади Актобе · онлайн") || !strings.Contains(r[0].Text, "/call/") { // R75 call
 		t.Fatalf("an hour before the online meeting: %+v", r)
 	}
 	if r := TeamReminders(ms, at(10, 0)); len(r) != 0 {

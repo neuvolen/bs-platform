@@ -66,7 +66,7 @@ func TestDueReminders(t *testing.T) {
 	if strings.Join(kinds, ",") != "3d,1d,1h" {
 		t.Fatalf("%v", got)
 	}
-	if !strings.Contains(got[0].Text, "через 3 дня") || !strings.Contains(got[0].Text, "meet.google.com") {
+	if !strings.Contains(got[0].Text, "через 3 дня") || !strings.Contains(got[0].Text, "/call/") { // R75 call: ссылка платформы вместо Meet
 		t.Fatal(got[0].Text)
 	}
 	if !strings.HasPrefix(got[1].Text, "Альтаир: завтра 02.10.2026 10:30, Достык 44") || !got[1].Wheel {

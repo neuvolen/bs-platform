@@ -1,0 +1,8 @@
+MediaPipe Tasks Vision 0.10.21 (npm @mediapipe/tasks-vision), Apache License 2.0, Copyright Google LLC.
+https://github.com/google-ai-edge/mediapipe
+Files: vision_bundle.mjs, vision_wasm_internal.js, vision_wasm_internal.wasm (stored gzipped).
+
+selfie_segmenter_landscape.tflite: the MediaPipe selfie segmentation (landscape) model from npm
+@mediapipe/selfie_segmentation 0.1.1675465747 (Apache License 2.0), with TFLite image segmenter
+metadata added (input normalization mean 0, std 255; one label "person") by tflite-support's
+metadata writer, so MediaPipe Tasks ImageSegmenter can load it.

@@ -7,7 +7,7 @@ func TestR74CallCamAndMesh(t *testing.T) {
 	h := newCallHub()
 	b := "bAlt"
 	mk := func(id, name string, cam bool) callMember {
-		return callMember{ID: id, Key: id + "|t1", Name: name, Role: "admin", Cam: cam}
+		return callMember{ID: id, Key: id + "|t1", Name: name, Role: "admin", Cam: cam, Team: true}
 	}
 	tr, rs, pa, fo, extra := mk("1", "Рустам", true), mk("2", "Альтаир", true), mk("3", "Партнёр", false), mk("4", "Береке", true), mk("5", "Пятый", true)
 	for _, m := range []callMember{tr, rs, pa, fo} {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"github.com/bnursik/business_surgery_backend/internal/middleware"
+	"github.com/bnursik/business_surgery_backend/internal/repository/pg"
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,6 +24,8 @@ type PlatformModule struct {
 	// Доступ для ассистента, личные ссылки входа, сессии (assist_access.go).
 	// Его Guard ставится в middleware.SessionGuard при сборке сервера (app.go).
 	Access *AssistAccess
+	// R75 call: созвон по ссылке /call/<id> вместо Google Meet (callroom_r75.go)
+	Calls *CallLinks
 }
 
 func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte) *PlatformModule {
@@ -42,6 +45,8 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		return b.Resident, nil
 	})
 	m.Presence.Start(context.Background())
+	m.Calls = NewCallLinks(h.repo, secret) // R75 call
+	theCallLinks, theCallPresence = m.Calls, m.Presence
 	if h.repo != nil {
 		m.Access = NewAssistAccess(h.repo, a, h.names)
 		a.access = m.Access
@@ -139,6 +144,18 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.POST("/call/room", m.Presence.CallRoom)     // R65: онлайн-разбор на доске (platform_callroom.go)
 	g.POST("/call/signal", m.Presence.CallSignal) // R65
 	g.GET("/call/stream", m.Presence.CallStream)  // R65
+	// R75 call: модуль, собранный без NewPlatformModule (тесты), тоже со ссылками на созвон
+	if m.Calls == nil {
+		var repo *pg.PlatformRepo
+		if m.h != nil {
+			repo = m.h.repo
+		}
+		m.Calls = NewCallLinks(repo, m.secret)
+		if theCallLinks == nil {
+			theCallLinks = m.Calls
+		}
+	}
+	m.Calls.Register(r, g) // R75 call: /call/<id>, гости, GET /call/link
 	g.PUT("/boards/:id", m.h.PutBoard)
 	g.DELETE("/boards/:id", m.h.DeleteBoard)
 	g.GET("/boards/:id/versions", m.h.BoardVersions)

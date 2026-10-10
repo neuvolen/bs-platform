@@ -16,7 +16,7 @@ func TestR65CallHub(t *testing.T) {
 	h := newCallHub()
 	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
 	h.now = func() time.Time { return now }
-	tr := callMember{Key: "tg:1|ta", ID: "tg:1", Name: "Рустам", Role: "admin"}
+	tr := callMember{Key: "tg:1|ta", ID: "tg:1", Name: "Рустам", Role: "admin", Team: true}
 	rs := callMember{Key: "tg:2|tb", ID: "tg:2", Name: "Альтаир", Role: "resident"}
 	const b = "board-1"
 
@@ -27,6 +27,7 @@ func TestR65CallHub(t *testing.T) {
 		t.Fatal("present without join must fail")
 	}
 	h.Op(b, tr, "join")
+	h.OpWho(b, tr, "auto", "") // R75 call: резидент без лобби, если команда так включила
 	v, _ := h.Op(b, rs, "join")
 	if len(v.Members) != 2 || !v.In {
 		t.Fatalf("two members: %+v", v)

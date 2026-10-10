@@ -225,6 +225,24 @@ func BuildPlatformModule(d *Deps, jwtSecret, telegramBotToken, team string) *htt
 		[]byte(jwtSecret),
 	)
 	m.AI.Ops = pg.NewClubRepo(d.DB)
+	if m.Calls != nil && d.DB != nil { // R75 call: ссылки на созвон знают и резидентов клуба, их пары и людей из расписания
+		cr, base := pg.NewClubRepo(d.DB), m.Calls.Names
+		m.Calls.Names = func(ctx context.Context) []httpapi.CallName {
+			var out []httpapi.CallName
+			if base != nil {
+				out = base(ctx)
+			}
+			if snap, err := cr.Load(ctx); err == nil && snap != nil {
+				for _, r := range snap.Residents {
+					out = append(out, httpapi.CallName{Name: r.Name, Partner: r.Partner})
+				}
+				for _, mt := range snap.Meetings {
+					out = append(out, httpapi.CallName{Name: mt.Resident})
+				}
+			}
+			return out
+		}
+	}
 	if m.Access != nil {
 		// every token of the platform is checked against its session: revoked
 		// devices, assistants' rights and journal (assist_access.go)

@@ -9724,7 +9724,7 @@ function mtSorted(items){
 }
 function mtPlace(s){
   var k = mtKind(s), link = String(s.link || s.meet || '');
-  return k === 'online' ? 'Google Meet' : (k === 'offline' ? (s.place || link || 'Офлайн') : (link || 'Место не указано'));
+  return k === 'online' ? (s.call ? 'Созвон на платформе' : 'Google Meet') : (k === 'offline' ? (s.place || link || 'Офлайн') : (link || 'Место не указано')); // R75 call
 }
 function mtCard(s){
   var k = mtKind(s), cd = mtCount(s), i = mtIdx(s), done = mtDone(s);
@@ -9822,9 +9822,11 @@ function mtDetailHTML(s, compact){
     (compact ? '<div class="mt-res">' + esc(s.res || '') + '</div>' : '') +
     '<div class="mt-big">' + esc(s.date || '') + '<span>' + (meetTime(s) || '') + '</span></div>' +
     '<div class="mt-rows"><div><span>Формат</span><b>' + MT_FMT[k] + '</b></div><div><span>Резидент</span><b>' + esc(s.res || '') + '</b></div>' +
-      (link || s.place ? '<div><span>' + (k === 'online' ? 'Ссылка' : 'Место') + '</span><b class="mt-lnk">' + esc(s.place || link) + '</b></div>' : '') + '</div>' +
+      (s.call || link || s.place ? '<div><span>' + (k === 'online' ? 'Ссылка' : 'Место') + '</span><b class="mt-lnk">' + esc(k === 'online' && s.call ? s.call : (s.place || link)) + '</b></div>' : '') + '</div>' +
     '<div class="mt-btns">' +
-      (k === 'online' && /^https?:/.test(link) ? '<a class="btn bg" href="' + escA(link) + '" target="_blank" rel="noopener">Подключиться к Meet</a>' : '') +
+      // R75 call: созвон на платформе, Google Meet только запасной
+      (k === 'online' && s.call && !adm ? '<a class="btn bg" href="' + escA(s.call) + '">Войти в созвон</a>' : '') +
+      (k === 'online' && /^https?:/.test(link) && (!s.call || adm) ? '<a class="btn' + (s.call ? ' bs' : ' bg') + '" href="' + escA(link) + '" target="_blank" rel="noopener">' + (s.call ? 'Google Meet (запасной)' : 'Подключиться к Meet') + '</a>' : '') +
       (!adm && !cd.past ? b(rs ? '✓ Участие подтверждено' : 'Подтвердить участие', 'mtRsvpSet(' + i + ')', rs ? 'bs mt-ok' : 'bg') : '') +
       b('В Google Calendar', 'mtGcal(' + i + ')') +
       (adm && isMeet(s) ? b('Начать разбор', 'closeSheet(\'editSheet\');startSession(' + i + ')') : '') +
@@ -42196,13 +42198,100 @@ body.light .r74-b.min{border-color:#111}
 @media (prefers-reduced-motion:reduce){.r74-b{transition:none}}
 @media print{.r74-cams{display:none}}
 </style>
+<!-- R75 call: панель созвона справа сверху под шапкой доски (нижняя панель доски свободна), лобби, окно входа с фоном камеры,
+     экран рядом с доской, ссылка на созвон платформы вместо Google Meet -->
+<style id="r75Style">
+.r65-dock{left:auto;right:16px;bottom:auto;top:var(--r75top, calc(var(--th, 72px) + 64px));transform:none;max-width:calc(100vw - var(--sw, 0px) - 32px);gap:4px;padding:5px;border-radius:14px}
+.r65-dock button{height:34px;padding:0 10px;border-radius:10px}
+.r65-dock .r65-ic{width:34px;padding:0}
+.r65-dock .r65-st{max-width:150px}
+.r65-dock button.on{background:var(--ptx, #fff);color:var(--pc, #111);border-color:var(--ptx, #fff)}
+.r65-dock .r75-n{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#E5484D;color:#fff;font-size:11px;font-weight:900}
+.r65-join{left:auto;right:16px;bottom:auto;top:var(--r75top, calc(var(--th, 72px) + 64px));transform:none;max-width:calc(100vw - var(--sw, 0px) - 32px)}
+.r65-stage{top:calc(var(--r75top, 136px) + 54px + var(--r75lob, 0px));bottom:96px;right:64px;width:min(50vw, 1000px)}
+.r65-stage video{max-height:none;flex:1;min-height:0}
+.r65-stage.mini{top:auto;bottom:96px;right:64px;width:260px}
+.r65-stage .r65-sh button.r75-stop{border-color:#E5484D;color:#fff;background:#E5484D}
+.r75-menu{position:fixed;z-index:126;display:none;flex-direction:column;gap:2px;min-width:250px;padding:6px;border-radius:14px;background:var(--pc, #161616);color:var(--ptx, #fff);
+  border:1px solid var(--pi, rgba(255,255,255,.14));box-shadow:0 18px 44px rgba(0,0,0,.5);font:700 13px 'Manrope',-apple-system,sans-serif}
+.r75-menu.on{display:flex}
+.r75-menu button{display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:inherit;font:inherit;cursor:pointer;text-align:left;white-space:nowrap}
+.r75-menu button:hover,.r75-menu button:focus-visible{background:var(--ph, rgba(255,255,255,.08));outline:none}
+.r75-menu button.on{background:var(--ptx, #fff);color:var(--pc, #111)}
+.r75-menu .r75-tg{margin-left:auto;width:30px;height:18px;border-radius:9px;background:var(--pi, rgba(255,255,255,.2));position:relative;flex-shrink:0}
+.r75-menu .r75-tg::after{content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:currentColor;transition:left .15s}
+.r75-menu .r75-tg.on{background:#3DD68C}.r75-menu .r75-tg.on::after{left:14px}
+.r75-menu small{display:block;padding:6px 12px 2px;font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55}
+.r75-lobby{position:fixed;z-index:125;right:16px;top:calc(var(--r75top, 136px) + 54px);width:300px;max-width:calc(100vw - 32px);display:none;flex-direction:column;gap:8px}
+.r75-lobby.on{display:flex}
+.r75-lc{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 10px 10px 12px;border-radius:14px;background:var(--pc, #161616);color:var(--ptx, #fff);border:1px solid var(--pi, rgba(255,255,255,.14));
+  box-shadow:0 14px 36px rgba(0,0,0,.45);font:700 13px 'Manrope',-apple-system,sans-serif;animation:r75in .2s ease}
+@keyframes r75in{from{transform:translateY(-6px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.r75-lc{animation:none}}
+.r75-lc i{font-style:normal;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;background:var(--c, #fff);color:#111;font-weight:900;font-size:11px}
+.r75-lc span{flex:1 1 200px;min-width:0;line-height:1.3}
+.r75-lc span b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r75-lc span em{font-style:normal;font-size:11.5px;opacity:.6;font-weight:600}
+.r75-lc button{flex:1;display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 11px;border-radius:9px;border:1px solid var(--pi, rgba(255,255,255,.2));background:transparent;color:inherit;font:inherit;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap}
+.r75-lc button.pr{background:var(--ptx, #fff);color:var(--pc, #111);border-color:var(--ptx, #fff)}
+.r75-lauto{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:var(--pc, #161616);color:var(--ptx, #fff);border:1px solid var(--pi, rgba(255,255,255,.14));font:700 12px 'Manrope',sans-serif;cursor:pointer}
+.r75-lauto input{width:16px;height:16px;accent-color:#3DD68C;margin:0}
+.r75-pane{position:fixed;inset:0;z-index:130;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.r75-pane.on{display:flex}
+.r75-box{width:min(820px,100%);max-height:calc(100vh - 40px);overflow:auto;display:flex;gap:22px;padding:22px;border-radius:20px;background:var(--pc, #111);color:var(--ptx, #fff);border:1px solid var(--pi, rgba(255,255,255,.14));
+  box-shadow:0 30px 80px rgba(0,0,0,.6);font-family:'Manrope',-apple-system,sans-serif;box-sizing:border-box}
+.r75-pv{position:relative;flex:1.25;min-width:0;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000;border:1px solid var(--pi, rgba(255,255,255,.14));align-self:flex-start}
+.r75-pv video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.r75-pv video.nm{transform:none}
+.r75-pv .r75-off{position:absolute;inset:0;display:none;place-items:center;color:#aaa;font-weight:700;font-size:13px}
+.r75-pv.nov .r75-off{display:grid}.r75-pv.nov video{visibility:hidden}
+.r75-pv .r75-ctl{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:8px}
+.r75-pv .r75-ctl button{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.4);background:rgba(0,0,0,.55);color:#fff;display:grid;place-items:center;cursor:pointer;padding:0}
+.r75-pv .r75-ctl button.off{background:#fff;color:#000}
+.r75-pv .r75-ctl svg{width:18px;height:18px}
+.r75-sd{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.r75-sd h3{margin:0;font-size:21px;line-height:1.2;font-weight:800}
+.r75-sd p{margin:0;font-size:13px;line-height:1.55;opacity:.72}
+.r75-sd .r75-l{font-size:10.5px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;opacity:.55;margin-top:2px}
+.r75-fx{display:flex;flex-wrap:wrap;gap:6px}
+.r75-fx button{height:34px;padding:0 12px;border-radius:10px;border:1px solid var(--pi, rgba(255,255,255,.18));background:transparent;color:inherit;font:700 12.5px 'Manrope',sans-serif;cursor:pointer}
+.r75-fx button.on{background:var(--ptx, #fff);color:var(--pc, #111);border-color:var(--ptx, #fff)}
+.r75-fx button[disabled]{opacity:.4;cursor:default}
+.r75-sd .r75-go{height:46px;border-radius:12px;border:1px solid var(--ptx, #fff);background:var(--ptx, #fff);color:var(--pc, #111);font:800 14px 'Manrope',sans-serif;cursor:pointer;margin-top:auto}
+.r75-sd .r75-no{height:40px;border-radius:12px;border:1px solid var(--pi, rgba(255,255,255,.18));background:transparent;color:inherit;font:700 13px 'Manrope',sans-serif;cursor:pointer}
+.r75-wt{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;border:1px solid var(--pi, rgba(255,255,255,.18));font-size:13px;font-weight:700}
+.r75-wt i{width:9px;height:9px;border-radius:50%;background:#3DD68C;flex-shrink:0;animation:r65p 1.4s ease-in-out infinite}
+.r75-help{position:fixed;z-index:131;right:16px;top:calc(var(--r75top, 136px) + 54px);width:min(400px, calc(100vw - 32px));padding:16px 18px;border-radius:16px;background:#fff;color:#111;display:none;
+  box-shadow:0 20px 50px rgba(0,0,0,.5);font:600 13px/1.55 'Manrope',sans-serif;box-sizing:border-box}
+.r75-help.on{display:block}
+.r75-help b{display:block;font-size:14.5px;font-weight:800;margin-bottom:6px}
+.r75-help ol{margin:0 0 12px;padding-left:20px}
+.r75-help button{height:36px;padding:0 14px;border-radius:10px;border:0;background:#111;color:#fff;font:800 12.5px 'Manrope',sans-serif;cursor:pointer}
+.r74-b.me.fxbg video{transform:none}
+html.r65-in #quickBar{transition:transform .2s ease}
+@media(max-width:900px){
+  .r75-box{flex-direction:column}
+  .r75-pv{width:100%;flex:none}
+}
+@media(max-width:700px){
+  .r65-dock,.r65-join{left:8px;right:8px;top:var(--r75top, calc(var(--th, 108px) + 8px));bottom:auto;max-width:none;overflow-x:auto;justify-content:flex-start}
+  .r65-dock::-webkit-scrollbar{display:none}
+  .r75-lobby{left:8px;right:8px;width:auto;top:calc(var(--r75top, 116px) + 52px)}
+  .r65-stage{left:8px;right:8px;width:auto;top:calc(var(--r75top, 116px) + 52px);bottom:auto}
+  .r65-stage.mini{left:auto;right:8px;width:180px;bottom:140px;top:auto}
+  .r75-help{left:8px;right:8px;width:auto}
+}
+@media print{.r75-lobby,.r75-pane,.r75-menu,.r75-help{display:none!important}}
+</style>
 <script id="r65Script">
 (function(){
 if(!window.RTCPeerConnection || !navigator.mediaDevices) return;
 var TAB = 'c' + Math.random().toString(36).slice(2, 10);
 var C = {on: false, board: '', me: '', room: null, ice: [{urls: ['stun:stun.l.google.com:19302']}], mic: null, micOn: true, share: null, pcs: {},
   tok: null, reader: null, fails: 0, mini: false, presKey: '', joining: false, peek: null, dismissed: '', meet: '', iceQ: {},
-  cam: null, av: new MediaStream(), bub: {}, camBusy: false};
+  cam: null, av: new MediaStream(), bub: {}, camBusy: false,
+  // R75 call: лобби (wait), фон камеры (fx: обработанная дорожка), ссылка на созвон, кого уже показали команде
+  wait: false, fx: null, fxMode: 'none', fxBusy: false, link: '', lobbySeen: {}, lobbyHidden: {}};
 // R74: камера. Один запрос разрешения (микрофон и камера вместе), по умолчанию включена у всех, выключатель в панели.
 // 640×360 при 24 кадрах, пока никто не показывает экран; при показе камеры легче (их видно пузырями, экран в своём окне).
 // Голос и камера одного человека в одном потоке (C.av): браузер сводит их по времени. Запись остаётся только звуком.
@@ -42228,7 +42317,10 @@ var ICON = {
   cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3"/></svg>',
   camoff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 13.5 21 16.5v-9l-5 3M10 6h3.5A2.5 2.5 0 0 1 16 8.5V12M16 16v-.5A2.5 2.5 0 0 1 13.5 18h-8A2.5 2.5 0 0 1 3 15.5v-7A2.5 2.5 0 0 1 5 6M3 3l18 18"/></svg>',
   min: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 12h12"/></svg>',
-  big: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>'
+  big: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>',
+  fx: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="3.2"/><path d="M5.5 19c1.2-3 3.6-4.5 6.5-4.5s5.3 1.5 6.5 4.5"/><path d="M3 7V4.5A1.5 1.5 0 0 1 4.5 3H7M17 3h2.5A1.5 1.5 0 0 1 21 4.5V7M21 17v2.5a1.5 1.5 0 0 1-1.5 1.5H17M7 21H4.5A1.5 1.5 0 0 1 3 19.5V17"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="18.5" cy="12" r="1.8"/></svg>',
+  meet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></svg>'
 };
 
 // ── элементы ──
@@ -42236,10 +42328,11 @@ var el = function(id, cls, tag){ var e = document.getElementById(id); if(!e){ e 
 var audioBox = function(){ var b = el('r65Audio', '', 'div'); b.style.display = 'none'; return b; };
 
 // ── сервер ──
-var roomOp = function(op){
+var roomOp = function(op, who){
   if(!C.board) return Promise.resolve(null);
-  return api('POST', '/call/room', {board: C.board, tab: TAB, op: op, name: userName(), cam: !!C.cam}).then(function(x){
+  return api('POST', '/call/room', {board: C.board, tab: TAB, op: op, name: userName(), cam: !!C.cam, who: who || ''}).then(function(x){
     if(x.j && x.j.ice) C.ice = x.j.ice;
+    if(x.j && x.j.link) C.link = x.j.link;
     if(x.j && x.j.room) onRoom(x.j.room);
     return x;
   }).catch(function(){ return null; });
@@ -42300,7 +42393,10 @@ var kindTx = function(pc, kind){ return pc.getTransceivers().filter(function(t){
 var vTx = function(pc){ return pc.getTransceivers().filter(function(t){ return t.receiver && t.receiver.track && t.receiver.track.kind === 'video'; }); };
 var scrTx = function(pc){ return vTx(pc)[0] || null; };
 var camTx = function(pc){ return vTx(pc)[1] || null; };
-var camTrack = function(){ return C.cam && C.cam.getVideoTracks()[0] || null; };
+var camTrack = function(){
+  if(C.fx && C.fx.track && C.fx.track.readyState === 'live' && C.cam) return C.fx.track; // R75 call: фон камеры
+  return C.cam && C.cam.getVideoTracks()[0] || null;
+};
 var syncAv = function(tx){ try{ if(tx && tx.sender.setStreams) tx.sender.setStreams(C.av); }catch(e){} };
 // Полоса камеры: 640×360 и 24 кадра, при показе экрана вчетверо меньше точек и 15 кадров, в сетке на четверых скромнее
 var camParams = function(P){
@@ -42410,7 +42506,9 @@ var onMsg = function(m){
     if(C.me < m.from && (!P || (P.pc.connectionState !== 'connected' && Date.now() - P.at > 8000))) return call(m.from);
     return;
   }
-  if(m.kind === 'bye'){ closePc(m.from); }
+  if(m.kind === 'bye'){ closePc(m.from); return; }
+  // R75 call: команда остановила мой показ экрана (сервер уже снял отметку)
+  if(m.kind === 'stopshare'){ shareStop(false); tst('Организатор остановил показ вашего экрана'); }
 };
 
 // ── состояние созвона от сервера ──
@@ -42420,6 +42518,11 @@ var onRoom = function(room){
   C.room = room;
   if(room.you) C.me = room.you;
   if(!C.on){ renderJoin(); return; }
+  // R75 call: лобби. Ждём, пока впустят; отказ: выйти и сказать
+  if(room.denied){ leave(true); tst('Организатор не впустил в созвон'); return; }
+  if(room.wait){ if(!C.wait){ C.wait = true; render(); } paneWait(); return; }
+  if(C.wait && room.in){ C.wait = false; paneClose(); tst('Вас впустили: вы в созвоне'); }
+  lobbyNotify(room);
   if(!room.in){
     // сервер перезапустился или вкладку не было слышно: войти снова
     if(!C.joining){ C.joining = true; roomOp('join').then(function(x){ C.joining = false; if(x && x.s === 409){ leave(true); tst('В созвоне уже четверо: больше не поместится. Подключитесь через Meet'); return; } if(C.share) roomOp('present'); }); }
@@ -42458,6 +42561,7 @@ var shareStart = function(){
   // «Поделиться этой вкладкой вместо…» в полосе Chrome меняет источник без остановки показа.
   var o = {video: {frameRate: {ideal: 15, max: 30}}, audio: false, selfBrowserSurface: 'include', surfaceSwitching: 'include', monitorTypeSurfaces: 'include'};
   if(isTeam()) o.preferCurrentTab = true;
+  var t0 = Date.now();
   return navigator.mediaDevices.getDisplayMedia(o).then(function(st){
     if(!C.on){ st.getTracks().forEach(function(t){ t.stop(); }); return; }
     var tr = st.getVideoTracks()[0];
@@ -42472,9 +42576,20 @@ var shareStart = function(){
       render(); tst('Вы показываете экран');
     });
   }).catch(function(e){
-    if(e && /NotAllowed|Permission|AbortError/i.test(e.name + ' ' + e.message)) return;
+    var n = (e && (e.name + ' ' + e.message)) || '';
+    // R75 call: macOS не дал браузеру запись экрана: отказ приходит сразу (окна выбора не было) или с пометкой system
+    if(isMac() && /NotAllowed|Permission/i.test(n) && (/system/i.test(n) || Date.now() - t0 < 600)){ macHelp(); return; }
+    if(/NotAllowed|Permission|AbortError/i.test(n)) return;
     tst('Показ не начался: ' + ((e && e.message) || 'нет доступа'));
   });
+};
+var isMac = function(){ return /Mac/i.test(navigator.platform || '') || /Mac OS X/.test(navigator.userAgent || ''); };
+var macHelp = function(){
+  var h = el('r75Help', 'r75-help');
+  h.setAttribute('role', 'dialog'); h.setAttribute('aria-label', 'Как разрешить показ экрана на Mac');
+  h.innerHTML = '<b>Mac не дал браузеру показать экран</b><ol><li>Откройте «Системные настройки» → «Конфиденциальность и безопасность» → «Запись экрана и системного звука» (в старых macOS «Запись экрана»).</li>' +
+    '<li>Включите ваш браузер (Chrome, Safari, Яндекс Браузер).</li><li>Перезапустите браузер, вернитесь в созвон и нажмите «Экран» ещё раз.</li></ol><button type="button" data-a="helpok">Понятно</button>';
+  h.classList.add('on');
 };
 var shareStop = function(tell){
   var st = C.share; C.share = null;
@@ -42499,23 +42614,30 @@ var join = function(o){
     });
   };
   // R74: одно разрешение на микрофон и камеру; камеры нет или она запрещена: только звук
-  return (wantCam ? navigator.mediaDevices.getUserMedia({audio: AUD, video: CAMC}).catch(function(){
+  // R75 call: камера и микрофон уже взяты в окне входа (o.media): второй раз не спрашиваем
+  var got = o.media ? Promise.resolve(o.media) : (wantCam ? navigator.mediaDevices.getUserMedia({audio: AUD, video: CAMC}).catch(function(){
     return micOnly().then(function(m){ if(m) tst('Камера недоступна: вас слышно, но не видно. Разрешите камеру в адресной строке'); return m; });
-  }) : micOnly()).then(function(st){
+  }) : micOnly());
+  return got.then(function(st){
     var mic = null;
-    if(st){
+    if(st && st.cam !== undefined){ C.cam = st.cam; mic = st.mic; C.micOn = st.micOn !== false && !!mic; if(st.fx){ C.fx = st.fx; C.fxMode = st.fx.mode; } }
+    else if(st){
       var vs = st.getVideoTracks(), as = st.getAudioTracks();
       if(vs.length){ try{ vs[0].contentHint = 'motion'; }catch(e){} C.cam = new MediaStream(vs); }
       mic = as.length ? new MediaStream(as) : null;
+      C.micOn = !!mic;
     }
-    C.mic = mic; C.micOn = !!mic; C.on = true; C.dismissed = '';
+    C.mic = mic; if(mic && mic.getAudioTracks()[0]) mic.getAudioTracks()[0].enabled = C.micOn; C.on = true; C.dismissed = '';
     document.documentElement.classList.add('r65-in');
     renderJoin();
-    return roomOp('join');
+    // R75 call: фон камеры, выбранный раньше (обработанная дорожка уходит уже в первом предложении соединения)
+    return (C.cam && !C.fx && fxPref() !== 'none' ? fxApply(fxPref(), true) : Promise.resolve()).then(function(){ return roomOp('join'); });
   }).then(function(x){
-    if(!x || x.s !== 200){ leave(true); tst(x && x.s === 403 ? 'Это не ваша доска' : x && x.s === 409 ? 'В созвоне уже четверо: больше не поместится. Подключитесь через Meet' : 'Созвон не начался: нет связи с сервером'); return; }
+    if(!x || x.s !== 200){ leave(true); tst(x && x.s === 403 ? 'Это не ваша доска' : x && x.s === 409 ? (x.j && x.j.error === 'lobby_full' ? 'В лобби слишком много ждущих: попробуйте через минуту' : 'В созвоне уже четверо: больше не поместится. Подключитесь через Meet') : 'Созвон не начался: нет связи с сервером'); return; }
     stream(); render();
-    tst((C.room.members || []).length > 1 ? 'Вы в созвоне' : 'Созвон начат: резидент войдёт с этой же доски');
+    if(C.room && C.room.wait){ C.wait = true; paneWait(); render(); return; }
+    paneClose();
+    tst((C.room.members || []).length > 1 ? 'Вы в созвоне' : (isTeam() ? 'Созвон начат: резидент войдёт по ссылке или с этой же доски' : 'Вы в созвоне'));
     if(o.rec && isTeam()) recStart();
   });
 };
@@ -42527,8 +42649,10 @@ var leave = function(silent){
   if(!silent) roomOp('leave');
   stopStream();
   if(C.mic) C.mic.getTracks().forEach(function(t){ t.stop(); });
+  if(C.fx){ try{ C.fx.stop(); }catch(e){} C.fx = null; }
   if(C.cam) C.cam.getTracks().forEach(function(t){ t.stop(); });
-  C.mic = null; C.cam = null; C.on = false; C.room = null; C.me = ''; C.dismissed = C.board;
+  C.mic = null; C.cam = null; C.on = false; C.room = null; C.me = ''; C.dismissed = C.board; C.wait = false;
+  paneClose(); lobbyRender(); menuClose();
   document.documentElement.classList.remove('r65-in');
   render(); renderJoin();
 };
@@ -42537,6 +42661,7 @@ var camToggle = function(){
   if(!C.on || C.camBusy) return;
   if(C.cam){
     var st = C.cam; C.cam = null;
+    if(C.fx){ try{ C.fx.stop(); }catch(e){} C.fx = null; }
     st.getTracks().forEach(function(t){ t.stop(); });
     Object.keys(C.pcs).forEach(function(k){ var t = camTx(C.pcs[k].pc); if(t) t.sender.replaceTrack(null).catch(function(){}); });
     camSave(false); roomOp('nocam'); render(); return;
@@ -42550,6 +42675,7 @@ var camToggle = function(){
     C.cam = st;
     Object.keys(C.pcs).forEach(function(k){ var t = camTx(C.pcs[k].pc); if(t){ t.sender.replaceTrack(tr).catch(function(){}); syncAv(t); } camParams(C.pcs[k]); });
     camSave(true); roomOp('cam'); render();
+    if(fxPref() !== 'none') fxApply(fxPref(), true); // R75 call
   }).catch(function(e){
     C.camBusy = false;
     tst(e && /NotAllowed|Permission/i.test(e.name + e.message) ? 'Нет доступа к камере: разрешите камеру в адресной строке' : 'Камера не найдена');
@@ -42559,10 +42685,18 @@ var micToggle = function(){
   var t = micTrack(); if(!t){ tst('Микрофон не подключён'); return; }
   C.micOn = !C.micOn; t.enabled = C.micOn; render();
 };
+// R75 call: ссылка на созвон платформы (/call/<id>): резидент, партнёр и гость входят по ней, гость через лобби
 var linkCopy = function(){
-  var u = location.origin + '/#call=' + encodeURIComponent(C.board || (curBoard && curBoard.id) || '');
-  var done = function(){ tst('Ссылка скопирована: резидент откроет эту доску и войдёт в созвон'); };
-  try{ navigator.clipboard.writeText(u).then(done, function(){ tst(u); }); }catch(e){ tst(u); }
+  var b = C.board || (typeof curBoard !== 'undefined' && curBoard && curBoard.id) || '';
+  var put = function(u){
+    var done = function(){ tst('Ссылка на созвон скопирована: по ней входят резидент и гости, вы впускаете из лобби'); };
+    try{ navigator.clipboard.writeText(u).then(done, function(){ tst(u); }); }catch(e){ tst(u); }
+  };
+  if(C.link){ put(C.link); return; }
+  api('GET', '/call/link?board=' + encodeURIComponent(b)).then(function(x){
+    var u = x && x.s === 200 && x.j && x.j.url;
+    if(u){ C.link = u; put(u); } else put(location.origin + '/#call=' + encodeURIComponent(b));
+  }).catch(function(){ put(location.origin + '/#call=' + encodeURIComponent(b)); });
 };
 
 // ── запись: звук созвона без второго захвата (микрофон и голоса участников сводятся в WebAudio) ──
@@ -42613,8 +42747,10 @@ var members = function(){ return (C.room && C.room.members) || []; };
 var presenter = function(){ return C.room && C.room.presenter || null; };
 var render = function(){
   var d = el('r65Dock', 'r65-dock');
-  d.classList.toggle('on', C.on);
-  if(!C.on){ d.innerHTML = ''; renderStage(); renderCams(); return; }
+  d.classList.toggle('on', C.on && !C.wait);
+  d.setAttribute('role', 'toolbar'); d.setAttribute('aria-label', 'Созвон');
+  topVar();
+  if(!C.on || C.wait){ d.innerHTML = ''; renderStage(); renderCams(); lobbyRender(); return; }
   var pr = presenter(), mine = pr && pr.key === C.me, ms = members();
   var st = pr ? (mine ? 'Вы показываете экран' : 'Показывает ' + first(pr.name)) : (ms.length > 1 ? 'В созвоне ' + ms.length : (isTeam() ? 'Ждём резидента' : 'Ждём трекера'));
   var rec = window.REC && REC.call ? REC : null, recOther = !rec && C.room && C.room.rec;
@@ -42627,14 +42763,17 @@ var render = function(){
   }).join('') + '</span><span class="r65-st" id="r65St">' + ea(st) + '</span></span>';
   h += '<button type="button" class="r65-ic' + (C.micOn ? '' : ' off') + '" data-a="mic" title="' + (C.micOn ? 'Выключить микрофон' : 'Включить микрофон') + '" aria-label="Микрофон">' + (C.micOn ? ICON.mic : ICON.micoff) + '</button>';
   h += '<button type="button" class="r65-ic' + (C.cam ? '' : ' off') + '" data-a="cam" title="' + (C.cam ? 'Выключить камеру' : 'Включить камеру') + '" aria-label="' + (C.cam ? 'Выключить камеру' : 'Включить камеру') + '" aria-pressed="' + (C.cam ? 'true' : 'false') + '">' + (C.cam ? ICON.cam : ICON.camoff) + '</button>';
-  if(canShare()) h += mine ? '<button type="button" class="pr" data-a="unshare">' + ICON.stop + '<span>Остановить</span></button>'
-    : '<button type="button" class="pr" data-a="share">' + ICON.scr + '<span>Показать мой экран</span></button>';
+  // R75 call: фон камеры (размытие, фон BS)
+  h += '<button type="button" class="r65-ic' + (C.fx ? ' on' : '') + '" data-a="fx" title="Фон камеры: ' + ea(fxName(C.fx ? C.fxMode : 'none')) + '" aria-label="Фон камеры" aria-haspopup="menu">' + ICON.fx + '</button>';
+  if(canShare()) h += mine ? '<button type="button" class="pr" data-a="unshare" title="Остановить показ экрана">' + ICON.stop + '<span class="r65-lbl">Стоп</span></button>'
+    : '<button type="button" class="pr" data-a="share" title="Показать мой экран: окно, вкладку или весь экран">' + ICON.scr + '<span class="r65-lbl">Экран</span></button>';
   if(isTeam() && !rec) h += '<button type="button" data-a="rec" title="Записать разбор: звук созвона, без захвата экрана"><span class="r65-rec" style="padding:0"><i style="animation:none"></i></span><span class="r65-lbl">Запись</span></button>';
-  if(isTeam()) h += '<button type="button" class="r65-ic" data-a="link" title="Ссылка резиденту на этот созвон" aria-label="Ссылка резиденту">' + ICON.link + '</button>';
-  if(C.meet) h += '<button type="button" data-a="meet" title="Открыть Meet в новой вкладке, если резидент там"><span class="r65-lbl">Meet</span></button>';
+  var lob = isTeam() && C.room && C.room.lobby ? C.room.lobby.length : 0;
+  if(lob) h += '<button type="button" data-a="lobby" title="Ждут в лобби" aria-label="Ждут в лобби: ' + lob + '"><span class="r75-n">' + lob + '</span><span class="r65-lbl">ждут</span></button>';
+  h += '<button type="button" class="r65-ic" data-a="more" title="Ещё: ссылка на созвон' + (isTeam() ? ', лобби' : '') + ', Google Meet" aria-label="Ещё" aria-haspopup="menu">' + ICON.more + '</button>';
   h += '<button type="button" class="r65-ic" data-a="leave" title="Выйти из созвона" aria-label="Выйти из созвона">' + ICON.out + '</button>';
   d.innerHTML = h;
-  renderStage(); renderCams();
+  renderStage(); renderCams(); lobbyRender();
 };
 var renderStage = function(){
   var s = el('r65Stage', 'r65-stage');
@@ -42643,13 +42782,20 @@ var renderStage = function(){
   var t = P && scrTx(P.pc), tr = t && t.receiver.track;
   if(!pr || pr.key === C.me){ s.classList.remove('on'); C.presKey = ''; var v0 = s.querySelector('video'); if(v0) v0.srcObject = null; return; }
   if(!s.firstChild){
-    s.innerHTML = '<div class="r65-sh"><span id="r65StT"></span><button type="button" data-a="share" class="pr" id="r65StMe">Показать мой экран</button><button type="button" data-a="full">Во весь экран</button><button type="button" data-a="mini">Свернуть</button></div>' +
+    s.innerHTML = '<div class="r65-sh"><span id="r65StT"></span><button type="button" data-a="stopshare" class="r75-stop" id="r75StStop" title="Остановить показ этого участника">Остановить показ</button><button type="button" data-a="share" class="pr" id="r65StMe">Показать мой экран</button>' +
+      '<button type="button" data-a="pip" id="r75Pip" title="Окно с экраном поверх всех окон и вкладок">Поверх окон</button><button type="button" data-a="full">Во весь экран</button><button type="button" data-a="mini">Свернуть</button></div>' +
       '<video autoplay playsinline muted></video><div class="r65-wait">Ждём картинку…</div>';
   }
   s.classList.add('on');
   s.classList.toggle('mini', !!C.mini);
+  // R75 call: окно экрана не заходит на пузыри камер слева: доска между ними остаётся под рукой
+  if(!phone() && !C.mini){ var lf = cssPx('--sw', 0) + 12; [].forEach.call(document.querySelectorAll('#r74Cams .r74-b'), function(e){ var r = e.getBoundingClientRect(); if(r.width && r.left < innerWidth / 2) lf = Math.max(lf, r.right + 12); }); s.style.maxWidth = Math.max(260, innerWidth - 64 - lf) + 'px'; } else s.style.maxWidth = '';
   s.querySelector('#r65StT').textContent = 'Показывает ' + first(pr.name);
-  s.querySelector('#r65StMe').style.display = canShare() ? '' : 'none';
+  s.querySelector('#r65StMe').style.display = canShare() && !isTeam() ? '' : 'none';
+  // R75 call: команда может остановить показ резидента или гостя
+  var pm = members().filter(function(m){ return m.key === pr.key; })[0];
+  s.querySelector('#r75StStop').style.display = isTeam() && pm && !pm.team ? '' : 'none';
+  s.querySelector('#r75Pip').style.display = document.pictureInPictureEnabled ? '' : 'none';
   var v = s.querySelector('video');
   if(tr && (C.presKey !== pr.key || !v.srcObject || v.srcObject.getVideoTracks()[0] !== tr)){ v.srcObject = new MediaStream([tr]); v.play && v.play().catch(function(){}); }
   C.presKey = pr.key;
@@ -42692,8 +42838,11 @@ var layout = function(){
     e.setAttribute('data-c', c);
     if(e.classList.contains('drag')) return;
     e.style.width = w + 'px'; e.style.height = h + 'px';
-    e.style.left = (c[1] === 'l' ? A.l : A.r - w) + 'px';
-    e.style.top = (c[0] === 't' ? A.t + off : A.b - h - off) + 'px';
+    var x = c[1] === 'l' ? A.l : A.r - w;
+    // R75 call: пузыри не ложатся на панели доски (низ) и созвона (верх справа)
+    var lim = c[0] === 'b' ? clearBottom(x, x + w, A.b) : clearTop(x, x + w, A.t);
+    e.style.left = x + 'px';
+    e.style.top = (c[0] === 't' ? lim + off : lim - h - off) + 'px';
   });
 };
 var bindBub = function(e){
@@ -42776,6 +42925,7 @@ var renderCams = function(){
     if(show){ if(!v.srcObject || v.srcObject.getVideoTracks()[0] !== it.track){ v.srcObject = new MediaStream([it.track]); v.play && v.play().catch(function(){}); } }
     else if(v.srcObject) v.srcObject = null;
     e.classList.toggle('nov', !show); e.classList.toggle('min', !!B.min); e.classList.toggle('big', !!B.big && !B.min);
+    if(it.me) e.classList.toggle('fxbg', !!C.fx && C.fxMode === 'bg'); // R75 call: фон BS читается не зеркально
     var i = e.querySelector('.r74-av i'), ini = initials(it.name);
     if(i.textContent !== ini) i.textContent = ini;
     i.style.setProperty('--c', it.color || '#fff');
@@ -42792,18 +42942,31 @@ var renderCams = function(){
   layout();
 };
 window.addEventListener('resize', function(){ if(C.on) layout(); });
+// R75 call: свободная высота для пузырей: над нижней панелью доски и кнопками масштаба, под панелью созвона и лобби
+var obstacles = function(sel){
+  return [].slice.call(document.querySelectorAll(sel)).map(function(e){ return e.getBoundingClientRect(); }).filter(function(r){ return r.width > 0 && r.height > 0; });
+};
+var clearBottom = function(x0, x1, b){
+  obstacles('#quickBar, .zoom').forEach(function(r){ if(r.left < x1 + 8 && r.right > x0 - 8 && r.top > innerHeight / 2) b = Math.min(b, r.top - 10); });
+  return b;
+};
+var clearTop = function(x0, x1, t){
+  obstacles('#r65Dock.on, #r75Lobby.on').forEach(function(r){ if(r.left < x1 + 8 && r.right > x0 - 8 && r.bottom < innerHeight / 2) t = Math.max(t, r.bottom + 10); });
+  return t;
+};
 var renderJoin = function(){
   var j = el('r65Join', 'r65-join');
   var r = C.peek, ms = r && r.members || [];
-  var show = !C.on && ms.length && C.peekBoard && typeof curBoard !== 'undefined' && curBoard && String(curBoard.id) === C.peekBoard && C.dismissed !== C.peekBoard;
+  var show = !C.on && (ms.length || (isTeam() && r && r.waits)) && C.peekBoard && typeof curBoard !== 'undefined' && curBoard && String(curBoard.id) === C.peekBoard && C.dismissed !== C.peekBoard;
   j.classList.toggle('on', !!show);
   if(!show){ j.innerHTML = ''; return; }
   var names = ms.map(function(m){ return first(m.name); }).filter(function(n, i, a){ return a.indexOf(n) === i; }).join(', ');
-  j.innerHTML = '<i></i><span>Созвон на доске: ' + ea(names) + (r.presenter ? ' · показывает ' + ea(first(r.presenter.name)) : '') + '</span>' +
+  topVar();
+  j.innerHTML = '<i></i><span>Созвон на доске: ' + ea(names) + (r.presenter ? ' · показывает ' + ea(first(r.presenter.name)) : '') + (isTeam() && r.waits ? ' · ждут в лобби: ' + r.waits : '') + '</span>' +
     (ms.length >= MAXN ? '<span style="opacity:.7;padding:0 6px">мест нет, ' + MAXN + ' из ' + MAXN + '</span>' : '<button type="button" data-a="join">Присоединиться</button>') + '<button type="button" class="x" data-a="dismiss" aria-label="Скрыть">✕</button>';
 };
 document.addEventListener('click', function(e){
-  var b = e.target.closest && e.target.closest('#r65Dock [data-a], #r65Stage [data-a], #r65Join [data-a], #r65Stage.mini');
+  var b = e.target.closest && e.target.closest('#r65Dock [data-a], #r65Stage [data-a], #r65Join [data-a], #r65Stage.mini, #r75Menu [data-a], #r75Lobby [data-a], #r75Pane [data-a], #r75Help [data-a]');
   if(!b) return;
   if(b.id === 'r65Stage'){ C.mini = false; renderStage(); return; }
   var a = b.getAttribute('data-a');
@@ -42813,10 +42976,26 @@ document.addEventListener('click', function(e){
   else if(a === 'unshare') shareStop(true);
   else if(a === 'rec') recStart();
   else if(a === 'recstop'){ try{ stopCallRec(); }catch(x){} }
-  else if(a === 'link') linkCopy();
-  else if(a === 'meet'){ try{ window.open(C.meet, '_blank', 'noopener'); }catch(x){} }
+  else if(a === 'link'){ menuClose(); linkCopy(); }
+  else if(a === 'meet'){ menuClose(); try{ window.open(C.meet || 'https://meet.google.com/new', '_blank', 'noopener'); }catch(x){} }
   else if(a === 'leave') leave();
-  else if(a === 'join') join();
+  else if(a === 'join'){ if(isTeam()) join(); else panePre({}); } // R75 call: резидент сначала видит себя и выбирает фон, потом ждёт в лобби
+  else if(a === 'fx') menuOpen('fx', b);
+  else if(a === 'more') menuOpen('more', b);
+  else if(a === 'lobby'){ C.lobbyHidden = {}; lobbyRender(true); }
+  else if(a === 'setfx'){ menuClose(); fxPick(b.getAttribute('data-v')); }
+  else if(a === 'auto'){ menuClose(); autoSet(!(C.room && C.room.auto)); }
+  else if(a === 'admit' || a === 'deny') lobbyAct(a, b.getAttribute('data-k'));
+  else if(a === 'admitall') lobbyAct('admit', '*');
+  else if(a === 'lhide'){ C.lobbyHidden[b.getAttribute('data-k')] = 1; lobbyRender(); }
+  else if(a === 'stopshare'){ var pr0 = presenter(); if(pr0) roomOp('stopshare', pr0.key).then(function(x){ if(x && x.s === 200) tst('Показ остановлен'); }); }
+  else if(a === 'pip'){ var pv = document.querySelector('#r65Stage video'); try{ pv.requestPictureInPicture().catch(function(){ tst('Браузер не дал окно поверх окон'); }); }catch(x){} }
+  else if(a === 'helpok'){ var hp = document.getElementById('r75Help'); if(hp) hp.classList.remove('on'); }
+  else if(a === 'pgo') paneGo();
+  else if(a === 'pno') paneCancel();
+  else if(a === 'pmic') paneMic();
+  else if(a === 'pcam') paneCam();
+  else if(a === 'pfx') fxPick(b.getAttribute('data-v'));
   else if(a === 'dismiss'){ C.dismissed = C.peekBoard; renderJoin(); }
   else if(a === 'mini'){ C.mini = true; renderStage(); e.stopPropagation(); }
   else if(a === 'full'){ var v = document.querySelector('#r65Stage video'); try{ (v.requestFullscreen || v.webkitRequestFullscreen).call(v); }catch(x){} }
@@ -42931,7 +43110,275 @@ if(typeof window.attachCall === 'function'){
     return out;
   };
 }
-window.r65Api = {join: join, leave: leave, share: shareStart, unshare: shareStop, rec: recStart, render: render, cam: camToggle};
+// ══ R75 call ══════════════════════════════════════════════════════════════
+// Высота шапки доски: панель созвона, лобби и окно экрана встают сразу под неё (справа), нижняя панель доски свободна
+var topVar = function(){
+  var b = 0;
+  ['topBar', 'subnav', 'archBar', 'callBan'].forEach(function(id){
+    var e = document.getElementById(id); if(!e) return;
+    var r = e.getBoundingClientRect(); if(r.height > 0 && r.bottom < innerHeight / 2 && getComputedStyle(e).display !== 'none') b = Math.max(b, r.bottom);
+  });
+  var v = Math.round((b || cssPx('--th', 72)) + 10) + 'px';
+  if(document.documentElement.style.getPropertyValue('--r75top') !== v) document.documentElement.style.setProperty('--r75top', v);
+};
+window.addEventListener('resize', function(){ if(C.on) topVar(); });
+
+// ── фон камеры: /vendor/bsfx.js (MediaPipe с нашего сервера), загружается при первой нужде ──
+var fxLoad = null;
+var fxReady = function(){
+  if(window.BSFX) return Promise.resolve(window.BSFX);
+  if(fxLoad) return fxLoad;
+  fxLoad = new Promise(function(ok, no){
+    var sc = document.createElement('script'); sc.src = '/vendor/bsfx.js'; sc.async = true;
+    sc.onload = function(){ window.BSFX ? ok(window.BSFX) : no(new Error('bsfx')); };
+    sc.onerror = function(){ fxLoad = null; no(new Error('bsfx')); };
+    document.head.appendChild(sc);
+  });
+  return fxLoad;
+};
+var FXM = [{id: 'none', name: 'Без эффекта'}, {id: 'light', name: 'Лёгкое размытие'}, {id: 'strong', name: 'Сильное размытие'}, {id: 'bg', name: 'Фон BS'}];
+var fxPref = function(){ try{ var v = localStorage.getItem('bs_fx'); return FXM.some(function(m){ return m.id === v; }) ? v : 'none'; }catch(e){ return 'none'; } };
+var fxName = function(id){ var m = FXM.filter(function(x){ return x.id === id; })[0]; return m ? m.name : 'Без эффекта'; };
+var fxOK = function(){ try{ var c = document.createElement('canvas'); return !!(window.WebAssembly && c.captureStream && window.RTCRtpSender); }catch(e){ return false; } };
+// fxApply: дорожка камеры с эффектом уходит всем вместо обычной (без новых переговоров)
+var fxApply = function(mode, quiet){
+  var raw = C.cam && C.cam.getVideoTracks()[0];
+  var old = C.fx; C.fx = null;
+  C.fxMode = mode;
+  var swap = function(){
+    var t = camTrack();
+    Object.keys(C.pcs).forEach(function(k){ var x = camTx(C.pcs[k].pc); if(x) x.sender.replaceTrack(t).catch(function(){}); });
+    if(old && old.stop) setTimeout(function(){ try{ old.stop(); }catch(e){} }, 300);
+    old = null; render(); paneRender();
+  };
+  if(!raw || mode === 'none'){ swap(); return Promise.resolve(); }
+  C.fxBusy = true; paneRender();
+  return fxReady().then(function(F){ return F.start(raw, mode); }).then(function(P){
+    C.fxBusy = false;
+    if(C.fxMode !== mode || !C.cam || C.cam.getVideoTracks()[0] !== raw){ P.stop(); return; }
+    C.fx = P;
+    P.onslow = function(){ tst('Фон выключен: компьютер не успевает обрабатывать видео. Камера работает без эффекта'); C.fxSlow = true; fxApply('none', true); };
+    swap();
+  }).catch(function(){
+    C.fxBusy = false; C.fxMode = 'none';
+    if(!quiet) tst('Фон не включился в этом браузере: камера без эффекта');
+    swap();
+  });
+};
+var fxPick = function(mode){
+  try{ localStorage.setItem('bs_fx', mode); }catch(e){}
+  if(!C.cam){ C.fxMode = mode; paneRender(); render(); if(mode !== 'none') tst('Фон включится вместе с камерой'); return; }
+  fxApply(mode);
+};
+
+// ── меню панели: фон камеры и «Ещё» (ссылка, лобби, Google Meet запасной) ──
+var menuClose = function(){ var m = document.getElementById('r75Menu'); if(m){ m.classList.remove('on'); m.innerHTML = ''; } };
+var menuOpen = function(kind, btn){
+  var m = el('r75Menu', 'r75-menu');
+  if(m.classList.contains('on') && m.getAttribute('data-k') === kind){ menuClose(); return; }
+  m.setAttribute('data-k', kind); m.setAttribute('role', 'menu');
+  var h = '';
+  if(kind === 'fx'){
+    h += '<small>Фон камеры</small>';
+    var cur = C.fx ? C.fxMode : (C.fxBusy ? C.fxMode : 'none');
+    FXM.forEach(function(x){ h += '<button type="button" role="menuitemradio" aria-checked="' + (cur === x.id) + '" class="' + (cur === x.id ? 'on' : '') + '" data-a="setfx" data-v="' + x.id + '"' + (x.id !== 'none' && !fxOK() ? ' disabled' : '') + '>' + x.name + '</button>'; });
+  } else {
+    h += '<button type="button" role="menuitem" data-a="link">' + ICON.link + '<span>Скопировать ссылку на созвон</span></button>';
+    if(isTeam()) h += '<button type="button" role="menuitemcheckbox" aria-checked="' + !!(C.room && C.room.auto) + '" data-a="auto"><span>Впускать всех автоматически</span><span class="r75-tg' + (C.room && C.room.auto ? ' on' : '') + '"></span></button>';
+    h += '<button type="button" role="menuitem" data-a="meet">' + ICON.meet + '<span>' + (C.meet ? 'Открыть Google Meet (запасной)' : 'Новый Google Meet (запасной)') + '</span></button>';
+  }
+  m.innerHTML = h;
+  m.classList.add('on');
+  var r = btn.getBoundingClientRect(), w = m.offsetWidth;
+  m.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + 'px';
+  m.style.top = (r.bottom + 8) + 'px';
+  var f = m.querySelector('button'); if(f) try{ f.focus({preventScroll: true}); }catch(e){}
+};
+document.addEventListener('click', function(e){ if(!e.target.closest || (!e.target.closest('#r75Menu') && !e.target.closest('#r65Dock [data-a="fx"], #r65Dock [data-a="more"]'))) menuClose(); }, true);
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') menuClose(); });
+
+// ── лобби: команда видит, кто ждёт, со звуком; «Впустить», «Отклонить», «Впускать всех автоматически» ──
+var chime = function(){
+  try{
+    var ac = C.ac || (C.ac = new (window.AudioContext || window.webkitAudioContext)()); ac.resume && ac.resume();
+    [0, .16].forEach(function(dt, i){
+      var o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + dt;
+      o.type = 'sine'; o.frequency.value = i ? 1320 : 880;
+      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.18, t + .02); g.gain.exponentialRampToValueAtTime(.0001, t + .32);
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + .35);
+    });
+  }catch(e){}
+};
+var lobbyNotify = function(room){
+  if(!isTeam()) return;
+  var fresh = [];
+  (room.lobby || []).forEach(function(m){ if(!C.lobbySeen[m.key]){ C.lobbySeen[m.key] = 1; fresh.push(m); } });
+  if(fresh.length){ chime(); delete C.lobbyHidden[fresh[0].key]; window.__r75chime = (window.__r75chime || 0) + 1; }
+};
+// окно экрана встаёт под карточки лобби, а не под них
+var lobH = function(box){ var v = box && window.innerWidth > 700 ? Math.round(box.getBoundingClientRect().height + 8) + 'px' : '0px'; if(document.documentElement.style.getPropertyValue('--r75lob') !== v) document.documentElement.style.setProperty('--r75lob', v); };
+var lobbyRender = function(force){
+  var box = el('r75Lobby', 'r75-lobby');
+  var list = C.on && !C.wait && isTeam() && C.room && C.room.lobby || [];
+  var vis = list.filter(function(m){ return force || !C.lobbyHidden[m.key]; });
+  box.classList.toggle('on', vis.length > 0);
+  box.setAttribute('aria-live', 'polite');
+  if(!vis.length){ if(box.firstChild) box.innerHTML = ''; lobH(null); return; }
+  var h = vis.map(function(m){
+    return '<div class="r75-lc"><i style="--c:' + ea(m.color || '#fff') + '">' + ea(initials(m.name)) + '</i><span><b>' + ea(m.name) + '</b><em>' + (m.guest ? 'гость по ссылке' : m.role === 'resident' ? 'резидент' : 'участник') + ' ждёт в лобби</em></span>' +
+      '<button type="button" class="pr" data-a="admit" data-k="' + ea(m.key) + '">Впустить</button><button type="button" data-a="deny" data-k="' + ea(m.key) + '">Отклонить</button></div>';
+  }).join('');
+  if(vis.length > 1) h += '<button type="button" class="r75-lauto" data-a="admitall">Впустить всех (' + vis.length + ')</button>';
+  h += '<label class="r75-lauto"><input type="checkbox" id="r75Auto"' + (C.room && C.room.auto ? ' checked' : '') + '>Впускать всех автоматически (резидентов)</label>';
+  box.innerHTML = h;
+  lobH(box);
+  var cb = box.querySelector('#r75Auto'); if(cb) cb.onchange = function(){ autoSet(cb.checked); };
+};
+var lobbyAct = function(op, key){
+  roomOp(op, key).then(function(x){
+    if(x && x.s === 409 && x.j && x.j.error === 'room_full') tst('В созвоне уже четверо: место освободится, когда кто-то выйдет');
+    else if(x && x.s === 200) tst(op === 'admit' ? (key === '*' ? 'Все впущены' : 'Впустили') : 'Отклонили');
+  });
+};
+var autoKey = function(){ return 'bs_call_auto_' + (C.board || ''); };
+var autoSet = function(on){
+  try{ if(on) localStorage.setItem(autoKey(), '1'); else localStorage.removeItem(autoKey()); }catch(e){}
+  roomOp(on ? 'auto' : 'noauto').then(function(){ tst(on ? 'Резиденты входят без лобби (гости ждут, пока вы впустите)' : 'Все снова ждут в лобби'); render(); });
+};
+// команда вошла: включить «автоматически», если для этой доски так выбрано раньше
+var _join0 = join;
+join = function(o){
+  return _join0(o).then(function(){ try{ if(C.on && isTeam() && localStorage.getItem(autoKey()) === '1' && C.room && !C.room.auto) roomOp('auto'); }catch(e){} });
+};
+
+// ── окно входа (камера, звук, фон) и ожидание в лобби ──
+var P = {mic: null, cam: null, micOn: true, o: null, mode: ''};
+var paneEl = function(){
+  var p = el('r75Pane', 'r75-pane');
+  p.setAttribute('role', 'dialog'); p.setAttribute('aria-modal', 'true'); p.setAttribute('aria-label', 'Вход в созвон');
+  return p;
+};
+var paneClose = function(){
+  var p = document.getElementById('r75Pane'); if(!p) return;
+  p.classList.remove('on'); P.mode = '';
+  var v = p.querySelector('video'); if(v) v.srcObject = null;
+};
+var paneRender = function(){
+  var p = document.getElementById('r75Pane'); if(!p || !P.mode) return;
+  var wait = P.mode === 'wait';
+  var cam = wait ? camTrack() : (C.fx && P.cam ? C.fx.track : (P.cam && P.cam.getVideoTracks()[0]));
+  var micOn = wait ? C.micOn : P.micOn, camOn = wait ? !!C.cam : !!P.cam;
+  var team = isTeam(), mode = C.fx ? C.fxMode : (C.fxBusy ? C.fxMode : fxPref());
+  if(!p.firstChild){
+    p.innerHTML = '<div class="r75-box"><div class="r75-pv"><video autoplay playsinline muted></video><div class="r75-off"></div><div class="r75-ctl"><button type="button" data-a="pmic"></button><button type="button" data-a="pcam"></button></div></div>' +
+      '<div class="r75-sd"><h3></h3><p></p><div class="r75-l">Фон камеры</div><div class="r75-fx"></div><div class="r75-st"></div><button type="button" class="r75-go" data-a="pgo"></button><button type="button" class="r75-no" data-a="pno">Отмена</button></div></div>';
+  }
+  var v = p.querySelector('video');
+  if(cam){ if(!v.srcObject || v.srcObject.getVideoTracks()[0] !== cam){ v.srcObject = new MediaStream([cam]); v.play && v.play().catch(function(){}); } } else if(v.srcObject) v.srcObject = null;
+  v.classList.toggle('nm', mode === 'bg' && !!C.fx);
+  p.querySelector('.r75-pv').classList.toggle('nov', !cam);
+  p.querySelector('.r75-off').textContent = C.fxBusy ? 'Включаем фон…' : 'Камера выключена';
+  var bm = p.querySelector('[data-a="pmic"]'), bc = p.querySelector('[data-a="pcam"]');
+  bm.innerHTML = micOn ? ICON.mic : ICON.micoff; bm.classList.toggle('off', !micOn); bm.title = micOn ? 'Выключить микрофон' : 'Включить микрофон'; bm.setAttribute('aria-label', bm.title);
+  bc.innerHTML = camOn ? ICON.cam : ICON.camoff; bc.classList.toggle('off', !camOn); bc.title = camOn ? 'Выключить камеру' : 'Включить камеру'; bc.setAttribute('aria-label', bc.title);
+  p.querySelector('h3').textContent = wait ? 'Ожидайте, вас скоро впустят' : (team ? 'Войти в созвон' : 'Готовы к созвону?');
+  p.querySelector('p').textContent = wait ? 'Организатор видит, что вы ждёте. Пока можно проверить камеру, звук и выбрать фон.'
+    : (team ? 'Вы входите сразу. Резидент и гости по ссылке ждут в лобби, пока вы их не впустите.' : 'Проверьте камеру и звук. После нажатия вы попадёте в лобби: организатор впустит вас в созвон.');
+  p.querySelector('.r75-fx').innerHTML = FXM.map(function(x){ return '<button type="button" data-a="pfx" data-v="' + x.id + '" class="' + (mode === x.id ? 'on' : '') + '"' + (x.id !== 'none' && !fxOK() ? ' disabled' : '') + '>' + x.name + '</button>'; }).join('');
+  p.querySelector('.r75-st').innerHTML = wait ? '<div class="r75-wt"><i></i><span>Вы в лобби. Как только впустят, созвон начнётся сам</span></div>' : '';
+  var go = p.querySelector('.r75-go'); go.style.display = wait ? 'none' : ''; go.textContent = team ? 'Войти' : 'Попросить войти';
+  p.querySelector('.r75-no').textContent = wait ? 'Выйти из лобби' : 'Отмена';
+};
+// panePre: камера и звук до входа (окно ссылки и «Присоединиться» резидента)
+var panePre = function(o){
+  if(C.on) return;
+  P.o = o || {}; P.mode = 'pre'; P.micOn = true;
+  paneEl().classList.add('on'); paneRender();
+  if(fxPref() !== 'none') fxReady().then(function(F){ F.preload(); }).catch(function(){});
+  var AUD = {echoCancellation: true, noiseSuppression: true, autoGainControl: true};
+  (camPref() ? navigator.mediaDevices.getUserMedia({audio: AUD, video: CAMC}).catch(function(){ return navigator.mediaDevices.getUserMedia({audio: AUD}); }) : navigator.mediaDevices.getUserMedia({audio: AUD}))
+    .catch(function(){ tst('Нет доступа к микрофону: разрешите его в адресной строке'); return null; }).then(function(st){
+      if(P.mode !== 'pre'){ if(st) st.getTracks().forEach(function(t){ t.stop(); }); return; }
+      if(st){ var vs = st.getVideoTracks(), as = st.getAudioTracks(); P.cam = vs.length ? new MediaStream(vs) : null; P.mic = as.length ? new MediaStream(as) : null; }
+      paneFx(); paneRender();
+    });
+};
+// фон в окне входа: та же обработка, что в созвоне (дорожка переходит в созвон без повторной обработки)
+var paneFx = function(){
+  var mode = fxPref(), raw = P.cam && P.cam.getVideoTracks()[0];
+  if(C.fx && C.fx.raw === raw && C.fx.mode === mode) return;
+  if(C.fx){ try{ C.fx.stop(); }catch(e){} C.fx = null; }
+  C.fxMode = mode;
+  if(!raw || mode === 'none'){ paneRender(); return; }
+  C.fxBusy = true; paneRender();
+  fxReady().then(function(F){ return F.start(raw, mode); }).then(function(Px){
+    C.fxBusy = false;
+    if(P.mode !== 'pre' || !P.cam || P.cam.getVideoTracks()[0] !== raw || fxPref() !== mode){ Px.stop(); paneRender(); return; }
+    C.fx = Px; Px.onslow = function(){ tst('Фон выключен: компьютер не успевает обрабатывать видео'); fxPick('none'); };
+    paneRender();
+  }).catch(function(){ C.fxBusy = false; tst('Фон не включился в этом браузере: камера без эффекта'); paneRender(); });
+};
+var paneWait = function(){ P.mode = 'wait'; paneEl().classList.add('on'); paneRender(); };
+var paneGo = function(){
+  var o = P.o || {}, media = {cam: P.cam, mic: P.mic, micOn: P.micOn, fx: C.fx && P.cam && C.fx.raw === P.cam.getVideoTracks()[0] ? C.fx : null};
+  P.cam = null; P.mic = null; P.mode = 'joining';
+  o.media = media;
+  if(o.board && typeof openBoard === 'function' && (typeof curBoard === 'undefined' || !curBoard || String(curBoard.id) !== String(o.board))){ try{ openBoard(o.board); goSection('board'); }catch(e){} }
+  join(o).then(function(){ if(!C.wait) paneClose(); });
+};
+var paneCancel = function(){
+  if(P.mode === 'wait'){ leave(); return; }
+  if(C.fx && !C.on){ try{ C.fx.stop(); }catch(e){} C.fx = null; }
+  [P.cam, P.mic].forEach(function(s){ if(s) s.getTracks().forEach(function(t){ t.stop(); }); });
+  P.cam = null; P.mic = null; paneClose();
+};
+var paneMic = function(){
+  if(P.mode === 'wait'){ micToggle(); paneRender(); return; }
+  var t = P.mic && P.mic.getAudioTracks()[0]; if(!t){ tst('Микрофон не подключён'); return; }
+  P.micOn = !P.micOn; t.enabled = P.micOn; paneRender();
+};
+var paneCam = function(){
+  if(P.mode === 'wait'){ camToggle(); setTimeout(paneRender, 400); return; }
+  if(P.cam){ if(C.fx){ try{ C.fx.stop(); }catch(e){} C.fx = null; } P.cam.getTracks().forEach(function(t){ t.stop(); }); P.cam = null; camSave(false); paneRender(); return; }
+  navigator.mediaDevices.getUserMedia({video: CAMC}).then(function(st){ P.cam = st; camSave(true); paneFx(); paneRender(); }).catch(function(){ tst('Нет доступа к камере: разрешите её в адресной строке'); });
+};
+// выбор фона в окне входа
+var _fxPick0 = fxPick;
+fxPick = function(mode){
+  if(P.mode === 'pre'){ try{ localStorage.setItem('bs_fx', mode); }catch(e){} paneFx(); return; }
+  _fxPick0(mode); paneRender();
+};
+
+// ── ссылка /call/<id>: сервер перевёл сюда (/#callroom=<id>): доска резидента и окно входа ──
+(function(){
+  var m = String(location.hash || '').match(/^#callroom=([a-z2-7]{16})$/); if(!m) return;
+  var rid = m[1], n = 0;
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  var t = setInterval(function(){
+    if(++n > 80){ clearInterval(t); return; }
+    if(!window.BSSync || !BSSync.ready || !BSSync.ready() || typeof boards === 'undefined' || typeof openBoard !== 'function') return;
+    clearInterval(t);
+    api('GET', '/call/link?rid=' + rid).then(function(x){
+      if(x.s === 403){ location.href = '/call/' + rid + '?guest=1'; return; } // чужая ссылка (партнёр): как гость
+      if(x.s !== 200 || !x.j){ tst('Созвон по ссылке не найден'); return; }
+      var bid = x.j.board, name = x.j.name || '';
+      C.link = x.j.url || C.link;
+      var known = bid && boards.some(function(b){ return String(b.id) === String(bid); });
+      if(!known && isTeam() && name){
+        // доски ещё нет: команда делает её, гости ждут в лобби, пока доска не появится на сервере
+        var b0 = typeof latestBoardOf === 'function' ? latestBoardOf(name) : null;
+        if(b0) bid = b0.id; else { try{ newBoardFor(name); bid = curBoard && curBoard.id; if(typeof pushAll === 'function') pushAll(); }catch(e){} }
+      }
+      if(!bid){ tst('Доска созвона недоступна'); return; }
+      try{ openBoard(bid); goSection('board'); }catch(e){}
+      // Meet запасной: из расписания, если у встречи он есть
+      try{ var nm = String(name).toLowerCase(); (SDATA.schedule || []).forEach(function(s){ if(!C.meet && isMeet(s) && String(s.res || '').toLowerCase() === nm) C.meet = s.link; }); }catch(e){}
+      setTimeout(function(){ panePre({board: bid, meet: C.meet}); }, 300);
+    }).catch(function(){ tst('Нет связи с сервером'); });
+  }, 400);
+})();
+window.r65Api = {join: function(o){ return join(o); }, leave: leave, share: shareStart, unshare: shareStop, rec: recStart, render: render, cam: camToggle,
+  pre: panePre, fx: fxPick, link: linkCopy, lobby: lobbyAct, auto: autoSet}; // R75 call: окно входа, фон, лобби
 })();
 </script>
 <!-- /R65 -->

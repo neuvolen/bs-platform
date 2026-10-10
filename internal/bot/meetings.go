@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/calllink"
 	"github.com/bnursik/business_surgery_backend/internal/club"
 )
 
@@ -91,6 +92,10 @@ func DueRemindersWA(meetings []club.Meeting, residents []club.Resident, texts ma
 		first := strings.Fields(names[club.NormName(m.Resident)])[0]
 		when := at.Format("02.01.2006 15:04")
 		addr := strings.TrimSpace(m.Link)
+		online := strings.Contains(m.Link, "http") || m.Online
+		if online { // R75 call: созвон на платформе вместо Google Meet
+			addr = calllink.URL(m.Resident)
+		}
 		if addr == "" {
 			addr = strings.TrimSpace(m.Place)
 		}
@@ -115,8 +120,8 @@ func DueRemindersWA(meetings []club.Meeting, residents []club.Resident, texts ma
 				Text: fill(t, vars) + "\n\n🎯 Перед встречей обнови Колесо баланса. это займёт 2 минуты и даст нам точную повестку."})
 		case daysDiff == 0 && at.Sub(a) <= hourBeforeMin*time.Minute && !m.Sent1h:
 			t := fmt.Sprintf("⏰ %s, встреча через час!\n\n📅 %s\n", first, when)
-			if strings.Contains(m.Link, "http") {
-				t += "🔗 " + m.Link
+			if online {
+				t += "🎥 Созвон на платформе: " + calllink.URL(m.Resident)
 			} else {
 				t += "📍 " + addr
 			}
@@ -201,7 +206,7 @@ func TeamReminders(meetings []club.Meeting, now time.Time) []TeamReminder {
 			order = append(order, k)
 		}
 		sl.names = append(sl.names, strings.TrimSpace(m.Resident))
-		if strings.Contains(m.Link, "http") {
+		if strings.Contains(m.Link, "http") || m.Online {
 			sl.online = append(sl.online, m)
 		} else if sl.addr == "" {
 			sl.addr = strings.TrimSpace(m.Link)
@@ -222,7 +227,7 @@ func TeamReminders(meetings []club.Meeting, now time.Time) []TeamReminder {
 			}
 		} else {
 			for _, m := range sl.online {
-				fmt.Fprintf(&b, "%s · онлайн\n🔗 %s\n", strings.TrimSpace(m.Resident), strings.TrimSpace(m.Link))
+				fmt.Fprintf(&b, "%s · онлайн\n🎥 %s\n", strings.TrimSpace(m.Resident), calllink.URL(m.Resident)) // R75 call
 			}
 			for _, n := range sl.names {
 				isOnline := false

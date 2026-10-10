@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bnursik/business_surgery_backend/internal/calllink"
 	"github.com/bnursik/business_surgery_backend/internal/club"
 )
 
@@ -384,6 +385,11 @@ func (s *Sync) create(ctx context.Context, snap *club.Snapshot, res, date, tm st
 		Start:     EventTime{DateTime: iso(start), TimeZone: "Asia/Almaty"},
 		End:       EventTime{DateTime: iso(start.Add(time.Hour)), TimeZone: "Asia/Almaty"},
 		Attendees: teamGuests(evs)}
+	if !off { // R75 call: созвон на платформе, Meet в событии остаётся запасным
+		if link := calllink.URL(res); link != "" {
+			e.Location, e.Description = link, CallDesc(e.Description, link)
+		}
+	}
 	got, err := s.C.Insert(ctx, cal, e, !off)
 	if err != nil {
 		return err
@@ -571,6 +577,85 @@ func (s *Sync) Catchup(ctx context.Context) (string, error) {
 	msg += "\n\nДальше само: «Встреча прошла» в приложении или на платформе красит событие в зелёный и ставит ✅."
 	log.Printf("gcal: catch-up: painted %d %v, already %d, not found %d %v, quiet %d", len(r.Painted), r.Painted, r.Already, len(r.NotFound), r.NotFound, q)
 	return msg, nil
+}
+
+// MetaCallLinks: "done:<RFC3339>": the one-time R75 patch of the coming
+// online events (the platform's call link in place and description) ran.
+const MetaCallLinks = "gcal_r75_calllinks"
+
+// CallDesc: the event's description led by the platform's call link (once).
+func CallDesc(desc, link string) string {
+	if link == "" || strings.Contains(desc, link) {
+		return desc
+	}
+	line := "🎥 Созвон на платформе Business Surgery: " + link + "\nGoogle Meet в событии: запасной вариант, если платформа не открылась."
+	if strings.TrimSpace(desc) == "" {
+		return line
+	}
+	return line + "\n\n" + desc
+}
+
+// PatchCallLinks (R75 call, once): the coming online meetings' events get
+// the platform's call link as their place and at the top of their
+// description. Meet stays attached as the fallback.
+func (s *Sync) PatchCallLinks(ctx context.Context) (int, error) {
+	if s == nil || s.C == nil || !s.C.Connected(ctx) {
+		return 0, ErrNotConnected
+	}
+	if v, _ := s.C.Store.GetMeta(ctx, MetaCallLinks); strings.HasPrefix(v, "done:") {
+		return 0, nil
+	}
+	if s.Load == nil {
+		return 0, nil
+	}
+	snap, err := s.Load(ctx)
+	if err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cal, err := s.C.Calendar(ctx)
+	if err != nil {
+		return 0, err
+	}
+	now := s.C.Now().In(club.Almaty)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, club.Almaty)
+	evs, err := s.C.Events(ctx, cal, today, today.AddDate(0, 6, 0))
+	if err != nil {
+		return 0, err
+	}
+	n, seen := 0, map[string]bool{}
+	for _, m := range snap.Meetings {
+		d := m.Date.In(club.Almaty)
+		d = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, club.Almaty)
+		if d.Before(today) || m.Done || !(m.Online || calllink.IsOnline(m.Link, "")) || s.offline(snap, m.Resident) && !strings.Contains(m.Link, "http") {
+			continue
+		}
+		var day []Event
+		for _, e := range evs {
+			if st := e.StartAt(); !st.IsZero() && !IsGroup(e) && st.In(club.Almaty).Year() == d.Year() && st.In(club.Almaty).YearDay() == d.YearDay() {
+				day = append(day, e)
+			}
+		}
+		start, hasTime := at(d, m.Time)
+		e, ok := FindEvent(day, m.Resident, start, hasTime, false)
+		if !ok || seen[e.ID] || e.Recurring != "" {
+			continue
+		}
+		seen[e.ID] = true
+		link := calllink.URL(m.Resident)
+		desc := CallDesc(e.Description, link)
+		if e.Location == link && desc == e.Description {
+			continue
+		}
+		if err := s.C.Patch(ctx, cal, e.ID, map[string]any{"location": link, "description": desc}); err != nil {
+			return n, err
+		}
+		n++
+	}
+	_ = s.C.Store.SetMeta(ctx, MetaCallLinks, "done:"+s.C.Now().UTC().Format(time.RFC3339))
+	log.Printf("gcal: R75 call links: %d coming online events now lead to the platform", n)
+	return n, nil
 }
 
 func limit(v []string, n int) []string {

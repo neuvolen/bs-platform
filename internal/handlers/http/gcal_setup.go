@@ -206,4 +206,10 @@ func (h *GcalSetup) AtStart() {
 		return
 	}
 	h.catchup()
+	// R75 call: один раз ссылки на созвон платформы в будущих онлайн-встречах
+	pctx, pcancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer pcancel()
+	if _, err := h.Sync.PatchCallLinks(pctx); err != nil {
+		log.Printf("gcal: R75 call links: %v", err)
+	}
 }

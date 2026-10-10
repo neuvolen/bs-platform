@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/bnursik/business_surgery_backend/internal/calllink"
 )
 
 // The platform's club sections (Учёт, Резиденты, Штрафы, Расписание) were
@@ -61,6 +63,7 @@ type SeedMeeting struct {
 	Link   string `json:"link"`
 	Format string `json:"format"`
 	Done   bool   `json:"done,omitempty"`
+	Call   string `json:"call,omitempty"` // R75 call: the platform's call link (online)
 }
 
 // SeedPLRow is one line of the platform's PL_ROWS: kind head, item or total.
@@ -112,7 +115,11 @@ func SeedSchedule(in []Meeting) []SeedMeeting {
 		if m.Online || strings.Contains(m.Link, "meet.google") {
 			f = "online"
 		}
-		out = append(out, SeedMeeting{Res: m.Resident, Date: day(&d), Time: m.Time, Place: m.Place, Link: m.Link, Format: f, Done: m.Done})
+		sm := SeedMeeting{Res: m.Resident, Date: day(&d), Time: m.Time, Place: m.Place, Link: m.Link, Format: f, Done: m.Done}
+		if f == "online" {
+			sm.Call = calllink.URL(m.Resident)
+		}
+		out = append(out, sm)
 	}
 	return out
 }

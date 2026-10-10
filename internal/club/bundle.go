@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"github.com/bnursik/business_surgery_backend/internal/calllink"
 )
 
 // The Telegram app loads one data bundle (the script's getBotCache). Moving
@@ -84,6 +86,8 @@ type BundleMeeting struct {
 	Link   string `json:"link"`
 	Format string `json:"format"`
 	Done   bool   `json:"done"`
+	// Call: the platform's call link of an online meeting (R75 call); link keeps Meet as a fallback
+	Call string `json:"call,omitempty"`
 }
 
 type BundleDoneMeeting struct {
@@ -332,6 +336,9 @@ func AppBundle(s *Snapshot, now time.Time) (map[string]any, []string) {
 		}
 		if f, ok := formats[m.Resident]; ok {
 			b.Format = f
+		}
+		if calllink.IsOnline(b.Link, b.Format) {
+			b.Call = calllink.URL(m.Resident)
 		}
 		sched = append(sched, b)
 	}

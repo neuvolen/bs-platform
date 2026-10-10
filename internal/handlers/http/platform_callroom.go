@@ -31,7 +31,15 @@ import (
 // четырёх вкладок (трекер, резидент, партнёр, второй основатель): каждая
 // соединена с каждой (маленькая сетка), пятая получает room_full.
 //
-//   POST /call/room    {board, tab, op: peek|join|leave|present|unpresent|rec|unrec|cam|nocam, cam}
+// R75 call: лобби. Команда (admin, трекер) входит сразу; резидент ждёт в лобби,
+// пока кто-то из команды не впустит («Впустить» / «Отклонить»), или сразу, если
+// у созвона включено «Впускать всех автоматически». Гости без аккаунта (лид,
+// партнёр по ссылке /call/<id>, callroom_r75.go) всегда ждут в лобби. Впущенный
+// раз входит снова без лобби, пока созвон жив. Команда может остановить показ
+// экрана гостя (письмо stopshare его вкладке).
+//
+//   POST /call/room    {board, tab, op: peek|join|leave|present|unpresent|rec|unrec|cam|nocam
+//                       |admit|deny|auto|noauto|stopshare, cam, who}
 //   POST /call/signal  {board, tab, to, kind, data}
 //   GET  /call/stream  ?board&tab  состояние созвона и письма этой вкладке (SSE)
 
@@ -40,6 +48,8 @@ const (
 	callMsgMax     = 200      // писем в очереди одной вкладки
 	callMsgSize    = 64 << 10 // одно письмо (offer с кандидатами) не больше
 	callMaxMembers = 4        // R74: сетка браузер в браузер: каждый шлёт каждому, больше четырёх тяжело
+	callMaxLobby   = 12       // R75 call: ждут в лобби одного созвона не больше
+	callDeniedTTL  = 10 * time.Minute
 )
 
 type callMsg struct {
@@ -54,7 +64,9 @@ type callMember struct {
 	Name  string    `json:"name"`
 	Role  string    `json:"role"`
 	Color string    `json:"color"`
-	Cam   bool      `json:"cam"` // R74: камера включена
+	Cam   bool      `json:"cam"`             // R74: камера включена
+	Team  bool      `json:"team"`            // R75 call: команда (входит сразу, впускает других)
+	Guest bool      `json:"guest,omitempty"` // R75 call: гость по ссылке, без аккаунта
 	At    time.Time `json:"-"`
 	box   []callMsg
 	live  int // открытые потоки этой вкладки
@@ -70,6 +82,15 @@ type callRoomState struct {
 	members   map[string]*callMember
 	presenter *callMark
 	rec       *callMark
+	// R75 call: лобби
+	lobby    map[string]*callMember
+	admitted map[string]bool      // id впущенных (вкладка перезагрузилась: входит снова сразу)
+	denied   map[string]time.Time // ключи вкладок, которым отказали
+	auto     bool                 // «Впускать всех автоматически» (гостей нет: их впускают руками)
+}
+
+func newCallRoomState() *callRoomState {
+	return &callRoomState{members: map[string]*callMember{}, lobby: map[string]*callMember{}, admitted: map[string]bool{}, denied: map[string]time.Time{}}
 }
 
 type callHub struct {
@@ -110,7 +131,18 @@ func (h *callHub) expireLocked(board string) bool {
 			gone = true
 		}
 	}
-	if len(r.members) == 0 {
+	for k, m := range r.lobby {
+		if m.live == 0 && h.now().Sub(m.At) > callMemberTTL {
+			delete(r.lobby, k)
+			gone = true
+		}
+	}
+	for k, t := range r.denied {
+		if h.now().Sub(t) > callDeniedTTL {
+			delete(r.denied, k)
+		}
+	}
+	if len(r.members) == 0 && len(r.lobby) == 0 {
 		delete(h.rooms, board)
 	}
 	return gone
@@ -118,6 +150,7 @@ func (h *callHub) expireLocked(board string) bool {
 
 func (h *callHub) dropLocked(r *callRoomState, key string) {
 	delete(r.members, key)
+	delete(r.lobby, key)
 	if r.presenter != nil && r.presenter.Key == key {
 		r.presenter = nil
 	}
@@ -132,9 +165,15 @@ type callView struct {
 	Rec       *callMark    `json:"rec"`
 	You       string       `json:"you,omitempty"`
 	In        bool         `json:"in"`
+	// R75 call: лобби. Команда видит, кто ждёт; ждущий видит wait, получивший отказ denied
+	Lobby  []callMember `json:"lobby,omitempty"`
+	Wait   bool         `json:"wait,omitempty"`
+	Denied bool         `json:"denied,omitempty"`
+	Auto   bool         `json:"auto"`
+	Waits  int          `json:"waits,omitempty"` // сколько ждут (видно всем, имена только команде)
 }
 
-func (h *callHub) viewLocked(board, you string) callView {
+func (h *callHub) viewLocked(board, you string, team bool) callView {
 	v := callView{Members: []callMember{}, You: you}
 	r := h.rooms[board]
 	if r == nil {
@@ -147,6 +186,21 @@ func (h *callHub) viewLocked(board, you string) callView {
 		}
 	}
 	sort.Slice(v.Members, func(i, j int) bool { return v.Members[i].Key < v.Members[j].Key })
+	v.Auto, v.Waits = r.auto, len(r.lobby)
+	if _, ok := r.lobby[you]; ok {
+		v.Wait = true
+	}
+	if _, ok := r.denied[you]; ok && !v.In && !v.Wait {
+		v.Denied = true
+	}
+	if team && len(r.lobby) > 0 {
+		for _, m := range r.lobby {
+			x := *m
+			x.box = nil
+			v.Lobby = append(v.Lobby, x)
+		}
+		sort.Slice(v.Lobby, func(i, j int) bool { return v.Lobby[i].At.Before(v.Lobby[j].At) })
+	}
 	if r.presenter != nil {
 		p := *r.presenter
 		v.Presenter = &p
@@ -160,46 +214,92 @@ func (h *callHub) viewLocked(board, you string) callView {
 
 // Op меняет созвон доски и возвращает его состояние для вкладки me.
 func (h *callHub) Op(board string, me callMember, op string) (callView, bool) {
+	v, err := h.OpWho(board, me, op, "")
+	return v, err == ""
+}
+
+// admitLocked: из лобби в созвон (false: мест нет).
+func (h *callHub) admitLocked(r *callRoomState, key string) bool {
+	m := r.lobby[key]
+	if m == nil {
+		return true
+	}
+	if len(r.members) >= callMaxMembers {
+		return false
+	}
+	delete(r.lobby, key)
+	m.At = h.now()
+	r.members[key] = m
+	r.admitted[m.ID] = true
+	return true
+}
+
+// OpWho: Op с адресатом (впустить, отклонить, остановить показ: who, R75 call).
+// Ошибка: "" (готово), not_in_call, room_full, lobby_full, team_only, no_one.
+func (h *callHub) OpWho(board string, me callMember, op, who string) (callView, string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.expireLocked(board)
 	r := h.rooms[board]
 	in := r != nil && r.members[me.Key] != nil
+	waiting := r != nil && r.lobby[me.Key] != nil
 	changed := false
+	view := func() callView { return h.viewLocked(board, me.Key, me.Team) }
 	switch op {
 	case "peek":
 		if in {
 			r.members[me.Key].At = h.now()
+		} else if waiting {
+			r.lobby[me.Key].At = h.now()
 		}
 	case "join":
 		if r == nil {
-			r = &callRoomState{members: map[string]*callMember{}}
+			r = newCallRoomState()
 			h.rooms[board] = r
 		}
+		delete(r.denied, me.Key)
 		if old := r.members[me.Key]; old != nil {
 			old.At, old.Name = h.now(), me.Name
 			if old.Cam != me.Cam {
 				old.Cam, changed = me.Cam, true
 			}
-		} else if len(r.members) >= callMaxMembers {
-			return h.viewLocked(board, me.Key), false
-		} else {
+			break
+		}
+		direct := me.Team || r.admitted[me.ID] || (r.auto && !me.Guest)
+		if !direct {
+			if old := r.lobby[me.Key]; old != nil {
+				old.At, old.Name, old.Cam = h.now(), me.Name, me.Cam
+				break
+			}
+			if len(r.lobby) >= callMaxLobby {
+				return view(), "lobby_full"
+			}
 			m := me
 			m.At = h.now()
-			r.members[me.Key] = &m
+			r.lobby[me.Key] = &m
 			changed = true
+			break
 		}
+		if len(r.members) >= callMaxMembers {
+			return view(), "room_full"
+		}
+		delete(r.lobby, me.Key)
+		m := me
+		m.At = h.now()
+		r.members[me.Key] = &m
+		r.admitted[me.ID] = true
+		changed = true
 	case "leave":
-		if in {
+		if in || waiting {
 			h.dropLocked(r, me.Key)
-			if len(r.members) == 0 {
+			if len(r.members) == 0 && len(r.lobby) == 0 {
 				delete(h.rooms, board)
 			}
 			changed = true
 		}
 	case "cam", "nocam": // R74
 		if !in {
-			return h.viewLocked(board, me.Key), false
+			return view(), "not_in_call"
 		}
 		m := r.members[me.Key]
 		m.At = h.now()
@@ -208,7 +308,7 @@ func (h *callHub) Op(board string, me callMember, op string) (callView, bool) {
 		}
 	case "present", "unpresent", "rec", "unrec":
 		if !in {
-			return h.viewLocked(board, me.Key), false
+			return view(), "not_in_call"
 		}
 		r.members[me.Key].At = h.now()
 		mark := &callMark{Key: me.Key, Name: r.members[me.Key].Name, At: h.now()}
@@ -228,11 +328,81 @@ func (h *callHub) Op(board string, me callMember, op string) (callView, bool) {
 				r.rec, changed = nil, true
 			}
 		}
+	case "admit", "deny", "auto", "noauto", "stopshare": // R75 call: только команда
+		if !me.Team {
+			return view(), "team_only"
+		}
+		if r == nil {
+			if op == "auto" || op == "noauto" {
+				r = newCallRoomState()
+				h.rooms[board] = r
+			} else {
+				return view(), "no_one"
+			}
+		}
+		if in {
+			r.members[me.Key].At = h.now()
+		}
+		switch op {
+		case "admit":
+			if who == "*" { // впустить всех, сколько поместится
+				keys := make([]string, 0, len(r.lobby))
+				for k := range r.lobby {
+					keys = append(keys, k)
+				}
+				sort.Slice(keys, func(i, j int) bool { return r.lobby[keys[i]].At.Before(r.lobby[keys[j]].At) })
+				for _, k := range keys {
+					if !h.admitLocked(r, k) {
+						h.wakeLocked(board, "")
+						return view(), "room_full"
+					}
+					changed = true
+				}
+				break
+			}
+			if r.lobby[who] == nil {
+				return view(), "no_one"
+			}
+			if !h.admitLocked(r, who) {
+				return view(), "room_full"
+			}
+			changed = true
+		case "deny":
+			if r.lobby[who] == nil {
+				return view(), "no_one"
+			}
+			delete(r.lobby, who)
+			r.denied[who] = h.now()
+			changed = true
+		case "auto", "noauto":
+			if on := op == "auto"; r.auto != on {
+				r.auto, changed = on, true
+			}
+			if r.auto { // кто уже ждёт с аккаунтом, входит
+				for k, m := range r.lobby {
+					if !m.Guest && !h.admitLocked(r, k) {
+						break
+					}
+				}
+			}
+			if len(r.members) == 0 && len(r.lobby) == 0 && !r.auto {
+				delete(h.rooms, board)
+			}
+		case "stopshare":
+			if r.presenter == nil || r.presenter.Key != who {
+				return view(), "no_one"
+			}
+			r.presenter = nil
+			if dst := r.members[who]; dst != nil {
+				dst.box = append(dst.box, callMsg{From: me.Key, Kind: "stopshare"})
+			}
+			changed = true
+		}
 	}
 	if changed {
 		h.wakeLocked(board, "")
 	}
-	return h.viewLocked(board, me.Key), true
+	return view(), ""
 }
 
 // Send кладёт письмо в очередь вкладки to; false: её нет в созвоне.
@@ -262,13 +432,17 @@ func (h *callHub) take(board, key string) (callView, []callMsg) {
 		h.wakeLocked(board, "")
 	}
 	var msgs []callMsg
+	team := false
 	if r := h.rooms[board]; r != nil {
 		if m := r.members[key]; m != nil {
 			m.At = h.now()
 			msgs, m.box = m.box, nil
+			team = m.Team
+		} else if m := r.lobby[key]; m != nil {
+			m.At = h.now()
 		}
 	}
-	return h.viewLocked(board, key), msgs
+	return h.viewLocked(board, key, team), msgs
 }
 
 func (h *callHub) subscribe(board, key string) (chan struct{}, func()) {
@@ -278,8 +452,12 @@ func (h *callHub) subscribe(board, key string) (chan struct{}, func()) {
 		h.subs[board] = map[chan struct{}]string{}
 	}
 	h.subs[board][ch] = key
-	if r := h.rooms[board]; r != nil && r.members[key] != nil {
-		r.members[key].live++
+	if r := h.rooms[board]; r != nil {
+		if m := r.members[key]; m != nil {
+			m.live++
+		} else if m := r.lobby[key]; m != nil {
+			m.live++
+		}
 	}
 	h.mu.Unlock()
 	return ch, func() {
@@ -288,11 +466,16 @@ func (h *callHub) subscribe(board, key string) (chan struct{}, func()) {
 		if len(h.subs[board]) == 0 {
 			delete(h.subs, board)
 		}
-		if r := h.rooms[board]; r != nil && r.members[key] != nil {
-			if r.members[key].live > 0 {
-				r.members[key].live--
+		if r := h.rooms[board]; r != nil {
+			for _, m := range []*callMember{r.members[key], r.lobby[key]} {
+				if m == nil {
+					continue
+				}
+				if m.live > 0 {
+					m.live--
+				}
+				m.At = h.now()
 			}
-			r.members[key].At = h.now()
 		}
 		h.mu.Unlock()
 	}
@@ -326,7 +509,7 @@ func (pp *PlatformPresence) callWho(c *gin.Context, board, tab, name string) (ca
 	if !ok {
 		return callMember{}, false
 	}
-	m := callMember{ID: uid, Key: uid + "|" + tab, Role: platformRole(c), Color: presenceColor(uid), Name: rname}
+	m := callMember{ID: uid, Key: uid + "|" + tab, Role: platformRole(c), Color: presenceColor(uid), Name: rname, Team: !isResident(c) && !isLead(c)}
 	if m.Name == "" && pp.teamName != nil {
 		m.Name = pp.teamName(platformTgID(c))
 	}
@@ -351,14 +534,13 @@ func (pp *PlatformPresence) CallRoom(c *gin.Context) {
 		Op    string `json:"op"`
 		Name  string `json:"name"`
 		Cam   bool   `json:"cam"`
+		Who   string `json:"who"` // R75 call: кого впустить, отклонить, чей показ остановить
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request"})
 		return
 	}
-	switch req.Op {
-	case "peek", "join", "leave", "present", "unpresent", "rec", "unrec", "cam", "nocam":
-	default:
+	if !callOpOK(req.Op) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad op"})
 		return
 	}
@@ -368,18 +550,35 @@ func (pp *PlatformPresence) CallRoom(c *gin.Context) {
 		return
 	}
 	me.Cam = req.Cam
-	v, ok := theCallHub.Op(req.Board, me, req.Op)
-	if !ok {
-		why := "not_in_call"
-		if req.Op == "join" {
-			why = "room_full" // R74: уже четверо
+	callRoomReply(c, req.Board, me, req.Op, req.Who)
+}
+
+// callOpOK: ops of /call/room (R75 call: и лобби).
+func callOpOK(op string) bool {
+	switch op {
+	case "peek", "join", "leave", "present", "unpresent", "rec", "unrec", "cam", "nocam", "admit", "deny", "auto", "noauto", "stopshare":
+		return true
+	}
+	return false
+}
+
+// callRoomReply: op и ответ (команде и гостю одинаково).
+func callRoomReply(c *gin.Context, board string, me callMember, op, who string) {
+	v, why := theCallHub.OpWho(board, me, op, who)
+	if why != "" {
+		st := http.StatusConflict
+		if why == "team_only" {
+			st = http.StatusForbidden
 		}
-		c.JSON(http.StatusConflict, gin.H{"error": why, "room": v, "max": callMaxMembers})
+		c.JSON(st, gin.H{"error": why, "room": v, "max": callMaxMembers})
 		return
 	}
 	out := gin.H{"room": v}
-	if req.Op == "join" {
+	if op == "join" {
 		out["ice"] = callIce()
+		if u := callLinkOfBoard(c.Request.Context(), board); u != "" {
+			out["link"] = u // R75 call: ссылка на созвон для приглашения
+		}
 	}
 	c.JSON(http.StatusOK, out)
 }
@@ -433,6 +632,13 @@ func (pp *PlatformPresence) CallStream(c *gin.Context) {
 		forbidden(c, "not_your_board")
 		return
 	}
+	callStreamServe(c, board, me.Key)
+}
+
+// callStreamServe: состояние созвона и письма вкладки key, пока она слушает
+// (команде, резиденту и гостю одинаково, R75 call).
+func callStreamServe(c *gin.Context, board, key string) {
+	me := callMember{Key: key}
 	w := c.Writer
 	hd := w.Header()
 	hd.Set("Content-Type", "text/event-stream; charset=utf-8")
