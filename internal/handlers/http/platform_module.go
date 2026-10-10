@@ -70,6 +70,7 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		go m.AI.SeedGuides(context.Background())
 		go m.AI.MigrateRazborPrice(context.Background()) // price_migrate.go
 		go m.AI.LibExtLoop(context.Background())         // library_ext.go
+		go BookCoversLoop(context.Background())          // Полка: обложки книжной полки (book_shelf.go)
 		go m.AI.RecsLoop(context.Background())           // ai_recs.go
 		go m.AI.SeedMarketingAll(context.Background())   // mkt_competitors.go
 		go m.AI.CommunitiesLoop(context.Background())    // R77: Маркетинг → «Сообщества» (r77_communities.go)
@@ -108,6 +109,9 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	// R25: the branded template of a library tool by an open link (library_rich.go)
 	r.GET("/t/:file", PublicTemplate)
 	r.HEAD("/t/:file", PublicTemplate)
+	// Полка: обложки книжной полки с нашего домена (book_shelf.go)
+	r.GET("/covers/:file", BookCoverFile)
+	r.HEAD("/covers/:file", BookCoverFile)
 	// R63: the summary PDF by the signed link of «Отправить в WhatsApp» (callsum_r63.go)
 	r.GET("/sum/:key", m.AI.PublicSummary)
 	// R32d: the tour's voice as immutable files (platform_tts_static.go)
@@ -140,6 +144,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 	g.Use(middleware.RequireRole("admin", "moderator", "resident"))
 
 	g.GET("/sync", m.h.Sync)
+	g.GET("/books", BookShelf) // Полка: книжная полка с обложками
 	g.POST("/presence", m.Presence.Post)          // R52: platform_presence.go
 	g.GET("/presence/stream", m.Presence.Stream)  // R52
 	g.POST("/call/room", m.Presence.CallRoom)     // R65: онлайн-разбор на доске (platform_callroom.go)

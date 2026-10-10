@@ -36255,7 +36255,7 @@ function r46AdminGrid(kind){
   var list = kind === 'diag' ? DIAG : TOOLS, fn = kind === 'diag' ? 'renderDiagLib' : 'renderToolLib';
   var qi = document.getElementById(kind === 'diag' ? 'dlSearch' : 'tlSearch'), q = String(qi && qi.value || '').trim().toLowerCase();
   if(qi) qi.placeholder = kind === 'diag' ? 'Поиск: название, орган, признак' : 'Поиск: название, орган, описание';
-  var all = list.map(function(d, i){ return {d:d, i:i}; }).filter(function(x){ return x.d && x.d.title; });
+  var all = list.map(function(d, i){ return {d:d, i:i}; }).filter(function(x){ return x.d && x.d.title && !(kind === 'tool' && x.d.isBook); }); // книги: своя вкладка «Книги»
   var vis = all.filter(function(x){ return (!R46.org[kind] || r46Org(x.d.organ) === R46.org[kind]) && r46Match(kind, x, q); });
   var MD = ['az', 'organ', 'new', 'used'], md = bslMode(kind === 'diag' ? 'diag' : 'tools', MD), used = bslUsed(kind);
   var gr = bslApply(vis, md, {t:function(x){ return x.d.title; }, g:function(x){ return r46Org(x.d.organ); }, n:function(x){ return x.i; }, u:function(x){ return used[x.d.title] || 0; }});
@@ -46067,6 +46067,349 @@ try{
     classify: classify
   };
   try{ mountUI(); }catch(e){}
+})();
+</script>
+<style id="shelfCss">
+/* Книжная полка: обложки как есть, значок BS на рамке карточки */
+.bk-wrap{--bk-gap:22px}
+.bk-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.bk-bar .inp{flex:1 1 240px;min-width:0;max-width:420px}
+.bk-cats{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;margin:0 0 6px;scrollbar-width:none}
+.bk-cats::-webkit-scrollbar{display:none}
+.bk-ch{flex:0 0 auto;display:inline-flex;align-items:center;border:1px solid var(--bd);background:transparent;color:var(--t2);border-radius:999px;padding:7px 12px;font:600 12.5px/1 'Manrope',sans-serif;cursor:pointer;white-space:nowrap}
+.bk-ch b{display:inline;font-weight:700;color:var(--t3);margin-left:5px}
+.bk-ch.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.bk-ch.on b{color:inherit;opacity:.65}
+.bk-sum{font-size:12.5px;color:var(--t3);margin:0 0 14px}
+.bk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:26px 20px}
+.bk-card{position:relative;cursor:pointer;min-width:0;outline:none}
+.bk-fr{position:relative;aspect-ratio:2/3;border-radius:6px;background:var(--bkbg,#1b1b1b);box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 10px 24px -14px rgba(0,0,0,.7);transition:transform .18s ease,box-shadow .18s ease}
+.bk-card:hover .bk-fr,.bk-card:focus-visible .bk-fr{transform:translateY(-3px);box-shadow:0 18px 30px -16px rgba(0,0,0,.8)}
+.bk-im{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:6px;display:block}
+.bk-bdg{position:absolute;top:-8px;right:-8px;z-index:2;height:24px;padding:0 7px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 3px 10px rgba(0,0,0,.35);pointer-events:none}
+.bk-bdg i{display:block;width:14px;height:16px;overflow:hidden}
+.bk-bdg img{height:16px;width:auto;max-width:none;display:block}
+.bk-bdg.dk{background:#0E0E0E;border:1px solid rgba(255,255,255,.22)}
+.bk-bdg.lt{background:#FFFFFF;border:1px solid rgba(0,0,0,.14)}
+.bk-bdg.lt img{filter:invert(1)}
+.bk-ph{position:absolute;inset:0;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:14px 13px 12px;
+  background:linear-gradient(160deg,var(--php,#232323),var(--phq,#0f0f0f));color:#F2F2F2;border:1px solid rgba(255,255,255,.08)}
+.bk-ph i{font-style:normal;font:700 9.5px/1.2 'Manrope',sans-serif;letter-spacing:.14em;text-transform:uppercase;opacity:.55}
+.bk-ph b{font:800 17px/1.12 'Manrope',sans-serif;letter-spacing:-.01em;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+.bk-ph em{font:500 11.5px/1.25 'Manrope',sans-serif;font-style:normal;opacity:.72}
+.bk-t{margin-top:11px;font:700 13.5px/1.25 'Manrope',sans-serif;color:var(--tx);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bk-a{margin-top:3px;font-size:12px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-st{display:inline-block;margin-top:6px;font:700 10.5px/1 'Manrope',sans-serif;padding:4px 7px;border-radius:5px;border:1px solid var(--bd2);color:var(--t2)}
+.bk-st.read{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.bk-empty{grid-column:1/-1;color:var(--t3);padding:30px 0;text-align:center}
+.bk-mo{position:fixed;inset:0;z-index:260;background:rgba(0,0,0,.66);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:24px}
+.bk-mo.on{display:flex}
+.bk-si{position:relative;width:min(880px,100%);max-height:calc(100dvh - 48px);overflow:auto;background:var(--card,#141414);color:var(--tx);border:1px solid var(--bd);border-radius:18px;
+  display:grid;grid-template-columns:minmax(200px,300px) minmax(0,1fr);gap:28px;padding:28px}
+.bk-x{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;border:1px solid var(--bd);background:transparent;color:var(--tx);cursor:pointer;font-size:18px;line-height:1}
+.bk-big .bk-fr{box-shadow:0 22px 40px -20px rgba(0,0,0,.85)}
+.bk-big .bk-ph b{font-size:24px}
+.bk-k{font:700 11px/1.3 'Manrope',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--t3)}
+.bk-h{font:800 26px/1.15 'Manrope',sans-serif;margin:8px 0 6px;letter-spacing:-.01em;padding-right:30px}
+.bk-au{font-size:14px;color:var(--t2)}
+.bk-or{font-size:12.5px;color:var(--t3);margin-top:4px}
+.bk-sec{margin-top:20px}
+.bk-sl{font:700 11px/1 'Manrope',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:9px}
+.bk-use{font-size:14.5px;line-height:1.55;color:var(--tx)}
+.bk-sts{display:flex;gap:8px;flex-wrap:wrap}
+.bk-sb{border:1px solid var(--bd2);background:transparent;color:var(--tx);border-radius:10px;padding:10px 14px;font:700 13px/1 'Manrope',sans-serif;cursor:pointer}
+.bk-sb.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.bk-lk{display:flex;gap:8px;flex-wrap:wrap}
+.bk-lk a{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--bd);border-radius:10px;padding:9px 12px;color:var(--tx);text-decoration:none;font:600 13px/1 'Manrope',sans-serif}
+.bk-lk a:hover{border-color:var(--bd2)}
+.bk-dx{display:flex;flex-wrap:wrap;gap:6px}
+.bk-dx button{border:1px solid var(--bd);background:var(--gs,transparent);color:var(--tx);border-radius:8px;padding:7px 10px;font:600 12.5px/1.2 'Manrope',sans-serif;cursor:pointer;text-align:left}
+.bk-dx button:hover{border-color:var(--bd2)}
+.bk-dx button.tl{background:transparent;color:var(--t2)}
+.bk-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+.bk-rec{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:18px 14px;margin-top:4px}
+.bk-rec .bk-t{font-size:12.5px}
+.bk-cardsec{margin-top:18px}
+body.light .bk-ph{color:#F2F2F2}
+@media (max-width:720px){
+  .bk-grid{grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:22px 14px}
+  .bk-bar .inp{flex-basis:100%;max-width:none}
+  .bk-mo{padding:0;align-items:flex-end}
+  .bk-si{grid-template-columns:1fr;border-radius:18px 18px 0 0;max-height:92dvh;padding:22px 16px 28px;gap:18px}
+  .bk-big{width:min(220px,62vw);margin:0 auto}
+  .bk-h{font-size:22px}
+}
+</style>
+<script id="shelfScript">
+// Книжная полка клуба: 120+ книг для собственника с настоящими обложками
+// (сервер скачивает их сам: GET /api/v1/platform/books, файлы /covers/…),
+// фильтры по категориям, поиск, «Читаю / Прочитал / Хочу» у каждого свои
+// (bs_bookshelf, личная область), где купить или прочитать, книги к диагнозу.
+(function(){
+  var SH = window.SHELF = {data:null, err:'', loading:null, cat:'', q:'', st:'', cur:null};
+  var CATS = ['Стратегия', 'Управление', 'Лидерство', 'Команда и найм', 'Продажи', 'Маркетинг', 'Финансы', 'Переговоры', 'Продуктивность', 'Мышление', 'Продукт и запуск', 'Истории компаний'];
+  var ST = {reading:'Читаю', read:'Прочитал', want:'Хочу'};
+  var PH = {'Стратегия':['#2a2a2a','#0d0d0d'], 'Управление':['#262b30','#0e1114'], 'Лидерство':['#2e2a24','#12100c'], 'Команда и найм':['#24292a','#0c1011'],
+    'Продажи':['#2b2626','#120e0e'], 'Маркетинг':['#28242c','#0f0d12'], 'Финансы':['#232a26','#0c110e'], 'Переговоры':['#2a2824','#11100d'],
+    'Продуктивность':['#25282c','#0d0f12'], 'Мышление':['#29262c','#100e12'], 'Продукт и запуск':['#262a2b','#0e1112'], 'Истории компаний':['#2c2925','#12100d']};
+  var E = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var N = function(s){ return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim(); };
+  var pl = function(n, a, b, c){ var m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : (m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c); };
+  var logo = function(){ return typeof BS_LOGO !== 'undefined' ? BS_LOGO : ''; };
+
+  // ── данные ──
+  SH.load = function(force){
+    if(SH.data && !force) return Promise.resolve(SH.data);
+    if(SH.loading) return SH.loading;
+    if(!window.BSSync || !BSSync.api){ SH.data = {books:[], cats:CATS}; return Promise.resolve(SH.data); }
+    SH.loading = BSSync.api('GET', '/books').then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(j){ SH.data = j && j.books ? j : {books:[]}; SH.err = ''; return SH.data; })
+      .catch(function(e){ SH.err = 'Полка не загрузилась: ' + (e && e.message || 'нет связи'); SH.data = null; return null; })
+      .then(function(d){ SH.loading = null; return d; });
+    return SH.loading;
+  };
+  // Книги полки: карточки bs_tools (isBook) вместе с каталогом сервера; книга без карточки тоже видна
+  SH.list = function(){
+    var cat = (SH.data && SH.data.books) || [], byId = {}, byT = {}, out = [], used = {};
+    cat.forEach(function(b){ byId[b.id] = b; byT[N(b.title)] = b; });
+    (typeof TOOLS !== 'undefined' && TOOLS || []).forEach(function(t, i){
+      if(!t || !t.isBook || !t.title) return;
+      var m = byId[t.bookId] || byT[N(t.title)] || null;
+      var title = String(t.title).replace(/^Книга:\s*/, ''), mm = title.match(/^«(.+?)»\s*·\s*(.+)$/);
+      var e = {i:i, t:t, m:m, key:m ? m.id : 't:' + N(t.title),
+        ru:m ? m.ru : (mm ? mm[1] : title), author:m ? m.author : (mm ? mm[2] : (t.author || '')),
+        cat:m ? m.cat : (t.bookCat || 'Другие книги'), use:(m && m.use) || t.short || t.why || '', orig:m ? m.orig : (t.origTitle || ''), year:m ? m.year : (t.year || ''),
+        cover:m && m.cover || '', tone:m && m.tone || 'dark', bg:m && m.bg || '', diag:m ? m.diag : (t.diagIds || []), diagT:m && m.diagT || [],
+        tools:m ? m.tools : (t.toolIds || []), toolT:m && m.toolT || [], file:t.file || ''};
+      if(used[e.key]) return;
+      used[e.key] = 1; out.push(e);
+    });
+    cat.forEach(function(b){
+      if(used[b.id]) return;
+      used[b.id] = 1;
+      out.push({i:-1, t:null, m:b, key:b.id, ru:b.ru, author:b.author, cat:b.cat, use:b.use, orig:b.orig, year:b.year, cover:b.cover || '', tone:b.tone || 'dark', bg:b.bg || '',
+        diag:b.diag || [], diagT:b.diagT || [], tools:b.tools || [], toolT:b.toolT || [], file:''});
+    });
+    var rank = function(c){ var k = CATS.indexOf(c); return k < 0 ? 99 : k; };
+    out.sort(function(a, b){ return rank(a.cat) - rank(b.cat); });
+    return out;
+  };
+  SH.marks = function(){ try{ var o = JSON.parse(localStorage.getItem('bs_bookshelf') || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }catch(e){ return {}; } };
+  SH.mark = function(key, st){
+    var o = SH.marks();
+    if(!st || o[key] === st) delete o[key]; else o[key] = st;
+    try{ localStorage.setItem('bs_bookshelf', JSON.stringify(o)); }catch(e){}
+    if(typeof toast === 'function') toast(o[key] ? '«' + (ST[o[key]]) + '» отмечено' : 'Отметка снята');
+    return o[key] || '';
+  };
+
+  // ── карточка ──
+  SH.cover = function(e, big){
+    var bg = e.bg || (PH[e.cat] || PH['Стратегия'])[1];
+    var img = e.cover ? '<img class="bk-im" loading="lazy" decoding="async" src="' + E(e.cover) + '" alt="' + E('Обложка: ' + e.ru) + '" onerror="SHELF.noimg(this)">' : '';
+    var ph = '<div class="bk-ph" style="--php:' + (PH[e.cat] || PH['Стратегия'])[0] + ';--phq:' + (PH[e.cat] || PH['Стратегия'])[1] + (e.cover ? ';display:none' : '') + '"><i>' + E(e.cat) + '</i><div><b>' + E(e.ru) + '</b></div><em>' + E(e.author) + '</em></div>';
+    var tone = e.cover ? (e.tone === 'light' ? 'lt' : 'dk') : 'dk';
+    return '<div class="bk-fr" style="--bkbg:' + E(bg) + '">' + img + ph +
+      '<span class="bk-bdg ' + tone + '" title="Business Surgery"><i><img src="' + logo() + '" alt="BS"></i></span></div>';
+  };
+  SH.noimg = function(im){ try{ var fr = im.parentNode; im.remove(); var ph = fr.querySelector('.bk-ph'); if(ph) ph.style.display = ''; var b = fr.querySelector('.bk-bdg'); if(b){ b.classList.remove('lt'); b.classList.add('dk'); } }catch(e){} };
+  SH.card = function(e, marks){
+    var st = marks && marks[e.key];
+    return '<div class="bk-card" tabindex="0" role="button" data-k="' + E(e.key) + '" onclick="SHELF.open(this.dataset.k)" onkeydown="if(event.key===\'Enter\')SHELF.open(this.dataset.k)">' + SH.cover(e) +
+      '<div class="bk-t">' + E(e.ru) + '</div><div class="bk-a">' + E(e.author) + '</div>' +
+      (st ? '<span class="bk-st ' + st + '">' + ST[st] + '</span>' : '') + '</div>';
+  };
+
+  // ── полка ──
+  SH.render = function(host){
+    if(!host) return;
+    if(!SH.data){
+      host.innerHTML = '<div class="bk-wrap"><div class="bk-sum">' + (SH.err ? E(SH.err) + ' <button class="btn pf-b" onclick="SHELF.err=\'\';SHELF.load(true).then(function(){SHELF.rerender()})">Повторить</button>' : 'Загружаем полку…') + '</div></div>';
+      if(!SH.err) SH.load().then(function(){ SH.rerender(); });
+      return;
+    }
+    SH.host = host;
+    var all = SH.list(), marks = SH.marks(), q = N(SH.q);
+    var cnt = {}, scnt = {reading:0, read:0, want:0};
+    all.forEach(function(e){ cnt[e.cat] = (cnt[e.cat] || 0) + 1; if(marks[e.key]) scnt[marks[e.key]]++; });
+    var cats = CATS.filter(function(c){ return cnt[c]; }).concat(Object.keys(cnt).filter(function(c){ return CATS.indexOf(c) < 0; }));
+    if(SH.cat && !cnt[SH.cat]) SH.cat = '';
+    var vis = all.filter(function(e){
+      if(SH.cat && e.cat !== SH.cat) return false;
+      if(SH.st && marks[e.key] !== SH.st) return false;
+      return !q || N(e.ru + ' ' + e.author + ' ' + e.orig + ' ' + e.cat + ' ' + e.use + ' ' + (e.diagT || []).join(' ')).indexOf(q) >= 0;
+    });
+    var covers = all.filter(function(e){ return e.cover; }).length;
+    var chip = function(v, label, n, on, fn){ return '<button type="button" class="bk-ch' + (on ? ' on' : '') + '" data-v="' + E(v) + '" onclick="' + fn + '">' + E(label) + (n != null ? '<b>' + n + '</b>' : '') + '</button>'; };
+    host.innerHTML = '<div class="bk-wrap">' +
+      '<div class="bk-bar"><input class="inp" id="bkQ" placeholder="Поиск: название, автор, тема, диагноз" value="' + E(SH.q) + '" oninput="SHELF.q=this.value;SHELF.grid()">' +
+        chip('', 'Все', null, !SH.st, "SHELF.st='';SHELF.rerender()") +
+        ['reading', 'want', 'read'].map(function(s){ return chip(s, ST[s], scnt[s], SH.st === s, "SHELF.st=this.dataset.v;SHELF.rerender()"); }).join('') + '</div>' +
+      '<div class="bk-cats">' + chip('', 'Все категории', all.length, !SH.cat, "SHELF.cat='';SHELF.rerender()") +
+        cats.map(function(c){ return chip(c, c, cnt[c], SH.cat === c, 'SHELF.cat=this.dataset.v;SHELF.rerender()'); }).join('') + '</div>' +
+      '<div class="bk-sum" id="bkSum"></div><div class="bk-grid" id="bkGrid"></div></div>';
+    SH.grid(vis, all.length, covers);
+  };
+  SH.grid = function(vis){
+    var g = document.getElementById('bkGrid'); if(!g) return;
+    var marks = SH.marks();
+    if(!vis){
+      var q = N(SH.q);
+      vis = SH.list().filter(function(e){
+        if(SH.cat && e.cat !== SH.cat) return false;
+        if(SH.st && marks[e.key] !== SH.st) return false;
+        return !q || N(e.ru + ' ' + e.author + ' ' + e.orig + ' ' + e.cat + ' ' + e.use + ' ' + (e.diagT || []).join(' ')).indexOf(q) >= 0;
+      });
+    }
+    var s = document.getElementById('bkSum');
+    if(s) s.textContent = vis.length + ' ' + pl(vis.length, 'книга', 'книги', 'книг') + (SH.cat ? ' · ' + SH.cat : '') + (SH.st ? ' · ' + ST[SH.st] : '');
+    g.innerHTML = vis.length ? vis.map(function(e){ return SH.card(e, marks); }).join('') : '<div class="bk-empty">' + (SH.st ? 'Здесь появятся книги с отметкой «' + ST[SH.st] + '»' : 'Ничего не нашлось') + '</div>';
+  };
+  SH.rerender = function(){
+    if(typeof section !== 'undefined' && section === 'books') return window.renderShelf();
+    if(typeof section !== 'undefined' && section === 'rKit' && typeof R15KIT !== 'undefined' && R15KIT.f === 'book') return SH.render(document.getElementById('bkHost'));
+    if(SH.host && document.body.contains(SH.host)) SH.render(SH.host);
+  };
+  window.renderShelf = function(){
+    var all = SH.data ? SH.list().length : 0;
+    var el = pgSet('Книги', all ? all + ' ' + pl(all, 'книга', 'книги', 'книг') + ' для собственника: что читать, зачем и к какому диагнозу' : 'Книги для собственника: что читать, зачем и к какому диагнозу');
+    SH.render(el);
+  };
+
+  // ── книга ──
+  var buy = function(e){
+    var q = encodeURIComponent((e.ru + ' ' + String(e.author || '').split(',')[0]).trim());
+    return [['Kaspi', 'https://kaspi.kz/shop/search/?text=' + q], ['Marwin', 'https://www.marwin.kz/catalogsearch/result/?q=' + q], ['Литрес', 'https://www.litres.ru/search/?q=' + q]];
+  };
+  SH.find = function(key){ return SH.list().find(function(e){ return e.key === key; }) || null; };
+  SH.open = function(key){
+    var e = SH.find(key); if(!e) return;
+    SH.cur = key;
+    var mo = document.getElementById('bkMo');
+    if(!mo){ mo = document.createElement('div'); mo.id = 'bkMo'; mo.className = 'bk-mo'; mo.onclick = function(ev){ if(ev.target === mo) SH.close(); }; document.body.appendChild(mo); }
+    var st = SH.marks()[e.key] || '', adm = typeof MODE !== 'undefined' && MODE === 'admin';
+    var cardBtn = function(id, title, cls){ return '<button type="button" class="' + cls + '" data-id="' + E(id) + '" onclick="SHELF.card2(this.dataset.id)">' + E(title || id) + '</button>'; };
+    var dx = (e.diag || []).map(function(id, k){ return cardBtn(id, (e.diagT || [])[k], ''); }).join('');
+    var tl = (e.tools || []).map(function(id, k){ return cardBtn(id, (e.toolT || [])[k], 'tl'); }).join('');
+    mo.innerHTML = '<div class="bk-si" role="dialog" aria-label="' + E(e.ru) + '"><button class="bk-x" onclick="SHELF.close()" aria-label="Закрыть">×</button>' +
+      '<div class="bk-big">' + SH.cover(e, true) + '</div>' +
+      '<div><div class="bk-k">Книга · ' + E(e.cat) + '</div><div class="bk-h">' + E(e.ru) + '</div><div class="bk-au">' + E(e.author) + '</div>' +
+        ((e.orig || e.year) ? '<div class="bk-or">' + E([e.orig, e.year].filter(Boolean).join(', ')) + '</div>' : '') +
+        (e.use ? '<div class="bk-sec"><div class="bk-sl">Чем полезна собственнику</div><div class="bk-use">' + E(e.use) + '</div></div>' : '') +
+        '<div class="bk-sec"><div class="bk-sl">Моя полка</div><div class="bk-sts">' + ['reading', 'read', 'want'].map(function(s){
+          return '<button type="button" class="bk-sb' + (st === s ? ' on' : '') + '" data-s="' + s + '" onclick="SHELF.setSt(this.dataset.s)">' + ST[s] + '</button>'; }).join('') + '</div></div>' +
+        (dx ? '<div class="bk-sec"><div class="bk-sl">Рекомендована к диагнозам</div><div class="bk-dx">' + dx + '</div></div>' : '') +
+        (tl ? '<div class="bk-sec"><div class="bk-sl">Инструменты BS по теме</div><div class="bk-dx">' + tl + '</div></div>' : '') +
+        '<div class="bk-sec"><div class="bk-sl">Купить или прочитать</div><div class="bk-lk">' + buy(e).map(function(l){
+          return '<a href="' + E(l[1]) + '" target="_blank" rel="noopener">' + E(l[0]) + ' ↗</a>'; }).join('') +
+          '</div></div>' +
+        ((e.file || adm) && e.i >= 0 ? '<div class="bk-acts">' +
+          (e.file ? '<button class="btn pf-b pf-p" onclick="SHELF.close();_shelfOc(\'tool\',' + e.i + ')">Файл книги в клубе</button>' : '') +
+          (adm && typeof editTool === 'function' ? '<button class="btn pf-b" onclick="SHELF.close();editTool(' + e.i + ')">Изменить</button>' : '') + '</div>' : '') +
+      '</div></div>';
+    mo.classList.add('on');
+  };
+  SH.close = function(){ var mo = document.getElementById('bkMo'); if(mo) mo.classList.remove('on'); SH.cur = null; };
+  SH.setSt = function(s){
+    var key = SH.cur; if(!key) return;
+    var now = SH.mark(key, s);
+    document.querySelectorAll('#bkMo .bk-sb').forEach(function(b){ b.classList.toggle('on', b.dataset.s === now); });
+    SH.rerender();
+  };
+  SH.card2 = function(id){
+    SH.close();
+    if(typeof lib2OpenId === 'function') return lib2OpenId(id);
+    var i = (typeof DIAG !== 'undefined' ? DIAG : []).findIndex(function(d){ return d && d.id === id; });
+    if(i >= 0) openCard('diag', i);
+  };
+  document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape' && SH.cur) SH.close(); });
+
+  // ── книги к диагнозу: в карточке диагноза ──
+  SH.forDiag = function(id, title){
+    if(!SH.data) return [];
+    var k = N(title);
+    return SH.list().filter(function(e){ return (id && (e.diag || []).indexOf(id) >= 0) || (k && (e.diagT || []).some(function(t){ return N(t) === k; })); });
+  };
+  SH.recHTML = function(list){
+    var marks = SH.marks();
+    return '<div class="bk-rec">' + list.slice(0, 8).map(function(e){ return SH.card(e, marks); }).join('') + '</div>';
+  };
+  if(typeof lib2DiagHTML === 'function'){
+    var _ldh = lib2DiagHTML;
+    window.lib2DiagHTML = lib2DiagHTML = function(v, r, d, i, adm){
+      var h = _ldh.apply(this, arguments);
+      try{
+        var list = SH.forDiag(r && r.id, (r && r.title) || (d && d.title));
+        if(!SH.data) SH.load().then(function(x){ if(x && typeof LIB2 !== 'undefined' && LIB2.cur && LIB2.cur.kind === 'diag' && SH.forDiag(LIB2.cur.id, (LIB2.byId[LIB2.cur.id] || {}).title).length && typeof lib2Paint === 'function') lib2Paint(); });
+        if(list.length){
+          var sec = (typeof lib2Sec === 'function' ? lib2Sec : function(k, l, t, inner){ return '<section class="gu-sec" data-k="' + k + '"><div class="gu-sk">' + E(l) + '</div><h2 class="gu-h2">' + E(t) + '</h2>' + inner + '</section>'; })
+            ('books', 'Рекомендовано к диагнозу', 'Что почитать', SH.recHTML(list));
+          var at = h.lastIndexOf('</article></div>');
+          if(at >= 0) h = h.slice(0, at) + sec + h.slice(at); else h += sec;
+          var nav = h.indexOf('</nav></aside>');
+          if(nav >= 0) h = h.slice(0, nav) + '<a class="gu-ti" data-k="books" onclick="lib2Go(this.dataset.k)"><span class="gu-tin">К</span><em>Книги к диагнозу</em><small></small></a>' + h.slice(nav);
+        }
+      }catch(e){ console.error('shelf', e); }
+      return h;
+    };
+  }
+  // старая карточка (без библиотеки сервера): книги дописываются вниз; книга открывается на полке
+  if(typeof openCard === 'function'){
+    var _oc = openCard;
+    window._shelfOc = function(){ return _oc.apply(this, arguments); };
+    window.openCard = openCard = function(kind, i){
+      if(kind === 'tool' && typeof TOOLS !== 'undefined' && TOOLS[i] && TOOLS[i].isBook){
+        var go = function(){ var e = SH.list().find(function(x){ return x.i === i; }); if(e) SH.open(e.key); else _oc('tool', i); };
+        if(SH.data) return go();
+        return SH.load().then(go);
+      }
+      var r = _oc.apply(this, arguments);
+      try{
+        if(kind === 'diag'){
+          var add = function(){
+            var cs = document.getElementById('cardSheet'), body = document.getElementById('cardBody'), d = DIAG[i];
+            if(!cs || !cs.classList.contains('on') || !body || !d || body.querySelector('.bk-cardsec')) return;
+            var list = SH.forDiag(d.id, d.title); if(!list.length) return;
+            body.insertAdjacentHTML('beforeend', '<div class="dsec bk-cardsec"><div class="dh">Рекомендовано к диагнозу: книги</div>' + SH.recHTML(list) + '</div>');
+          };
+          if(SH.data) add(); else SH.load().then(add);
+        }
+      }catch(e){}
+      return r;
+    };
+  }
+
+  // ── навигация: «Книги» у команды (База знаний) и у резидента (Материалы) ──
+  try{
+    if(typeof BLOCKS !== 'undefined'){
+      var T = BLOCKS.track && BLOCKS.track.tabs;
+      if(T && !T.some(function(t){ return t.id === 'books'; })){ var ti = T.findIndex(function(t){ return t.id === 'toolLib'; }); T.splice(ti < 0 ? T.length : ti + 1, 0, {id:'books', n:'Книги'}); }
+      var R = BLOCKS.rmat && BLOCKS.rmat.tabs;
+      if(R && !R.some(function(t){ return t.id === 'books'; })) R.unshift({id:'books', n:'Книги'});
+    }
+    var g = window.BK_EXT && (BK_EXT.M.track || []).find(function(x){ return x.ids.indexOf('toolLib') >= 0; });
+    if(g && g.ids.indexOf('books') < 0){ g.ids.splice(g.ids.indexOf('toolLib') + 1, 0, 'books'); g.sub.books = 'Книги'; }
+  }catch(e){}
+  if(typeof renderStub === 'function'){
+    var _st = renderStub;
+    window.renderStub = renderStub = function(s){ if(s === 'books') return window.renderShelf(); return _st.apply(this, arguments); };
+  }
+  // «Книги и инструменты» резидента: вкладка «Книги» показывает ту же полку
+  if(typeof r15KitGrid === 'function'){
+    var _kg = r15KitGrid;
+    window.r15KitGrid = r15KitGrid = function(){
+      if(typeof R15KIT !== 'undefined' && R15KIT.f === 'book'){
+        var el = document.getElementById('r15kGrid'); if(!el) return;
+        var q = document.querySelector('#stubBody .r15k-q'); if(q) q.style.display = 'none';
+        el.className = ''; el.innerHTML = '<div id="bkHost"></div>';
+        SH.render(document.getElementById('bkHost'));
+        return;
+      }
+      var q2 = document.querySelector('#stubBody .r15k-q'); if(q2) q2.style.display = '';
+      return _kg.apply(this, arguments);
+    };
+  }
 })();
 </script>
 </body>

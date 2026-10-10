@@ -128,7 +128,7 @@ func TestMergeLibExt(t *testing.T) {
 	}
 	put("bs_libver", "3")
 	got, err = h.MergeLibExt(ctx)
-	if err != nil || got["bs_diag"] != len(ext.Diag)-1 || got["bs_tools"] != len(ext.Tools) || got["bs_questions"] != 0 {
+	if err != nil || got["bs_diag"] != len(ext.Diag)-1 || got["bs_tools"] != len(ext.Tools)+len(ext.Books) || got["bs_questions"] != 0 {
 		t.Fatalf("merge: %v %v", got, err)
 	}
 	var diag []map[string]any

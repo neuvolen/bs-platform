@@ -160,7 +160,7 @@ func (h *PlatformAI) mergeLibDoc(ctx context.Context, key string, ext content.Li
 			}
 			src := ext.Diag
 			if key == "bs_tools" {
-				src = ext.Tools
+				src = append(append([]map[string]any{}, ext.Tools...), ext.Books...) // Полка: и книги полки
 			}
 			ids, titles := map[string]bool{}, map[string]bool{}
 			for _, it := range list {

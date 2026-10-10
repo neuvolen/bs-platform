@@ -12,7 +12,7 @@ import (
 // документы клуба то, чего там ещё нет (handlers/http/library_ext.go).
 
 // LibExtVersion: поднимать, когда в library_ext добавлены новые пункты.
-const LibExtVersion = "2026-10-ext7" // R62b: second YouTube round, video coverage 96% diagnoses, 96% tools, 99% guides
+const LibExtVersion = "2026-10-ext8" // Полка: книжная полка (books/books.json) в bs_tools
 
 //go:embed library_ext/*.json
 var libExtFS embed.FS
@@ -22,6 +22,8 @@ type LibExtSet struct {
 	Diag      []map[string]any    `json:"diag"`
 	Tools     []map[string]any    `json:"tools"`
 	Questions map[string][]string `json:"questions"`
+	// Полка: книги полки как карточки bs_tools (isBook); идут в bs_tools вместе с Tools
+	Books []map[string]any `json:"books"`
 }
 
 var (
@@ -47,6 +49,11 @@ func LibExt() (LibExtSet, error) {
 		read("diag.json", &libExt.Diag)
 		read("tools.json", &libExt.Tools)
 		read("questions.json", &libExt.Questions)
+		if libExtErr == nil {
+			if _, libExtErr = Books(); libExtErr == nil {
+				libExt.Books = BookToolItems()
+			}
+		}
 	})
 	return libExt, libExtErr
 }
