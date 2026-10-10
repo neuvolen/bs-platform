@@ -416,7 +416,7 @@ var assistFinance = []string{
 
 // Личные настройки устройства резидента (тема, порядок меню, обучение):
 // ассистент их не перезаписывает.
-var assistDeviceKeys = map[string]bool{"bs_theme": true, "bs_order": true, "bs_onboard": true, "bs_me": true, "bs_an_state": true}
+var assistDeviceKeys = map[string]bool{"bs_theme": true, "bs_order": true, "bs_onboard": true, "bs_me": true, "bs_an_state": true, "bs_prefs": true}
 
 func hasPrefixAny(p string, list []string) bool {
 	for _, x := range list {

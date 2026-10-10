@@ -3,6 +3,7 @@ package club
 import (
 	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +42,7 @@ type SeedResident struct {
 	Left      int64  `json:"left"`
 	Months    int64  `json:"months"`
 	Partner   string `json:"partner,omitempty"` // R70: business partner (one click between the two)
+	Tg        string `json:"tg,omitempty"`      // R81: Telegram id for the avatar in the team's list (/api/v1/app/avatar/<tg>)
 }
 
 // SeedFine is one line of the platform's FINES.
@@ -84,10 +86,17 @@ func SeedResidents(snap *Snapshot) []SeedResident {
 			Name: d.Name, Paid: d.PaidEntry, Rest: d.RestEntry, DebtRenew: d.RenewDebt,
 			Fines: d.FinesUnpaid, Total: d.TotalDebt, Tariff: d.Tariff, Start: day(d.JoinedAt),
 			Format: d.Format, Done: d.Done, Granted: d.Granted, Left: d.MeetingsLeft, Months: d.Months,
-			Partner: strings.TrimSpace(d.Partner),
+			Partner: strings.TrimSpace(d.Partner), Tg: tgOf(d.TgID),
 		})
 	}
 	return out
+}
+
+func tgOf(id int64) string {
+	if id <= 0 {
+		return ""
+	}
+	return strconv.FormatInt(id, 10)
 }
 
 func SeedFines(fines []Fine) []SeedFine {

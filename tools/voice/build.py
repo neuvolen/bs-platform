@@ -108,6 +108,8 @@ def tour_texts(html):
         add(v)
     for a in d.get("actions") or []:
         add(a.get("d"))
+    for st in d.get("rsteps") or []:  # R81: the resident's tour, section by section
+        add(st.get("d"))
     add((d.get("help") or {}).get("d"))
     add((d.get("bye") or {}).get("d"))
     return out

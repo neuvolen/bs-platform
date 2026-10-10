@@ -7729,10 +7729,8 @@ var BLOCKS = {
     {id:'rAch',     n:'Достижения'},
     {id:'rFines',   n:'Штрафы'},
     {id:'rOnboard', n:'Как пользоваться'}]},
-  lbs:     {name:'BS', tabs:[
-    {id:'rAbout',   n:'О проекте'},
-    {id:'rRules',   n:'Правила проекта'},
-    {id:'lMat',     n:'Материалы'}]},
+  lbs:     {name:'BS', tabs:[                 // R81: «BS без вкладок внутри»: правила и материалы у лида убраны
+    {id:'rAbout',   n:'О проекте'}]},
   ltrack:  {name:'Моя доска', tabs:[
     {id:'board',    n:'Доска'},
     {id:'lDiag',    n:'Мои диагнозы'},
@@ -8585,7 +8583,7 @@ function renderSalesRes(){
   var F = [['all','Все',RESIDENTS.length],
     ['on','Онлайн',RESIDENTS.filter(r=>srFmt(r,'онлайн')).length],['off','Офлайн',RESIDENTS.filter(r=>srFmt(r,'офлайн')).length]];
   pg.querySelector('#stubBody').innerHTML =
-    '<div class="pf-tools"><div class="search pf-search"><input id="srSearch" placeholder="Имя резидента" oninput="srRender()"></div>' +
+    '<div class="pf-tools">' + // R81: поиска нет (просьба владельца), фильтры и сортировка остаются
     '<div class="pf-filters">' + F.filter(f=>f[0]==='all'||f[2]).map(function(f){
       return '<div class="pf-fl'+(srF===f[0]?' on':'')+'" data-f="'+f[0]+'" onclick="srF=\''+f[0]+'\';document.querySelectorAll(\'.pf-fl\').forEach(x=>x.classList.toggle(\'on\',x.dataset.f===srF));srRender()">'+f[1]+' · '+f[2]+'</div>';
     }).join('') + '</div>' + bslBar('residents', ['az','fmt','new'], bslMode('residents', ['az','fmt','new']), 'srRender') +
@@ -8611,7 +8609,7 @@ function srRender(){
     (list.length ? (function(){ var no = 0; return bslRender(gr, function(r){
       var left = (r.granted||0) - (r.done||0); no++; // R75: сквозная нумерация 1, 2, 3 по видимому списку
       return '<div class="pf-tr" onclick="openResident('+RESIDENTS.indexOf(r)+')">' +
-        '<span class="pf-nm"><b class="r75-no">'+no+'</b><i class="pf-av sm">'+esc((r.name||'?').charAt(0).toUpperCase())+'</i>'+esc(r.name)+'</span>' +
+        '<span class="pf-nm"><b class="r75-no">'+no+'</b>'+(window.r81Av ? r81Av(r) : '<i class="pf-av sm">'+esc((r.name||'?').charAt(0).toUpperCase())+'</i>')+esc(r.name)+'</span>' +
         '<span class="m">'+esc(r.format||'-')+'</span>' +
         '<span>'+esc(r.start||'-')+'</span>' +
         '<span'+(left<0?' class="pf-red"':'')+'>'+(r.done||0)+'/'+(r.granted||0)+'</span>' +
@@ -10749,6 +10747,7 @@ function calGBar(){
   var G = MYCAL_G && MYCAL_G.gcal; if(!G) return '';
   var st = G.status || {}, own = calOwnerView();
   if(!own) return st.connected ? '<div class="gcb">Google Календарь резидента подключён: его занятость видна синим.</div>' : '';
+  if(!st.available && typeof MODE !== 'undefined' && MODE !== 'admin') return ''; // R81: резиденту настройка сервера не нужна
   if(!st.available) return '<div class="gcb"><span>Google Календарь</span><div class="zb" style="opacity:.5;cursor:default">Подключить Google Календарь</div>' +
     '<span>' + esc(st.hint || 'Подключение станет доступно после настройки Google в /calendar') + '</span></div>';
   if(!st.connected) return '<div class="gcb"><span>Отметки уйдут в ваш Google Календарь, а ваши события Google появятся здесь.</span>' +
@@ -10905,8 +10904,9 @@ function renderLeadTools(){
   (locked.length>6 ? '<div style="text-align:center;color:var(--t3);font-size:13px;padding:14px">' +
     'и ещё '+(locked.length-6)+' инструментов</div>' : '');
 }
+// R81: «Резидентство» читается с первого взгляда: заголовки, две карточки (сейчас и в клубе), контраст и одна кнопка
 function renderUpgrade(){
-  var el = pgSet('Резидентство', 'Что открывается после разбора');
+  var el = pgSet('Резидентство', '');
   var have = [['Своя доска','Одна, с ограниченной базой'],
               ['3 диагноза','По слабым зонам из диагностики'],
               ['4 инструмента','По одному на диагноз'],
@@ -10915,25 +10915,24 @@ function renderUpgrade(){
   var get = [['Разбор с основателями','Час вдвоём на ваших цифрах, каждые 10 дней'],
              ['Полная база диагнозов','Все диагнозы по семи органам'],
              ['Все инструменты','С шаблонами, примерами и видео'],
-             ['Задачи на цикл','Конкретный план, а не общие советы'],
+             ['Задачи на цикл','Конкретный план на десять дней'],
              ['Пятёрка','Мини-группа, которая держит темп'],
              ['Контакты клуба','Проверенные подрядчики и скидки партнёров'],
              ['Оценка трекеров','Взгляд со стороны на здоровье бизнеса'],
              ['История разборов','Видно, как бизнес меняется от цикла к циклу']];
-  el.innerHTML =
-    '<div class="card-sum" style="margin-bottom:16px">' +
-      '<div class="bs-l" style="margin-bottom:12px">У вас сейчас</div>' +
-      have.map(x=>'<div class="tm-row"><div class="tm-n">'+esc(x[0])+'</div>' +
-        '<div class="tm-m">'+esc(x[1])+'</div></div>').join('') + '</div>' +
-    '<div class="card-sum" style="border-color:var(--gl)">' +
-      '<div class="bs-l" style="margin-bottom:12px;color:var(--gold)">Открывается резидентам</div>' +
-      get.map(x=>'<div class="tm-row"><div class="tm-n" style="color:#fff">'+esc(x[0])+'</div>' +
-        '<div class="tm-m">'+esc(x[1])+'</div></div>').join('') + '</div>' +
-    '<div class="card-sum" style="margin-top:16px;text-align:center;padding:26px">' +
-      '<div style="font-size:15px;color:var(--t2);line-height:1.5;margin-bottom:8px">Начинается с разбора</div>' +
-      '<div style="font-size:32px;font-weight:900;color:var(--gold);margin-bottom:18px">50 000 ₸</div>' +
-      '<button class="btn bg" style="padding:14px 34px" onclick="toast(\'Заявка отправлена трекерам\')">' +
-        'Записаться на разбор</button></div>';
+  var ok = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  var plus = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+  var li = function(x, ic){ return '<li><span class="ic">' + ic + '</span><span><b>' + esc(x[0]) + '</b><em>' + esc(x[1]) + '</em></span></li>'; };
+  el.innerHTML = '<div class="r81-up">' +
+    '<div class="r81-up-hero"><span class="k">Резидентство Business Surgery</span><h2>Трекинг бизнеса каждые 10 дней</h2>' +
+      '<p>Разбор с основателями, полная база диагнозов и инструментов, пятёрка и клуб предпринимателей</p></div>' +
+    '<div class="r81-up-grid">' +
+      '<section class="r81-up-c now"><h3>Сейчас у вас</h3><ul>' + have.map(function(x){ return li(x, ok); }).join('') + '</ul></section>' +
+      '<section class="r81-up-c res"><h3>Открывается резидентам</h3><ul>' + get.map(function(x){ return li(x, plus); }).join('') + '</ul></section>' +
+    '</div>' +
+    '<div class="r81-up-cta"><div><span class="k">Первый шаг</span><b>Разбор с основателями</b><em>Час на ваших цифрах: диагнозы, причина и план на 10 дней</em></div>' +
+      '<div class="pr"><b>50 000 ₸</b><button type="button" class="btn" onclick="toast(\'Заявка отправлена трекерам\')">Записаться на разбор</button></div></div>' +
+  '</div>';
 }
 
 // ═══ ДИАГНОСТИКА как в приложении ═══
@@ -24516,26 +24515,49 @@ body.light #tr16.cta .tr16-btn.pri::after{border-color:#141414}
  },
  "nav": {
   "track": "Трекинг. Здесь живут доски разборов: диагнозы, инструменты и задачи каждого резидента. День разумно начинать отсюда.",
-  "club": "Клуб. Резиденты, встречи, отчёты и штрафы. Всё, что держит ритм десяти дней.",
-  "fin": "Учёт. Деньги клуба: PL, движение денег и журнал операций. Цифры здесь честнее любых ощущений.",
+  "club": "Клуб. Резиденты, встречи, отчёты, пятёрки и оценка клуба. Всё, что держит ритм десяти дней.",
+  "fin": "Учёт. Деньги клуба: движение денег, долги и штрафы, прибыль по месяцам и прогноз. Цифры здесь честнее любых ощущений.",
   "sales": "Продажи. CRM лидов, запись на разбор, рефералы и скрипты. Путь от первого сообщения до резидента.",
   "mkt": "Маркетинг. Анализ рынка, контент-завод и публикации. Здесь клуб рассказывает о себе миру.",
-  "lib": "BS. Цели и задачи команды, мероприятия, интерактивные чек-листы и рекомендации ИИ.",
-  "rtrack": "Трекинг. Ваш разбор, задания цикла, ежедневный отчёт, инструменты с чек-листами и встречи. Всё для ритма десяти дней, разделы вкладками сверху.",
-  "rbiz": "Мой бизнес. Здоровье бизнеса, колёса, диагностика и история разборов. Пять минут раз в цикл, и динамика видна как на ладони.",
-  "rclub": "Клуб. Ресурсы и скидки партнёров, участники, правила и всё о проекте.",
-  "rtask": "Задачи. Задания цикла, расписание встреч и ваш календарь. Отмечайте занятое время, трекеры подстроятся.",
-  "rrep": "Отчёт. Каждый день до 22:00 отмечаете сделанное. Опоздание стоит 10 000 тенге, так что я бы не рисковал.",
-  "rcont": "Ресурсы. Скидки партнёров, интерактивные чек-листы, книги и инструменты клуба.",
-  "rfive": "Участники. Ваша пятёрка и другие резиденты. Сильное окружение работает лучше любой мотивации.",
-  "rmeas": "Замеры. Колесо бизнеса, колесо баланса, диагностика и Gallup. Пять минут раз в цикл, и динамика видна как на ладони.",
-  "rme": "Профиль. Ваши данные, Gallup, статус, достижения и штрафы.",
-  "rbs": "BS. О проекте, правила клуба и подробная инструкция.",
-  "lbs": "BS. Что такое клуб, его правила и полезные материалы.",
+  "lib": "BS. Задачи команды, мероприятия, идеи и заметки, карта диагнозов и рекомендации ИИ.",
+  "lbs": "BS. Что такое клуб Business Surgery и как он работает.",
+  "lhome": "Главная. Минута о том, как мы лечим бизнес, бесплатная диагностика и запись на разбор с основателями.",
+  "lideas": "Бизнес-идеи. Больше тысячи идей для старта в Казахстане по категориям. Понравившиеся сохраняйте в избранное.",
   "ltrack": "Моя доска. Диагнозы и инструменты, которые трекер нашёл на разборе.",
   "lmeas": "Замеры. Колесо бизнеса, баланс и диагностика: взгляд на бизнес со стороны, бесплатно.",
   "lup": "Резидентство. Что даёт участие в клубе и как в него попасть."
  },
+ "rsteps": [
+  {"b": "rtrack", "t": "Мой разбор", "d": "Мой разбор. Доска вашего бизнеса: диагнозы, главная причина, стратегия и инструменты с разбора. Каждый цикл начинается отсюда."},
+  {"b": "rtrack", "s": "rCalls", "t": "Записи разборов", "d": "Записи разборов. Запись встречи, расшифровка и итоги: можно переслушать, о чём договорились с трекером."},
+  {"b": "rtrack", "s": "rHistory", "t": "История разборов", "d": "История разборов. Все прошлые циклы по порядку: видно, как меняется бизнес."},
+  {"b": "rtd", "t": "Задачи", "d": "Задачи. Задания цикла от трекера и ваши собственные, у каждой свой срок. Свою задачу можно добавить одной кнопкой."},
+  {"b": "rbiz", "t": "Замеры", "d": "Замеры. Все тесты на одном экране и кнопка следующего замера. Пять минут раз в цикл."},
+  {"b": "rbiz", "s": "bizWheel", "t": "Колесо бизнеса", "d": "Колесо бизнеса. Восемь направлений, оценка от нуля до десяти."},
+  {"b": "rbiz", "s": "rwheel", "t": "Колесо баланса", "d": "Колесо баланса. Одиннадцать сфер жизни: энергия собственника тоже влияет на бизнес."},
+  {"b": "rbiz", "s": "rDiag", "t": "Диагностика", "d": "Диагностика. Утверждения по органам бизнеса, в конце диагнозы и советы."},
+  {"b": "rbiz", "s": "rGallup", "t": "Gallup", "d": "Gallup. Загрузите отчёт, и платформа разберёт ваши таланты под бизнес."},
+  {"b": "rbiz", "s": "rHealth", "t": "Оценка трекеров", "d": "Оценка трекеров. Здоровье бизнеса по семи органам глазами трекеров."},
+  {"b": "rbiz", "s": "rSummary", "t": "Цифры бизнеса", "d": "Цифры бизнеса. Оборот, прибыль и маржа за цикл."},
+  {"b": "rbiz", "s": "rLabs", "t": "Анализы", "d": "Анализы. Показатели здоровья, если хотите следить и за ними."},
+  {"b": "rbiz", "s": "rAnalysis", "t": "Динамика", "d": "Динамика. Что изменилось от замера к замеру."},
+  {"b": "rotc", "t": "Отчёты", "d": "Отчёты. Каждый день до 22:00 отмечаете сделанные задачи и пишете отчёт. Опоздание стоит 10 000 тенге."},
+  {"b": "rotc", "s": "rHist", "t": "История отчётов", "d": "История отчётов. Все отправленные отчёты по дням."},
+  {"b": "rmeet", "t": "Встречи", "d": "Встречи. Расписание разборов, а ниже мероприятия клуба и города. Мероприятия можно скрыть одной кнопкой."},
+  {"b": "rmeet", "s": "mycal", "t": "Мой календарь", "d": "Мой календарь. Отметьте занятое время, и трекеры подстроят встречи."},
+  {"b": "rmat", "t": "Материалы", "d": "Материалы. Инструменты, книги и интерактивные чек-листы клуба."},
+  {"b": "rmat", "s": "rRes2", "t": "Ресурсы клуба", "d": "Ресурсы клуба. Скидки партнёров и помощь резидентов друг другу."},
+  {"b": "rclub", "t": "Клуб", "d": "Клуб. Участники с фотографиями: откройте профиль, чтобы узнать, чем человек может помочь."},
+  {"b": "rclub", "s": "rRules", "t": "Правила", "d": "Правила. Договорённости клуба, на которых держится ритм."},
+  {"b": "rclub", "s": "rAbout", "t": "О клубе", "d": "О клубе. Миссия и подход Business Surgery."},
+  {"b": "rclub", "s": "rInvite", "t": "Пригласить друзей", "d": "Пригласить друзей. Ваша ссылка и бонус за каждого нового резидента."},
+  {"b": "rme", "t": "Профиль", "d": "Профиль. Ваши данные: так вас видят другие резиденты. Чем можете помочь, добавляется в ресурсы клуба одной кнопкой."},
+  {"b": "rme", "s": "rStats", "t": "Статистика", "d": "Статистика. Дни в клубе, циклы, задачи и встречи."},
+  {"b": "rme", "s": "rResults", "t": "Итоги и продление", "d": "Итоги и продление. Итоги периодов и продление резидентства."},
+  {"b": "rme", "s": "rAch", "t": "Достижения", "d": "Достижения. Отметки за путь в клубе."},
+  {"b": "rme", "s": "rFines", "t": "Штрафы", "d": "Штрафы. Если что-то пропущено, это будет видно здесь."},
+  {"b": "rme", "s": "rAccess", "t": "Доступ для ассистента", "d": "Доступ для ассистента. Ваш помощник может вести кабинет с правами, которые вы выберете."}
+ ],
  "actions": [
   {
    "sel": "#modeSw",
@@ -24584,7 +24606,7 @@ body.light #tr16.cta .tr16-btn.pri::after{border-color:#141414}
  },
  "cta": {
   "admin": "Нажмите «Начать обучение»: две минуты, и платформа станет понятной.",
-  "res": "Нажмите «Начать обучение»: две минуты, и платформа станет понятной.",
+  "res": "Нажмите «Начать обучение»: пройдём по каждому разделу, и платформа станет понятной.",
   "lead": "Нажмите «Начать обучение»: две минуты, и платформа станет понятной."
  },
  "ctaHint": "Нажмите, чтобы начать обучение: 2\u00a0минуты, и платформа станет понятной"
@@ -24801,6 +24823,9 @@ var HELP = TT.help || {t:'Обучение', d:''};
 var BYE = TT.bye || {t:'Готово', d:''};
 var CTA = TT.cta || {};
 var CTA_HINT = TT.ctaHint || 'Нажмите, чтобы начать обучение';
+// R81: у резидента обучение идёт по каждому разделу меню и по каждой вкладке внутри (rsteps): раздел
+// открывается сам, подсвечивается его пункт меню или вкладка, гид говорит фразу из словаря
+var RSTEPS = TT.rsteps || [];
 
 function visible(el){
   if(!el || !el.isConnected) return false;
@@ -24820,6 +24845,7 @@ function homeBlock(m){ return m === 'res' ? 'rtrack' : (m === 'lead' ? 'lbs' : '
 // Шаги строятся из того, что сейчас есть на странице: перестановки меню не ломают обучение
 function buildSteps(m){
   var steps = [];
+  if(m === 'res' && RSTEPS.length) return resSteps();
   var srch = ACTIONS[0];
   if(srch.modes.indexOf(m) >= 0) steps.push({sel: srch.sel, t: srch.t, d: srch.d});
   var nav = navOf(m);
@@ -24836,7 +24862,38 @@ function buildSteps(m){
   steps.push({t: BYE.t, d: BYE.d, end: true});
   return steps;
 }
+// R81: шаги резидента: раздел (пункт меню, открывает первую вкладку) и вкладка внутри раздела
+var resSteps = function(){
+  var steps = [], nav = navOf('res');
+  var navEl = function(b){ var e = nav && nav.querySelector('.nv[data-b="' + b + '"]'); return e && e.style.display !== 'none' ? e : null; };
+  var hasTab = function(b, id){ try{ return !!(BLOCKS[b] && BLOCKS[b].tabs.some(function(t){ return t.id === id; })); }catch(e){ return false; } };
+  RSTEPS.forEach(function(r){
+    if(!r || !r.b || !r.d) return;
+    if(!r.s){
+      steps.push({b: r.b, t: r.t, d: r.d, tabs: tabsOf(r.b), ok: function(){ return !!navEl(r.b) && !!BLOCKS[r.b]; },
+        open: function(){ try{ if(curBlock !== r.b || section !== BLOCKS[r.b].tabs[0].id) goBlock(r.b); }catch(e){} }});
+      return;
+    }
+    steps.push({blk: r.b, sec: r.s, t: r.t, d: r.d, ok: function(){ return !!navEl(r.b) && hasTab(r.b, r.s); },
+      open: function(){ try{ if(curBlock !== r.b) goBlock(r.b); if(section !== r.s) goSection(r.s); }catch(e){} }});
+  });
+  // панель и тема живут на доске разбора
+  var home = function(){ try{ if(curBlock !== 'rtrack' || section !== 'board') goBlock('rtrack'); }catch(e){} };
+  ACTIONS.slice(1).forEach(function(a){ if(a.modes.indexOf('res') >= 0) steps.push({sel: a.sel, t: a.t, d: a.d, open: home}); });
+  steps.push({sel: '#tr16Help', t: HELP.t, d: HELP.d});
+  steps.push({t: BYE.t, d: BYE.d, end: true});
+  // вкладки, которых у этого резидента нет (нет записей разборов и т. п.), в счёт шагов не входят
+  return steps.filter(function(s){ return !s.ok || s.ok(); });
+};
+// вкладка видна: подсвечивается она, иначе заголовок раздела
+var tabEl = function(s){
+  var t = document.querySelector('#r32Tabs .r32-tab[data-s="' + s.sec + '"]');
+  if(t && visible(t)) return t;
+  var h = document.querySelector('.page.on .ph .pt') || document.querySelector('#pg-stub .pt');
+  return h && visible(h) ? h : null;
+};
 function stepEl(s){
+  if(s.sec) return tabEl(s);
   var el = s.el && s.el.isConnected ? s.el : (s.sel ? document.querySelector(s.sel) : null);
   if(s.b && (!el || !el.isConnected)){ var nav = navOf(mode()); el = nav && nav.querySelector('.nv[data-b="' + s.b + '"]'); }
   return el;
@@ -24882,13 +24939,15 @@ function showWelcome(m, auto){
   var w = WELCOME[m] || WELCOME.admin;
   T = {m: m, i: -1, steps: buildSteps(m), welcome: true, auto: auto, home: homeBlock(m)};
   var r = root(); r.className = 'center welcome'; r.style.display = '';
-  var nSec = T.steps.filter(function(s){ return s.b; }).length;
+  var nSec = T.steps.filter(function(s){ return s.b && (!s.ok || s.ok()) && usable(s); }).length; // R81: разделы, которые человек видит
+  // R81: время по длине фраз (около 14 знаков в секунду), не меньше двух минут
+  var mins = Math.max(2, Math.round(T.steps.reduce(function(a, s){ return a + String(s.d || '').length; }, 0) / 14 / 60));
   var card = r.querySelector('.tr16-card');
   card.innerHTML =
     '<div class="tr16-mark"><div class="tr16-orb"><i></i></div><div style="flex:1"><div class="tr16-kick">ГОЛОСОВОЙ ГИД</div></div>' + muteBtn() + '</div>' +
     '<div class="tr16-t">' + ea(w.t) + '</div>' +
     '<div class="tr16-d">' + ea(w.d) + '</div>' +
-    '<div class="tr16-wl"><div><b>' + nSec + '</b>разделов</div><div><b>2 мин</b>на всё</div><div><b>Голос</b>можно выключить</div></div>' +
+    '<div class="tr16-wl"><div><b>' + nSec + '</b>разделов</div><div><b>' + mins + ' мин</b>на всё</div><div><b>Голос</b>можно выключить</div></div>' +
     '<div class="tr16-nav"><span style="margin-right:auto"></span>' +
       '<button type="button" class="tr16-btn pri" data-a="start">Начать обучение</button></div>';
   placeCenter(card);
@@ -24945,9 +25004,14 @@ function startSteps(){
 function go(i, dir){
   if(!T) return;
   var steps = T.steps;
-  while(i >= 0 && i < steps.length && !usable(steps[i])){
+  while(i >= 0 && i < steps.length){
+    var st = steps[i];
+    // R81: шаг, которого сейчас нет (вкладка скрыта, раздела нет), пропускается; свой раздел шаг открывает сам
+    if(st.ok && !st.ok()){ i += dir || 1; continue; }
+    if(st.open && T.opened !== i){ T.opened = i; try{ st.open(); }catch(e){} }
+    if(usable(st)) break;
     // в узком окне пункты меню видны только с открытым сайдбаром
-    var el = stepEl(steps[i]);
+    var el = stepEl(st);
     if(el && inSide(el) && small() && !document.documentElement.classList.contains('side-open')){ sideOpen(true); continue; }
     i += dir || 1;
   }
@@ -31686,7 +31750,6 @@ function plHTML(){
     h += '<td class="v yr' + (y < 0 ? ' neg' : '') + (sg && y > 0 ? ' pos' : '') + '" data-m="0">' + fmtPL(y, l.pct) + '</td></tr>';
   });
   h += '</tbody></table></div>';
-  h += '<div class="fx-note" style="margin-top:10px">Как в листе PL: доходы по статье прихода, расходы по статье расхода; статья не из списка уходит в «Прочие»; дивиденды ниже прибыли; касса с апреля.</div>';
   setTimeout(mountPL, 0);
   return h;
 }
@@ -31902,7 +31965,6 @@ function oddsHTML(){
     chartHTML('fxOch', d.cols, [{cls: function(v){ return v < 0 ? 'out' : 'in'; }, v: function(m){ return d.months[m - 1].profit - d.months[m - 1].div; }}],
       [{cls: 'cash', v: function(m){ return d.months[m - 1].hasCash ? d.months[m - 1].cash : null; }}], function(m){ var x = d.months[m - 1];
         return MN[m - 1] + ' ' + d.year + '\nПоступления ' + nf(x.incSum) + '\nВыплаты ' + nf(-x.exps) + '\nДивиденды ' + nf(-x.div) + '\nПоток ' + nf(x.profit - x.div) + (x.hasCash ? '\nНа кассе ' + nf(x.cash) : ''); }) + '</div>';
-  h += '<div class="fx-note" style="margin-top:10px">Как прежний лист ОДДС: поступления и выплаты из ДДС по статьям P&L, дивиденды отдельно, касса с апреля.</div>';
   setTimeout(function(){ mountPL(); mountChart(); }, 0);
   return h;
 }
@@ -33620,15 +33682,7 @@ if(window.BK_EXT){
     if(have !== pa.lastElementChild) pa.appendChild(have);
   };
 }
-// Резидент: голос гида в «Профиль → Мои данные», отдельной строкой под профилем (R78 убрал «Как пользоваться»)
-var voiceBtn = function(){
-  if(typeof section === 'undefined' || section !== 'rprofile' || typeof MODE === 'undefined' || MODE !== 'res') return;
-  var rp = document.getElementById('rpBody'); if(!rp || document.getElementById('r77Voice')) return;
-  var d = document.createElement('div'); d.id = 'r77Voice'; d.className = 'r78-box r77-voice';
-  d.innerHTML = '<div><h4>Голос гида</h4><span>Каким голосом говорит гид в «Обучении»</span></div><button type="button" class="btn pf-b">Выбрать голос</button>';
-  d.querySelector('button').onclick = function(){ r77Settings('voice', 'Голос гида', 'Тембр, которым говорит гид платформы'); };
-  rp.parentNode.insertBefore(d, rp.nextSibling);
-};
+// R81: «Голос гида» в профиле резидента убран (просьба владельца): голос выбирает команда в BS → ⋯
 // Прокрутка каждой вкладки запоминается: вернулись на вкладку, она там же, где была
 var SCR = {};
 var scroller = function(){ var pg = document.querySelector('.page.on'); return pg && pg.scrollHeight > pg.clientHeight + 1 ? pg : document.scrollingElement; };
@@ -33640,7 +33694,6 @@ window.goSection = goSection = function(s){
   closeMenu();
   var r = go0.apply(this, arguments);
   try{ document.body.setAttribute('data-sec', section); }catch(e){}
-  try{ voiceBtn(); }catch(e){}
   var k = tabKey();
   if(k && k !== was && s !== 'board'){
     var y = SCR[k] || 0, put = function(){ var x = scroller(); if(x && Math.abs(x.scrollTop - y) > 1) x.scrollTop = y; };
@@ -36895,7 +36948,7 @@ function r46LeadTeaser(){
     var keys = Object.keys(src).sort(function(a, b){ return src[b] - src[a]; });
     if(keys.length) html += '<div class="cx-pipes"><span class="lbl">Файлы и источники</span>' + keys.slice(0, 14).map(function(k){ return chip(k, k, src[k], 'src', V.src === k); }).join('') +
       (keys.length > 14 ? '<span class="r47-info">и ещё ' + (keys.length - 14) + '</span>' : '') + '</div>';
-    html += '<div class="r47-info" id="r47Info">' + (at && !isNaN(at) ? 'Разделено автоматически ' + e(hm(at.toISOString())) + ': по колонкам файла (источник, город, ниша, последний контакт), Telegram, телефону, боту и разборам.' : 'Сервер разделит базу на сегменты в течение минуты.') +
+    html += '<div class="r47-info" id="r47Info">' + (at && !isNaN(at) ? 'Разделено автоматически ' + e(hm(at.toISOString())) : 'Сервер разделит базу на сегменты в течение минуты.') +
       (V.seg || V.src ? ' Канбан показывает только выбранный сегмент.' : '') + '</div>';
     return html + (todoOpen() ? todoHTML(cnt) : '') + '</div>';
   }
@@ -40721,7 +40774,7 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
       [s.warm1, 'Получили прогрев', 'касаний ' + n(s.touches)], [s.warm3, 'Позваны на разбор (7 день)', 'заблокировали бота ' + n(s.blocked)],
       [vids, 'Видео отправлено', Object.keys(v).map(function(k){ return k + ' ' + v[k]; }).join(', ')],
       [s.booked, 'Записались на разбор', 'оплатили ' + n(s.paid)], [s.razbor, 'Разбор прошёл', 'резидентов ' + n(s.won)]];
-    return '<div class="fv-k">Воронка бота за ' + n(s.days) + ' дней по CRM на сервере. Клики по ссылкам в Threads не считаются: ссылка ведёт прямо в Telegram, первый счётчик здесь «Пришли в бот».</div>' +
+    return '<div class="fv-k">Воронка бота за ' + n(s.days) + ' дней</div>' +
       '<div class="fv-num">' + cells.map(function(c){ return '<div><b>' + n(c[0]) + '</b><span>' + e(c[1]) + '</span>' + (c[2] ? '<span style="font-weight:600">' + e(c[2]) + '</span>' : '') + '</div>'; }).join('') + '</div>';
   }
   function stepOpts(cur, withNone){
@@ -40757,7 +40810,6 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
     if(!S.lib){ b.innerHTML = '<div class="fv-box"><div class="fv-h"><h4>Видео в воронке</h4></div><div class="fv-k">' + e(S.msg || 'Загружаю…') + '</div></div>'; return; }
     var max = S.lib.maxMB || 20;
     b.innerHTML = '<div class="fv-box"><div class="fv-h"><h4>Видео в воронке</h4></div>' + numsHTML() +
-      '<div class="fv-k">Бот присылает лиду одно видео на шаге, один раз. Первое видео уходит в Telegram с сервера, дальше по сохранённому file_id сразу. Видео в репозитории: папка web/funnel_video (описание в videos.json).</div>' +
       stepsHTML() +
       '<div class="fv-up"><input type="file" id="r55File" accept="video/mp4"><input type="text" id="r55Title" placeholder="Название видео">' +
       '<select id="r55Step">' + stepOpts('', true) + '</select><button class="fv-b p" id="r55Go" onclick="r55Upload()"' + (S.busy ? ' disabled' : '') + '>' + (S.busy ? 'Загружаю…' : 'Загрузить видео') + '</button>' +
@@ -44886,7 +44938,7 @@ button.r78-chip,a.r78-chip{cursor:pointer}
         '<button type="button" class="btn pf-b" id="r78AddRes">Добавить в 1 клик</button></div>' +
       '<div class="row2"><label>Instagram<input class="inp" name="instagram" maxlength="100" placeholder="@username" value="' + E(p.instagram) + '"></label>' +
       '<label>Телефон (WhatsApp)<input class="inp" name="phone" maxlength="40" inputmode="tel" placeholder="+7 700 000 0000" value="' + E(p.phone) + '"></label></div>' +
-      '<div class="r78-acts"><button type="button" class="btn pf-b pf-p" id="r78Save">Сохранить</button><span class="r78-note">То же, что «Мои данные» в приложении. Видно резидентам клуба в разделе «Клуб»</span></div>' +
+      '<div class="r78-acts"><button type="button" class="btn pf-b pf-p" id="r78Save">Сохранить</button></div>' +
       '</div></div><div id="r78MyRes">' + meResHTML() + '</div></div><div id="r78Prev"></div></div>';
   };
   var formVals = function(){
@@ -45064,8 +45116,9 @@ button.r78-chip,a.r78-chip{cursor:pointer}
     var opp = x.kind === 'возможность';
     return f === 'all' || (f === 'city' && !opp && !x.online && !x.ours) || (f === 'online' && !opp && x.online) || (f === 'opp' && opp) || (f === 'ours' && x.ours) || (f === 'go' && going()[x.key]);
   };
-  var renderEv = function(){
-    var el = pgSet('Мероприятия', '');
+  // R81: host: лента внутри другого экрана (у резидента внизу «Встречи → Расписание»)
+  var renderEv = function(host){
+    var el = host || pgSet('Мероприятия', '');
     var paint = function(){
       var box = document.getElementById('r78Ev'); if(!box) return;
       if(!EV.d){ box.innerHTML = '<div class="pf-empty">Загружаю…</div>'; return; }
@@ -45321,9 +45374,7 @@ var paint = function(){
       list.slice(0, V.lim).map(rowHTML).join('') +
       (list.length > V.lim ? '<div class="r77-more"><button class="b" data-a="more">Показать ещё ' + Math.min(60, list.length - V.lim) + ' из ' + (list.length - V.lim) + '</button></div>' : '') + '</div>';
   }
-  h += '<div class="r77-foot">Показано ' + Math.min(V.lim, list.length) + ' из ' + list.length + '. Каждая ссылка взята со страницы-источника (каталог, статья или сайт организации) и проверена 10.10.2026; ' +
-    'Telegram-каналы и группы сервер перечитывает каждый день: подписчики, участники и дата последнего поста. ' +
-    'Размер в Instagram, Facebook и LinkedIn публично недоступен, его можно вписать в заметку. Ненужное скрывается в статусе.</div>';
+  h += '<div class="r77-foot">Показано ' + Math.min(V.lim, list.length) + ' из ' + list.length + '</div>';
   var q = document.activeElement && document.activeElement.id === 'r77Q';
   box.innerHTML = h;
   if(q){ var qi = document.getElementById('r77Q'); if(qi){ qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); } }
@@ -46410,6 +46461,180 @@ body.light .bk-ph{color:#F2F2F2}
       return _kg.apply(this, arguments);
     };
   }
+})();
+</script>
+<!-- R81: просьбы владельца по резиденту, лиду и команде (обучение, мероприятия во «Встречах», аватарки, рамки) -->
+<style id="r81rStyle">
+/* R81: рамка вокруг уже белой рамки убрана: поле в фокусе, карточка ДНК, корень и выбранная карточка доски, сегодняшний день в календаре */
+.inp:focus{box-shadow:none}
+.node.dna{box-shadow:0 12px 34px rgba(0,0,0,.6)}
+.node.root{box-shadow:0 8px 26px rgba(0,0,0,.5)}
+.node.sel{box-shadow:0 12px 34px rgba(0,0,0,.6)}
+.node.focus{box-shadow:0 20px 50px rgba(0,0,0,.7)}
+.mt-day.today{box-shadow:none;border-color:var(--tx)}
+.fxo-amt:focus-within{box-shadow:none}
+.mh-card .mk-empty{border:0}
+/* «+ Резидент» в строке фильтров Клуба: без чужой рамки (класс r77-add был и у формы «Сообществ») */
+.pf-tools .r77-add{display:flex;margin:0 0 0 auto;padding:0;background:none;border:0;border-radius:0;grid-template-columns:none}
+/* голосовой помощник только у команды */
+body.res #micBtn,body.lead #micBtn,html.res-user #micBtn,html.lead-user #micBtn,body.res #r79Bar,body.lead #r79Bar{display:none!important}
+/* BS у команды без большого заголовка «BS» */
+html.r81-bs .page.on .ph .pt,html.r81-bs .page.on .ph .psub{display:none}
+html.r81-bs .page.on .ph{justify-content:flex-end;margin-bottom:12px}
+/* аватарки из Telegram в списке резидентов */
+.pf-av.r81-av{position:relative;overflow:hidden}
+.pf-av.r81-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+/* «Встречи → Расписание»: мероприятия внизу и переключатель «Скрыть мероприятия» */
+.r81-ev{margin-top:34px;padding-top:24px;border-top:1px solid var(--pb)}
+.r81-evh{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.r81-evh h3{margin:0;font:800 20px 'Manrope',sans-serif;letter-spacing:-.01em;color:var(--ptx)}
+.r81-sw{display:inline-flex;align-items:center;gap:10px;border:0;background:none;color:var(--pm);font:600 13.5px 'Manrope',sans-serif;cursor:pointer;padding:6px 0;min-height:36px}
+.r81-sw i{position:relative;width:38px;height:22px;border-radius:11px;background:var(--pi);flex:0 0 auto;transition:background .15s}
+.r81-sw i:after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--pm);transition:transform .15s,background .15s}
+.r81-sw[aria-checked="true"]{color:var(--ptx)}
+.r81-sw[aria-checked="true"] i{background:var(--pon)}
+.r81-sw[aria-checked="true"] i:after{transform:translateX(16px);background:var(--pontx)}
+.r81-sw:focus-visible{outline:2px solid var(--ptx);outline-offset:2px;border-radius:8px}
+.r81-ev .r78{max-width:none}
+/* «Резидентство»: заголовки, карточки, контраст */
+.r81-up{max-width:1040px;display:grid;gap:16px}
+.r81-up .k{display:block;font:800 11.5px 'Manrope',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--pm);margin-bottom:10px}
+.r81-up-hero{padding:28px 30px;border-radius:22px;border:1px solid var(--pb);background:var(--pc)}
+.r81-up-hero h2{margin:0;font:800 30px/1.15 'Manrope',sans-serif;letter-spacing:-.02em;color:var(--ptx)}
+.r81-up-hero p{margin:12px 0 0;font-size:15px;line-height:1.55;color:var(--pm);max-width:640px}
+.r81-up-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:16px;align-items:start}
+.r81-up-c{padding:24px 26px;border-radius:22px}
+.r81-up-c h3{margin:0 0 16px;font:800 19px 'Manrope',sans-serif;letter-spacing:-.01em}
+.r81-up-c ul{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.r81-up-c li{display:flex;gap:12px;align-items:flex-start}
+.r81-up-c li .ic{flex:0 0 28px;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
+.r81-up-c li b{display:block;font-size:15px;font-weight:800;line-height:1.3}
+.r81-up-c li em{display:block;font-style:normal;font-size:13.5px;line-height:1.45;margin-top:2px}
+.r81-up-c.now{border:1px solid var(--pb);background:var(--pc);color:var(--ptx)}
+.r81-up-c.now h3{color:var(--ptx)}
+.r81-up-c.now li .ic{background:var(--pi);color:var(--ptx)}
+.r81-up-c.now li em{color:var(--pm)}
+.r81-up-c.res{background:var(--pon);color:var(--pontx)}
+.r81-up-c.res h3{color:var(--pontx)}
+.r81-up-c.res li .ic{background:var(--pontx);color:var(--pon)}
+.r81-up-c.res li em{color:var(--pontx);opacity:.66}
+.r81-up-cta{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:24px 28px;border-radius:22px;border:1px solid var(--pb);background:var(--pc)}
+.r81-up-cta b{display:block;font:800 19px 'Manrope',sans-serif;color:var(--ptx)}
+.r81-up-cta em{display:block;font-style:normal;font-size:13.5px;color:var(--pm);margin-top:4px;line-height:1.45}
+.r81-up-cta .pr{display:flex;align-items:center;gap:18px;flex:0 0 auto}
+.r81-up-cta .pr b{font-size:28px;letter-spacing:-.02em}
+.r81-up-cta .btn{background:var(--pon);color:var(--pontx);border:0;border-radius:14px;padding:14px 24px;font:800 14.5px 'Manrope',sans-serif;cursor:pointer;white-space:nowrap}
+.r81-up-cta .btn:focus-visible{outline:2px solid var(--ptx);outline-offset:3px}
+@media(max-width:820px){
+  .r81-up-grid{grid-template-columns:1fr}
+  .r81-up-hero{padding:22px 20px}
+  .r81-up-hero h2{font-size:24px}
+  .r81-up-c{padding:20px}
+  .r81-up-cta{flex-direction:column;align-items:stretch;padding:20px}
+  .r81-up-cta .pr{justify-content:space-between}
+}
+@media(max-width:420px){ .r81-up-cta .pr{flex-direction:column;align-items:stretch} .r81-up-cta .btn{width:100%} }
+</style>
+<script id="r81rScript">
+// R81: просьбы владельца: в BS у команды нет заголовка «BS», в списке резидентов аватарки из Telegram,
+// у резидента мероприятия внизу «Встречи → Расписание» (переключатель «Скрыть мероприятия» хранится на сервере),
+// в «Клубе» резидента вкладки «Мероприятия» нет, голосовой помощник только у команды
+(function(){
+  if(typeof BLOCKS === 'undefined') return;
+  var E = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var mode = function(){ return typeof MODE !== 'undefined' ? MODE : 'admin'; };
+
+  // ═══ Меню резидента: «Мероприятия» уходят из «Клуба» во «Встречи» ═══
+  try{ if(BLOCKS.rclub) BLOCKS.rclub.tabs = BLOCKS.rclub.tabs.filter(function(t){ return t.id !== 'rEvents'; }); }catch(e){}
+
+  // ═══ Личные настройки (bs_prefs: личный документ на сервере, общий с приложением Telegram; hide_events) ═══
+  var prefs = function(){ try{ return JSON.parse(localStorage.getItem('bs_prefs') || '{}') || {}; }catch(e){ return {}; } };
+  var setPref = function(k, v){ var p = prefs(); p[k] = v; try{ localStorage.setItem('bs_prefs', JSON.stringify(p)); }catch(e){} };
+
+  // ═══ «Встречи → Расписание»: мероприятия внизу ═══
+  var evBlock = function(){
+    if(mode() !== 'res' || typeof section === 'undefined' || section !== 'rsched') return;
+    var body = document.getElementById('stubBody'); if(!body || document.getElementById('r81Ev')) return;
+    var hide = !!prefs().hide_events;
+    var d = document.createElement('section'); d.className = 'r81-ev'; d.id = 'r81Ev';
+    d.innerHTML = '<div class="r81-evh"><h3>Мероприятия</h3>' +
+      '<button type="button" class="r81-sw" id="r81EvSw" role="switch" aria-checked="' + (hide ? 'true' : 'false') + '"><i aria-hidden="true"></i>Скрыть мероприятия</button></div>' +
+      '<div id="r81EvBox"' + (hide ? ' hidden' : '') + '></div>';
+    body.appendChild(d);
+    d.querySelector('#r81EvSw').onclick = function(){
+      var on = this.getAttribute('aria-checked') !== 'true';
+      this.setAttribute('aria-checked', on ? 'true' : 'false');
+      setPref('hide_events', on);
+      var box = document.getElementById('r81EvBox');
+      if(box){ box.hidden = on; if(!on && !box.firstChild && window.r78RenderEvents) r78RenderEvents(box); }
+    };
+    if(!hide && window.r78RenderEvents) r78RenderEvents(document.getElementById('r81EvBox'));
+  };
+  if(typeof renderSchedule === 'function'){
+    var rs0 = renderSchedule;
+    window.renderSchedule = renderSchedule = function(){ var r = rs0.apply(this, arguments); try{ evBlock(); }catch(e){} return r; };
+  }
+  // старая ссылка на «Клуб → Мероприятия» ведёт в расписание, к мероприятиям
+  var st0 = window.renderStub || renderStub;
+  window.renderStub = renderStub = function(s){
+    if(s === 'rEvents' && mode() === 'res'){
+      goSection('rsched');
+      setTimeout(function(){ var x = document.getElementById('r81Ev'); if(x) try{ x.scrollIntoView({block: 'start'}); }catch(e){} }, 60);
+      return;
+    }
+    return st0.apply(this, arguments);
+  };
+  // настройка пришла с другого устройства: расписание перерисовывается
+  window.addEventListener('storage', function(e){ if(e.key === 'bs_prefs' && typeof section !== 'undefined' && section === 'rsched') try{ renderSchedule(); }catch(er){} });
+
+  // ═══ Голосовой помощник и «Джарвис» только у команды ═══
+  if(typeof toggleVoice === 'function'){
+    var tv0 = toggleVoice;
+    window.toggleVoice = toggleVoice = function(){ if(mode() !== 'admin' && !(typeof recOn !== 'undefined' && recOn)) return; return tv0.apply(this, arguments); };
+  }
+  if(window.R79 && typeof R79.toggle === 'function'){
+    var rt0 = R79.toggle;
+    R79.toggle = function(){ if(mode() !== 'admin') return; return rt0.apply(this, arguments); };
+  }
+
+  // ═══ BS у команды: без большого заголовка ═══
+  var bsCls = function(){
+    var on = false;
+    try{ on = mode() === 'admin' && typeof section !== 'undefined' && !!(BLOCKS.lib && BLOCKS.lib.tabs.some(function(t){ return t.id === section; })); }catch(e){}
+    document.documentElement.classList.toggle('r81-bs', on);
+  };
+  var gs0 = window.goSection;
+  window.goSection = goSection = function(){ var r = gs0.apply(this, arguments); try{ bsCls(); }catch(e){} return r; };
+  if(typeof setMode === 'function'){
+    var sm0 = setMode;
+    window.setMode = setMode = function(){ var r = sm0.apply(this, arguments); try{ bsCls(); }catch(e){} return r; };
+  }
+  bsCls();
+
+  // ═══ Аватарки из Telegram в списке резидентов у команды ═══
+  // Telegram id из данных клуба (RESIDENTS[i].tg), а пока сервер его не прислал: из списка участников клуба
+  var TG = {}, tgBusy = false, tgAt = 0;
+  var norm = function(n){ return String(n || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim(); };
+  var tgOf = function(r){
+    var id = String((r && r.tg) || '').replace(/[^0-9]/g, '');
+    return id || TG[norm(r && r.name)] || '';
+  };
+  var tgLoad = function(){
+    if(tgBusy || Date.now() - tgAt < 300000 || typeof r6Api !== 'function') return;
+    tgBusy = true;
+    r6Api('GET', '/club/people').then(function(j){
+      tgBusy = false; tgAt = Date.now();
+      var add = false;
+      ((j && j.people) || []).forEach(function(p){ var id = String(p.tg || '').replace(/[^0-9]/g, ''); if(id && TG[norm(p.name)] !== id){ TG[norm(p.name)] = id; add = true; } });
+      if(add && typeof section !== 'undefined' && section === 'sRes' && typeof srRender === 'function') srRender();
+    }, function(){ tgBusy = false; });
+  };
+  window.r81Av = function(r){
+    var id = tgOf(r);
+    if(!id && mode() === 'admin') tgLoad();
+    return '<i class="pf-av sm' + (id ? ' r81-av' : '') + '">' + E(String((r && r.name) || '?').charAt(0).toUpperCase()) +
+      (id ? '<img src="/api/v1/app/avatar/' + id + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '') + '</i>';
+  };
 })();
 </script>
 </body>

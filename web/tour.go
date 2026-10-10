@@ -27,6 +27,7 @@ type TourDoc struct {
 	Help    tourItem            `json:"help"`
 	Bye     tourItem            `json:"bye"`
 	Cta     map[string]string   `json:"cta"`
+	RSteps  []tourItem          `json:"rsteps"` // R81: the resident's tour, every section and its tabs in order
 }
 
 var tourOnce struct {
@@ -61,8 +62,11 @@ func ParseTourTexts(page []byte) []string {
 		add(d.Cta[k])
 	}
 	add(d.Actions0())
-	for _, k := range []string{"track", "club", "fin", "sales", "mkt", "lib", "rtrack", "rbiz", "rclub", "rtask", "rrep", "rcont", "rfive", "rmeas", "rme", "rbs", "lbs", "ltrack", "lmeas", "lup"} {
+	for _, k := range []string{"track", "club", "fin", "sales", "mkt", "lib", "lhome", "lideas", "lbs", "ltrack", "lmeas", "lup"} {
 		add(d.Nav[k])
+	}
+	for _, s := range d.RSteps {
+		add(s.D)
 	}
 	for _, v := range d.Nav {
 		add(v)
