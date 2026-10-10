@@ -36,6 +36,8 @@ var lazyKeep = map[string]bool{
 	"*:lxVideo":               true, // R73: the lead home's video starts as the page draws
 	// R82: called in the first seconds now (the club's sticker pack syncs with the meme stickers; found by the r45 trace)
 	"s1:rerender": true, "s2:loadStickerPack": true,
+	// R82: the header (switch row under the title), the lead menu order and «Система» are set while the page starts
+	"r82uScript:hdr": true, "r82uScript:leadOrder": true, "r82uScript:sys": true,
 	// R52: the tab strip keeps its scroll, and the board signs edited cards (who, when) as it draws
 	"r52Script:keepStrip": true, "r52Script:edBadge": true, "r52Script:when": true,
 	// R52: the https guard in <head> runs before anything is fetched

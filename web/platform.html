@@ -3796,10 +3796,9 @@ svg.rd .rd-l{fill:var(--t2);font-family:'Manrope',sans-serif}
     <div class="nv" draggable="true" data-b="lib" onclick="goBlock('lib')">BS</div>
   </div>
   <div class="nav side-nav" id="navLead" style="display:none">
-    <div class="nv on" draggable="true" data-b="lbs" onclick="goBlock('lbs')">BS</div>
     <div class="nv" draggable="true" data-b="ltrack" onclick="goBlock('ltrack')">Моя доска</div>
     <div class="nv" draggable="true" data-b="lmeas" onclick="goBlock('lmeas')">Замеры</div>
-    <div class="nv" draggable="true" data-b="lup" onclick="goBlock('lup')">Резидентство</div>
+    <div class="nv" draggable="true" data-b="lup" onclick="goBlock('lup')">Резидентство BS</div>
   </div>
   <div class="nav side-nav res-nav" id="navRes" style="display:none">
     <div class="nv on" draggable="true" data-b="rtrack" onclick="goBlock('rtrack')">Мой разбор</div>
@@ -6842,7 +6841,7 @@ function setMode(m){
   document.getElementById('navLead').style.display = m==='lead' ? '' : 'none';
   document.querySelectorAll('.node,.sticker-node').forEach(el=>el.remove());
   nodes.forEach(renderNode); drawLinks();
-  goBlock(m==='res' ? 'rtrack' : (m==='lead' ? 'lbs' : 'track'));
+  goBlock(m==='res' ? 'rtrack' : (m==='lead' ? 'lhome' : 'track'));
   checkAI();
   setTimeout(renderHint, 400);
 }
@@ -7714,7 +7713,7 @@ var BLOCKS = {
     {id:'rsched',   n:'Расписание'},
     {id:'mycal',    n:'Мой календарь'}]},
   rmat:    {name:'Материалы', tabs:[
-    {id:'rKit',     n:'Инструменты и книги'},
+    {id:'rKit',     n:'Инструменты'},
     {id:'rRes2',    n:'Ресурсы клуба'}]},
   rclub:   {name:'Клуб', tabs:[
     {id:'rFiveList',n:'Участники'},
@@ -7740,7 +7739,7 @@ var BLOCKS = {
     {id:'bizWheel', n:'Колесо бизнеса'},
     {id:'rDiag',    n:'Диагностика'},
     {id:'lHealth',  n:'Здоровье бизнеса'}]},
-  lup:     {name:'Резидентство', tabs:[
+  lup:     {name:'Резидентство BS', tabs:[
     {id:'lUpgrade', n:'Что даёт резидентство'}]}
 };
 var curBlock = 'track';
@@ -10024,12 +10023,13 @@ function renderResources(){
     }).join('');
 }
 // R15: «Книги и инструменты» в Ресурсах резидента: книги клуба и инструменты лечения, карточка открывается на чтение
-var R15KIT = {f:'book', q:''};
+var R15KIT = {f:'tool', q:''}; // R82: книги живут во вкладке «Книги», здесь только инструменты и болезни
 function renderResKit(){
   var books = [], tools = [];
   (TOOLS || []).forEach(function(t, i){ if(t && t.title) (t.isBook ? books : tools).push({t:t, i:i}); });
-  var el = pgSet('Книги и инструменты', books.length + ' ' + gdPl(books.length, 'книга', 'книги', 'книг') + ' · ' + tools.length + ' ' + gdPl(tools.length, 'инструмент', 'инструмента', 'инструментов'));
-  var tabs = [['book', 'Книги', books.length], ['tool', 'Инструменты', tools.length]];
+  var el = pgSet('Инструменты', tools.length + ' ' + gdPl(tools.length, 'инструмент', 'инструмента', 'инструментов'));
+  if(R15KIT.f === 'book') R15KIT.f = 'tool';
+  var tabs = [['tool', 'Инструменты', tools.length]];
   el.innerHTML = '<div class="pf-filters r15k-f">' + tabs.map(function(x){
       return '<div class="pf-fl' + (R15KIT.f === x[0] ? ' on' : '') + '" data-f="' + x[0] + '" onclick="R15KIT.f=this.dataset.f;renderResKit()">' + x[1] + ' <b class="ev-n">' + x[2] + '</b></div>'; }).join('') +
       '<input class="inp r15k-q" id="r15kQ" placeholder="Поиск по названию или органу" value="' + escA(R15KIT.q) + '" oninput="R15KIT.q=this.value;r15KitGrid()"></div>' +
@@ -10906,7 +10906,7 @@ function renderLeadTools(){
 }
 // R81: «Резидентство» читается с первого взгляда: заголовки, две карточки (сейчас и в клубе), контраст и одна кнопка
 function renderUpgrade(){
-  var el = pgSet('Резидентство', '');
+  var el = pgSet('Резидентство BS', '');
   var have = [['Своя доска','Одна, с ограниченной базой'],
               ['3 диагноза','По слабым зонам из диагностики'],
               ['4 инструмента','По одному на диагноз'],
@@ -24840,7 +24840,7 @@ function navOf(m){ return document.getElementById(m === 'res' ? 'navRes' : (m ==
 function tabsOf(b){
   try{ var B = BLOCKS[b]; return B && B.tabs ? B.tabs.map(function(t){ return t.n; }) : []; }catch(e){ return []; }
 }
-function homeBlock(m){ return m === 'res' ? 'rtrack' : (m === 'lead' ? 'lbs' : 'track'); }
+function homeBlock(m){ return m === 'res' ? 'rtrack' : (m === 'lead' ? 'lhome' : 'track'); }
 
 // Шаги строятся из того, что сейчас есть на странице: перестановки меню не ломают обучение
 function buildSteps(m){
@@ -30091,7 +30091,7 @@ body.r32t .side-subs{display:none}
     return el;
   }
   function paintTabs(){
-    var on = MODE === 'res' && BLOCKS[curBlock] && BLOCKS[curBlock].tabs.length > 1;
+    var on = (MODE === 'res' || MODE === 'lead') && BLOCKS[curBlock] && BLOCKS[curBlock].tabs.length > 1; // R82: у лида вкладки сверху, как у резидента и команды
     document.body.classList.toggle('r32t', !!on);
     var el = tabsEl();
     if(!on){ el.innerHTML = ''; return; }
@@ -30105,7 +30105,7 @@ body.r32t .side-subs{display:none}
   var _renderSide = window.renderSide;
   window.renderSide = renderSide = function(){
     var r = _renderSide.apply(this, arguments);
-    if(MODE === 'res') $$('.side-subs').forEach(function(x){ x.remove(); });
+    if(MODE === 'res' || MODE === 'lead') $$('.side-subs').forEach(function(x){ x.remove(); });
     paintTabs();
     return r;
   };
@@ -30115,7 +30115,7 @@ body.r32t .side-subs{display:none}
   // ═══ 3. Инструменты: библиотека и интерактивные чек-листы ═══
   function toolSw(cur){
     var lib = MODE === 'res' ? 'rKit' : 'toolLib';
-    return '<div class="r32-sw" id="r32ToolSw" role="tablist"><b class="' + (cur !== 'guides' ? 'on' : '') + '" data-s="' + lib + '" onclick="goSection(this.dataset.s)">' + (MODE === 'res' ? 'Книги и инструменты' : 'Библиотека инструментов') + '</b>' +
+    return '<div class="r32-sw" id="r32ToolSw" role="tablist"><b class="' + (cur !== 'guides' ? 'on' : '') + '" data-s="' + lib + '" onclick="goSection(this.dataset.s)">' + 'Библиотека инструментов' + '</b>' +
       '<b class="' + (cur === 'guides' ? 'on' : '') + '" data-s="guides" onclick="goSection(\'guides\')">Интерактивные чек-листы</b></div>';
   }
   function putSw(host, cur){
@@ -32552,7 +32552,10 @@ function paint(){
   if(curBlock !== blk){ curBlock = blk; try{ renderSide(); }catch(e){} }
   painting = true;
   try{
-    var pt = document.querySelector('.page.on .pt') || document.querySelector('#pg-stub .pt'); if(pt && pt.textContent !== BLOCKS[blk].name) pt.textContent = BLOCKS[blk].name;
+    var pt = document.querySelector('.page.on .pt') || document.querySelector('#pg-stub .pt');
+    // R82: заголовок = открытая вкладка («База знаний», «Резиденты»), а не название раздела («Трекинг»)
+    var tt = tabsOf(blk).find(function(t){ return t.ids.indexOf(section) >= 0; }), nm = tt ? tt.n : BLOCKS[blk].name;
+    if(pt && pt.textContent !== nm) pt.textContent = nm;
     actions();
     var tabs = tabsOf(blk), g = grpOf(blk, section);
     // R52: вкладки и переключатель внутри вкладки в одной строке сверху экрана (.bk-top), как на доске:
@@ -32567,8 +32570,8 @@ function paint(){
       // R59: переключатель внутри вкладки (База знаний: Болезни, Инструменты…) отдельной строкой вкладок под меню
       // и показателями, как вкладки «Учёта» (ДДС, P&L…), а не справа в верхней строке
       (g ? '<div class="fx-tabs bk-sub" role="tablist">' + g.ids.map(function(id){ return '<button type="button" class="fx-tab' + (id === section ? ' on' : '') + '" role="tab" data-s="' + id + '">' + E(g.sub[id]) + '</button>'; }).join('') + '</div>' :
-      // R75: у раздела есть вкладки с переключателем внутри: у остальных вкладок та же строка пустой, экран под ней не прыгает
-      ((MERGE[blk] || []).length ? '<div class="fx-tabs bk-sub r75-ph" aria-hidden="true"><button type="button" class="fx-tab" tabindex="-1">&nbsp;</button></div>' : ''));
+      // R82: пустой строки-заглушки (R75) нет: строка переключателя стоит в шапке сразу под заголовком (r82uScript)
+      '');
     if(el._h !== h){ el.innerHTML = h; el._h = h; }
     var sub = el.querySelector('.bk-sub'), so = sub && sub.querySelector('.fx-tab.on'); // R59: на телефоне выбранная видна
     if(so && sub.scrollWidth > sub.clientWidth){ var rs = sub.getBoundingClientRect(), ro = so.getBoundingClientRect(); if(ro.left < rs.left || ro.right > rs.right) sub.scrollLeft += ro.left - rs.left - 16; }
@@ -33578,7 +33581,7 @@ function strip(){
   var on = typeof MODE !== 'undefined' && MODE === 'admin' && typeof section !== 'undefined' && section === 'board' && BLOCKS.track.tabs.some(function(t){ return t.id === 'board'; });
   var el = document.getElementById('r32Tabs');
   if(!on){
-    if(document.body.classList.contains('r38b')){ document.body.classList.remove('r38b'); if(typeof MODE === 'undefined' || MODE !== 'res'){ document.body.classList.remove('r32t'); if(el) el.innerHTML = ''; } }
+    if(document.body.classList.contains('r38b')){ document.body.classList.remove('r38b'); if(typeof MODE === 'undefined' || (MODE !== 'res' && MODE !== 'lead')){ document.body.classList.remove('r32t'); if(el) el.innerHTML = ''; } }
     return;
   }
   if(!el){ el = document.createElement('div'); el.id = 'r32Tabs'; el.setAttribute('role', 'tablist'); document.body.appendChild(el); }
@@ -33625,11 +33628,6 @@ body.bk-on #phAct .bk-a.r77-more{width:38px;padding:0;font-size:17px;letter-spac
 #r32SetBody[data-only="sys"]>#r36Box,
 #r32SetBody[data-only="voice"]>.r32-set:not(#r36Box):not(#r51sSet):not(#tdSetBox){display:block!important}
 #r32SetBody[data-only] .r32-row#x32dSet{display:none!important}
-/* Пустая строка-заглушка под вкладками (R75, чтобы экран не прыгал) без линии: не читается как разделитель */
-.r75-ph{border-color:transparent!important;box-shadow:none!important;background:none!important}
-.r75-ph:before,.r75-ph:after{display:none!important}
-/* Шапка без подзаголовка: одна высота на всех вкладках (кнопки 36–40 px), строка вкладок и экран не прыгают */
-@media (min-width:641px){.page>.pw>.ph{min-height:40px;align-items:center;box-sizing:border-box}}
 .r77-voice{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
 .r77-voice h4{margin-bottom:4px}
 .r77-voice span{font-size:13px;color:var(--pm)}
@@ -33640,11 +33638,12 @@ body.bk-on #phAct .bk-a.r77-more{width:38px;padding:0;font-size:17px;letter-spac
 'use strict';
 var MORE = {
   sales: [['sales', 'Заявки с сайта и сценарии продаж', 'Настройки продаж', 'Заявки Tilda, сценарии, продление, отчёт недели']],
-  lib: [['sys', 'Проверка системы', 'Проверка системы', 'ИИ, заявки, голос, бот и база'], ['voice', 'Голос гида и ИИ', 'Голос гида', 'Тембр гида и ключ ИИ']]
+  // R82: «⋯» в BS убрана (просьба владельца): проверка системы, голос гида и ключ ИИ в пункте «Система» внизу меню (r82uScript)
+  sys: [['sys', 'Проверка системы', 'Проверка системы', 'ИИ, заявки, голос, бот и база'], ['voice', 'Голос гида и ИИ', 'Голос гида', 'Тембр гида и ключ ИИ']]
 };
 var blkOf = function(s){
   if(typeof BLOCKS === 'undefined') return '';
-  return ['sales', 'lib'].filter(function(k){ return BLOCKS[k] && BLOCKS[k].tabs.some(function(t){ return t.id === s; }); })[0] || '';
+  return ['sales'].filter(function(k){ return BLOCKS[k] && BLOCKS[k].tabs.some(function(t){ return t.id === s; }); })[0] || '';
 };
 // Окно настроек с одним блоком (данные и сохранение прежние: r32VoiceSettings и блоки R36, R51, Tilda)
 window.r77Settings = function(only, title, sub){
@@ -33655,7 +33654,7 @@ window.r77Settings = function(only, title, sub){
   if(sh){ var st = sh.querySelector('.st'), ss = sh.querySelector('.ss'); if(st) st.textContent = title; if(ss) ss.textContent = sub || ''; }
 };
 var closeMenu = function(){ var p = document.getElementById('r77Pop'); if(p) p.remove(); document.removeEventListener('mousedown', outside, true); };
-var outside = function(e){ var p = document.getElementById('r77Pop'); if(p && !p.contains(e.target) && !(e.target.closest && e.target.closest('.r77-more'))) closeMenu(); };
+var outside = function(e){ var p = document.getElementById('r77Pop'); if(p && !p.contains(e.target) && !(e.target.closest && e.target.closest('.r77-more,[data-r82sys]'))) closeMenu(); };
 window.r77Menu = function(btn, blk){
   if(document.getElementById('r77Pop')){ closeMenu(); return; }
   var p = document.createElement('div'); p.id = 'r77Pop'; p.className = 'fx-pop'; p.setAttribute('role', 'menu');
@@ -36688,7 +36687,7 @@ function r46Sw(){
   var sw = document.getElementById('r32ToolSw');
   if(section === 'ideas' && MODE === 'res' && !sw){
     var host = document.getElementById('stubBody');
-    if(host) host.insertAdjacentHTML('afterbegin', '<div class="r32-sw" id="r32ToolSw" role="tablist"><b data-s="rKit" onclick="goSection(this.dataset.s)">Книги и инструменты</b><b data-s="guides" onclick="goSection(\'guides\')">Интерактивные чек-листы</b></div>');
+    if(host) host.insertAdjacentHTML('afterbegin', '<div class="r32-sw" id="r32ToolSw" role="tablist"><b data-s="rKit" onclick="goSection(this.dataset.s)">Библиотека инструментов</b><b data-s="guides" onclick="goSection(\'guides\')">Интерактивные чек-листы</b></div>');
     sw = document.getElementById('r32ToolSw');
   }
   if(!sw) return;
@@ -44676,8 +44675,6 @@ body.light .r71-club{background:#0b0b0b;color:#fff}
 .page.on>.pw>.ph>div:first-child{flex:1 1 0;min-width:0;max-width:100%}
 .page.on>.pw>.ph .psub,.page.on>.pw>.ph .pt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .page.on>.pw>.ph>.ph-act{flex:0 0 auto}
-.r75-ph{pointer-events:none}
-.r75-ph .fx-tab{visibility:hidden}
 /* Продажи → Рефералы: блок выплат грузится с сервера, место под него занято сразу (список ниже не съезжает) */
 #r75Pay>.r75-box{min-height:95px}
 @media(max-width:640px){#r75Pay>.r75-box{min-height:181px}}
@@ -44687,7 +44684,7 @@ body.light .r71-club{background:#0b0b0b;color:#fff}
   /* Кнопки шапки одной строкой (лишние прокручиваются вбок): шапка не растёт в две-три строки на одних вкладках */
   .page.on>.pw>.ph>.ph-act{width:100%;flex:0 0 100%;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .page.on>.pw>.ph>.ph-act::-webkit-scrollbar{display:none}
-  .page.on>.pw>.ph>.ph-act:not(:empty),body.bk-on .page.on>.pw>.ph>#phAct{display:flex;height:40px;min-height:40px;align-items:center}
+  .page.on>.pw>.ph>.ph-act:not(:empty){display:flex;height:40px;min-height:40px;align-items:center}
   .page.on>.pw>.ph>.ph-act>*{flex:0 0 auto}
   .page.on>.pw>.ph>.ph-act .search{flex:0 0 170px}
   .page.on>.pw>.ph>.ph-act .search input{height:36px;padding-top:0;padding-bottom:0}
@@ -46283,7 +46280,17 @@ body.light .bk-ph{color:#F2F2F2}
     var st = marks && marks[e.key];
     return '<div class="bk-card" tabindex="0" role="button" data-k="' + E(e.key) + '" onclick="SHELF.open(this.dataset.k)" onkeydown="if(event.key===\'Enter\')SHELF.open(this.dataset.k)">' + SH.cover(e) +
       '<div class="bk-t">' + E(e.ru) + '</div><div class="bk-a">' + E(e.author) + '</div>' +
-      (st ? '<span class="bk-st ' + st + '">' + ST[st] + '</span>' : '') + '</div>';
+      // R82: «Читаю / Прочитал / Хочу» сразу на карточке, книгу открывать не нужно
+      '<div class="bk-cs" role="group" aria-label="Моя полка">' + ['reading', 'read', 'want'].map(function(s){
+        return '<button type="button" class="bk-csb' + (st === s ? ' on' : '') + '" data-s="' + s + '" aria-pressed="' + (st === s) + '" onclick="event.stopPropagation();SHELF.quick(this)" onkeydown="event.stopPropagation()">' + ST[s] + '</button>'; }).join('') + '</div></div>';
+  };
+  SH.quick = function(b){
+    var c = b.closest('.bk-card'); if(!c) return;
+    var now = SH.mark(c.dataset.k, b.dataset.s);
+    document.querySelectorAll('.bk-card[data-k="' + c.dataset.k.replace(/"/g, '\\"') + '"] .bk-csb').forEach(function(x){ x.classList.toggle('on', x.dataset.s === now); x.setAttribute('aria-pressed', String(x.dataset.s === now)); });
+    if(SH.st) return SH.rerender();
+    var m = SH.marks(), n = {reading:0, read:0, want:0}; Object.keys(m).forEach(function(k){ if(n[m[k]] !== undefined) n[m[k]]++; });
+    document.querySelectorAll('.bk-bar .bk-ch[data-v]').forEach(function(x){ var v = x.dataset.v, bb = x.querySelector('b'); if(v && bb && n[v] !== undefined) bb.textContent = n[v]; });
   };
 
   // ── полка ──
@@ -46361,9 +46368,10 @@ body.light .bk-ph{color:#F2F2F2}
       '<div class="bk-big">' + SH.cover(e, true) + '</div>' +
       '<div><div class="bk-k">Книга · ' + E(e.cat) + '</div><div class="bk-h">' + E(e.ru) + '</div><div class="bk-au">' + E(e.author) + '</div>' +
         ((e.orig || e.year) ? '<div class="bk-or">' + E([e.orig, e.year].filter(Boolean).join(', ')) + '</div>' : '') +
+        // R82: «Читаю / Прочитал / Хочу» вверху страницы книги, сразу под названием
+        '<div class="bk-sts bk-top-sts" role="group" aria-label="Моя полка">' + ['reading', 'read', 'want'].map(function(s){
+          return '<button type="button" class="bk-sb' + (st === s ? ' on' : '') + '" data-s="' + s + '" onclick="SHELF.setSt(this.dataset.s)">' + ST[s] + '</button>'; }).join('') + '</div>' +
         (e.use ? '<div class="bk-sec"><div class="bk-sl">Чем полезна собственнику</div><div class="bk-use">' + E(e.use) + '</div></div>' : '') +
-        '<div class="bk-sec"><div class="bk-sl">Моя полка</div><div class="bk-sts">' + ['reading', 'read', 'want'].map(function(s){
-          return '<button type="button" class="bk-sb' + (st === s ? ' on' : '') + '" data-s="' + s + '" onclick="SHELF.setSt(this.dataset.s)">' + ST[s] + '</button>'; }).join('') + '</div></div>' +
         (dx ? '<div class="bk-sec"><div class="bk-sl">Рекомендована к диагнозам</div><div class="bk-dx">' + dx + '</div></div>' : '') +
         (tl ? '<div class="bk-sec"><div class="bk-sl">Инструменты BS по теме</div><div class="bk-dx">' + tl + '</div></div>' : '') +
         '<div class="bk-sec"><div class="bk-sl">Купить или прочитать</div><div class="bk-lk">' + buy(e).map(function(l){
@@ -46380,6 +46388,7 @@ body.light .bk-ph{color:#F2F2F2}
     var key = SH.cur; if(!key) return;
     var now = SH.mark(key, s);
     document.querySelectorAll('#bkMo .bk-sb').forEach(function(b){ b.classList.toggle('on', b.dataset.s === now); });
+    document.querySelectorAll('.bk-card[data-k="' + String(key).replace(/"/g, '\\"') + '"] .bk-csb').forEach(function(b){ b.classList.toggle('on', b.dataset.s === now); }); // R82
     SH.rerender();
   };
   SH.card2 = function(id){
@@ -46935,7 +46944,7 @@ if(S && S.open){
       var m = e.m || {}, lk = mo.querySelector('.bk-lk'), sec = lk && lk.closest('.bk-sec');
       var h = '';
       if(e.file){
-        h += '<div class="bk-sec"><div class="bk-sl">Файл книги в клубе</div><div class="bk-lk">' +
+        h += '<div class="bk-sec"><div class="bk-sl">Чек-лист</div><div class="bk-lk">' +
           '<a href="#" onclick="r82Read(\'' + E(e.key) + '\');return false">Читать здесь</a><a href="#" onclick="r82Dl(\'' + E(e.key) + '\');return false">Скачать ↓</a></div></div>';
       }
       if(m.free && m.free.url) h += '<div class="bk-sec"><div class="bk-sl">Бесплатно и легально</div><div class="bk-lk"><a href="' + E(m.free.url) + '" target="_blank" rel="noopener">' + E(m.free.label || 'Бесплатная версия') + ' ↗</a></div></div>';
@@ -47012,5 +47021,182 @@ window.r82Read = function(key){
 })();
 </script>
 <!-- /R82 -->
+<!-- R82 UI: шапка разделов без пустых строк: заголовок = открытая вкладка, под ним переключатель вкладки и кнопки слева;
+     BS без «⋯» (настройки в пункте «Система» внизу меню), строки с кнопками не сжимают имя, «Читаю» на карточке книги -->
+<style id="r82uStyle">
+/* Шапка: заголовок, под ним (12 px) строка переключателя, если она есть у вкладки, и кнопки слева; до содержимого 20 px.
+   Пустых строк-заглушек нет: строка вкладок сверху закреплена, строка переключателя стоит сразу под заголовком */
+.page>.pw>.ph{flex-direction:column;align-items:stretch;justify-content:flex-start;flex-wrap:nowrap;gap:12px;margin-bottom:20px;min-height:0}
+.page>.pw>.ph>div:first-child{flex:none!important;max-width:100%;min-width:0}
+.page>.pw>.ph>.ph-act{flex:none!important;justify-content:flex-start;max-width:100%}
+.page>.pw>.ph>.ph-act:empty,body.bk-on .page.on>.pw>.ph>#phAct:empty{display:none!important}
+.page>.pw>.ph>.r82-sub{margin:0!important;flex:none}
+/* Учёт: пустой статус сохранения не сдвигает кнопки вправо (лишний отступ 8 px) */
+.page>.pw>.ph>.ph-act .fx-tools{justify-content:flex-start}
+.page>.pw>.ph>.ph-act .fx-tools>span:empty{display:none}
+body.bk-on .page.on>.pw>#bkBar{margin:0}
+/* BS: без заголовка и без пустой шапки; кнопки вкладки (если есть) слева сверху */
+html.r81-bs .page.on>.pw>.ph{justify-content:flex-start;margin-bottom:20px}
+html.r81-bs .page.on>.pw>.ph>div:first-child{display:none}
+html.r81-bs .page.on>.pw>.ph:not(:has(>.ph-act>*)):not(:has(>.r82-sub)){display:none!important}
+#stubBody>.r38c:empty{display:none}
+/* Клуб → Резиденты: «+ Резидент» в шапке слева, в строке фильтров его нет */
+body.bk-on #stubBody .pf-tools .r77-add{display:none}
+/* «Система» внизу меню (только команда) */
+.side .tr16-hb.r82-sys{margin-top:0}
+.side .r82-sys + .side-foot{margin-top:0}
+/* Строки с кнопками (ассистенты, ссылки, входы): имя и статус одной строкой, кнопки переносятся вниз на узком экране */
+.as-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.as-row>:first-child{flex:1 1 220px;min-width:min(220px,100%)}
+.as-row>.as-acts{flex:0 1 auto;min-width:0;margin-left:auto}
+.as-log .as-row{display:grid}
+.as-n{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;min-width:0}
+.as-n .as-chip{margin-left:0;white-space:nowrap;flex:none}
+.as-row .as-sel{max-width:100%}
+@media (max-width:600px){.as-row>.as-acts{margin-left:0;width:100%;justify-content:flex-start}}
+/* Та же ошибка в других строках: ресурсы клуба, легенда «Здоровья бизнеса», ссылки над воронками CRM */
+.r78-res .m{flex:1 1 200px;min-width:min(200px,100%)}
+.r78-res .a{flex:0 1 auto;min-width:0}
+.hleg>span{flex:1 1 160px}
+.cx-pipes .cx-pr{white-space:nowrap}
+/* Книги: «Читаю / Прочитал / Хочу» на карточке и вверху страницы книги */
+.bk-cs{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.bk-csb{flex:1 1 auto;height:26px;padding:0 6px;border-radius:7px;border:1px solid var(--bd2);background:transparent;color:var(--t2);font:700 10.5px/1 'Manrope',sans-serif;cursor:pointer;white-space:nowrap}
+.bk-csb:hover{color:var(--tx);border-color:var(--tx)}
+.bk-csb.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.bk-csb:focus-visible{outline:2px solid var(--tx);outline-offset:2px}
+.bk-top-sts{margin:12px 0 4px}
+</style>
+<script id="r82uScript">
+(function(){
+'use strict';
+if(typeof BLOCKS === 'undefined') return;
+var md = function(){ return typeof MODE !== 'undefined' ? MODE : ''; };
+var vis = function(x){ return !!(x && x.getClientRects().length); };
+var lab = function(x){ var c = x.cloneNode(true); c.querySelectorAll('small,i,svg,b').forEach(function(z){ z.remove(); }); return c.textContent.replace(/\s+/g, ' ').trim(); };
+
+// ═══ 1. Строка переключателя вкладки в шапке, сразу под заголовком ═══
+// «База знаний» (Болезни, Инструменты, Книги…), «Аналитика» продаж, вкладки «Учёта»: строка стоит на одном месте у всех
+// вкладок раздела; пустой строки-заглушки (R75) больше нет, кнопки вкладки идут под строкой слева
+function phOn(){ return document.querySelector('.page.on > .pw > .ph'); }
+function place(row, src, ph){
+  ph.querySelectorAll(':scope > .r82-sub[data-src="' + src + '"]').forEach(function(o){ if(o !== row) o.remove(); });
+  row.classList.add('r82-sub'); row.setAttribute('data-src', src);
+  var t = ph.firstElementChild;
+  if(row.parentNode !== ph || row.previousElementSibling !== t) ph.insertBefore(row, t ? t.nextSibling : ph.firstChild);
+  var on = row.querySelector('.on'); // на телефоне выбранная вкладка видна
+  if(on && row.scrollWidth > row.clientWidth){ var a = row.getBoundingClientRect(), b = on.getBoundingClientRect(); if(b.left < a.left || b.right > a.right) row.scrollLeft += b.left - a.left - 16; }
+}
+var busy = false;
+function hdr(){
+  if(busy) return; busy = true;
+  try{
+    var ph = phOn(); if(!ph) return;
+    var bk = document.querySelector('#bkBar > .bk-sub'), fx = document.querySelector('#fxRoot > .fx-tabs');
+    if(bk && document.body.classList.contains('bk-on') && ph.parentNode.contains(bk)) place(bk, 'bk', ph);
+    else ph.querySelectorAll(':scope > .r82-sub[data-src="bk"]').forEach(function(o){
+      if(!document.body.classList.contains('bk-on') || !o.querySelector('[data-s="' + section + '"]')) o.remove();
+    });
+    if(fx && ph.parentNode.contains(fx)) place(fx, 'fx', ph);
+    else ph.querySelectorAll(':scope > .r82-sub[data-src="fx"]').forEach(function(o){ if(section !== 'pl' || !document.getElementById('fxRoot')) o.remove(); });
+    // устаревшие строки на скрытых страницах
+    document.querySelectorAll('.page:not(.on) > .pw > .ph > .r82-sub').forEach(function(o){ o.remove(); });
+  } finally { busy = false; }
+}
+window.r82Hdr = hdr;
+// строка переключателя перенесена из полосы: нажатие ведёт туда же
+document.addEventListener('click', function(e){
+  var t = e.target.closest && e.target.closest('.ph > .r82-sub[data-src="bk"] [data-s]'); if(!t) return;
+  if(t.dataset.s !== section) goSection(t.dataset.s);
+});
+try{ new MutationObserver(function(){ hdr(); }).observe(document.body, {childList: true, subtree: true}); }catch(e){}
+
+// ═══ 2. Заголовок = открытая вкладка, у раздела без вкладок = пункт меню ═══
+// «Захожу в "Базу знаний", а сверху написано "Трекинг"»: у всех ролей заголовок тот, что нажат
+function want(){
+  if(typeof section === 'undefined' || section === 'board') return '';
+  var t = document.querySelector('body.bk-on #bkBar .bk-tab.on') || document.querySelector('body.r32t #r32Tabs .r32-tab.on');
+  if(t && vis(t)) return lab(t);
+  // пункт меню открытого раздела (goBlock отмечает пункт уже после перехода, поэтому по curBlock)
+  var cb = typeof curBlock !== 'undefined' ? curBlock : '';
+  var nv = cb && document.querySelector('.side-nav:not([style*="none"]) .nv[data-b="' + cb + '"]');
+  return nv ? lab(nv) : (cb && BLOCKS[cb] ? BLOCKS[cb].name : '');
+}
+function title(){
+  var ph = phOn(); if(!ph || !vis(ph)) return;
+  var pt = ph.querySelector('.pt'), w = want();
+  if(pt && w && pt.textContent !== w) pt.textContent = w;
+}
+window.r82Title = title;
+var go0 = window.goSection;
+window.goSection = goSection = function(){
+  var r = go0.apply(this, arguments);
+  try{ title(); hdr(); sys(); }catch(e){}
+  return r;
+};
+if(window.bkPaint){ var bp0 = window.bkPaint; window.bkPaint = function(){ var r = bp0.apply(this, arguments); try{ hdr(); }catch(e){} return r; }; }
+
+// ═══ 3. Клуб → Резиденты: «+ Резидент» в шапке слева ═══
+if(window.BK_EXT){
+  var act0 = BK_EXT.act;
+  BK_EXT.act = function(s, pa, body){
+    if(act0) act0.apply(this, arguments);
+    var have = pa.querySelector('[data-r82add]');
+    if(s === 'sRes' && md() === 'admin' && typeof bsAddResident === 'function' && body && body.querySelector('#r77AddRes')){
+      if(!have){ have = document.createElement('button'); have.type = 'button'; have.className = 'bk-a pri'; have.setAttribute('data-r82add', '1'); have.textContent = '+ Резидент'; have.onclick = function(){ bsAddResident(); }; pa.insertBefore(have, pa.firstChild); }
+    } else if(have) have.remove();
+  };
+}
+
+// ═══ 4. «Система» внизу меню: проверка системы, голос гида и ключ ИИ (раньше «⋯» в BS) ═══
+function sys(){
+  var side = document.getElementById('side'); if(!side) return;
+  var b = document.getElementById('r82Sys');
+  if(!b){
+    b = document.createElement('button'); b.type = 'button'; b.id = 'r82Sys'; b.className = 'tr16-hb admin-only r82-sys'; b.setAttribute('data-r82sys', '1');
+    b.title = 'Проверка системы, голос гида и ключ ИИ'; b.setAttribute('aria-haspopup', 'menu');
+    b.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Система</span>';
+    b.onclick = function(e){
+      e.stopPropagation();
+      if(typeof window.r77Menu !== 'function') return;
+      r77Menu(b, 'sys');
+      var p = document.getElementById('r77Pop'); if(!p) return;
+      var r = b.getBoundingClientRect();
+      p.style.left = Math.max(10, Math.min(innerWidth - p.offsetWidth - 10, r.left)) + 'px';
+      if(r.bottom + 6 + p.offsetHeight > innerHeight - 8) p.style.top = Math.max(8, r.top - p.offsetHeight - 6) + 'px';
+    };
+  }
+  var help = document.getElementById('tr16Help'), foot = document.getElementById('modeFoot');
+  var after = help && help.parentNode === side ? help : null;
+  if(after){ if(after.nextSibling !== b) side.insertBefore(b, after.nextSibling); }
+  else if(foot && foot.parentNode === side){ if(b.nextSibling !== foot) side.insertBefore(b, foot); }
+  else if(b.parentNode !== side) side.appendChild(b);
+}
+setTimeout(sys, 0); setInterval(sys, 2000);
+
+// ═══ 5. Меню лида: Главная, Моя доска, Замеры, Бизнес-идеи, «Резидентство BS» (порядок как у резидента: доска, замеры, материалы) ═══
+var LEAD = ['lhome', 'ltrack', 'lmeas', 'lideas', 'lup'];
+function leadOrder(){
+  var nav = document.getElementById('navLead'); if(!nav) return;
+  var saved = null; try{ saved = (JSON.parse(localStorage.getItem('bs_order') || '{}') || {}).blk_navLead; }catch(e){}
+  var bs = nav.querySelector('[data-b="lbs"]'); if(bs) bs.remove();
+  var up = nav.querySelector('[data-b="lup"]');
+  if(up){ var tn = [].slice.call(up.childNodes).filter(function(n){ return n.nodeType === 3 && n.textContent.trim(); }).pop(); if(tn && tn.textContent.trim() !== 'Резидентство BS') tn.textContent = 'Резидентство BS'; }
+  if(saved && saved.length) return;
+  var cur = [].slice.call(nav.querySelectorAll(':scope > .nv')).map(function(n){ return n.dataset.b; });
+  var want2 = LEAD.filter(function(k){ return cur.indexOf(k) >= 0; }).concat(cur.filter(function(k){ return LEAD.indexOf(k) < 0; }));
+  if(want2.join() === cur.join()) return;
+  want2.forEach(function(k){ var n = nav.querySelector(':scope > .nv[data-b="' + k + '"]'); if(n){ var sub = n.nextElementSibling && n.nextElementSibling.classList.contains('side-subs') ? n.nextElementSibling : null; nav.appendChild(n); if(sub) nav.appendChild(sub); } });
+}
+leadOrder();
+if(typeof window.applyOrder === 'function'){ var ao0 = window.applyOrder; window.applyOrder = applyOrder = function(){ var r = ao0.apply(this, arguments); try{ leadOrder(); }catch(e){} return r; }; }
+if(typeof window.setMode === 'function'){
+  var sm0 = window.setMode;
+  window.setMode = setMode = function(){ var r = sm0.apply(this, arguments); try{ leadOrder(); sys(); title(); hdr(); }catch(e){} return r; };
+}
+try{ title(); hdr(); }catch(e){}
+})();
+</script>
+<!-- /R82 UI -->
 </body>
 </html>
