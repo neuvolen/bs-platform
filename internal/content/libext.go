@@ -12,7 +12,7 @@ import (
 // документы клуба то, чего там ещё нет (handlers/http/library_ext.go).
 
 // LibExtVersion: поднимать, когда в library_ext добавлены новые пункты.
-const LibExtVersion = "2026-10-ext8" // Полка: книжная полка (books/books.json) в bs_tools
+const LibExtVersion = "2026-10-ext9" // R82: «Пройти тест Gallup» (Мышление); ext8: книжная полка (books/books.json) в bs_tools
 
 //go:embed library_ext/*.json
 var libExtFS embed.FS

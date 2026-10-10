@@ -4,7 +4,10 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // R69: «Учёт → Долги и штрафы»: per resident the debt, the fines (open with
@@ -71,24 +74,99 @@ type DebtsReport struct {
 }
 
 // Debts builds the report (read only).
-func (r *ClubRepo) Debts(ctx context.Context) (*DebtsReport, error) { return r.debts(ctx, true) }
+func (r *ClubRepo) Debts(ctx context.Context) (*DebtsReport, error) { return r.debtsCached(ctx, true) }
 
-// DebtsLite is the same ledger without the payments, the audit and the
-// history: what the Telegram app shows (debts, fines with what is paid on
-// each), the numbers of «Учёт → Долги и штрафы» to the tenge.
-func (r *ClubRepo) DebtsLite(ctx context.Context) (*DebtsReport, error) { return r.debts(ctx, false) }
+// DebtsLite is the same ledger without the payments and the history: what
+// the Telegram app shows (debts, fines with what is paid on each), the
+// numbers of «Учёт → Долги и штрафы» to the tenge.
+func (r *ClubRepo) DebtsLite(ctx context.Context) (*DebtsReport, error) { return r.debtsCached(ctx, false) }
 
-func (r *ClubRepo) debts(ctx context.Context, full bool) (*DebtsReport, error) {
-	tx, err := r.db.Pool.Begin(ctx)
+// R82: «Долги и штрафы почему-то подгружаются дольше». The report is kept as
+// a snapshot per database and kind, keyed by a fingerprint of the tables it
+// is built from (row counts and the sum of the row versions of each, read in the
+// report's own snapshot): any insert, update or delete, by whoever (the tab,
+// the bot, the Telegram app, a sheet import), changes it and the next open
+// rebuilds. Callers treat the report as read only.
+type debtsSnap struct {
+	key string
+	rep *DebtsReport
+}
+
+var (
+	debtsMu    sync.Mutex
+	debtsCache = map[*DB]map[bool]debtsSnap{}
+)
+
+const debtsKeySQL = `SELECT concat_ws('|',
+	(SELECT count(*) || '.' || COALESCE(sum(xmin::text::bigint), 0) FROM club_residents),
+	(SELECT count(*) || '.' || COALESCE(sum(xmin::text::bigint), 0) FROM club_fines),
+	(SELECT count(*) || '.' || COALESCE(sum(xmin::text::bigint), 0) FROM club_payments),
+	(SELECT count(*) || '.' || COALESCE(sum(xmin::text::bigint), 0) FROM club_pay_alloc),
+	(SELECT count(*) || '.' || COALESCE(max(id), 0) FROM club_balance_log),
+	(SELECT value FROM club_meta WHERE key = 'master'),
+	(SELECT max(at)::text FROM club_imports WHERE NOT dry_run))`
+
+func (r *ClubRepo) debtsCached(ctx context.Context, full bool) (*DebtsReport, error) {
+	// one snapshot for the fingerprint and the report: a write committed in
+	// between is in neither, and the next open sees a new fingerprint
+	tx, err := r.db.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	var key string
+	if err := tx.QueryRow(ctx, debtsKeySQL).Scan(&key); err != nil {
+		return nil, err
+	}
+	debtsMu.Lock()
+	snap, ok := debtsCache[r.db][full]
+	debtsMu.Unlock()
+	if ok && snap.key == key {
+		return snap.rep, nil
+	}
+	rep, err := debtsBuild(ctx, tx, full)
+	if err != nil {
+		return nil, err
+	}
+	debtsMu.Lock()
+	if debtsCache[r.db] == nil {
+		debtsCache[r.db] = map[bool]debtsSnap{}
+	}
+	debtsCache[r.db][full] = debtsSnap{key: key, rep: rep}
+	debtsMu.Unlock()
+	return rep, nil
+}
+
+func debtsBuild(ctx context.Context, tx pgx.Tx, full bool) (*DebtsReport, error) {
 	a := &applier{ctx: ctx, tx: tx, at: time.Now()}
 	from, _ := a.allocFrom()
 	out := &DebtsReport{From: from.Format("2006-01-02"), Residents: []DebtRow{}, Unlinked: []DebtPayment{}, FineTypes: []string{}}
 	list, err := a.residents()
 	if err != nil {
+		return nil, err
+	}
+	a.resCache = list
+	// the money columns of everyone at once (was a query per resident)
+	type money struct {
+		admin       bool
+		rest, renew int64
+	}
+	mon := map[int64]money{}
+	mrows, err := tx.Query(ctx, `SELECT id, admin, rest_entry, renew_debt FROM club_residents`)
+	if err != nil {
+		return nil, err
+	}
+	for mrows.Next() {
+		var id int64
+		var m money
+		if err := mrows.Scan(&id, &m.admin, &m.rest, &m.renew); err != nil {
+			mrows.Close()
+			return nil, err
+		}
+		mon[id] = m
+	}
+	mrows.Close()
+	if err := mrows.Err(); err != nil {
 		return nil, err
 	}
 	byID := map[int64]*DebtRow{}
@@ -97,11 +175,8 @@ func (r *ClubRepo) debts(ctx context.Context, full bool) (*DebtsReport, error) {
 		if x.archive {
 			continue
 		}
-		var admin bool
-		var rest, renew int64
-		if err := tx.QueryRow(ctx, `SELECT admin, rest_entry, renew_debt FROM club_residents WHERE id = $1`, x.id).Scan(&admin, &rest, &renew); err != nil {
-			return nil, err
-		}
+		m := mon[x.id]
+		admin, rest, renew := m.admin, m.rest, m.renew
 		if admin {
 			continue
 		}
@@ -115,6 +190,7 @@ func (r *ClubRepo) debts(ctx context.Context, full bool) (*DebtsReport, error) {
 			Debt: rest + renew, Fines: []DebtFine{}, Payments: []DebtPayment{}}
 		order = append(order, x.id)
 	}
+	byName := map[string]int64{} // the names already matched (0: nobody's)
 	owner := func(name string, id *int64) *DebtRow {
 		if id != nil && byID[*id] != nil {
 			return byID[*id]
@@ -122,11 +198,14 @@ func (r *ClubRepo) debts(ctx context.Context, full bool) (*DebtsReport, error) {
 		if strings.TrimSpace(name) == "" {
 			return nil
 		}
-		x, err := a.matchResident(name)
-		if err != nil {
-			return nil
+		rid, ok := byName[name]
+		if !ok {
+			if x, err := a.matchResident(name); err == nil {
+				rid = x.id
+			}
+			byName[name] = rid
 		}
-		return byID[x.id]
+		return byID[rid]
 	}
 
 	// fines
@@ -269,34 +348,36 @@ func (r *ClubRepo) debts(ctx context.Context, full bool) (*DebtsReport, error) {
 			d.LastPayDay, d.LastPaySum = p.Date, p.Amount
 		}
 	}
-	if err := a.cached(); err != nil {
+	// R70: the history of the debt, the last 12 changes of everyone in one query.
+	// R82: the audit («Проверить») is in the server logs only (ClubR70AtStart)
+	hist := map[int64][]BalanceEvent{}
+	hrows, err := tx.Query(ctx, `SELECT resident_id, id, name, at, before, after, reason FROM (
+			SELECT resident_id, id, name, at, GREATEST(COALESCE(rest_before,0),0) + GREATEST(COALESCE(renew_before,0),0) AS before,
+				GREATEST(COALESCE(rest_after,0),0) + GREATEST(COALESCE(renew_after,0),0) AS after, reason,
+				row_number() OVER (PARTITION BY resident_id ORDER BY id DESC) AS n
+			FROM club_balance_log WHERE resident_id IS NOT NULL) h
+		WHERE n <= 12 ORDER BY resident_id, id DESC`)
+	if err != nil {
 		return nil, err
 	}
-	rr := map[int64]*resRow{}
-	for i := range list {
-		rr[list[i].id] = &list[i]
+	for hrows.Next() {
+		var rid int64
+		var e BalanceEvent
+		var at time.Time
+		if err := hrows.Scan(&rid, &e.ID, &e.Resident, &at, &e.Before, &e.After, &e.Reason); err != nil {
+			hrows.Close()
+			return nil, err
+		}
+		e.At = at.UTC().Format(time.RFC3339)
+		hist[rid] = append(hist[rid], e)
+	}
+	hrows.Close()
+	if err := hrows.Err(); err != nil {
+		return nil, err
 	}
 	for _, id := range order {
 		d := byID[id]
-		// R70: the audit and the history of the debt
-		if x := rr[id]; x != nil && !x.former {
-			var rest, renew int64
-			if err := tx.QueryRow(ctx, `SELECT rest_entry, renew_debt FROM club_residents WHERE id = $1`, id).Scan(&rest, &renew); err != nil {
-				return nil, err
-			}
-			rp, err := a.residentPays(x)
-			if err != nil {
-				return nil, err
-			}
-			if d.Check, err = a.auditDebt(x, rest, renew, rp); err != nil {
-				return nil, err
-			}
-		}
-		h, err := a.balanceHistory(id, 12)
-		if err != nil {
-			return nil, err
-		}
-		if len(h) > 0 {
+		if h := hist[id]; len(h) > 0 {
 			d.History = h
 		}
 		d.Total = d.Debt + d.FinesOpen

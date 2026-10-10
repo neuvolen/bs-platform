@@ -124,9 +124,21 @@ func TestR70SetDebtHolds(t *testing.T) {
 			t.Fatal("no Альтаир in the report")
 		}
 	}
-	find()
-	if len(row.Check) == 0 {
-		t.Fatalf("200 000 at a 100 000 tariff is not flagged: %+v", row)
+	// R82: the audit is in the server logs only (DebtAudit), the tab has no «Проверить»
+	flagged := func() bool {
+		fl, err := e.repo.DebtAudit(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range fl {
+			if f.Resident == "Альтаир" {
+				return true
+			}
+		}
+		return false
+	}
+	if !flagged() {
+		t.Fatal("200 000 at a 100 000 tariff is not flagged")
 	}
 	ClubR70AtStart(ctx, e.repo, nil)
 	ClubR70AtStart(ctx, e.repo, nil)
@@ -137,8 +149,8 @@ func TestR70SetDebtHolds(t *testing.T) {
 		t.Fatalf("after the adjustment %d", renew)
 	}
 	find()
-	if len(row.Check) != 0 || len(row.History) == 0 {
-		t.Fatalf("after the adjustment: check %v, history %d", row.Check, len(row.History))
+	if flagged() || len(row.History) == 0 || len(row.Check) != 0 {
+		t.Fatalf("after the adjustment: flagged %v, history %d", flagged(), len(row.History))
 	}
 	if _, err := e.repo.DDSApply(ctx, []pg.DDSOp{{Op: "delete", ID: res.IDs["a"]}}, "test", time.Now()); err != nil {
 		t.Fatal(err)

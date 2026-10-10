@@ -66,7 +66,10 @@ func NewPlatformModule(h *PlatformHandler, a *PlatformAuthHandler, secret []byte
 		m.AI.Premium.Start(context.Background())
 		go m.AI.EventsLoop(context.Background())
 		go m.AI.TGEventsLoop(context.Background()) // platform_tgevents.go (R70)
-		go m.AI.LoadEmbedded(context.Background(), a.botToken)
+		go func() {
+			m.AI.LoadEmbedded(context.Background(), a.botToken)
+			m.AI.LoadMemeStickers(context.Background()) // R82: мемные стикеры (stickers_meme.go)
+		}()
 		go m.AI.SeedGuides(context.Background())
 		go m.AI.MigrateRazborPrice(context.Background()) // price_migrate.go
 		go m.AI.LibExtLoop(context.Background())         // library_ext.go
@@ -145,6 +148,7 @@ func (m *PlatformModule) Register(r *gin.Engine) {
 
 	g.GET("/sync", m.h.Sync)
 	g.GET("/books", BookShelf) // Полка: книжная полка с обложками
+	g.GET("/books/konspekt", BookKonspekt) // R82: «Конспект BS: 5 идей и как применить»
 	g.POST("/presence", m.Presence.Post)          // R52: platform_presence.go
 	g.GET("/presence/stream", m.Presence.Stream)  // R52
 	g.POST("/call/room", m.Presence.CallRoom)     // R65: онлайн-разбор на доске (platform_callroom.go)

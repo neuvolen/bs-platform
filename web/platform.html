@@ -41370,9 +41370,6 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
 .r69-hint{font-size:12.5px;color:var(--pm);line-height:1.5;margin:-4px 0 12px}
 .r69-un .r69-li{grid-template-columns:86px minmax(0,1fr) auto}
 .r69-un select{max-width:220px}
-.r69-nm em.r70-chk{color:#F5A524;border-color:#F5A524}
-.r70-why{margin:6px 0 0;padding:10px 12px;border:1px solid #F5A524;border-radius:10px;font-size:12.5px;line-height:1.5;color:var(--ptx)}
-.r70-why b{color:#F5A524}
 @media (max-width:900px){
   .r69-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .r69-tr{grid-template-columns:minmax(120px,1.6fr) minmax(76px,1fr) 22px}
@@ -41396,20 +41393,40 @@ function api(method, path, body){
 }
 var KIND = {fine: 'штраф', rest: 'остаток входа', renew: 'долг продления', package: 'пакет встреч'};
 var D = {st: 'idle', rep: null, editable: false, q: '', f: 'all', sort: 'total', open: {}, form: {}, at: 0};
-try{ var sv = JSON.parse(localStorage.getItem('r69_debts') || '{}'); if(sv.f) D.f = sv.f; if(sv.sort) D.sort = sv.sort; }catch(e){}
+try{ var sv = JSON.parse(localStorage.getItem('r69_debts') || '{}'); if(sv.f && sv.f !== 'check') D.f = sv.f; if(sv.sort) D.sort = sv.sort; }catch(e){}
 function remember(){ try{ localStorage.setItem('r69_debts', JSON.stringify({f: D.f, sort: D.sort})); }catch(e){} }
 
+// R82: вкладка открывается сразу: последний отчёт этой вкладки браузера (sessionStorage) рисуется, пока идёт свежий;
+// сервер отвечает из снимка за миллисекунды; первые 30 строк таблицы сразу, остальные следующим кадром
+var SS = 'r82_debts';
+try{ var ss0 = JSON.parse(sessionStorage.getItem(SS) || 'null'); if(ss0 && ss0.rep && ss0.rep.residents){ D.rep = ss0.rep; D.editable = !!ss0.editable; D.st = 'ready'; } }catch(e){}
+var inflight = null;
+function fetchRep(){
+  if(inflight) return inflight;
+  inflight = api('GET', '/debts').then(function(x){ inflight = null; return x; });
+  return inflight;
+}
+window.r82DebtsPrefetch = function(){ if(!D.at && !inflight) fetchRep().then(take); };
+function take(x){
+  if(x.ok && x.j.report){
+    D.rep = x.j.report; D.editable = !!x.j.editable; D.st = 'ready'; D.at = Date.now(); D.lim = 30;
+    try{ sessionStorage.setItem(SS, JSON.stringify({rep: D.rep, editable: D.editable})); }catch(e){}
+    return true;
+  }
+  return false;
+}
 function load(force){
   if(!force && D.rep && Date.now() - D.at < 15000){ paint(); return; }
   if(!D.rep) D.st = 'loading';
   paint();
-  api('GET', '/debts').then(function(x){
-    if(x.ok && x.j.report){
-      D.rep = x.j.report; D.editable = !!x.j.editable; D.st = 'ready'; D.at = Date.now();
+  fetchRep().then(function(x){
+    if(take(x)){
       if(D._openName){ D.rep.residents.forEach(function(r){ if(r.name === D._openName) D.open[r.id] = true; }); delete D._openName; }
     }
     else if(!D.rep){ D.st = 'error'; D.err = (x.j && (x.j.detail || x.j.error)) || ('сервер ответил ' + (x.st || 'ошибкой')); }
-    paint();
+    var el = host(), y = el ? el.querySelector('#r69Q') : null, foc = y && document.activeElement === y;
+    if(foc && document.getElementById('r69Body')) paintBody(); else paint();
+    if(D.lim) requestAnimationFrame(function(){ D.lim = 0; if(host()) paintBody(); });
   });
 }
 function host(){ return document.getElementById('r69Debts'); }
@@ -41423,8 +41440,7 @@ function rows(){
     if(D.f === 'on') return !r.former && r.format === 'Онлайн';
     if(D.f === 'off') return !r.former && r.format !== 'Онлайн';
     if(D.f === 'former') return r.former;
-    if(D.f === 'check') return !!(r.check && r.check.length); // R70: долг не сходится с оплатами
-    return D.f === 'all' ? !r.former || r.total > 0 : true;
+    return D.f === 'all' ? !r.former || r.total > 0 || !!q : true; // R82: поиск по имени находит и бывших
   });
   var by = {
     total: function(a, b){ return b.total - a.total || a.name.localeCompare(b.name, 'ru'); },
@@ -41445,8 +41461,7 @@ function kpiHTML(){
 }
 function toolsHTML(){
   var F = [['all', 'Все'], ['debt', 'С долгом'], ['fines', 'Со штрафами'], ['on', 'Онлайн'], ['off', 'Офлайн'], ['former', 'Бывшие']];
-  var nChk = ((D.rep && D.rep.residents) || []).filter(function(r){ return r.check && r.check.length; }).length;
-  if(nChk) F.push(['check', 'Проверить · ' + nf(nChk)]); // R70
+  // R82: «Проверить» убран, сверка долгов с оплатами только в логах сервера
   return '<div class="r69-tools"><input class="r69-q" id="r69Q" placeholder="Найти резидента" value="' + E(D.q) + '" aria-label="Найти резидента">' +
     F.map(function(f){ return '<button type="button" class="r69-ch' + (D.f === f[0] ? ' on' : '') + '" data-r69f="' + f[0] + '">' + f[1] + '</button>'; }).join('') +
     '<select class="r69-in" id="r69Sort" aria-label="Сортировка" style="min-height:34px">' +
@@ -41464,8 +41479,7 @@ function detHTML(r){
   var h = '<div class="r69-det" data-det="' + r.id + '">';
   h += '<div class="r69-sec"><div class="r69-sh">Долг по членству: ' + tg(r.debt) + (r.debt ? ' · остаток входа ' + tg(r.rest) + ' · продление ' + tg(r.renew) : '') + (r.tariff ? ' · тариф ' + tg(r.tariff) : '') +
     (D.editable ? '<button type="button" class="r69-b sm" data-r69="set" data-id="' + r.id + '">Установить долг</button>' : '') + '</div>';
-  // R70: долг не сходится с оплатами: почему проверить; «Установить долг» с причиной держится и после пересчётов
-  if(r.check && r.check.length) h += '<div class="r70-why"><b>Проверить:</b> ' + r.check.map(E).join('; ') + '</div>';
+  // R70: «Установить долг» с причиной держится и после пересчётов
   if(D.form.set === r.id) h += '<div class="r69-form"><input class="r69-in" id="r70SA" inputmode="numeric" data-money="1" value="' + nf(r.debt) + '" aria-label="Долг по членству, ₸" style="max-width:160px">' +
     '<input class="r69-in" id="r70SR" placeholder="Причина: например, продление оплачено 07.10" maxlength="300" aria-label="Причина">' +
     '<button type="button" class="r69-b sm pri" data-r69="set-ok" data-id="' + r.id + '">Сохранить долг</button><button type="button" class="r69-b sm" data-r69="set-x">Отмена</button>' +
@@ -41538,11 +41552,10 @@ function tableHTML(){
   list.forEach(function(r){ tot.debt += r.debt; tot.fines += r.finesOpen; tot.total += r.total; tot.paid += r.paidTotal; });
   var h = '<div class="r69-tbl"><div class="r69-tr r69-th"><span data-r69s="az">Резидент</span><span class="n" data-r69s="total">Долг</span><span class="n">Штрафы</span><span class="n" data-r69s="total">Итого</span><span class="n">Оплачено</span><span data-r69s="last">Последняя оплата</span><span></span></div>';
   if(!list.length) h += '<div class="r69-empty">' + (D.q ? 'Никого не нашлось' : 'Долгов и штрафов нет') + '</div>';
-  list.forEach(function(r){
+  (D.lim ? list.slice(0, D.lim) : list).forEach(function(r){
     var o = !!D.open[r.id];
     h += '<div class="r69-tr r69-row' + (o ? ' open' : '') + '" data-r69row="' + r.id + '" tabindex="0" role="button" aria-expanded="' + o + '">' +
-      '<span class="r69-nm"><i>' + E(r.name) + '</i><em>' + (r.former ? 'бывший' : (r.format === 'Онлайн' ? 'онлайн' : 'офлайн')) + '</em>' +
-        (r.check && r.check.length ? '<em class="r70-chk" title="' + E(r.check.join('; ')) + '">Проверить</em>' : '') + '</span>' +
+      '<span class="r69-nm"><i>' + E(r.name) + '</i><em>' + (r.former ? 'бывший' : (r.format === 'Онлайн' ? 'онлайн' : 'офлайн')) + '</em></span>' +
       '<span class="n' + (r.debt ? ' red' : ' m') + '">' + nf(r.debt) + '</span>' +
       '<span class="n' + (r.finesOpen ? ' red' : ' m') + '">' + nf(r.finesOpen) + '</span>' +
       '<span class="n' + (r.total ? ' red' : ' m') + '">' + nf(r.total) + '</span>' +
@@ -44376,7 +44389,7 @@ window.bsAssist = {apply: applyAssist, hidden: hidden, state: function(){ return
     try{ loadDiagAns(); an = Object.keys(diagAns || {}).length; at = DIAGNOSTIC_AREAS.reduce(function(a, x){ return a + x.questions.length; }, 0); }catch(e){}
     L.push({id:'rDiag', ic:'diag', t:'Диагностика бизнеса', d:'Утверждения по органам бизнеса, итог с диагнозами', done: an >= at, part: an > 0 && an < at, st: an ? an + ' из ' + at : 'Не начата', key: true});
     var g = null; try{ g = curBoard && curBoard.gallup; if(!g){ var all = JSON.parse(localStorage.getItem('bs_gallup') || '{}'); g = curBoard ? all[curBoard.id] : null; } }catch(e){}
-    L.push({id:'rGallup', ic:'gal', t:'Gallup', d:'Загрузите отчёт: разбор талантов под ваш бизнес', done: !!g, st: g ? 'Загружен' : 'Нет отчёта', key: true});
+    L.push({id:'rGallup', ic:'gal', t:'Gallup', d:'Загрузите отчёт: разбор талантов под ваш бизнес', done: !!g, st: g ? 'Загружен' : 'Нет отчёта', key: true, how: !g}); // R82: «Как пройти тест»
     var hv = 0; try{ var H = (curBoard && curBoard.health) || {}; hv = Object.keys(H).filter(function(k){ return H[k] !== '' && H[k] != null; }).length; }catch(e){}
     L.push({id:'rHealth', ic:'health', t:'Оценка трекеров', d:'Здоровье бизнеса по семи органам, ставят трекеры', done: hv > 0, st: hv ? hv + ' из 7 органов' : 'Появится после разбора', ro: true});
     L.push({id:'rSummary', ic:'num', t:'Цифры бизнеса', d:'Оборот, прибыль, маржа и другие показатели за цикл', st: 'Раз в цикл'});
@@ -44393,7 +44406,8 @@ window.bsAssist = {apply: applyAssist, hidden: hidden, state: function(){ return
     else h += '<div class="r73-next"><div><span class="k">Замеры цикла</span><b>Всё заполнено</b><span>Обновите колёса перед следующим разбором, динамика посчитается сама</span></div>' +
       '<button type="button" onclick="goSection(\'rAnalysis\')">Смотреть динамику</button></div>';
     h += '<div class="r73-grid">' + L.map(function(x){
-      return '<button type="button" class="r73-c" data-s="' + x.id + '" onclick="goSection(this.dataset.s)"><span class="ic">' + svg(IC[x.ic]) + '</span><b>' + E(x.t) + '</b><em>' + E(x.d) + '</em>' +
+      return '<button type="button" class="r73-c" data-s="' + x.id + '" onclick="if(window.r82GallupHow&&event.target.closest(\'[data-how]\')){r82GallupHow();return;}goSection(this.dataset.s)"><span class="ic">' + svg(IC[x.ic]) + '</span><b>' + E(x.t) + '</b><em>' + E(x.d) + '</em>' +
+        (x.how ? '<span class="r82-how" data-how="1">Ещё не проходили? Как пройти тест →</span>' : '') +
         '<span class="st"><i class="' + (x.done ? 'ok' : '') + '">' + E(x.st) + '</i><u>' + E(x.last || '') + '</u></span></button>';
     }).join('') + '</div></div>';
     el.innerHTML = h;
@@ -46637,5 +46651,366 @@ html.r81-bs .page.on .ph{justify-content:flex-end;margin-bottom:12px}
   };
 })();
 </script>
+<!-- R82: «Пройти тест Gallup» в Замерах и онбординге, «Бывшие» в Клубе с возвратом в резиденты, мемные стикеры по категориям,
+     книги: читать и скачать файл клуба, легальные магазины и бумажные книги, «Конспект BS» -->
+<style id="r82Style">
+.r82-how{display:block;margin-top:8px;font-size:12px;font-weight:800;color:var(--pon,#3DD68C);text-decoration:underline;text-underline-offset:3px}
+.r82-gb{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;border:1px solid var(--pb);border-radius:12px;background:var(--pc)}
+.r82-gb b{display:block;font-size:14px;color:var(--ptx)}
+.r82-gb span{display:block;font-size:12.5px;color:var(--pm);margin-top:2px;line-height:1.45}
+.r82-yt{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000;margin:0 0 12px;cursor:pointer;max-width:720px}
+.r82-yt img{width:100%;height:100%;object-fit:cover;opacity:.8;display:block}
+.r82-yt button{position:absolute;inset:0;margin:auto;width:72px;height:52px;border-radius:14px;border:none;background:#FF0033;color:#fff;font-size:22px;cursor:pointer}
+.r82-yt em{position:absolute;left:12px;bottom:10px;right:12px;font-style:normal;font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 3px #000}
+.r82-yt iframe{width:100%;height:100%;border:0;display:block}
+.r82-ft .pf-tr{grid-template-columns:minmax(170px,2fr) .9fr .9fr .9fr .7fr 1fr 1fr}
+@media (max-width:900px){.r82-ft .pf-tr{grid-template-columns:minmax(130px,1.6fr) .8fr .9fr}.r82-ft .pf-tr>:nth-child(2),.r82-ft .pf-tr>:nth-child(3),.r82-ft .pf-tr>:nth-child(5),.r82-ft .pf-tr>:nth-child(6){display:none}}
+.r82-fm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 14px;padding:12px;border:1px solid var(--pb);border-radius:12px}
+.r82-fm select,.r82-fm input{background:var(--pd);border:1px solid var(--pb);border-radius:10px;color:var(--ptx);padding:8px 10px;font:inherit;font-size:13.5px;min-height:38px}
+.r82-fm small{display:block;width:100%;font-size:12px;color:var(--pm);line-height:1.45}
+.r82-fm .err{color:var(--pred)}
+.r82-li{display:grid;grid-template-columns:86px minmax(0,1fr) auto;gap:10px;padding:7px 0;border-top:1px solid var(--pb);font-size:13px;color:var(--ptx)}
+.r82-li:first-of-type{border-top:none}
+.r82-li .d{color:var(--pm)}
+.r82-li .v{font-weight:800;white-space:nowrap}
+.r82-sc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.r82-sc button{padding:6px 11px;border-radius:999px;border:1px solid var(--pb);background:none;color:var(--pm);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;min-height:32px}
+.r82-sc button.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.r82-sc button b{margin-left:5px;opacity:.7}
+.skp-i.r82-off{display:none}
+.bk-lk.r82-buy a{font-weight:700}
+.r82-bkn{font-size:12px;color:var(--mu,var(--pm));line-height:1.5;margin-top:8px}
+.r82-ks{margin:0;padding:0;list-style:none;counter-reset:k}
+.r82-ks li{counter-increment:k;position:relative;padding:10px 0 10px 34px;border-top:1px solid var(--bd,var(--pb));font-size:13.5px;line-height:1.5;color:var(--tx,var(--ptx))}
+.r82-ks li:first-child{border-top:none}
+.r82-ks li::before{content:counter(k);position:absolute;left:0;top:10px;width:24px;height:24px;border-radius:7px;background:var(--tx,#fff);color:var(--bg,#000);font:800 12px/24px 'Manrope',sans-serif;text-align:center}
+.r82-ks li b{display:block}
+.r82-ks li span{display:block;color:var(--mu,var(--pm));margin-top:2px}
+.r82-kl{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--bd,var(--pb));border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:middle}
+.r82-rd{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.72);display:none;align-items:stretch;justify-content:center;padding:18px}
+.r82-rd.on{display:flex}
+.r82-rdi{background:var(--pc,#111);border:1px solid var(--pb,#333);border-radius:14px;width:min(1000px,100%);display:flex;flex-direction:column;overflow:hidden}
+.r82-rdh{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--pb,#333)}
+.r82-rdh b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ptx,#fff);font-size:14px}
+.r82-rdh button{padding:7px 12px;border-radius:9px;border:1px solid var(--pb,#333);background:none;color:var(--ptx,#fff);font:inherit;font-size:13px;font-weight:800;cursor:pointer;min-height:36px}
+.r82-rdb{flex:1;min-height:0;position:relative;background:#fff}
+.r82-rdb iframe{width:100%;height:100%;border:0;display:block}
+.r82-rdb .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#333;font:600 14px 'Manrope',sans-serif;padding:20px;text-align:center}
+.r82-rdb pre{margin:0;padding:24px;white-space:pre-wrap;font:15px/1.6 Georgia,serif;color:#111;height:100%;overflow:auto;box-sizing:border-box}
+#r82Epub{position:absolute;inset:0 0 48px 0}
+.r82-epn{position:absolute;left:0;right:0;bottom:0;height:48px;display:flex;justify-content:space-between;align-items:center;padding:0 12px;background:#f3f3f3;border-top:1px solid #ddd}
+.r82-epn button{padding:7px 14px;border-radius:9px;border:1px solid #bbb;background:#fff;color:#111;font:700 13px 'Manrope',sans-serif;cursor:pointer}
+@media (max-width:640px){.r82-rd{padding:0}.r82-rdi{border-radius:0}}
+</style>
+<script id="r82Script">
+(function(){
+'use strict';
+function E(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function nf(v){ v = Math.round(Number(v) || 0); return String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+function nm(s){ return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim(); }
+function toastS(t){ try{ toast(t); }catch(e){} }
+function isAdm(){ return typeof MODE !== 'undefined' && MODE === 'admin'; }
+
+// ═══ 1. «Долги и штрафы»: отчёт подтягивается заранее, пока команда на других экранах ═══
+setTimeout(function(){ try{ if(isAdm() && window.r82DebtsPrefetch && window.BSSync && BSSync.clubApi) r82DebtsPrefetch(); }catch(e){} }, 6000);
+
+// ═══ 2. Gallup: «Как пройти тест» (инструмент библиотеки tl_r82_gallup) ═══
+var GALLUP_TOOL = 'tl_r82_gallup';
+window.r82GallupHow = function(){
+  if(typeof lib2OpenId === 'function') return lib2OpenId(GALLUP_TOOL);
+  toastS('Инструкция в Материалах: «Пройти тест Gallup»');
+};
+if(typeof renderGallup === 'function'){
+  var rg0 = renderGallup;
+  window.renderGallup = renderGallup = function(){
+    var r = rg0.apply(this, arguments);
+    try{
+      var drop = document.getElementById('galDrop');
+      if(drop && !document.getElementById('r82GalHow')){
+        var had = !!(document.querySelector('#pg-stub .g16, #stubBody .r52g-acts, #stubBody .r71-club'));
+        var b = document.createElement('div'); b.className = 'r82-gb'; b.id = 'r82GalHow';
+        b.innerHTML = '<div><b>' + (had ? 'Как пройти тест заново' : 'Ещё не проходили тест?') + '</b><span>Цена, 35-45 минут, русский язык, видео и чек-лист по шагам. Потом загрузите отчёт сюда</span></div>' +
+          '<button type="button" class="btn pf-b pf-p" onclick="r82GallupHow()">Как пройти тест</button>';
+        drop.parentNode.insertBefore(b, drop);
+      }
+    }catch(e){}
+    return r;
+  };
+}
+// онбординг резидента: шаг про Gallup после замеров
+try{
+  if(typeof ONBOARD !== 'undefined' && Array.isArray(ONBOARD) && !ONBOARD.some(function(s){ return s && s.r82; })){
+    var at = ONBOARD.findIndex(function(s){ return s && /Замеры/.test(s.t || ''); });
+    ONBOARD.splice(at >= 0 ? at + 1 : ONBOARD.length - 1, 0, {r82: 1, t: 'Тест Gallup до первого разбора',
+      d: 'Тест CliftonStrengths покажет ваши 5 главных талантов из 34. Купите код на сайте Gallup, пройдите тест на русском за 35-45 минут и загрузите PDF в Замеры → Gallup: вернётся разбор BS и «Чем Business Surgery будет полезен именно вам».',
+      icon: '☆', go: {b: 'rbiz', s: 'rGallup'}});
+  }
+}catch(e){}
+// видео инструмента прямо в карточке (embed: true), остальные ссылками на YouTube
+function ytId(u){ var m = String(u || '').match(/(?:youtu\.be\/|[?&]v=|\/embed\/)([A-Za-z0-9_-]{11})/); return m ? m[1] : ''; }
+window.r82YtPlay = function(el){
+  var id = el.getAttribute('data-yt'); if(!id) return;
+  el.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0" title="Видео" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
+  el.onclick = null; el.style.cursor = 'default';
+};
+if(typeof lib2VidsHTML === 'function'){
+  var lv0 = lib2VidsHTML;
+  window.lib2VidsHTML = lib2VidsHTML = function(list){
+    list = Array.isArray(list) ? list : [];
+    var emb = list.filter(function(x){ return x && x.embed && ytId(x.url); }), rest = list.filter(function(x){ return !(x && x.embed && ytId(x.url)); });
+    var h = emb.map(function(x){ var id = ytId(x.url);
+      return '<div class="r82-yt" data-yt="' + id + '" role="button" tabindex="0" aria-label="Смотреть видео" onclick="r82YtPlay(this)" onkeydown="if(event.key===\'Enter\')r82YtPlay(this)">' +
+        '<img src="https://i.ytimg.com/vi/' + id + '/hqdefault.jpg" alt="" loading="lazy"><button type="button" tabindex="-1">▶</button><em>' + E(x.title || 'Видео') + '</em></div>'; }).join('');
+    return h + lv0.call(this, rest.length ? rest : (emb.length ? emb : list));
+  };
+}
+
+// ═══ 3. Клуб → Резиденты → «Бывшие»: их данные и «Вернуть в резиденты» ═══
+var F82 = {list: null, editable: false, busy: null, err: ''};
+function fLoad(force){
+  if(F82.busy) return F82.busy;
+  if(F82.list && !force) return Promise.resolve(F82.list);
+  if(!window.BSSync || !BSSync.clubApi) return Promise.resolve(null);
+  F82.busy = BSSync.clubApi('GET', '/former').then(function(r){ return r.json(); }).then(function(j){
+    F82.busy = null;
+    if(j && j.former){ F82.list = j.former; F82.editable = !!j.editable; F82.err = ''; } else F82.err = (j && (j.detail || j.error)) || 'не загрузилось';
+    return F82.list;
+  }, function(){ F82.busy = null; F82.err = 'нет связи с сервером'; return null; });
+  return F82.busy;
+}
+function fChip(){
+  var bar = document.querySelector('#stubBody .pf-filters'); if(!bar || !isAdm()) return;
+  var c = bar.querySelector('[data-f="former"]');
+  if(!c){
+    c = document.createElement('div'); c.className = 'pf-fl'; c.setAttribute('data-f', 'former');
+    c.onclick = function(){ srF = 'former'; document.querySelectorAll('.pf-fl').forEach(function(x){ x.classList.toggle('on', x.dataset.f === srF); }); srRender(); };
+    bar.appendChild(c);
+    if(!F82.list) fLoad().then(function(){ fChip(); });
+  }
+  c.textContent = 'Бывшие' + (F82.list ? ' · ' + F82.list.length : '');
+  c.classList.toggle('on', typeof srF !== 'undefined' && srF === 'former');
+}
+function fRender(){
+  var box = document.getElementById('srTbl'); if(!box) return;
+  if(!F82.list){
+    box.innerHTML = '<div class="pf-empty">' + (F82.err ? 'Бывшие резиденты не загрузились: ' + E(F82.err) : 'Загружаем бывших резидентов…') + '</div>';
+    if(!F82.err) fLoad().then(function(){ if(srF === 'former') fRender(); fChip(); });
+    return;
+  }
+  var L = F82.list;
+  box.innerHTML = '<div class="pf-tbl r82-ft"><div class="pf-tr pf-th"><span>Бывший резидент</span><span>Формат</span><span>В клубе с</span><span>Ушёл</span><span>Встречи</span><span>Оплачено</span><span>Долг</span></div>' +
+    (L.length ? L.map(function(r, k){
+      var debt = (r.debt || 0) + (r.finesOpen || 0);
+      return '<div class="pf-tr" data-r82f="' + r.id + '" style="cursor:pointer"><span class="pf-nm"><b class="r75-no">' + (k + 1) + '</b>' + E(r.name) + '</span>' +
+        '<span class="m">' + E(r.format || '-') + '</span><span>' + E(r.joined || '-') + '</span><span>' + E(r.left || '-') + '</span>' +
+        '<span>' + nf(r.meetings) + '</span><span class="m">' + nf(r.paidTotal) + '</span><span' + (debt ? ' class="pf-red"' : ' class="m"') + '>' + nf(debt) + '</span></div>';
+    }).join('') : '<div class="pf-empty">Бывших резидентов нет</div>') + '</div>' +
+    '<div class="pf-note" style="margin-top:10px">История каждого сохранена: оплаты, штрафы, встречи, доски. «Вернуть в резиденты» в карточке</div>';
+}
+document.addEventListener('click', function(ev){
+  var r = ev.target.closest && ev.target.closest('[data-r82f]'); if(r){ r82Former(+r.getAttribute('data-r82f')); }
+});
+function boardsOf(name){
+  var n = nm(name), f = n.split(' ')[0];
+  return (typeof boards !== 'undefined' && boards || []).filter(function(b){
+    var x = nm(b && b.info && b.info.res); return x && (x === n || (x.split(' ')[0] === f && (x.split(' ').length === 1 || n.split(' ').length === 1)));
+  });
+}
+window.r82Former = function(id){
+  var r = (F82.list || []).filter(function(x){ return x.id === id; })[0]; if(!r) return;
+  document.getElementById('cardTitle').textContent = r.name;
+  document.getElementById('cardSub').textContent = ['Клуб · Бывшие резиденты', r.format || '', r.joined ? 'в клубе с ' + r.joined : '', r.left ? 'ушёл ' + r.left : ''].filter(Boolean).join(' · ');
+  var cell = function(k, v, sub, red){ return '<div><div class="bs-l">' + k + '</div><div class="sum-v' + (red ? ' pf-red' : '') + '">' + v + '</div>' + (sub ? '<div class="pf-sub">' + sub + '</div>' : '') + '</div>'; };
+  var h = '<div class="card-sum pf-grid2"><div class="sum-row">' +
+    cell('Встречи', nf(r.meetings), r.lastMeet ? 'последняя ' + E(r.lastMeet) : 'в журнале нет') +
+    cell('Оплачено', nf(r.paidTotal) + ' ₸', (r.pays || []).length ? 'платежей: ' + r.pays.length : '') +
+    cell('Долг', nf(r.debt) + ' ₸', r.tariff ? 'тариф ' + nf(r.tariff) + ' ₸' : '', r.debt > 0) +
+    cell('Штрафы к оплате', nf(r.finesOpen) + ' ₸', (r.fines || []).length ? 'всего штрафов: ' + r.fines.length : '', r.finesOpen > 0) + '</div></div>';
+  if(F82.editable){
+    h += '<div class="r82-fm"><b style="width:100%;font-size:13.5px">Вернуть в резиденты</b>' +
+      '<select id="r82FFmt" aria-label="Формат"><option' + (r.format === 'Онлайн' ? ' selected' : '') + '>Онлайн</option><option' + (r.format !== 'Онлайн' ? ' selected' : '') + '>Офлайн</option></select>' +
+      '<input id="r82FTar" inputmode="numeric" data-money="1" value="' + nf(r.tariff) + '" aria-label="Тариф, ₸" style="max-width:150px">' +
+      '<button type="button" class="btn pf-b pf-p" onclick="r82Return(' + r.id + ', this)">Вернуть в резиденты</button>' +
+      '<small>История остаётся: оплаты, штрафы, встречи, доски, дата входа. Новый пакет начнётся сегодня (встречи с нуля, как при продлении), долг и штрафы не меняются: поправить их можно в Учёте</small><small class="err" id="r82FErr"></small></div>';
+  } else h += '<div class="pf-note" style="margin:4px 0 12px">Вернуть в резиденты можно, когда данные клуба ведёт сервер</div>';
+  h += '<div class="pf-acts"><button class="btn pf-b" onclick="closeSheet(\'cardSheet\');r69OpenDebts(' + E(JSON.stringify(String(r.name))) + ')">Долги и штрафы в Учёте</button></div>';
+  var bs = boardsOf(r.name);
+  if(bs.length) h += '<div class="pf-card"><div class="pf-lbl">Доски разборов · ' + bs.length + '</div>' + bs.slice(0, 8).map(function(b){
+    return '<div class="r82-li"><span class="d">цикл ' + E(b.version || 1) + '</span><span>' + E(b.name || (b.info && b.info.res) || 'Доска') + '</span><span class="v"><span class="pf-link" data-b="' + E(b.id) + '" onclick="closeSheet(\'cardSheet\');goBlock(\'track\');openBoard(this.dataset.b)">Открыть</span></span></div>'; }).join('') + '</div>';
+  if((r.pays || []).length) h += '<div class="pf-card"><div class="pf-lbl">Оплаты</div>' + r.pays.map(function(p){
+    return '<div class="r82-li"><span class="d">' + E(p.date) + '</span><span>' + E(p.cat) + '</span><span class="v">' + nf(p.amount) + ' ₸</span></div>'; }).join('') + '</div>';
+  if((r.fines || []).length) h += '<div class="pf-card"><div class="pf-lbl">Штрафы</div>' + r.fines.map(function(f){
+    return '<div class="r82-li"><span class="d">' + E(f.date) + '</span><span>' + E(f.type || 'Штраф') + ' · ' + E(String(f.status || '').toLowerCase()) + '</span><span class="v">' + nf(f.amount) + ' ₸</span></div>'; }).join('') + '</div>';
+  if(r.note) h += '<div class="pf-card"><div class="pf-lbl">Заметка</div><div class="pf-lt">' + E(r.note) + '</div></div>';
+  document.getElementById('cardBody').innerHTML = h;
+  var cb0 = document.getElementById('coverBtn'); if(cb0) cb0.style.display = 'none';
+  openSheet('cardSheet');
+};
+window.r82Return = function(id, btn){
+  var fmt = (document.getElementById('r82FFmt') || {}).value || '', tar = String((document.getElementById('r82FTar') || {}).value || '').replace(/\D/g, '');
+  var err = document.getElementById('r82FErr');
+  btn.disabled = true;
+  BSSync.clubApi('POST', '/former/return', {id: id, format: fmt, tariff: tar}).then(function(r){ return r.json().then(function(j){ return {ok: r.ok && j && j.ok, j: j}; }); }, function(){ return {ok: false, j: {detail: 'Нет связи с сервером'}}; }).then(function(x){
+    btn.disabled = false;
+    if(!x.ok){ if(err) err.textContent = (x.j && (x.j.detail || x.j.error)) || 'Не получилось'; return; }
+    var res = x.j.result || {};
+    toastS((res.name || 'Резидент') + ' снова в клубе: пакет ' + (res.granted || '') + ' встреч с ' + (res.from || 'сегодня'));
+    F82.list = null; closeSheet('cardSheet');
+    try{ if(window.BSSync && BSSync.refresh) BSSync.refresh(); }catch(e){}
+    srF = 'all';
+    setTimeout(function(){ try{ if(typeof section !== 'undefined' && section === 'sRes') renderSalesRes(); }catch(e){} }, 1500);
+  });
+};
+if(typeof srRender === 'function'){
+  var sr0 = srRender;
+  window.srRender = srRender = function(){
+    try{ fChip(); }catch(e){}
+    if(typeof srF !== 'undefined' && srF === 'former'){ if(isAdm()) return fRender(); srF = 'all'; }
+    return sr0.apply(this, arguments);
+  };
+}
+
+// ═══ 4. Стикеры: категории мемного набора (Деньги, Команда, Продажи, Клуб, Собственник) ═══
+var SC = {cat: ''};
+try{ SC.cat = localStorage.getItem('r82_stkcat') || ''; }catch(e){}
+function stkCats(root, pack){
+  var grid = root && root.querySelector('.skp-grid'); if(!grid || !pack || !pack.length) return;
+  var items = grid.querySelectorAll('.skp-i'); if(items.length !== pack.length) return;
+  var cnt = {}, order = [];
+  pack.forEach(function(p){ var c = p.cat || 'Свои'; if(!cnt[c]){ cnt[c] = 0; order.push(c); } cnt[c]++; });
+  if(order.length < 2) return;
+  if(SC.cat && !cnt[SC.cat]) SC.cat = '';
+  var bar = root.querySelector('.r82-sc');
+  if(!bar){ bar = document.createElement('div'); bar.className = 'r82-sc'; grid.parentNode.insertBefore(bar, grid); }
+  bar.innerHTML = ['<button type="button" data-c=""' + (SC.cat ? '' : ' class="on"') + '>Все<b>' + pack.length + '</b></button>'].concat(order.map(function(c){
+    return '<button type="button" data-c="' + E(c) + '"' + (SC.cat === c ? ' class="on"' : '') + '>' + E(c) + '<b>' + cnt[c] + '</b></button>'; })).join('');
+  bar.onclick = function(ev){ var b = ev.target.closest('button'); if(!b) return; SC.cat = b.getAttribute('data-c') || ''; try{ localStorage.setItem('r82_stkcat', SC.cat); }catch(e){} stkCats(root, pack); };
+  items.forEach(function(el, i){ el.classList.toggle('r82-off', !!SC.cat && (pack[i].cat || 'Свои') !== SC.cat); });
+}
+if(typeof renderStickers === 'function'){
+  var rs0 = renderStickers;
+  window.renderStickers = renderStickers = function(){
+    var r = rs0.apply(this, arguments);
+    try{ stkCats(document.getElementById('stubBody') || document, allPack(true)); }catch(e){}
+    return r;
+  };
+}
+if(typeof stkPickerBody === 'function'){
+  var sp0 = stkPickerBody;
+  window.stkPickerBody = stkPickerBody = function(){
+    var h = sp0.apply(this, arguments);
+    setTimeout(function(){ try{ stkCats(document.getElementById('skpBody'), allPack()); }catch(e){} }, 0);
+    return h;
+  };
+}
+
+// ═══ 5. Книги: читать и скачать файл клуба, легальные магазины, бумажные, «Конспект BS» ═══
+// Файлы книг под авторским правом клуб не раздаёт: только то, что загрузила команда, бесплатные версии от правообладателя и ссылки на магазины
+var KS = {};
+function q(e){ return encodeURIComponent((e.ru + ' ' + String(e.author || '').split(',')[0]).trim()); }
+function readLinks(e){ var s = q(e); return [['Литрес', 'https://www.litres.ru/search/?q=' + s], ['Яндекс Книги', 'https://books.yandex.ru/search?text=' + s], ['MyBook', 'https://mybook.ru/search/?q=' + s]]; }
+function paperLinks(e){ var s = q(e); return [['Kaspi', 'https://kaspi.kz/shop/search/?text=' + s], ['Marwin', 'https://www.marwin.kz/catalogsearch/result/?q=' + s], ['Meloman', 'https://www.meloman.kz/catalogsearch/result/?q=' + s], ['Ozon.kz', 'https://ozon.kz/search/?text=' + s]]; }
+function links(list){ return list.map(function(l){ return '<a href="' + E(l[1]) + '" target="_blank" rel="noopener">' + E(l[0]) + ' ↗</a>'; }).join(''); }
+function ksHTML(id){
+  var k = KS[id];
+  if(!k) return '<div class="r82-bkn">Загружаем конспект…</div>';
+  if(k.err) return '<div class="r82-bkn">Конспект не загрузился</div>';
+  return '<ol class="r82-ks">' + k.ideas.map(function(x){ return '<li><b>' + E(x.idea) + '</b><span>Как применить: ' + E(x.apply) + '</span></li>'; }).join('') + '</ol>' +
+    '<div class="r82-bkn">Конспект BS: пересказ идей своими словами, подготовлен с помощью ИИ по знаниям библиотеки. Текст книги не заменяет</div>';
+}
+function ksLoad(id){
+  if(KS[id] || !window.BSSync || !BSSync.api) return;
+  BSSync.api('GET', '/books/konspekt?id=' + encodeURIComponent(id)).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
+    KS[id] = j && j.ideas ? j : {err: 1};
+    var el = document.getElementById('r82Ks'); if(el && el.getAttribute('data-id') === id) el.innerHTML = ksHTML(id);
+  }, function(){ KS[id] = {err: 1}; });
+}
+var S = window.SHELF;
+if(S && S.open){
+  var op0 = S.open;
+  S.open = function(key){
+    var r = op0.apply(this, arguments);
+    try{
+      var e = S.find(key), mo = document.getElementById('bkMo'); if(!e || !mo) return r;
+      var m = e.m || {}, lk = mo.querySelector('.bk-lk'), sec = lk && lk.closest('.bk-sec');
+      var h = '';
+      if(e.file){
+        h += '<div class="bk-sec"><div class="bk-sl">Файл книги в клубе</div><div class="bk-lk">' +
+          '<a href="#" onclick="r82Read(\'' + E(e.key) + '\');return false">Читать здесь</a><a href="#" onclick="r82Dl(\'' + E(e.key) + '\');return false">Скачать ↓</a></div></div>';
+      }
+      if(m.free && m.free.url) h += '<div class="bk-sec"><div class="bk-sl">Бесплатно и легально</div><div class="bk-lk"><a href="' + E(m.free.url) + '" target="_blank" rel="noopener">' + E(m.free.label || 'Бесплатная версия') + ' ↗</a></div></div>';
+      h += '<div class="bk-sec"><div class="bk-sl">Читать электронную</div><div class="bk-lk">' + links(readLinks(e)) + '</div></div>' +
+        '<div class="bk-sec"><div class="bk-sl">Купить бумажную</div><div class="bk-lk r82-buy">' + links(paperLinks(e)) + '</div>' +
+        '<div class="r82-bkn">Ссылки ведут на поиск книги в магазине. Файлы книг под авторским правом клуб не раздаёт</div></div>';
+      if(m.konspekt) h += '<div class="bk-sec"><div class="bk-sl">Конспект BS: 5 идей и как применить<span class="r82-kl">конспект</span></div><div id="r82Ks" data-id="' + E(m.id) + '">' + ksHTML(m.id) + '</div></div>';
+      if(sec){ var w = document.createElement('div'); w.innerHTML = h; while(w.firstChild) sec.parentNode.insertBefore(w.firstChild, sec); sec.remove(); }
+      // прежняя кнопка «Файл книги в клубе» больше не нужна: чтение и скачивание выше
+      mo.querySelectorAll('.bk-acts button').forEach(function(b){ if(/Файл книги/.test(b.textContent)) b.remove(); });
+      var acts = mo.querySelector('.bk-acts'); if(acts && !acts.children.length) acts.remove();
+      if(m.konspekt) ksLoad(m.id);
+    }catch(x){ console.error('r82 book', x); }
+    return r;
+  };
+}
+// ── чтение и скачивание файла, который загрузила команда ──
+function fileOf(key){ var e = S && S.find(key); return e && e.file ? {id: e.file, name: (e.t && e.t.fileName) || (e.ru + '.pdf'), title: e.ru} : null; }
+function blobOf(id){
+  if(!window.BSSync || !BSSync.api) return Promise.reject(new Error('Файл открывается на сервере платформы'));
+  return BSSync.api('GET', '/files/' + encodeURIComponent(id)).then(function(r){ if(!r.ok) throw new Error('файл не найден'); return r.blob(); });
+}
+window.r82Dl = function(key){
+  var f = fileOf(key); if(!f) return;
+  toastS('Скачиваем «' + f.title + '»…');
+  blobOf(f.id).then(function(b){
+    var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = f.name; a.rel = 'noopener'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  }, function(e){ toastS('Не скачалось: ' + e.message); });
+};
+function rdBox(title){
+  var d = document.getElementById('r82Rd');
+  if(!d){ d = document.createElement('div'); d.id = 'r82Rd'; d.className = 'r82-rd'; d.setAttribute('role', 'dialog'); document.body.appendChild(d);
+    d.addEventListener('click', function(ev){ if(ev.target === d) r82RdClose(); }); }
+  d.innerHTML = '<div class="r82-rdi"><div class="r82-rdh"><b>' + E(title) + '</b><button type="button" id="r82RdDl">Скачать</button><button type="button" onclick="r82RdClose()" aria-label="Закрыть">✕</button></div><div class="r82-rdb" id="r82RdB"><div class="msg">Открываем книгу…</div></div></div>';
+  d.classList.add('on');
+  return d;
+}
+var RD = {url: '', book: null};
+window.r82RdClose = function(){
+  var d = document.getElementById('r82Rd'); if(d){ d.classList.remove('on'); d.innerHTML = ''; }
+  try{ if(RD.book) RD.book.destroy(); }catch(e){} RD.book = null;
+  if(RD.url){ URL.revokeObjectURL(RD.url); RD.url = ''; }
+};
+document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape' && document.querySelector('#r82Rd.on')) r82RdClose(); });
+function loadJS(src){ return new Promise(function(ok, no){ var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = function(){ no(new Error('читалка не загрузилась')); }; document.head.appendChild(s); }); }
+var EPUB_JS = ['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js'];
+window.r82Read = function(key){
+  var f = fileOf(key); if(!f) return;
+  rdBox(f.title);
+  document.getElementById('r82RdDl').onclick = function(){ r82Dl(key); };
+  var body = document.getElementById('r82RdB');
+  var ext = (String(f.name).match(/\.([a-z0-9]+)$/i) || [])[1] || '';
+  blobOf(f.id).then(function(b){
+    var t = (b.type || '').toLowerCase(); ext = ext.toLowerCase();
+    if(t.indexOf('pdf') >= 0 || ext === 'pdf'){
+      RD.url = URL.createObjectURL(b.type ? b : new Blob([b], {type: 'application/pdf'}));
+      body.innerHTML = '<iframe src="' + RD.url + '" title="' + E(f.title) + '"></iframe>';
+      return;
+    }
+    if(ext === 'epub' || t.indexOf('epub') >= 0){
+      return (window.ePub ? Promise.resolve() : loadJS(EPUB_JS[0]).then(function(){ return loadJS(EPUB_JS[1]); })).then(function(){ return b.arrayBuffer(); }).then(function(buf){
+        body.innerHTML = '<div id="r82Epub"></div><div class="r82-epn"><button type="button" id="r82EpP">← Назад</button><button type="button" id="r82EpN">Дальше →</button></div>';
+        var book = RD.book = ePub(buf), rend = book.renderTo('r82Epub', {width: '100%', height: '100%', spread: 'none'});
+        rend.display();
+        document.getElementById('r82EpP').onclick = function(){ rend.prev(); };
+        document.getElementById('r82EpN').onclick = function(){ rend.next(); };
+      });
+    }
+    if(t.indexOf('text/') === 0 || ext === 'txt'){ return b.text().then(function(s){ body.innerHTML = '<pre></pre>'; body.firstChild.textContent = s; }); }
+    body.innerHTML = '<div class="msg">Этот формат (' + E(ext || t || 'файл') + ') читается в своей программе: нажмите «Скачать»</div>';
+  }).catch(function(e){ body.innerHTML = '<div class="msg">Не открылось: ' + E(e.message) + '. Можно скачать файл</div>'; });
+};
+})();
+</script>
+<!-- /R82 -->
 </body>
 </html>

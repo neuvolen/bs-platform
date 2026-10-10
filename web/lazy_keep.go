@@ -34,6 +34,8 @@ var lazyKeep = map[string]bool{
 	"asScript:applyAssist": true, "r38cJs:refreshBadge": true, "r69Script:buttons": true, "r79Script:mountUI": true,
 	"r46Script:r46LeadTeaser": true, // R46: the lead home's «Бизнес-идеи» block
 	"*:lxVideo":               true, // R73: the lead home's video starts as the page draws
+	// R82: called in the first seconds now (the club's sticker pack syncs with the meme stickers; found by the r45 trace)
+	"s1:rerender": true, "s2:loadStickerPack": true,
 	// R52: the tab strip keeps its scroll, and the board signs edited cards (who, when) as it draws
 	"r52Script:keepStrip": true, "r52Script:edBadge": true, "r52Script:when": true,
 	// R52: the https guard in <head> runs before anything is fetched

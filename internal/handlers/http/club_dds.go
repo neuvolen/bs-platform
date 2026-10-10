@@ -28,6 +28,8 @@ func registerDDS(g *gin.RouterGroup, h *ClubHandler) {
 	g.GET("/debts", h.Debts)                    // R69: «Учёт → Долги и штрафы»
 	g.POST("/fines/writeoff", h.FineWriteOff) // R69: «Списать штраф» с причиной
 	g.POST("/debts/set", h.DebtSet)           // R70: «Установить долг» с причиной
+	g.GET("/former", h.Former)                // R82: «Клуб → Резиденты → Бывшие»
+	g.POST("/former/return", h.ReturnFormer)  // R82: «Вернуть в резиденты»
 }
 
 // Debts godoc
@@ -38,6 +40,7 @@ func registerDDS(g *gin.RouterGroup, h *ClubHandler) {
 // @Router   /api/v1/club/debts [get]
 func (h *ClubHandler) Debts(c *gin.Context) {
 	ctx := c.Request.Context()
+	t0 := time.Now()
 	rep, err := h.repo.Debts(ctx)
 	if err != nil {
 		log.Printf("debts: %v", err)
@@ -45,6 +48,12 @@ func (h *ClubHandler) Debts(c *gin.Context) {
 		return
 	}
 	_, editable := ddsMaster(ctx, h.repo)
+	// R82: the tab's server time (the snapshot answers in a few ms, a rebuild after a write stays well under 300)
+	ms := time.Since(t0).Milliseconds()
+	c.Header("Server-Timing", "debts;dur="+strconv.FormatInt(ms, 10))
+	if ms > 300 {
+		log.Printf("debts: slow report %d ms (%d residents)", ms, len(rep.Residents))
+	}
 	c.JSON(http.StatusOK, gin.H{"editable": editable, "report": rep})
 }
 

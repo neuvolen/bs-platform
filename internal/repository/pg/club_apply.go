@@ -65,6 +65,9 @@ type applier struct {
 	// R70, read-only reports: the income rows and the names' residents, read once
 	payCache   []payRaw
 	matchCache map[string]int64
+	// R82, read-only reports: club_residents read once (matchResident read it
+	// for every journal row and fine)
+	resCache []resRow
 }
 
 func (a *applier) insert(table, sql string, args ...any) (int64, error) {
@@ -202,6 +205,9 @@ type resRow struct {
 }
 
 func (a *applier) residents() ([]resRow, error) {
+	if a.resCache != nil {
+		return a.resCache, nil
+	}
 	rows, err := a.tx.Query(a.ctx, `SELECT id, name, partner, format, tariff, meetings_granted, meetings_done, former, exception, archived, aliases
 		FROM club_residents ORDER BY id`)
 	if err != nil {

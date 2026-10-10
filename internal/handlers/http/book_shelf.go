@@ -115,6 +115,9 @@ type shelfBook struct {
 	// названия диагнозов и инструментов, к которым книга относится
 	DiagT []string `json:"diagT"`
 	ToolT []string `json:"toolT"`
+	// R82: бесплатная версия от правообладателя; есть ли «Конспект BS»
+	Free     *content.BookLink `json:"free,omitempty"`
+	Konspekt bool              `json:"konspekt,omitempty"`
 }
 
 // BookShelf: GET /api/v1/platform/books.
@@ -135,6 +138,13 @@ func BookShelf(c *gin.Context) {
 		for _, id := range b.Tools {
 			sb.ToolT = append(sb.ToolT, content.CardTitle(id))
 		}
+		if f, ok := content.BookFree[b.ID]; ok {
+			f := f
+			sb.Free = &f
+		}
+		if k, _ := content.BookKonspekt(b.ID); len(k) > 0 {
+			sb.Konspekt = true
+		}
 		if e, ok := st.Get(b.ID); ok {
 			sb.Cover, sb.Tone, sb.BG, sb.W, sb.H = st.URL(b.ID), e.Tone, e.BG, e.W, e.H
 			found++
@@ -147,4 +157,21 @@ func BookShelf(c *gin.Context) {
 	}
 	c.Header("Cache-Control", "private, max-age=300")
 	c.JSON(http.StatusOK, gin.H{"books": out, "cats": cats, "covers": found, "total": len(books)})
+}
+
+// BookKonspekt: GET /api/v1/platform/books/konspekt?id=bk_… «Конспект BS: 5
+// идей и как применить» (R82), по запросу, чтобы полка грузилась быстро.
+func BookKonspekt(c *gin.Context) {
+	id := strings.TrimSpace(c.Query("id"))
+	list, err := content.BookKonspekt(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if len(list) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no_konspekt"})
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=3600")
+	c.JSON(http.StatusOK, gin.H{"id": id, "ideas": list, "label": "Конспект BS: пересказ идей книги своими словами, подготовлен с помощью ИИ"})
 }
