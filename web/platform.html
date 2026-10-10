@@ -27776,6 +27776,17 @@ document.addEventListener('keydown', function(e){
 .lx-ar{position:absolute;right:18px;bottom:18px;width:34px;height:34px;border-radius:50%;border:1px solid var(--bd2);display:flex;align-items:center;justify-content:center}
 .lx-pan{margin-top:18px}
 .lx .lh-sec{margin-bottom:0}
+/* R76: бесплатные материалы (лид-магниты Threads) */
+.lx-mg{margin-top:26px}
+.lx-mg h3{margin:0 0 4px;font-size:20px;font-weight:800;letter-spacing:-.01em}
+.lx-mg p{margin:0 0 12px;font-size:13.5px;color:var(--t3)}
+.lx-mgl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.lx-mgi{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:16px;border:1px solid var(--bd);background:var(--card);color:var(--tx);text-decoration:none;min-width:0;transition:border-color .15s}
+.lx-mgi:hover{border-color:var(--bd2)}
+.lx-mgi i{font-style:normal;font-size:22px;line-height:1.1}
+.lx-mgi b{display:block;font-size:14.5px;font-weight:800;line-height:1.3}
+.lx-mgi span{display:block;font-size:12.5px;color:var(--t3);line-height:1.35;margin-top:2px}
+@media(max-width:900px){.lx-mgl{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:900px){
   .lx-hero{grid-template-columns:minmax(0,1fr);gap:20px;margin:0 0 22px}
   .lx-v{max-width:min(100%,calc((100vh - 330px) * 9 / 16));border-radius:22px}
@@ -27941,6 +27952,10 @@ html.lead-user #aiBadge,html.lead-user #bsxPill,html.lead-user #tr16Help,html.le
       '<a class="lx-tile" data-tile="ck" href="' + E(bot.checklists || 'https://t.me/bsurgery_bot?start=99') + '" target="_blank" rel="noopener"><b class="lx-big">99</b><span class="lx-tt">Чек-листов в Telegram</span><span class="lx-ts">Бесплатно, по всем органам бизнеса</span><i class="lx-ar">' + ic(IC.ext, 16) + '</i></a>' +
       tile('lib', openN || (lib.tools || 0), 'Открытые материалы', 'Диагнозы и инструменты клуба', "lxPanel('lib')", LX.panel === 'lib') +
       '</section>';
+    // R76: бесплатные материалы из постов Threads: открываются без входа
+    var mgs = d.magnets || [];
+    if(mgs.length) h += '<section class="lx-mg"><h3>Бесплатно собрали для вас</h3><p>Каталог идей, шаблоны и справочники. Открываются сразу, без регистрации.</p><div class="lx-mgl">' +
+      mgs.map(function(m){ return '<a class="lx-mgi" href="' + E(m.url) + '" target="_blank" rel="noopener"><i>' + E(m.icon) + '</i><div><b>' + E(m.title) + '</b><span>' + E(m.short) + '</span></div></a>'; }).join('') + '</div></section>';
     if(LX.panel === 'dx') h += '<section class="lh-sec lx-pan" id="lhDx"><div class="lh-card" id="lhDxBox">' + dxHTML() + '</div></section>';
     if(LX.panel === 'lib') h += '<div class="lx-pan">' + libHTML(lib) + '</div>';
     h += '</div>';
@@ -34828,8 +34843,9 @@ function ptUgcHTML(){
   window.renderMSmm = function(){
     try{ loadContent(); }catch(e){}
     var el = pgSet('SMM', 'Все публикации контент-движка по дням: текст, время, статус, ссылка на пост и лиды с каждого');
-    el.innerHTML = '<div class="smm">' + window.r40bFunnelBlock() + '<div id="r55Fv"></div><div id="r40bSmm"></div></div>';
+    el.innerHTML = '<div class="smm">' + window.r40bFunnelBlock() + '<div id="r76Mg"></div><div id="r55Fv"></div><div id="r40bSmm"></div></div>';
     paint();
+    if(typeof window.r76MgLoad === 'function') window.r76MgLoad(); // R76: лид-магниты: посты → клики → старты → лиды → разборы
     if(typeof window.r55FvLoad === 'function') window.r55FvLoad(); // R55: видео в воронке и цифры воронки с сервера
   };
   window.r40bDay = function(d){ V.day = d; keep(); paint(); };
@@ -40705,6 +40721,74 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
   };
 })();
 </script>
+<!-- R76: лид-магниты Threads в Маркетинге: посты → клики → старты → лиды → разборы -->
+<style id="r76Style">
+.mg-box{border:1px solid var(--pb);border-radius:14px;padding:14px;margin:0 0 14px;background:var(--pc)}
+.mg-h{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 6px}
+.mg-h h4{margin:0;font-size:15px;font-weight:800;color:var(--ptx)}
+.mg-k{font-size:12.5px;color:var(--pm);line-height:1.45;margin:0 0 10px}
+.mg-days{display:inline-flex;gap:4px}
+.mg-days button{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--pb);background:transparent;color:var(--pm);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.mg-days button.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.mg-tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.mg-t{width:100%;border-collapse:collapse;font-size:13px;min-width:680px}
+.mg-t th{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--pm);text-align:right;padding:6px 8px;border-bottom:1px solid var(--pb);white-space:nowrap}
+.mg-t th:first-child,.mg-t td:first-child{text-align:left}
+.mg-t td{padding:8px;border-bottom:1px solid var(--pb);text-align:right;color:var(--ptx);font-weight:700;white-space:nowrap;vertical-align:top}
+.mg-t td:first-child{white-space:normal;cursor:pointer;min-width:200px}
+.mg-t td i{font-style:normal;font-weight:600;color:var(--pm);font-size:11.5px;display:block}
+.mg-t tr.tot td{border-bottom:0;font-weight:800}
+.mg-t tr.var td{font-weight:600;color:var(--pm);font-size:12px;background:rgba(127,127,127,.06)}
+.mg-t tr.var td:first-child{padding-left:24px;cursor:default}
+.mg-t .z{color:var(--pm);font-weight:600}
+</style>
+<script id="r76Script">
+(function(){
+  'use strict';
+  var S = {days: 30, data: null, open: {}};
+  function e(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function n(v){ return typeof fmtN === 'function' ? fmtN(v || 0) : String(v || 0); }
+  function api(m, p){ return typeof r6Api === 'function' ? r6Api(m, p) : Promise.resolve({error:'Нет связи с сервером'}); }
+  function pc(a, b){ return b ? Math.round(a / b * 100) + '%' : ''; }
+  function c(v, of){ return v ? n(v) + (of ? '<i>' + pc(v, of) + '</i>' : '') : '<span class="z">0</span>'; }
+  function when(at){
+    if(!at) return '<span class="z">нет в плане</span>';
+    var d = new Date(at); if(isNaN(d)) return '';
+    function z(x){ return ('0' + x).slice(-2); }
+    return z(d.getDate()) + '.' + z(d.getMonth() + 1) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+  }
+  function rowHTML(r, tot){
+    return '<td>' + c(r.posts) + (r.pub ? '<i>вышло ' + n(r.pub) + '</i>' : '') + '</td><td>' + c(r.clicks) + '</td><td>' + c(r.starts, r.clicks) + '</td><td>' + c(r.leads) +
+      '</td><td>' + c(r.booked, r.leads) + '</td><td>' + c(r.razbor) + '</td><td>' + (tot ? '' : when(r.next)) + '</td>';
+  }
+  function paint(){
+    var b = document.getElementById('r76Mg'); if(!b) return;
+    var d = S.data;
+    var head = '<div class="mg-h"><h4>Лид-магниты в Threads</h4><span class="mg-days">' + [7, 30, 90].map(function(x){
+      return '<button class="' + (S.days === x ? 'on' : '') + '" onclick="r76Days(' + x + ')">' + x + ' дней</button>'; }).join('') + '</span></div>';
+    if(!d || d.error){ b.innerHTML = '<div class="mg-box">' + head + '<div class="mg-k">' + e(d && d.error ? d.error : 'Загружаю…') + '</div></div>'; return; }
+    var info = 'Пост «Бесплатно собрал для вас…» заканчивается ссылкой app.bxclub.kz/m/…: сервер считает клик, бот сразу отдаёт материал, дальше обычный прогрев. ' +
+      'Магниты: ' + n(d.share) + '% постов дня' + (d.perDay ? ', при ' + n(d.perDay) + ' постах в день это 1-2 поста' : '') + '. Нажмите на магнит, чтобы увидеть цифры по каждому из трёх вариантов поста.';
+    var rows = (d.rows || []).map(function(r){
+      var tr = '<tr><td onclick="r76Open(\'' + e(r.id) + '\')">' + e(r.icon) + ' ' + e(r.title) + '</td>' + rowHTML(r) + '</tr>';
+      if(S.open[r.id]) tr += (r.variants || []).map(function(v){
+        return '<tr class="var"><td>' + (v.v + 1) + '. ' + e(v.first) + '</td><td>' + n(v.posts) + (v.pub ? '<i>вышло ' + n(v.pub) + '</i>' : '') + '</td><td>' + n(v.clicks) + '</td><td>' + n(v.starts) + '</td><td></td><td></td><td></td><td></td></tr>';
+      }).join('');
+      return tr;
+    }).join('');
+    rows += '<tr class="tot"><td>Все магниты</td>' + rowHTML(d.total || {}, true) + '</tr>';
+    b.innerHTML = '<div class="mg-box">' + head + '<div class="mg-k">' + e(info) + '</div><div class="mg-tw"><table class="mg-t"><tr><th>Магнит</th><th>Постов</th><th>Клики</th><th>Старты в боте</th><th>Новые лиды</th><th>Записались</th><th>Разбор прошёл</th><th>Следующий пост</th></tr>' + rows + '</table></div></div>';
+  }
+  function load(){
+    S.data = null; paint();
+    api('GET', '/sales/funnel/magnets?days=' + S.days).then(function(j){ S.data = j || {error:'нет ответа'}; paint(); });
+  }
+  window.r76MgLoad = load;
+  window.r76Days = function(x){ S.days = x; load(); };
+  window.r76Open = function(id){ S.open[id] = !S.open[id]; paint(); };
+})();
+</script>
+<!-- /R76 -->
 <script id="r57Script">
 // R57: «Ссылка для клиента»: доска без входа (только просмотр) + статистика просмотров
 (function(){

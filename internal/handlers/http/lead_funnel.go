@@ -16,6 +16,7 @@ import (
 	"github.com/bnursik/business_surgery_backend/internal/bot"
 	"github.com/bnursik/business_surgery_backend/internal/content"
 	pg "github.com/bnursik/business_surgery_backend/internal/repository/pg"
+	"github.com/bnursik/business_surgery_backend/web"
 	"github.com/gin-gonic/gin"
 )
 
@@ -88,6 +89,9 @@ func startSource(p string) string {
 	}
 	if l, ok := m[p]; ok {
 		return l
+	}
+	if mg, post, ok := parseMagnetParam(p); ok { // R76: magnets.go
+		return magnetSource(mg, post)
 	}
 	if strings.HasPrefix(p, "pdf_") || strings.HasPrefix(p, "guide_") {
 		id := p[strings.Index(p, "_")+1:]
@@ -276,6 +280,9 @@ func (f *LeadFunnel) sendWelcome(ctx context.Context, chatID int64, first, param
 	}
 	rows = append(rows, top,
 		row(f.appBtn("🔬 Диагностика бизнеса", "diagnostic")),
+		// R76: the magnets of the Threads posts are in the bot's menu too
+		row(map[string]any{"text": "💡 " + mgFill("{ideas} бизнес-идей"), "url": web.SiteURL + "/ideas"}),
+		row(map[string]any{"text": "🎁 Ещё бесплатно: шаблоны, карта диагнозов, Gallup", "callback_data": "mg_menu"}),
 		row(map[string]any{"text": "✋ Я резидент BS", "callback_data": "i_am_resident"}))
 	keys := map[string]any{"inline_keyboard": rows}
 	text := welcomeText(first)
@@ -293,6 +300,9 @@ func (f *LeadFunnel) sendWelcome(ctx context.Context, chatID int64, first, param
 func (f *LeadFunnel) HandleStart(ctx context.Context, st bot.StartUpdate) bool {
 	if bot.IsRetry(ctx) && f.handledSince(ctx, st.ChatID, st.Date) {
 		return true // R40b: the same /start taken again after a restart
+	}
+	if mg, post, ok := parseMagnetParam(st.Param); ok { // R76: the material at once (magnets.go)
+		return f.startMagnet(ctx, startInfo{st.ChatID, st.FirstName, st.LastName, st.Username}, mg, post)
 	}
 	src := startSource(st.Param)
 	isNew, repeat, err := f.ensureLead(ctx, st.ChatID, st.FirstName, st.LastName, st.Username, src,
@@ -329,7 +339,10 @@ var lmGuide = map[string]string{"sales": "g015", "unit": "g078", "delegate": "g0
 
 // HandleCallback answers the buttons of the script's old lead-magnet menu.
 func (f *LeadFunnel) HandleCallback(ctx context.Context, cb bot.CallbackUpdate) bool {
-	f.noteCallback(ctx, cb)                         // R47: the press goes to the lead's dialog
+	f.noteCallback(ctx, cb)                // R47: the press goes to the lead's dialog
+	if strings.HasPrefix(cb.Data, "mg_") { // R76: the free materials (magnets.go)
+		return f.magnetCallback(ctx, cb.ChatID, cb.FirstName, cb.Username, cb.Data)
+	}
 	if strings.HasPrefix(cb.Data, leadPainPrefix) { // R32e: lead_pain.go
 		return f.painPick(ctx, cb)
 	}
@@ -637,6 +650,7 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 		claim       bool // the «Я резидент» sequence (resident_claim.go)
 		qz          map[string]any
 		pain        string
+		mg          string // R76: the lead's magnet
 	}
 	var jobs []job
 	steps := warmSteps()
@@ -702,7 +716,8 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 				continue
 			}
 			qz, _ := m["qz"].(map[string]any)
-			jobs = append(jobs, job{tg: tg, stage: stage, first: leadFirst(m), last: lastTitle[tg], qz: qz, pain: fmt.Sprint(m["pain"])})
+			mg, _ := m["magnet"].(string)
+			jobs = append(jobs, job{tg: tg, stage: stage, first: leadFirst(m), last: lastTitle[tg], qz: qz, pain: fmt.Sprint(m["pain"]), mg: mg})
 			m["warm"] = stage + 1
 			m["warmV"] = 2
 			m["warmAt"] = now.UTC().Format(time.RFC3339)
@@ -732,6 +747,9 @@ func (f *LeadFunnel) WarmOnce(ctx context.Context) int {
 		} else {
 			s := steps[j.stage]
 			text, keys = s.text(j.first, j.last, st[0], st[1]), s.keys(f)
+		}
+		if w := magnetWarm(j.mg); !j.claim && j.stage == 0 && w != "" {
+			text = w + "\n\n" + text // R76: the first touch remembers what the lead took
 		}
 		if !j.claim { // R55: the day's video first, then the touch
 			if vs := fvWarmStep(j.stage); vsteps[vs] && f.sendStepVideo(ctx, j.tg, vs, j.first) {

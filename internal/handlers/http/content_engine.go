@@ -75,6 +75,9 @@ type contentChan struct {
 	// ReachPct: Threads only, % of the day's posts written for reach
 	// (content_threads_reach.go): unset 65, 0 the classic plan, at most 80.
 	ReachPct *int `json:"reachPct,omitempty"`
+	// MagnetPct (R76, magnets.go): % of the day's posts that are lead
+	// magnets: unset 38 (4 a day: 1 or 2), 0 off, at most 50.
+	MagnetPct *int `json:"magnetPct,omitempty"`
 }
 
 type contentSettings struct {
@@ -211,6 +214,8 @@ type contentItemData struct {
 	SentAt string `json:"sentAt,omitempty"`
 	MsgID  int64  `json:"msgId,omitempty"`
 	ByHand bool   `json:"byHand,omitempty"`
+	// R76 (magnets.go): the lead magnet of a «magnet» post
+	Magnet string `json:"magnet,omitempty"`
 }
 
 // contentItem keeps the fields the platform adds that the server does not know.
@@ -1588,6 +1593,14 @@ func (e *ContentEngine) Loop(ctx context.Context) {
 		}
 	}
 	hourly()
+	// R76: the next days' Threads plan with the magnet slots, once a start (deploy check)
+	if c, cancel := context.WithTimeout(ctx, 30*time.Second); true {
+		if d, _, err := e.load(c); err == nil {
+			st := e.settings(c, d)
+			log.Printf("threads: plan with magnets (%d%% of %d a day): %s", st.threadsMagnet(), st.threadsPerDay(), magnetPlanLine(st, e.now()))
+		}
+		cancel()
+	}
 	last := time.Now()
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()

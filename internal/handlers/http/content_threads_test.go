@@ -223,7 +223,7 @@ var thReachPct any = 0
 func thDoc(t *testing.T, docs *cntDocs, perDay int) {
 	t.Helper()
 	b, _ := json.Marshal(map[string]any{"settings": map[string]any{
-		"channels": map[string]any{"threads": map[string]any{"on": true, "time": "10:00", "perDay": perDay, "reachPct": thReachPct},
+		"channels": map[string]any{"threads": map[string]any{"on": true, "time": "10:00", "perDay": perDay, "reachPct": thReachPct, "magnetPct": thMagnetPct},
 			"telegram": map[string]any{"on": false}, "instagram": map[string]any{"on": false}},
 		"days": []int{1, 2, 3, 4, 5, 6, 7}, "approval": "auto", "previewHour": 9, "rev": 2}, "queue": []any{}})
 	cur := 0

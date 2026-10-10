@@ -397,6 +397,10 @@ func (m *SalesModule) Register(r *gin.Engine) {
 		r.GET("/api/v1/public/fv/:name", m.FV.PublicFile)
 		r.HEAD("/api/v1/public/fv/:name", m.FV.PublicFile)
 	}
+	if s.F != nil { // R76: a magnet post's link: count the click, then the bot (magnets.go)
+		r.GET("/m/:code", s.F.MagnetClick)
+		r.HEAD("/m/:code", s.F.MagnetClick)
+	}
 	r.GET("/api/v1/public/sales/:kind/:id/:sig", s.PublicPDF)
 	r.HEAD("/api/v1/public/sales/:kind/:id/:sig", s.PublicPDF)
 	if m.G != nil {
@@ -432,6 +436,7 @@ func (m *SalesModule) Register(r *gin.Engine) {
 	}
 	if s.F != nil {
 		t.GET("/funnel/stats", s.F.StatsHTTP)
+		t.GET("/funnel/magnets", s.F.MagnetStatsHTTP) // R76: magnets.go
 	}
 	t.GET("/razbor/:lead", s.GetRazbor)
 	t.PUT("/razbor/:lead", s.PutRazbor)

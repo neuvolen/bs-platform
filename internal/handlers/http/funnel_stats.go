@@ -26,7 +26,8 @@ type FunnelStat struct {
 	Days       int            `json:"days"`
 	Leads      int            `json:"leads"`      // came to the bot (funnel bot)
 	Threads    int            `json:"threads"`    // of them from Threads
-	ThreadPost int            `json:"threadPost"` // from a post's own link th_p…
+	ThreadPost int            `json:"threadPost"` // from a post's own link th_p… (R76: or a magnet post's)
+	Magnets    int            `json:"magnets"`    // R76: came for a lead magnet
 	NoSource   int            `json:"noSource"`   // /start without a label
 	Sources    map[string]int `json:"sources"`    // by source group
 	PerDay     map[string]int `json:"perDay"`     // YYYY-MM-DD (Almaty) → leads
@@ -127,9 +128,12 @@ func (f *LeadFunnel) FunnelStats(ctx context.Context, days int) (*FunnelStat, er
 		}
 		if g == "Threads" {
 			st.Threads++
-			if strings.HasPrefix(src, "Threads: пост") {
+			if strings.HasPrefix(src, "Threads: пост") || strings.HasPrefix(src, "Threads: магнит") {
 				st.ThreadPost++
 			}
+		}
+		if s, _ := m["magnet"].(string); s != "" && strings.Contains(src, "агнит") {
+			st.Magnets++
 		}
 		if p := fmt.Sprint(m["pain"]); p != "" && p != "<nil>" {
 			st.Pain++
@@ -207,9 +211,9 @@ func (s *FunnelStat) Line() string {
 		}
 	}
 	return fmt.Sprintf("leads %d (Threads %d, of them post links %d; no label %d) [%s]; pain %d; check started %d, finished %d; guides opened %d; "+
-		"warm-up: 1st touch %d, day-7 invitation %d, all touches %d, touches sent %d, blocked %d; videos [%s]; booked %d, paid %d, разбор done %d, residents %d",
+		"warm-up: 1st touch %d, day-7 invitation %d, all touches %d, touches sent %d, blocked %d; videos [%s]; booked %d, paid %d, разбор done %d, residents %d; magnets %d",
 		s.Leads, s.Threads, s.ThreadPost, s.NoSource, strings.Join(src, ", "), s.Pain, s.QuizStart, s.QuizFin, s.Guides,
-		s.Warm1, s.Warm3, s.WarmAll, s.Touches, s.Blocked, strings.Join(vids, ", "), s.Booked, s.Paid, s.Razbor, s.Won)
+		s.Warm1, s.Warm3, s.WarmAll, s.Touches, s.Blocked, strings.Join(vids, ", "), s.Booked, s.Paid, s.Razbor, s.Won, s.Magnets)
 }
 
 // StatsLoop: one line a day in the log (the first a minute after start).

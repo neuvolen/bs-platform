@@ -162,6 +162,10 @@ func manualize(it *contentItem) {
 	if p == "" || it.Channel != "threads" {
 		return
 	}
+	if it.Magnet != "" { // R76: a magnet post carries its own counted link (magnets.go)
+		magnetize(it)
+		return
+	}
 	link := contentBotLink + p
 	text := strings.TrimSpace(it.Text)
 	if len(it.Parts) > 0 {
@@ -465,7 +469,7 @@ func (e *ContentEngine) swapNext(d *contentDoc, it *contentItem, now time.Time, 
 		a, b := it.contentItemData, next.contentItemData
 		swap := func(dst *contentItemData, src contentItemData) {
 			dst.Src, dst.V, dst.Organ, dst.Title, dst.Rubric, dst.Text, dst.Parts = src.Src, src.V, src.Organ, src.Title, src.Rubric, src.Text, src.Parts
-			dst.Format, dst.Gen, dst.CTA, dst.Edited = src.Format, src.Gen, src.CTA, src.Edited
+			dst.Format, dst.Gen, dst.CTA, dst.Edited, dst.Magnet = src.Format, src.Gen, src.CTA, src.Edited, src.Magnet
 		}
 		swap(&it.contentItemData, b)
 		swap(&next.contentItemData, a)
@@ -482,7 +486,7 @@ func (e *ContentEngine) swapNext(d *contentDoc, it *contentItem, now time.Time, 
 		return false
 	}
 	it.Src, it.V, it.Organ, it.Title, it.Rubric, it.Text, it.Parts = li.Src, v, li.Organ, li.Title, li.Rubric, tx, nil
-	it.Format, it.Gen, it.CTA, it.Edited = "library", "lib", false, false
+	it.Format, it.Gen, it.CTA, it.Edited, it.Magnet = "library", "lib", false, false, ""
 	manualize(it)
 	return true
 }

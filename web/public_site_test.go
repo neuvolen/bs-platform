@@ -302,8 +302,9 @@ func TestSitemapAndLibraryPages(t *testing.T) {
 	if err != nil || len(items) == 0 {
 		t.Fatalf("library: %v", err)
 	}
-	if len(sm.URLs) != len(items)+4 { // /about, /library, /privacy, /terms
-		t.Errorf("sitemap has %d urls, want %d", len(sm.URLs), len(items)+4)
+	// /about, /library, /privacy, /terms; R76: /ideas, its ideas and the magnet pages
+	if want := len(items) + 4 + 1 + len(ideaIDs()) + len(freePaths()); len(sm.URLs) != want {
+		t.Errorf("sitemap has %d urls, want %d", len(sm.URLs), want)
 	}
 	seen := map[string]bool{}
 	for _, u := range sm.URLs {

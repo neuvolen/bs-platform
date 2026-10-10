@@ -397,6 +397,7 @@ func RegisterPublic(r *gin.Engine) {
 		r.GET(p, h)
 		r.HEAD(p, h)
 	}
+	registerFree(r) // R76: the Threads magnets (free_pages.go)
 	club := func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/about") }
 	r.GET("/club", club)
 	r.HEAD("/club", club)
@@ -476,6 +477,14 @@ func sitemapXML() string {
 	add(SiteURL+"/terms", "0.3")
 	for _, e := range l.items {
 		add(libURL(e.Slug), "0.6")
+	}
+	// R76: the magnets' open pages
+	add(SiteURL+"/ideas", "0.8")
+	for _, p := range freePaths() {
+		add(SiteURL+p, "0.7")
+	}
+	for _, id := range ideaIDs() {
+		add(SiteURL+"/ideas/"+id, "0.5")
 	}
 	b.WriteString("</urlset>\n")
 	return b.String()

@@ -277,6 +277,8 @@ func (h *LeadHome) Home(c *gin.Context) {
 		"bot": gin.H{"username": bn, "checklists": "https://t.me/" + bn + "?start=99",
 			"razbor": "https://t.me/" + bn + "?start=razbor", "app": "https://t.me/" + bn},
 		"result": result,
+		// R76: the free materials of the Threads magnets, open links (magnets.go)
+		"magnets": LeadMagnets(bn),
 	})
 }
 

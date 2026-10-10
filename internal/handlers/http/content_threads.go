@@ -201,6 +201,9 @@ func ThreadsFormatName(id string) string {
 	if id == "library" {
 		return "Из библиотеки"
 	}
+	if id == "magnet" {
+		return "Лид-магнит"
+	}
 	return ""
 }
 
@@ -467,8 +470,13 @@ type threadsDayState struct {
 	Missing int    `json:"missing"` // future slots left empty
 	Tries   int    `json:"tries"`   // builds with the AI failing
 	At      string `json:"at"`
-	AI      string `json:"ai,omitempty"` // ok or the AI's error
+	AI      string `json:"ai,omitempty"`   // ok or the AI's error
+	Plan    int    `json:"plan,omitempty"` // R76: the plan's revision (threadsPlanRev)
 }
+
+// threadsPlanRev: a day built before the magnets (R76) is re-planned once:
+// its untouched future posts give way to the new plan.
+const threadsPlanRev = 76
 
 var thWordRe = regexp.MustCompile(`[\p{L}\p{N}]+`)
 
@@ -696,7 +704,9 @@ func lessScore(a, b [5]int) bool {
 var threadsCliches = []string{"важно отметить", "ключ к успеху", "в современном мире", "исследования показ", "по данным исследован", "согласно исследован",
 	"не секрет, что", "давайте разбер", "в заключение", "стоит отметить", "секрет успеха", "волшебн", "лайфхак", "на сегодняшний день",
 	"играет важную роль", "играет ключевую роль", "в наше время", "уникальная возможность", "друзья,", "как известно", "залог успеха",
-	"в мире бизнеса", "в этой статье", "в этом посте"}
+	"в мире бизнеса", "в этой статье", "в этом посте",
+	// R76: the brand's banned words
+	"хирург", "прокача", "гарантированн", "операция", "операцию", "операции "}
 
 var (
 	thStatRe = regexp.MustCompile(`(?i)(по статистике|статистика показ|исследовани|опрос[а-яё]* показ|(?:^|[^а-яё])учён(?:ые|ых)|(?:^|[^а-яё])ученые|` +
@@ -980,6 +990,7 @@ type ThreadsBuild struct {
 	Lib     int    `json:"lib"`     // taken ready from the library
 	Missing int    `json:"missing"` // slots left empty
 	CTA     int    `json:"cta"`
+	Magnets int    `json:"magnets"` // R76: lead magnet posts
 	AIError string `json:"aiError,omitempty"`
 	Prompt  string `json:"-"`
 }
@@ -1009,7 +1020,7 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	key := contentDay(day)
 	res := &ThreadsBuild{Day: key, PerDay: n}
 	slots := threadsSlots(day, n, from, to)
-	formats, ctas := threadsDayPlan(n, key, st.threadsReach())
+	formats, ctas, isMg := threadsDayPlanMg(n, key, st.threadsReach(), st.threadsMagnet()) // R76: magnets.go
 	if st.manual {
 		// by hand: posts at 09:30, 12:30, 16:30, 19:30 (jittered), no series (a reply chain needs the API)
 		slots = threadsManualSlots(day, n)
@@ -1071,6 +1082,18 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 			prevAt, prevOrgan = at, it.Organ
 		}
 	}
+	// R76: the magnet slots get the hand-written magnet posts; the rest as before
+	var mgSlots []int
+	var rest []int
+	for _, i := range free {
+		if isMg[i] {
+			mgSlots = append(mgSlots, i)
+		} else {
+			rest = append(rest, i)
+		}
+	}
+	mgItems := pickMagnets(len(mgSlots), mem, key, now)
+	free = rest
 	plan := make([]threadsSlotPlan, len(free))
 	fs := make([]string, len(free))
 	for k, i := range free {
@@ -1134,7 +1157,7 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 		ctaLine := threadsCTALines[(hashN(key, len(threadsCTALines))+ctaN)%len(threadsCTALines)]
 		var it *contentItem
 		if p, ok := posts[k]; ok && sp.Seed != nil {
-			body := threadsClean(p.Text)
+			body := threadsClean(splitHook(p.Text)) // R76: a long first line gets its own line
 			var parts []string
 			if sp.Format == "series" {
 				for _, x := range p.Parts {
@@ -1207,6 +1230,28 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	if rejected > 0 {
 		log.Printf("threads: batch %s: %d AI posts refused by the quality gate", key, rejected)
 	}
+	// R76: the magnet posts into their slots
+	var mgNames []string
+	for k, i := range mgSlots {
+		if k >= len(mgItems) {
+			res.Missing++
+			continue
+		}
+		it := mgItems[k]
+		it.ID = "th-" + slots[i].In(almaty).Format("20060102-1504")
+		it.Kind, it.Channel = "threads", "threads"
+		it.At = slots[i].In(almaty).Format(time.RFC3339)
+		it.Status, it.Auto = "planned", true
+		magnetize(it)
+		res.Magnets++
+		res.CTA++
+		sigs = append(sigs, threadsSig{Day: key, Src: it.Src, Organ: it.Organ, First: thFirst(it.Text)})
+		mgNames = append(mgNames, strings.TrimPrefix(it.Src, "mg:"))
+		items = append(items, it)
+	}
+	if len(mgSlots) > 0 {
+		log.Printf("threads: batch %s: magnets %d (%s)", key, len(mgNames), strings.Join(mgNames, ", "))
+	}
 
 	added := 0
 	_, err = e.update(ctx, func(d *contentDoc) bool {
@@ -1250,7 +1295,7 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	}
 	res.Added = added
 	e.noteBuild(ctx, key, n, res, sigs)
-	log.Printf("threads: batch %s: %d posts (AI %d, library %d), %d empty", key, added, res.AI, res.Lib, res.Missing)
+	log.Printf("threads: batch %s: %d posts (AI %d, library %d, magnets %d), %d empty", key, added, res.AI, res.Lib, res.Magnets, res.Missing)
 	return res, nil
 }
 
@@ -1273,7 +1318,7 @@ func (e *ContentEngine) noteBuild(ctx context.Context, key string, n int, res *T
 			s.Threads = map[string]*threadsDayState{}
 		}
 		prev := s.Threads[key]
-		ds := &threadsDayState{N: n, Added: res.Added, Missing: res.Missing, At: e.now().UTC().Format(time.RFC3339), AI: "ok"}
+		ds := &threadsDayState{N: n, Added: res.Added, Missing: res.Missing, At: e.now().UTC().Format(time.RFC3339), AI: "ok", Plan: threadsPlanRev}
 		if res.AIError != "" {
 			ds.AI = res.AIError
 			ds.Tries = 1
@@ -1325,7 +1370,8 @@ func (e *ContentEngine) buildDue(ctx context.Context, d *contentDoc) {
 			need = true
 		}
 	}
-	if !need || !e.building.CompareAndSwap(false, true) {
+	replan := !need && ds != nil && ds.Plan < threadsPlanRev // R76: once, the day's untouched future posts
+	if !(need || replan) || !e.building.CompareAndSwap(false, true) {
 		return
 	}
 	run := e.Go
@@ -1336,7 +1382,10 @@ func (e *ContentEngine) buildDue(ctx context.Context, d *contentDoc) {
 		defer e.building.Store(false)
 		c, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 		defer cancel()
-		if _, err := e.BuildThreadsDay(c, now, false); err != nil {
+		if replan {
+			log.Printf("threads: batch %s: re-planned for the magnets rubric (R76)", contentDay(now))
+		}
+		if _, err := e.BuildThreadsDay(c, now, replan); err != nil {
 			log.Printf("threads: batch: %v", err)
 		}
 	})
