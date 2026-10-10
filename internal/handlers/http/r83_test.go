@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -50,6 +51,9 @@ func TestWhatsAppParse(t *testing.T) {
 	}
 	if ok, _ := waTake(waInfo{Name: "Женский бизнес-клуб"}, &waCand{}); !ok {
 		t.Fatal("a business club is taken")
+	}
+	if ok, _ := waTake(waInfo{Name: "Бизнес с Атоми"}, &waCand{Biz: true}); ok {
+		t.Fatal("network marketing is not taken")
 	}
 	if ok, why := waTake(waInfo{}, &waCand{Biz: true}); ok || why == "" {
 		t.Fatal("a dead link is not taken")
@@ -215,5 +219,30 @@ func TestRunSEO(t *testing.T) {
 	st, _ := h.loadSEOState(ctx)
 	if len(st.Pages) != rep.Sitemap {
 		t.Fatalf("state %d pages, sitemap %d", len(st.Pages), rep.Sitemap)
+	}
+}
+
+// R83: an external card already in the club takes the shipped text (the
+// server owns it); the team's own cards stay as they are.
+func TestMergeLibExtUpdatesExternal(t *testing.T) {
+	repo, ctx := testPlatformDB(t, libExtStateKey, "bs_diag", "bs_tools", "bs_questions", "bs_libver")
+	put := func(k, v string) {
+		if _, err := repo.PutDoc(ctx, "club", k, 0, v, false, "test"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put("bs_libver", strconv.Itoa(libExtMinLib))
+	put("bs_diag", `[{"title":"x"}]`)
+	put("bs_questions", `{"Финансы":["q"]}`)
+	put("bs_tools", `[{"id":"ext_f12_sales_calc","isExt":true,"title":"Калькулятор продаж","short":"старый текст"},{"id":"own","title":"Своё","short":"команда"}]`)
+	h := NewPlatformAI(repo, nil)
+	if _, err := h.MergeLibExt(ctx); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := repo.GetDoc(ctx, "club", "bs_tools")
+	var list []map[string]any
+	_ = json.Unmarshal([]byte(d.Value), &list)
+	if list[0]["short"] == "старый текст" || list[0]["link"] != "https://t.me/Fantastik_12/107" || list[1]["short"] != "команда" {
+		t.Fatalf("%v | %v", list[0], list[1])
 	}
 }

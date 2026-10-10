@@ -51,6 +51,7 @@ var waPages = []waSrc{
 	{"https://add-groups.com/whatsapp_d090d0bbd0bcd0b0d182d18b-c1420", false},
 	{"https://topmsg.ru/wgroup/category/kazaxstan/", false},
 	{"https://topmsg.ru/wgroup/wcat-business/", false},
+	{"https://topmsg.ru/wgroup/wcat-business/loc-kazakhstan/", false},
 	{"https://topmsg.ru/wgroup/wcat-work/loc-kazakhstan/", false},
 	{"https://topmsg.ru/wgroup/wcat-advertisements/loc-kazakhstan/", false},
 	{"https://groupsru.com/groups/wagroups-JkfGJg400fXAmNJxdflNRT", false},
@@ -149,7 +150,11 @@ type waRunInfo struct {
 	Cursor  int    `json:"cursor"` // the next catalogue channel to search
 	Failed  int    `json:"failed"` // pages that did not open
 	Blocked int    `json:"blocked,omitempty"`
+	Ver     int    `json:"ver,omitempty"` // waVer of the run
 }
+
+// waVer: raise when the search changes, the next run starts minutes after the deploy.
+const waVer = 2 // 2: MLM filter, directories 40 pages deep, latin slugs
 
 // waNorm: the canonical link and its kind ("группа" | "канал"), "" if none.
 func waNorm(s string) (string, string) {
@@ -220,7 +225,7 @@ func waFromHTML(page, body string) (map[string]string, []string) {
 			}
 			continue
 		}
-		if base == nil || (!commTopicRe.MatchString(text) && !commTopicRe.MatchString(href)) {
+		if base == nil || (!commTopicRe.MatchString(text) && !commTopicRe.MatchString(href) && !waSlugRe.MatchString(href)) {
 			continue
 		}
 		ref, err := base.Parse(href)
@@ -336,6 +341,9 @@ func waTake(in waInfo, cd *waCand) (bool, string) {
 		return false, "ссылка не открылась или группа закрыта"
 	}
 	text := in.Name + " " + in.Desc
+	if waJunk.MatchString(text) {
+		return false, "сетевой маркетинг или заработок в интернете"
+	}
 	if commTopicRe.MatchString(text) || waSelfRe.MatchString(text) {
 		return true, ""
 	}
@@ -347,6 +355,12 @@ func waTake(in waInfo, cd *waCand) (bool, string) {
 	}
 	return false, "не про бизнес"
 }
+
+// waSlugRe: a directory's page about business by its address (latin slug).
+var waSlugRe = regexp.MustCompile(`(?i)biznes|business|predprinim|startap|startup|marketing|prodazh|kaspi|invest|finans|kommerc|optov|b2b`)
+
+// waJunk: network marketing and «заработок» groups are not business communities.
+var waJunk = regexp.MustCompile(`(?i)атоми|atomy|орифлейм|oriflame|фаберлик|faberlic|гербалайф|herbalife|сетев\w* маркетинг|mlm|млм|заработ\w* (в интернете|онлайн|без вложений)|пассивн\w* доход|ставк|казино|крипто-?сигнал|forex|форекс`)
 
 // waSelfRe: self-development and networking words for a WhatsApp community.
 var waSelfRe = regexp.MustCompile(`(?i)клуб|club|community|сообществ|нетворк|ассоциац|палат|chamber|women in|женщин\w* бизнес|предпринимател|кәсіпкер|бизнес-?леди|акселератор|accelerator|hub\b|хаб`)
@@ -360,7 +374,7 @@ func (h *PlatformAI) refreshWhatsApp(ctx context.Context) (waRunInfo, error) {
 	start := time.Now()
 	day := start.In(tgevents.Almaty).Format("2006-01-02")
 	cat, _ := h.loadComm(ctx)
-	res := waRunInfo{At: start.UTC().Format(time.RFC3339)}
+	res := waRunInfo{At: start.UTC().Format(time.RFC3339), Ver: waVer}
 	cands, candBase := h.loadWACand(ctx)
 	cat.WA = cands
 	have := map[string]bool{}
@@ -476,7 +490,7 @@ func (h *PlatformAI) refreshWhatsApp(ctx context.Context) (waRunInfo, error) {
 		}
 		lim := 4 // a business page: its own channel is on the page or one step away
 		if !p.Biz {
-			lim = 15 // a directory: the groups are on their own pages
+			lim = 40 // a directory: the groups are on their own pages
 		}
 		if len(deeper) > lim {
 			deeper = deeper[:lim]
@@ -593,6 +607,15 @@ func (h *PlatformAI) refreshWhatsApp(ctx context.Context) (waRunInfo, error) {
 				nWA++
 			}
 		}
+		kept := c.Items[:0]
+		for _, it := range c.Items { // R83: drop found MLM groups taken before the filter
+			if it.Platform == "whatsapp" && it.Origin == "found" && waJunk.MatchString(it.Name+" "+it.Topic) {
+				nWA--
+				continue
+			}
+			kept = append(kept, it)
+		}
+		c.Items = kept
 		for _, it := range added {
 			if !ids[it.ID] && nWA < waMaxItems {
 				c.Items = append(c.Items, it)
@@ -636,7 +659,7 @@ func (h *PlatformAI) WhatsAppCommLoop(ctx context.Context) {
 		return
 	}
 	wait := 6 * time.Minute
-	if c, _ := h.loadComm(ctx); c.WARun != nil {
+	if c, _ := h.loadComm(ctx); c.WARun != nil && c.WARun.Ver >= waVer {
 		if t, err := time.Parse(time.RFC3339, c.WARun.At); err == nil {
 			if left := waEvery - time.Since(t); left > wait {
 				wait = left

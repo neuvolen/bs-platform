@@ -283,6 +283,7 @@ func (h *PlatformAI) seoAIVisibility(ctx context.Context, day string) seoAIRun {
 			run.Asked--
 			if ai.SearchUnavailable(err) {
 				stop = err
+				log.Printf("seo: ai visibility: free search unavailable, «нет данных»: %s", ai.UserMessage(err))
 			}
 			run.Items = append(run.Items, it)
 			continue

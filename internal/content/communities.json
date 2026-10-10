@@ -2927,5 +2927,59 @@
 ],
 "src": "https://forbes.kz/articles/v_almatyi_proydet_ejegodnyiy_delovoy_forum_women_in_business",
 "checked": "2026-10-10"
+},
+{
+"id": "wa-whatsapp-com-channel-0029vauvved5q08wzeioin2d",
+"name": "Economist.kg (канал)",
+"url": "https://www.whatsapp.com/channel/0029VaUvVed5q08WZEioIN2D",
+"platform": "whatsapp",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Экономика и бизнес Центральной Азии",
+"lang": "ru",
+"city": "СНГ",
+"join": "открыто",
+"why": [
+"контент",
+"партнёрства"
+],
+"src": "https://economist.kg/all/2025/01/18/v-almaty-sozdadut-biznies-klub-kyrghyzskikh-priedprinimatieliei/",
+"checked": "2026-10-10"
+},
+{
+"id": "wa-whatsapp-com-channel-0029vaptie71ncrwrhoc5v0t",
+"name": "Informburo.kz (канал)",
+"url": "https://www.whatsapp.com/channel/0029VaPTiE71NCrWRHOC5v0T",
+"platform": "whatsapp",
+"kind": "канал",
+"cat": "Бизнес-медиа",
+"topic": "Новости Казахстана, экономика и бизнес",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент",
+"партнёрства"
+],
+"src": "https://informburo.kz/novosti/npp-atameken-zapustila-telegram-bot-elektronnoy-platformy-infokazakhstan.html",
+"checked": "2026-10-10"
+},
+{
+"id": "wa-whatsapp-com-channel-0029vabdsof8pgsdgitkae0g",
+"name": "iKapitalist (канал)",
+"url": "https://www.whatsapp.com/channel/0029VaBDsOF8PgsDGITKaE0g",
+"platform": "whatsapp",
+"kind": "канал",
+"cat": "Инвестиции и стартапы",
+"topic": "Краудфандинг и инвестиции в бизнес Казахстана",
+"lang": "ru",
+"city": "Казахстан",
+"join": "открыто",
+"why": [
+"контент",
+"партнёрства"
+],
+"src": "https://t.me/ikapitalist/2483",
+"checked": "2026-10-10"
 }
 ]

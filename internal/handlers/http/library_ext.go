@@ -163,6 +163,33 @@ func (h *PlatformAI) mergeLibDoc(ctx context.Context, key string, ext content.Li
 				src = append(append([]map[string]any{}, ext.Tools...), ext.Books...) // Полка: и книги полки
 			}
 			ids, titles := map[string]bool{}, map[string]bool{}
+			// R83: an external material (isExt) is the server's card: its text follows the shipped one
+			extByID := map[string]map[string]any{}
+			for _, it := range src {
+				if id, _ := it["id"].(string); id != "" && it["isExt"] == true {
+					extByID[id] = it
+				}
+			}
+			for _, it := range list {
+				id, _ := it["id"].(string)
+				if x := extByID[id]; x != nil && it["isExt"] == true {
+					for _, f := range []string{"title", "short", "why", "how", "time", "link", "source", "srcBadge", "organ", "color", "icon"} {
+						a, _ := json.Marshal(it[f])
+						b, _ := json.Marshal(x[f])
+						if string(a) != string(b) {
+							it[f] = x[f]
+							newly["upd|"+id] = true
+						}
+					}
+				}
+			}
+			upd := 0
+			for k := range newly {
+				if strings.HasPrefix(k, "upd|") {
+					upd++
+				}
+			}
+			n += upd
 			for _, it := range list {
 				if s, _ := it["id"].(string); s != "" {
 					ids[s] = true
