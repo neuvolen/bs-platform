@@ -83,6 +83,8 @@ type SalesCfg struct {
 	// KaspiSeeded (R55): when the server put the owner's Kaspi link into an
 	// empty KaspiClub (once: a link the team clears later stays cleared).
 	KaspiSeeded string `json:"kaspiSeeded,omitempty"`
+	// RefBonus (R75): the referral bonus for each new resident, ₸ (0: RefBonus).
+	RefBonus int64 `json:"refBonus"`
 }
 
 const (
@@ -122,7 +124,7 @@ var salesDefaultTexts = map[string]string{
 }
 
 func defaultSalesCfg() SalesCfg {
-	return SalesCfg{YearPrice: salesYearPrice, Q3Price: salesQ3Price, Texts: map[string]string{}}
+	return SalesCfg{YearPrice: salesYearPrice, Q3Price: salesQ3Price, RefBonus: RefBonus, Texts: map[string]string{}}
 }
 
 func (c *SalesCfg) norm() {
@@ -131,6 +133,9 @@ func (c *SalesCfg) norm() {
 	}
 	if c.Q3Price < 0 {
 		c.Q3Price = 0
+	}
+	if c.RefBonus <= 0 {
+		c.RefBonus = RefBonus
 	}
 	if c.BonusDays < 0 {
 		c.BonusDays = 0

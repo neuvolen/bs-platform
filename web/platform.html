@@ -3220,6 +3220,29 @@ a.d8-chip:hover,.d8-chip.d8-a:hover{border-color:var(--ptx)}
 .rf-wait{font-size:12px;color:var(--pdim);width:220px;text-align:right}
 .rf-pay{height:32px!important;font-size:12px!important;width:120px;justify-content:center}
 .rf-pay.on{background:var(--pon)!important;color:var(--pontx)!important;border-color:var(--pon)!important}
+/* R75: выплаты бонусов, оплаты лида, «Кто привёл?» */
+.r75-box{background:var(--pc);border:1px solid var(--pb);border-radius:14px;padding:14px 18px;margin-bottom:14px}
+.r75-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;font-weight:800;font-size:14.5px;margin-bottom:6px}
+.r75-h span{font-size:12.5px;font-weight:700;color:var(--pm)}
+.r75-k{font-size:12.5px;color:var(--pm);line-height:1.5;margin-bottom:8px}
+.r75-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 0;border-top:1px solid var(--ph);font-size:13.5px}
+.r75-row b{font-weight:800}
+.r75-sp{flex:1;min-width:160px}
+.r75-sp span{display:block;font-size:12px;color:var(--pm);width:auto!important;text-transform:none!important;letter-spacing:0!important;font-weight:500!important}
+.r75-am{font-weight:800;font-variant-numeric:tabular-nums}
+.r75-ok{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;background:var(--pon);color:var(--pontx)}
+.r75-due{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid var(--pi);color:var(--ptx)}
+.r75-f{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%}
+.r75-f .inp{height:34px;min-width:0;flex:1 1 140px;max-width:260px}
+.r75-f .btn,.r75-row .btn{height:34px!important;font-size:12.5px!important}
+.r75-m{font-size:12px;color:var(--pred);width:100%}
+.r75-m:empty{display:none}
+.ls-inf.r75-lp{flex-direction:column;align-items:stretch;gap:6px}
+.ls-inf.r75-lp>span{width:auto}
+.r75-lp .r75-row{padding:6px 0;font-size:13px}
+.r75-acts{display:flex;gap:8px;flex-wrap:wrap}
+.r75-acts .btn{height:32px!important;font-size:12px!important}
+@media (max-width:640px){.r75-box{padding:12px}.r75-f .inp{max-width:none}}
 /* Проверка данных */
 .au-kpi{grid-template-columns:repeat(4,minmax(0,1fr))}
 .cx-kpi>div.bad b{color:var(--pred)}
@@ -8510,6 +8533,7 @@ function openResident(i){
   }
   // R23: настройки резидента (исключение, формат, дата входа, партнёр, Chat ID): только команде
   if(window.r23ResSlot) h += r23ResSlot(r);
+  h += r75WhoSlot(r); // R75: «Кто привёл?» и реферальный бонус
   if(board){
     var bn = board.nodes || [];
     var pA = bn.find(n=>n.role==='pointA'), pB = bn.find(n=>n.role==='pointB'), st = bn.find(n=>n.role==='strategy');
@@ -8534,6 +8558,7 @@ function openResident(i){
   var cb0 = document.getElementById('coverBtn'); if(cb0) cb0.style.display='none';
   openSheet('cardSheet');
   if(window.r23ResLoad) r23ResLoad(r.name);
+  if(document.getElementById('r75Who')) r75WhoLoad(r.name || '');
 }
 function newBoardFor(name){
   goBlock('track'); goSection('board');
@@ -17724,6 +17749,7 @@ var CRM_COLS = [
   {id:'new',  n:'Новый',             d:'Заявка пришла, команда ещё не связалась (автоответ бота виден на карточке)'},
   {id:'work', n:'В работе',          d:'Идёт переписка или звонок'},
   {id:'qual', n:'Квалифицирован',    d:'Есть бизнес, боль и деньги'},
+  {id:'prepay', n:'Предоплата за разбор', d:'Оставил предоплату, разбор ещё не назначен'},            // R75
   {id:'meet', n:'Записан на разбор', d:'Дата разбора назначена'},
   {id:'diag', n:'Разбор проведён',   d:'Закрываем на резидентство'},
   {id:'decide', n:'Решение',         d:'Нажал «Хочу в клуб» или договорились: договор и оплата'}, // R51s
@@ -17731,7 +17757,7 @@ var CRM_COLS = [
   {id:'later', n:'Отложено',         d:'«Не сейчас»: бот напомнит в выбранный день'},             // R51s
   {id:'lost', n:'Отказ',             d:'Не наш или не сейчас'}
 ];
-var CRM_FLOW = ['new', 'work', 'qual', 'meet', 'diag', 'decide', 'won'];
+var CRM_FLOW = ['new', 'work', 'qual', 'prepay', 'meet', 'diag', 'decide', 'won'];
 // Старые колонки (Таргет, Звонок, КП, Дожим, Оплатил разбор, 3 месяца, год) переезжают в новые
 var CRM_OLD = {target:'new', call:'work', kp:'qual', push:'qual', paid:'meet', m3:'won', year:'won'};
 var LEAD_SOURCES = ['WhatsApp', 'Telegram', 'Instagram', 'Сайт', 'Рекомендация'];
@@ -20758,9 +20784,10 @@ function renderRefs(){
   var gs = refGroups();
   var el = pgSet('Рефералы', 'Кого привели резиденты и друзья клуба · бонус ' + r11Money(REF_BONUS) + ' за каждого, кто стал резидентом');
   if(r11AdminOnly(el)) return;
+  r75LoadPayouts(false);
   var T = gs.reduce(function(a, x){ a.inv += x.inv; a.meet += x.meet; a.won += x.won; a.bonus += x.bonus; a.paid += x.paid; return a; }, {inv:0, meet:0, won:0, bonus:0, paid:0});
-  if(!gs.length){ el.innerHTML = '<div class="pf-empty">Пока никто не пришёл по приглашению. Лиды с отметкой «Пригласил» появятся здесь</div>'; return; }
-  el.innerHTML = '<div class="rf">' +
+  if(!gs.length){ el.innerHTML = '<div id="r75Pay">' + r75PayoutsHTML() + '</div><div class="pf-empty">Пока никто не пришёл по приглашению. Лиды с отметкой «Пригласил» появятся здесь</div>'; return; }
+  el.innerHTML = '<div id="r75Pay">' + r75PayoutsHTML() + '</div><div class="rf">' +
     '<div class="cx-kpi">' +
       '<div><span>Пригласили</span><b>' + gs.length + '</b></div>' +
       '<div><span>Приглашено</span><b>' + fmtN(T.inv) + '</b></div>' +
@@ -20786,13 +20813,220 @@ function renderRefs(){
     }).join('') + '</div></div>';
 }
 function refToggle(k){ REFV.open[k] = REFV.open[k] === false; renderRefs(); }
+// R75: «Выплачено» записывает расход в ДДС (статья «Реферальный бонус»); отменить можно, только удалив строку в ДДС
 function refPaidToggle(id){
   var l = leadById(id); if(!l) return;
-  l.refPaid = !l.refPaid;
-  if(l.refPaid) l.refPaidAt = new Date().toISOString(); else delete l.refPaidAt;
-  leadLog(l, l.refPaid ? 'Реферальный бонус ' + fmtN(REF_BONUS) + ' ₸ выплачен: ' + (l.refName || l.ref) : 'Отметка о выплате бонуса снята');
-  saveCRM(); renderRefs();
-  toast(l.refPaid ? 'Бонус отмечен как выплаченный' : 'Отметка о выплате снята');
+  if(l.refPaid){ toast('Бонус уже выплачен: расход в ДДС, статья «Реферальный бонус»'); return; }
+  r75Api('POST', '/referral/pay-lead', {leadId: String(id)}).then(function(j){
+    if(j._s !== 200){ toast(r75Err(j)); return; }
+    l.refPaid = true; l.refPaidAt = new Date().toISOString();
+    leadLog(l, 'Реферальный бонус ' + fmtN((j.item || {}).amount || REF_BONUS) + ' ₸ выплачен: ' + (l.refName || l.ref) + ' (расход в ДДС)');
+    saveCRM(); r75LoadPayouts(true); renderRefs();
+    toast('Выплачено: расход записан в ДДС');
+  });
+}
+
+// ═══ R75: выплаты реферальных бонусов, оплаты лида, «Кто привёл?» ═══
+var R75 = {pay:null, st:'idle', err:'', form:{}, msg:''};
+var R75_PRODUCTS = [{id:'breakfast', n:'Бизнес-завтрак', price:10000}, {id:'razbor', n:'Экспресс-разбор', price:50000}];
+function r75Api(m, p, b){
+  if(!window.BSSync || !BSSync.clubApi) return Promise.resolve({_s:0, detail:'Нужен вход команды'});
+  return Promise.resolve(BSSync.clubApi(m, p, b)).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(j){ j = j || {}; j._s = r.status; return j; });
+  }, function(){ return {_s:0, detail:'Нет связи с сервером'}; });
+}
+function r75Err(j){ return (j && (j.detail || j.error)) || 'Не получилось'; }
+function r75Day(v){ var d = v ? new Date(v) : null; return d && !isNaN(d) ? d.toLocaleDateString('ru', {day:'2-digit', month:'2-digit'}) : ''; }
+function r75Today(){ var d = new Date(); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear(); }
+function r75Prod(id){ return R75_PRODUCTS.find(function(p){ return p.id === id; }) || {id:id, n:String(id || ''), price:0}; }
+function r75Btn(cls, fn, args, label){
+  return '<button class="btn pf-b' + (cls ? ' ' + cls : '') + '" onclick="' + fn + '(' + args.map(function(a){ return escA(JSON.stringify(String(a))); }).join(',') + (args.length ? ',' : '') + 'this)">' + label + '</button>';
+}
+
+// Продажи → Рефералы: выплаты
+function r75LoadPayouts(force){
+  if(R75.st === 'loading' || (R75.pay && !force)) return;
+  R75.st = 'loading';
+  r75Api('GET', '/referral/payouts').then(function(j){
+    if(j._s === 200){ R75.pay = j; R75.st = 'ok'; if(j.bonus) REF_BONUS = j.bonus; } else { R75.st = 'error'; R75.err = r75Err(j); }
+    var box = document.getElementById('r75Pay'); if(box) box.innerHTML = r75PayoutsHTML();
+  });
+}
+function r75PayoutsHTML(){
+  var head = '<div class="r75-box"><div class="r75-h">Выплаты бонусов';
+  if(R75.st === 'error') return head + '</div><div class="r75-k">Не загрузилось: ' + esc(R75.err) + '</div></div>';
+  if(!R75.pay) return head + '</div><div class="r75-k">Загружаю…</div></div>';
+  var it = R75.pay.items || [], f = R75.form || {}, bonus = R75.pay.bonus || REF_BONUS;
+  if(!it.length) return head + '<span>бонус ' + r11Money(bonus) + ' за нового резидента</span></div><div class="r75-k">Пока нечего выплачивать. Запись «к выплате» появляется сама, когда приглашённый становится резидентом</div></div>';
+  return head + '<span>к выплате ' + r11Money(R75.pay.due || 0) + ' · бонус ' + r11Money(bonus) + '</span></div>' +
+    '<div class="r75-k">«Выплачено» записывает расход в ДДС (статья «Реферальный бонус»). Без «Кто привёл?» бонус не выплатить: сначала впишите, кто привёл</div>' +
+    it.map(function(p){
+      var paid = p.status === 'paid', open = f.kind === 'pp' && f.id === p.id;
+      var h = '<div class="r75-row"><div class="r75-sp"><b>' + esc(p.resident || 'Без имени') + '</b><span>Привёл: ' + (p.referrer ? esc(p.referrer) : '<b class="pf-red">не указано</b>') + (p.note ? ' · ' + esc(p.note) : '') + '</span></div>' +
+        '<span class="r75-am">' + r11Money(p.amount) + '</span>';
+      if(paid) h += '<span class="r75-ok">✓ выплачено ' + esc(r75Day(p.paidAt)) + (p.ddsId ? ' · в ДДС' : '') + '</span>';
+      else {
+        h += '<span class="r75-due">к выплате</span>';
+        if(!open) h += r75Btn('', 'r75PayForm', [p.id], p.referrer ? 'Выплачено' : 'Кто привёл?');
+      }
+      if(open){
+        h += '<div class="r75-f">' + (p.referrer ? '' : '<input class="inp" id="r75Ref" placeholder="Кто привёл (имя резидента)">') +
+          '<input class="inp" id="r75PD" placeholder="Дата выплаты" value="' + escA(r75Today()) + '">' +
+          r75Btn('pf-p', 'r75PayOk', [p.id], p.referrer ? 'Подтвердить выплату' : 'Сохранить и выплатить') +
+          (p.referrer ? '' : r75Btn('', 'r75RefOnly', [p.id], 'Только сохранить')) +
+          r75Btn('', 'r75PayCancel', [], 'Отмена') + '<div class="r75-m" id="r75PM">' + esc(R75.msg || '') + '</div></div>';
+      }
+      return h + '</div>';
+    }).join('') + '</div>';
+}
+function r75Repaint(){ var box = document.getElementById('r75Pay'); if(box) box.innerHTML = r75PayoutsHTML(); }
+function r75PayCancel(){ R75.form = {}; R75.msg = ''; r75Repaint(); }
+function r75PayForm(id){
+  R75.form = {kind:'pp', id:id}; R75.msg = ''; r75Repaint();
+  setTimeout(function(){ var x = document.getElementById('r75Ref') || document.getElementById('r75PD'); if(x) x.focus(); }, 30);
+}
+function r75Msg(t){ R75.msg = t; var m = document.getElementById('r75PM'); if(m) m.textContent = t; }
+function r75RefSave(id){
+  var x = document.getElementById('r75Ref'); if(!x) return Promise.resolve(true);
+  var v = x.value.trim(); if(!v){ r75Msg('Впишите, кто привёл'); return Promise.resolve(false); }
+  return r75Api('POST', '/referral/payouts/' + encodeURIComponent(id) + '/referrer', {referrer: v}).then(function(j){
+    if(j._s !== 200){ r75Msg(r75Err(j)); return false; }
+    return true;
+  });
+}
+function r75RefOnly(id, b){
+  b.disabled = true;
+  r75RefSave(id).then(function(ok){ b.disabled = false; if(ok){ R75.form = {}; R75.msg = ''; toast('Сохранено: кто привёл'); r75LoadPayouts(true); } });
+}
+function r75PayOk(id, b){
+  var d = String((document.getElementById('r75PD') || {}).value || '').trim();
+  b.disabled = true;
+  r75RefSave(id).then(function(ok){
+    if(!ok){ b.disabled = false; return; }
+    r75Api('POST', '/referral/payouts/' + encodeURIComponent(id) + '/paid', {date: d}).then(function(j){
+      b.disabled = false;
+      if(j._s !== 200){ r75Msg(r75Err(j)); return; }
+      R75.form = {}; R75.msg = '';
+      toast('Выплачено: расход ' + r11Money((j.item || {}).amount || 0) + ' записан в ДДС');
+      r75LoadPayouts(true);
+      try{ if(window.BSSync && BSSync.refresh) BSSync.refresh(); }catch(e){}
+    });
+  });
+}
+
+// Карточка лида: что заплатил и за что, «Перенести оплату», «Особая цена»
+function r75Deals(l){
+  var d = {}, order = [];
+  function get(id){ if(!d[id]){ var p = r75Prod(id); d[id] = {id:id, n:p.n, price:p.price, special:0, reason:'', paid:0, unknown:0}; order.push(id); } return d[id]; }
+  var ds = l.deals || {};
+  Object.keys(ds).forEach(function(k){ var x = get(k), v = ds[k] || {}; if(+v.price) x.price = +v.price; if(+v.special){ x.special = +v.special; x.reason = v.reason || ''; } });
+  (l.payments || []).forEach(function(p){ var x = get(p.product); if(p.status === 'placeholder') x.unknown++; else x.paid += (+p.amount || 0); });
+  return order.map(function(k){ var x = d[k]; x.toPay = x.special || x.price; x.left = x.toPay - x.paid; return x; });
+}
+function r75LeadPayHTML(l){
+  if(!bsIsTeam()) return '';
+  var ps = l.payments || [], f = R75.form || {}, me = f.lead === String(l.id), lid = String(l.id);
+  var h = '<div class="ls-inf r75-lp"><span>Оплаты</span>';
+  r75Deals(l).forEach(function(x){
+    var st = x.unknown ? '<span class="r75-due">сумма предоплаты не указана</span>' : x.left > 0 ? '<span class="r75-due">осталось ' + r11Money(x.left) + '</span>' :
+      x.left < 0 ? '<span class="r75-due">переплата ' + r11Money(-x.left) + '</span>' : '<span class="r75-ok">оплачено полностью</span>';
+    h += '<div class="r75-row"><div class="r75-sp"><b>' + esc(x.n) + '</b><span>' +
+      (x.special ? 'особая цена ' + r11Money(x.special) + ' вместо ' + r11Money(x.price) + (x.reason ? ': ' + esc(x.reason) : '') : 'цена ' + r11Money(x.price)) + '</span></div>' +
+      '<span class="r75-am">оплачено ' + r11Money(x.paid) + '</span>' + st + '</div>';
+  });
+  ps.forEach(function(p){
+    var ph = p.status === 'placeholder', from = p.movedFrom ? ' (перенесено с «' + esc(r75Prod(p.movedFrom).n) + '»)' : '';
+    h += '<div class="r75-row"><div class="r75-sp"><b>' + (ph ? 'Сумма не указана' : r11Money(+p.amount || 0)) + '</b><span>' + esc(r75Prod(p.product).n) + from +
+      (p.date ? ' · ' + esc(p.date) : '') + (p.note ? ' · ' + esc(p.note) : '') + '</span></div>' +
+      (ph ? r75Btn('pf-p', 'r75LF', [lid, 'fill', p.id], 'Указать сумму') : r75Btn('', 'r75LF', [lid, 'move', p.id], 'Перенести оплату')) + '</div>';
+    if(me && f.pay === p.id && f.kind === 'move'){
+      h += '<div class="r75-f"><select class="inp" id="r75To">' + R75_PRODUCTS.filter(function(x){ return x.id !== p.product; }).map(function(x){
+          return '<option value="' + x.id + '">' + esc(x.n) + '</option>'; }).join('') + '</select>' +
+        '<input class="inp" id="r75Note" placeholder="Почему (останется в ДДС и истории)">' +
+        r75Btn('pf-p', 'r75Do', [lid], 'Перенести') + r75Btn('', 'r75LF', [], 'Отмена') + '<div class="r75-m" id="r75LM"></div></div>';
+    }
+    if(me && f.pay === p.id && f.kind === 'fill') h += r75AmountForm(lid, p.product, true);
+  });
+  if(me && f.kind === 'add') h += r75AmountForm(lid, 'razbor', false);
+  if(me && f.kind === 'special'){
+    var sp = (l.deals || {}).razbor || {};
+    h += '<div class="r75-f"><select class="inp" id="r75SP">' + R75_PRODUCTS.map(function(x){
+        return '<option value="' + x.id + '"' + (x.id === 'razbor' ? ' selected' : '') + '>' + esc(x.n) + ' · ' + r11Money(x.price) + '</option>'; }).join('') + '</select>' +
+      '<input class="inp" id="r75SPr" inputmode="numeric" placeholder="Особая цена, ₸ (0: убрать)" value="' + escA(sp.special || '') + '">' +
+      '<input class="inp" id="r75SR" placeholder="Причина" value="' + escA(sp.reason || '') + '">' +
+      r75Btn('pf-p', 'r75Do', [lid], 'Сохранить') + r75Btn('', 'r75LF', [], 'Отмена') + '<div class="r75-m" id="r75LM"></div></div>';
+  }
+  if(!(me && f.kind)) h += '<div class="r75-acts">' + r75Btn('', 'r75LF', [lid, 'add'], '+ Оплата') + r75Btn('', 'r75LF', [lid, 'special'], 'Особая цена') + '</div>';
+  return h + '</div>';
+}
+function r75AmountForm(lid, product, fill){
+  return '<div class="r75-f">' + (fill ? '' : '<select class="inp" id="r75P">' + R75_PRODUCTS.map(function(x){
+      return '<option value="' + x.id + '"' + (x.id === product ? ' selected' : '') + '>' + esc(x.n) + '</option>'; }).join('') + '</select>') +
+    '<input class="inp" id="r75A" inputmode="numeric" placeholder="Сумма, ₸"><input class="inp" id="r75D" placeholder="Дата" value="' + escA(r75Today()) + '">' +
+    r75Btn('pf-p', 'r75Do', [lid], 'Сохранить (строка в ДДС)') + r75Btn('', 'r75LF', [], 'Отмена') + '<div class="r75-m" id="r75LM"></div></div>';
+}
+function r75LF(lead, kind, pay){
+  R75.form = (typeof lead === 'string' && typeof kind === 'string') ? {lead:lead, kind:kind, pay:(typeof pay === 'string' ? pay : '')} : {};
+  if(typeof lsFields === 'function') lsFields();
+  setTimeout(function(){ var x = document.getElementById('r75A') || document.getElementById('r75SPr') || document.getElementById('r75Note'); if(x) x.focus(); }, 30);
+}
+function r75Do(leadId, b){
+  var f = R75.form || {}, l = leadById(leadId); if(!l) return;
+  function v(i){ return String((document.getElementById(i) || {}).value || '').trim(); }
+  function msg(t){ var m = document.getElementById('r75LM'); if(m) m.textContent = t; }
+  var path = '/leads/' + encodeURIComponent(leadId), body;
+  if(f.kind === 'move'){ path += '/payments/move'; body = {payId: f.pay, to: v('r75To'), note: v('r75Note')}; }
+  else if(f.kind === 'special'){ path += '/special-price'; body = {product: v('r75SP'), price: v('r75SPr').replace(/\D/g, '') || '0', reason: v('r75SR')}; }
+  else {
+    var a = v('r75A').replace(/\D/g, ''); if(!a){ msg('Впишите сумму'); return; }
+    var pp = (l.payments || []).find(function(x){ return x.id === f.pay; });
+    path += '/payments';
+    body = {payId: f.kind === 'fill' ? f.pay : '', product: f.kind === 'fill' ? (pp ? pp.product : 'razbor') : v('r75P'), amount: a, date: v('r75D')};
+  }
+  b.disabled = true;
+  r75Api('POST', path, body).then(function(j){
+    b.disabled = false;
+    if(j._s !== 200){ msg(r75Err(j)); return; }
+    var nl = j.view && j.view.lead;
+    if(nl) Object.keys(nl).forEach(function(k){ l[k] = nl[k]; });
+    saveCRM(); R75.form = {};
+    if(typeof lsFields === 'function') lsFields();
+    if(typeof lsHead === 'function') lsHead();
+    if(document.getElementById('crmMain')) renderCrmMain();
+    toast(f.kind === 'move' ? 'Оплата перенесена (статья в ДДС тоже)' : f.kind === 'special' ? 'Особая цена сохранена' : 'Оплата записана в ДДС');
+    try{ if(window.BSSync && BSSync.refresh) BSSync.refresh(); }catch(e){}
+  });
+}
+
+// Карточка резидента: «Кто привёл?» (команда)
+function r75WhoSlot(r){
+  if(!bsIsTeam()) return '';
+  return '<div class="pf-card r75-who" id="r75Who" data-n="' + escA(r.name || '') + '"><div class="pf-lbl">Кто привёл?</div>' +
+    '<div class="r75-f"><input class="inp" id="r75WhoIn" placeholder="Имя резидента или друга клуба">' + r75Btn('', 'r75WhoSave', [], 'Сохранить') + '</div>' +
+    '<div class="r75-k" id="r75WhoSt" style="margin:8px 0 0">Загружаю…</div></div>';
+}
+function r75WhoPaint(j){
+  var st = document.getElementById('r75WhoSt'), x = document.getElementById('r75WhoIn'); if(!st) return;
+  if(x && document.activeElement !== x) x.value = j.referrer || '';
+  var p = j.payout;
+  st.textContent = p ? 'Реферальный бонус ' + r11Money(p.amount) + ': ' + (p.status === 'paid' ? 'выплачен ' + r75Day(p.paidAt) :
+    'к выплате' + (p.referrer ? '' : ', сначала укажите, кто привёл') + ' (Продажи → Рефералы)') : 'Реферальный бонус не начислен';
+}
+function r75WhoLoad(name){
+  r75Api('GET', '/referral/who?resident=' + encodeURIComponent(name)).then(function(j){
+    var box = document.getElementById('r75Who'); if(!box || box.dataset.n !== name) return;
+    if(j._s !== 200){ var st = document.getElementById('r75WhoSt'); if(st) st.textContent = r75Err(j); return; }
+    r75WhoPaint(j);
+  });
+}
+function r75WhoSave(b){
+  var box = document.getElementById('r75Who'), x = document.getElementById('r75WhoIn'); if(!box || !x) return;
+  b.disabled = true;
+  r75Api('POST', '/referral/who', {resident: box.dataset.n, referrer: x.value.trim()}).then(function(j){
+    b.disabled = false;
+    if(j._s !== 200){ toast(r75Err(j)); return; }
+    r75WhoPaint(j); R75.pay = null; toast('Сохранено: кто привёл');
+  });
 }
 // Строки в карточке лида: разбор и кто пригласил
 function r11LeadInfo(l){
@@ -20804,6 +21038,7 @@ function r11LeadInfo(l){
       out.push('<div class="ls-inf" data-s="' + escA(s.id) + '" onclick="slFromLead(this.dataset.s)"><span>Разбор</span><b>' + (a ? slShort(a) : '') + '</b><i class="' + (b.paid ? 'ok' : 'no') + '">' + (b.paid ? 'оплачено' : 'не оплачено') + '</i><em>Открыть</em></div>');
     }
   }catch(e){}
+  try{ var lp = r75LeadPayHTML(l); if(lp) out.push(lp); }catch(e){}
   if(l.refName || l.ref) out.push('<div class="ls-inf ref"><span>Пригласил</span><b>' + esc(l.refName || l.ref) + '</b>' + (l.col === 'won' ? '<i class="' + (l.refPaid ? 'ok' : 'no') + '">бонус ' + (l.refPaid ? 'выплачен' : 'не выплачен') + '</i>' : '') + '</div>');
   return out.length ? '<div class="ls-infs">' + out.join('') + '</div>' : '';
 }
@@ -37031,7 +37266,8 @@ function r46LeadTeaser(){
       '<label>3 месяца, ₸ (0: не предлагать)<input class="inp" id="r51sQP" inputmode="numeric" value="' + ea(n0(s.q3Price)) + '"></label>' +
       '<label>Ссылка на оплату клуба (Kaspi)<input class="inp" id="r51sKL" value="' + ea(s.kaspiClub || '') + '" placeholder="https://pay.kaspi.kz/pay/…"></label>' +
       '<label>Бонус за решение (пусто: без бонуса)<input class="inp" id="r51sBT" value="' + ea(s.bonusText || '') + '" placeholder="Первый месяц: разбор с командой в подарок"></label>' +
-      '<label>Бонус действует, дней<input class="inp" id="r51sBD" inputmode="numeric" value="' + ea(s.bonusDays || 0) + '"></label><div></div></div>' +
+      '<label>Бонус действует, дней<input class="inp" id="r51sBD" inputmode="numeric" value="' + ea(s.bonusDays || 0) + '"></label>' +
+      '<label>Реферальный бонус резиденту, ₸<input class="inp" id="r51sRB" inputmode="numeric" value="' + ea(n0(s.refBonus || 100000)) + '"></label></div>' +
       '<label class="r51s-sw"><input type="checkbox" id="r51sSeq"' + (s.seqOff ? '' : ' checked') + '>Сценарий после экспресс-разбора (PDF, предложение, напоминания 2, 5, 10 день)</label>' +
       '<label class="r51s-sw"><input type="checkbox" id="r51sRep"' + (s.reportOff ? '' : ' checked') + '>Черновики итогов: за 7 дней до конца каждых 3 месяцев и годовщины</label>' +
       '<label class="r51s-sw"><input type="checkbox" id="r51sWk"' + (s.weeklyOff ? '' : ' checked') + '>Отчёт недели владельцу в бот: понедельник, 10:05</label>' +
@@ -37058,7 +37294,7 @@ function r46LeadTeaser(){
       keepText();
       var s = SET.settings || {};
       var body = {yearPrice: num('#r51sYP'), q3Price: num('#r51sQP'), kaspiClub: SETBOX.querySelector('#r51sKL').value.trim(), bonusText: SETBOX.querySelector('#r51sBT').value.trim(),
-        bonusDays: num('#r51sBD'), seqOff: !SETBOX.querySelector('#r51sSeq').checked, reportOff: !SETBOX.querySelector('#r51sRep').checked, weeklyOff: !SETBOX.querySelector('#r51sWk').checked, texts: s.texts || {}};
+        bonusDays: num('#r51sBD'), refBonus: num('#r51sRB'), seqOff: !SETBOX.querySelector('#r51sSeq').checked, reportOff: !SETBOX.querySelector('#r51sRep').checked, weeklyOff: !SETBOX.querySelector('#r51sWk').checked, texts: s.texts || {}};
       b.disabled = true;
       api('PUT', '/sales/settings', body).then(function(j){ b.disabled = false;
         if(!j || j.error){ setMsg((j && (j.message || j.error)) || 'Не сохранилось', 'err'); return; }

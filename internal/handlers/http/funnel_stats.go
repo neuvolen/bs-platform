@@ -177,7 +177,7 @@ func (f *LeadFunnel) FunnelStats(ctx context.Context, days int) (*FunnelStat, er
 			}
 		}
 		col := fmt.Sprint(m["col"])
-		if m["razborSlot"] != nil || col == "meet" || col == "diag" || col == "won" {
+		if m["razborSlot"] != nil || col == "prepay" || col == "meet" || col == "diag" || col == "won" {
 			st.Booked++
 		}
 		if paid[leadTg(m)] {

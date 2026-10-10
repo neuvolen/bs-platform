@@ -181,7 +181,7 @@ type refInvited struct {
 
 func refStage(col string) string {
 	switch col {
-	case "meet", "diag":
+	case "meet", "diag", "prepay":
 		return "razbor"
 	case "won":
 		return "resident"
@@ -314,9 +314,15 @@ func (f *LeadFunnel) RefWonOnce(ctx context.Context) int {
 		log.Printf("referral: state: %v", err)
 		return 0
 	}
+	bonus := RefBonusAmount(ctx, f.docs)
 	for _, w := range fresh {
+		if !w.guest { // R75: the bonus is a record «к выплате» (Продажи → Рефералы), with a reminder
+			if _, _, err := EnsurePayout(ctx, f.docs, RefPayout{Key: "lead:" + w.key, Resident: w.name, LeadID: w.key, Referrer: w.refName, ReferrerTg: w.inviter, Amount: bonus}, f.now()); err != nil {
+				log.Printf("referral: payout %s: %v", w.key, err)
+			}
+		}
 		if !w.guest {
-			text := "Поздравляем: " + w.name + " стал резидентом BS. Твой бонус 100 000 ₸, команда свяжется по выплате."
+			text := "Поздравляем: " + w.name + " стал резидентом BS. Твой бонус " + tenge(bonus) + ", команда свяжется по выплате."
 			if err := f.send(ctx, w.inviter, text, nil); err != nil {
 				log.Printf("referral: won note %d: %v", w.inviter, err)
 			}
@@ -325,7 +331,7 @@ func (f *LeadFunnel) RefWonOnce(ctx context.Context) int {
 		if who == "" {
 			who = "id " + strconv.FormatInt(w.inviter, 10)
 		}
-		note := fmt.Sprintf("🎉 Реферал стал резидентом: %s.\nПригласил: %s (🆔 %d).\nБонус 100 000 ₸ к выплате, отметьте выплату в карточке лида (refPaid).", w.name, who, w.inviter)
+		note := fmt.Sprintf("🎉 Реферал стал резидентом: %s.\nПригласил: %s (🆔 %d).\nБонус %s к выплате: после выплаты Продажи → Рефералы → «Выплачено» (расход сам попадёт в ДДС).", w.name, who, w.inviter, tenge(bonus))
 		if w.guest {
 			note = fmt.Sprintf("🎉 %s стал резидентом. Пришёл по ссылке %s (🆔 %d), это не резидент: бонус не обещан.", w.name, who, w.inviter)
 		}

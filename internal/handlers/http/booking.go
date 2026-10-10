@@ -162,7 +162,7 @@ func (f *LeadFunnel) readSlots(ctx context.Context) (map[string]any, error) {
 func mineView(s slot, price int64, kaspi string) gin.H {
 	b := s.booking()
 	str := func(k string) string { v, _ := b[k].(string); return v }
-	return gin.H{"slot": s.public(true), "price": price, "kaspiLink": kaspi, "paid": b["paid"] == true,
+	return gin.H{"slot": s.public(true), "price": bookingPrice(b, price), "kaspiLink": kaspi, "paid": b["paid"] == true,
 		"phone": str("phone"), "niche": str("niche"), "question": str("question"), "at": str("at")}
 }
 

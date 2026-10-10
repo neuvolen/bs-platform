@@ -493,6 +493,22 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 			log.Printf("platform seed: %v", err)
 		}
 	}
+	// R75 (sales_book.go): referral bonuses and the leads' payments, one book for the API, the reminders and the start
+	var book *httpapi.SalesBook
+	if d.PlatformRepo != nil {
+		book = &httpapi.SalesBook{Docs: d.PlatformRepo, Ledger: clubRepo, Residents: clubRepo.LoadResidents,
+			Refresh: func(context.Context) { writes.Tables() }}
+		if botSvc != nil && botSvc.Enabled() {
+			book.Send = botSvc.SendMessageKB
+			for id := range g.Admins {
+				book.Admins = append(book.Admins, id)
+			}
+			go book.RemindLoop(context.Background()) // a payout due for 2 days: one reminder to the team
+		}
+		if d.Club != nil {
+			d.Club.Book = book
+		}
+	}
 	// R63: payments entered before R59 pay off the debt by themselves (Альтаир 07.10 and the others)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -502,6 +518,9 @@ func BuildAppGateway(d *Deps, token, jwtSecret, staticSeed string, botSvc *bot.S
 		}
 		httpapi.ClubR69AtStart(ctx, clubRepo, writes.Tables) // R69: ledger of payments, meetings from the log
 		httpapi.ClubR70AtStart(ctx, clubRepo, writes.Tables) // R70: owner's debt adjustments, debt changes with reasons, audit
+		if book != nil {
+			httpapi.SalesOpsAtStart(ctx, book, clubRepo) // R75: the owner's events of 10.10 (referral bonus, breakfast → разбор)
+		}
 	}()
 	var docs interface {
 		PutServerDoc(ctx context.Context, key, value string) error

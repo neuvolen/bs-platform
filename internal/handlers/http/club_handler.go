@@ -33,6 +33,9 @@ type ClubHandler struct {
 	// Owner logs how the sheet's final import differs from the server (sheet_owner.go).
 	Owner *SheetOwner
 
+	// Book (R75, sales_book.go): referral bonuses and the leads' payments; nil: built from repo and platform.
+	Book *SalesBook
+
 	repo      *pg.ClubRepo
 	platform  *pg.PlatformRepo
 	botToken  string
@@ -63,6 +66,7 @@ func (m *ClubModule) Register(r *gin.Engine) {
 	g.GET("/meetings", m.h.Meetings)
 	g.GET("/pl", m.h.PL)
 	registerDDS(g, m.h)                   // R32a: ДДС как таблица (club_dds.go)
+	registerSalesBook(g, m.h)             // R75: реферальные бонусы, оплаты лида (sales_book.go)
 	g.GET("/data/export", m.h.DataExport) // R32c: the team's own copy instead of the sheet (club_export.go)
 }
 
