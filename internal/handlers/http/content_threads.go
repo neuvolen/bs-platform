@@ -474,9 +474,10 @@ type threadsDayState struct {
 	Plan    int    `json:"plan,omitempty"` // R76: the plan's revision (threadsPlanRev)
 }
 
-// threadsPlanRev: a day built before the magnets (R76) is re-planned once:
+// threadsPlanRev: a day built before the plan's revision (R76 magnets, R81
+// magnets and «польза» only) is re-planned once:
 // its untouched future posts give way to the new plan.
-const threadsPlanRev = 76
+const threadsPlanRev = 81
 
 var thWordRe = regexp.MustCompile(`[\p{L}\p{N}]+`)
 
@@ -599,6 +600,9 @@ func (e *ContentEngine) threadsMemory(d *contentDoc, s contentState, now time.Ti
 			root := ""
 			if it.Gen == "ai" {
 				root, _, _ = strings.Cut(it.Src, "/")
+			}
+			if it.Gen == "val" { // R81: the tool or diagnosis is not taken again for 30 days
+				root = thValueRoot(it.Src)
 			}
 			txt := it.Text + " " + strings.Join(it.Parts, " ")
 			note(at, src, root, it.Organ, thFirst(it.Text), thKeys(txt))
@@ -991,6 +995,7 @@ type ThreadsBuild struct {
 	Missing int    `json:"missing"` // slots left empty
 	CTA     int    `json:"cta"`
 	Magnets int    `json:"magnets"` // R76: lead magnet posts
+	Value   int    `json:"value"`   // R81: «польза» posts composed from the library
 	AIError string `json:"aiError,omitempty"`
 	Prompt  string `json:"-"`
 }
@@ -1021,6 +1026,10 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	res := &ThreadsBuild{Day: key, PerDay: n}
 	slots := threadsSlots(day, n, from, to)
 	formats, ctas, isMg := threadsDayPlanMg(n, key, st.threadsReach(), st.threadsMagnet()) // R76: magnets.go
+	if threadsValueOnly {                                                                  // R81: only magnets and «польза» (content_threads_value.go)
+		formats, isMg = threadsValuePlan(n, key)
+		ctas = make([]bool, n)
+	}
 	if st.manual {
 		// by hand: posts at 09:30, 12:30, 16:30, 19:30 (jittered), no series (a reply chain needs the API)
 		slots = threadsManualSlots(day, n)
@@ -1092,8 +1101,16 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 			rest = append(rest, i)
 		}
 	}
-	mgItems := pickMagnets(len(mgSlots), mem, key, now)
+	mgAt := now // R81: a day built ahead counts the magnets' rest from its own date
+	if ds := dayStart(day).Add(12 * time.Hour); ds.After(now) {
+		mgAt = ds
+	}
+	mgItems := pickMagnets(len(mgSlots), mem, key, mgAt)
 	free = rest
+	var valFree []int // R81: the «польза» slots are composed from the library, without the AI
+	if threadsValueOnly {
+		valFree, free = free, nil
+	}
 	plan := make([]threadsSlotPlan, len(free))
 	fs := make([]string, len(free))
 	for k, i := range free {
@@ -1252,6 +1269,31 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	if len(mgSlots) > 0 {
 		log.Printf("threads: batch %s: magnets %d (%s)", key, len(mgNames), strings.Join(mgNames, ", "))
 	}
+	if len(valFree) > 0 {
+		vf := make([]string, len(valFree))
+		for k, i := range valFree {
+			vf[k] = formats[i]
+		}
+		vals := pickValue(vf, mem, key, prevOrgan)
+		for k, i := range valFree {
+			v := vals[k]
+			if v == nil {
+				res.Missing++
+				continue
+			}
+			it := valueItem(v)
+			it.ID = "th-" + slots[i].In(almaty).Format("20060102-1504")
+			it.Kind, it.Channel = "threads", "threads"
+			it.At = slots[i].In(almaty).Format(time.RFC3339)
+			it.Status, it.Auto = "planned", true
+			magnetize(it)
+			res.Value++
+			res.CTA++
+			sigs = append(sigs, threadsSig{Day: key, Src: v.Src, Root: v.Root, Organ: v.Organ, First: thFirst(v.Body), Keys: keysString(thKeys(v.Body))})
+			items = append(items, it)
+		}
+	}
+	sort.SliceStable(items, func(a, b int) bool { return items[a].At < items[b].At })
 
 	added := 0
 	_, err = e.update(ctx, func(d *contentDoc) bool {
@@ -1295,7 +1337,10 @@ func (e *ContentEngine) BuildThreadsDay(ctx context.Context, day time.Time, forc
 	}
 	res.Added = added
 	e.noteBuild(ctx, key, n, res, sigs)
-	log.Printf("threads: batch %s: %d posts (AI %d, library %d, magnets %d), %d empty", key, added, res.AI, res.Lib, res.Magnets, res.Missing)
+	log.Printf("threads: batch %s: %d posts (AI %d, library %d, magnets %d, польза %d), %d empty", key, added, res.AI, res.Lib, res.Magnets, res.Value, res.Missing)
+	if added > 0 {
+		logBatch(key, items)
+	}
 	return res, nil
 }
 
@@ -1351,6 +1396,9 @@ func (e *ContentEngine) noteBuild(ctx context.Context, key string, n int, res *T
 
 // buildDue starts today's batch after buildAt (once; again when the cadence
 // grew or the AI failed and slots stayed empty, at most 3 times an hour apart).
+// R81: the next 6 days are built ahead too (one day a tick), so the owner sees
+// and approves the week in «SMM»; a day built before the current plan
+// revision is re-planned once (its untouched future posts).
 func (e *ContentEngine) buildDue(ctx context.Context, d *contentDoc) {
 	st := e.settings(ctx, d)
 	if !st.Channels.Threads.On || !st.threadsBatch() {
@@ -1359,19 +1407,37 @@ func (e *ContentEngine) buildDue(ctx context.Context, d *contentDoc) {
 	now := e.now().In(almaty)
 	mins := now.Hour()*60 + now.Minute()
 	_, to := st.threadsWindow()
-	if mins < st.threadsBuildAt() || mins >= to-10 || !st.dayOn("threads", now) {
-		return
-	}
 	s, _ := e.state(ctx)
-	ds := s.Threads[contentDay(now)]
-	need := ds == nil || ds.N < st.threadsPerDay()
-	if !need && ds.Missing > 0 && ds.AI != "ok" && ds.Tries < 3 {
-		if t, err := time.Parse(time.RFC3339, ds.At); err == nil && now.Sub(t) >= time.Hour {
-			need = true
+	var day time.Time
+	replan := false
+	if mins >= st.threadsBuildAt() && mins < to-10 && st.dayOn("threads", now) {
+		ds := s.Threads[contentDay(now)]
+		need := ds == nil || ds.N < st.threadsPerDay()
+		if !need && ds.Missing > 0 && ds.AI != "ok" && ds.Tries < 3 {
+			if t, err := time.Parse(time.RFC3339, ds.At); err == nil && now.Sub(t) >= time.Hour {
+				need = true
+			}
+		}
+		replan = !need && ds != nil && ds.Plan < threadsPlanRev
+		if need || replan {
+			day = now
 		}
 	}
-	replan := !need && ds != nil && ds.Plan < threadsPlanRev // R76: once, the day's untouched future posts
-	if !(need || replan) || !e.building.CompareAndSwap(false, true) {
+	if day.IsZero() && threadsValueOnly {
+		for i := 1; i < threadsAhead; i++ {
+			x := dayStart(now).AddDate(0, 0, i)
+			if !st.dayOn("threads", x) {
+				continue
+			}
+			ds := s.Threads[contentDay(x)]
+			need := ds == nil || ds.N < st.threadsPerDay()
+			if need || ds.Plan < threadsPlanRev {
+				day, replan = x, !need
+				break
+			}
+		}
+	}
+	if day.IsZero() || !e.building.CompareAndSwap(false, true) {
 		return
 	}
 	run := e.Go
@@ -1383,9 +1449,9 @@ func (e *ContentEngine) buildDue(ctx context.Context, d *contentDoc) {
 		c, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 		defer cancel()
 		if replan {
-			log.Printf("threads: batch %s: re-planned for the magnets rubric (R76)", contentDay(now))
+			log.Printf("threads: batch %s: re-planned for the value policy (R81: magnets and «польза» only)", contentDay(day))
 		}
-		if _, err := e.BuildThreadsDay(c, now, replan); err != nil {
+		if _, err := e.BuildThreadsDay(c, day, replan); err != nil {
 			log.Printf("threads: batch: %v", err)
 		}
 	})

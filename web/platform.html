@@ -22769,6 +22769,8 @@ var CT_BOT = '@bsurgery_bot';
 // R28: Threads через пользу, пачка постов на день (сервер собирает её в 06:30, content_threads.go)
 var CT_FMT = {tip:'Совет', checklist:'Чек-лист', numbers:'Цифры', myth:'Миф', question:'Вопрос', 'case':'Кейс', symptom:'Симптом', series:'Серия', library:'Библиотека'};
 // R58: охватные рубрики Threads (content_threads_reach.go): доля постов дня для охвата, по умолчанию 65%, 0: без них
+// R81: только лид-магниты и польза (content_threads_value.go)
+Object.assign(CT_FMT, {magnet:'Лид-магнит', v_steps:'Польза: пошагово', v_calc:'Польза: расчёт в ₸', v_check:'Польза: чек-лист', v_metrics:'Польза: цифры'});
 Object.assign(CT_FMT, {r_earn:'Охват: сколько зарабатывает', r_closing:'Охват: почему закрываются', r_myth:'Охват: миф о деньгах', r_hire:'Охват: найм', r_compare:'Охват: сравнение', r_debate:'Охват: спорный вопрос'});
 function czThReach(){ var v = czC().settings.channels.threads.reachPct; var n = parseInt(v, 10); if(v === undefined || v === null || isNaN(n)) return 65; return Math.max(0, Math.min(80, n)); }
 function czSetThReach(v){ var n = Math.max(0, Math.min(80, parseInt(v, 10) || 0)); czC().settings.channels.threads.reachPct = n; czSetSave('Threads: охват ' + n + '% постов'); czSetPaint(); }
@@ -34941,8 +34943,9 @@ function ptUgcHTML(){
   window.renderMSmm = function(){
     try{ loadContent(); }catch(e){}
     var el = pgSet('SMM', 'Все публикации контент-движка по дням: текст, время, статус, ссылка на пост и лиды с каждого');
-    el.innerHTML = '<div class="smm">' + window.r40bFunnelBlock() + '<div id="r76Mg"></div><div id="r55Fv"></div><div id="r40bSmm"></div></div>';
+    el.innerHTML = '<div class="smm">' + window.r40bFunnelBlock() + '<div id="r81Plan"></div><div id="r76Mg"></div><div id="r55Fv"></div><div id="r40bSmm"></div></div>';
     paint();
+    if(typeof window.r81PlanLoad === 'function') window.r81PlanLoad(); // R81: Threads на 7 дней вперёд: одобрить или заменить до отправки
     if(typeof window.r76MgLoad === 'function') window.r76MgLoad(); // R76: лид-магниты: посты → клики → старты → лиды → разборы
     if(typeof window.r55FvLoad === 'function') window.r55FvLoad(); // R55: видео в воронке и цифры воронки с сервера
   };
@@ -40887,6 +40890,100 @@ try{ if(typeof section !== 'undefined' && section === 'sCreo') render(); }catch(
 })();
 </script>
 <!-- /R76 -->
+<!-- R81: Threads на 7 дней вперёд в SMM: каждый пост виден до отправки, «Одобрить» и «Заменить» -->
+<style id="r81Style">
+.tp-box{border:1px solid var(--pb);border-radius:14px;padding:14px;margin:0 0 14px;background:var(--pc)}
+.tp-h{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 6px}
+.tp-h h4{margin:0;font-size:15px;font-weight:800;color:var(--ptx)}
+.tp-k{font-size:12.5px;color:var(--pm);line-height:1.45;margin:0 0 10px}
+.tp-tabs{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 10px;padding-bottom:2px}
+.tp-tabs button{flex:0 0 auto;height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--pb);background:transparent;color:var(--pm);font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.tp-tabs button.on{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.tp-tabs button i{font-style:normal;font-weight:600;opacity:.75;margin-left:4px}
+.tp-p{border:1px solid var(--pb);border-radius:12px;padding:10px 12px;margin:0 0 8px}
+.tp-p.approved{border-color:var(--pon)}
+.tp-p.skipped{opacity:.55}
+.tp-m{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--pm);margin:0 0 6px}
+.tp-m b{color:var(--ptx);font-size:13px}
+.tp-b{display:inline-block;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:800;background:rgba(127,127,127,.12);color:var(--ptx)}
+.tp-b.mg{background:rgba(214,158,46,.18)}
+.tp-b.val{background:rgba(56,161,105,.16)}
+.tp-b.bad{background:rgba(229,62,62,.16)}
+.tp-x{white-space:pre-wrap;word-break:break-word;font-size:13.5px;line-height:1.45;color:var(--ptx)}
+.tp-a{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tp-a button{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--pb);background:transparent;color:var(--ptx);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.tp-a button.p{background:var(--pon);color:var(--pontx);border-color:var(--pon)}
+.tp-a button:disabled{opacity:.5;cursor:default}
+.tp-none{font-size:13px;color:var(--pm);padding:6px 0}
+</style>
+<script id="r81Script">
+(function(){
+  'use strict';
+  var S = {data: null, day: 0, busy: {}};
+  function e(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function api(m, p, b){ return typeof r6Api === 'function' ? r6Api(m, p, b) : Promise.resolve({error:'Нет связи с сервером'}); }
+  function say(t){ if(typeof toast === 'function') toast(t); }
+  function hm(at){ try{ return czHM(at); }catch(x){ return ''; } }
+  function dname(d, i){ var nm = d; try{ nm = czDayName(d); }catch(x){} return i === 0 ? 'Сегодня' : (i === 1 ? 'Завтра' : nm); }
+  var ST = {planned:'В плане', approved:'Одобрено', sent:'Отправлен в бот', published:'Вышел', skipped:'Пропущен', missed:'Не опубликован', failed:'Ошибка'};
+  function open(st){ return st === 'planned' || st === 'approved'; }
+  // локальная копия Контент-завода (синхронизация) получает новый текст сразу
+  function local(it){
+    try{
+      if(typeof czItem !== 'function' || !it) return;
+      var x = czItem(it.id); if(!x) return;
+      ['text', 'format', 'src', 'organ', 'title', 'status', 'magnet', 'link', 'gen', 'cta', 'approvedBy'].forEach(function(k){ if(it[k] !== undefined) x[k] = it[k]; });
+      x.edited = false; saveContent();
+    }catch(err){}
+  }
+  function postHTML(p){
+    var kind = p.kind === 'magnet' ? '<span class="tp-b mg">Лид-магнит</span>' : (p.kind === 'value' ? '<span class="tp-b val">' + e(p.formatName || 'Польза') + '</span>' : '<span class="tp-b bad">Старый формат: ' + e(p.formatName || p.format || 'без рубрики') + '</span>');
+    var meta = '<b>' + e(hm(p.at)) + '</b>' + kind + '<span>' + e(ST[p.status] || p.status) + '</span>';
+    if(p.kind === 'value') meta += '<span>конкретики: ' + e(p.specifics) + (p.specificsWhat && p.specificsWhat.length ? ' (' + e(p.specificsWhat.join(', ')) + ')' : '') + '</span>';
+    if(p.magnet) meta += '<span>ссылка: «' + e(p.magnet) + '»</span>';
+    var id = e(p.id), busy = S.busy[p.id];
+    var acts = open(p.status) ? '<div class="tp-a"><button class="' + (p.status === 'approved' ? '' : 'p') + '" ' + (busy ? 'disabled ' : '') + 'onclick="r81Approve(\'' + id + '\',' + (p.status !== 'approved') + ')">' + (p.status === 'approved' ? 'Снять одобрение' : 'Одобрить') + '</button>' +
+      '<button ' + (busy ? 'disabled ' : '') + 'onclick="r81Replace(\'' + id + '\')">' + (busy === 'r' ? 'Подбираю…' : 'Заменить') + '</button></div>' : '';
+    return '<div class="tp-p ' + e(p.status) + '"><div class="tp-m">' + meta + '</div><div class="tp-x">' + e(p.text) + '</div>' + acts + '</div>';
+  }
+  function paint(){
+    var b = document.getElementById('r81Plan'); if(!b) return;
+    var d = S.data;
+    var head = '<div class="tp-h"><h4>Threads: план на 7 дней</h4></div>';
+    if(!d || d.error || !Array.isArray(d.days)){ b.innerHTML = '<div class="tp-box">' + head + '<div class="tp-k">' + e(d && d.error ? d.error : 'Загружаю…') + '</div></div>'; return; }
+    var info = 'Каждый пост даёт пользу: половина лид-магниты («бесплатно собрал для вас…» со ссылкой выдачи), остальные мини-гайды из библиотеки с шагами, цифрами или расчётом в ₸ и мягкой ссылкой на магнит по теме. Пост, который не нравится, замените до отправки: сервер подберёт другой того же вида.';
+    var tabs = '<div class="tp-tabs">' + d.days.map(function(x, i){
+      var n = (x.posts || []).length, ok = (x.posts || []).filter(function(p){ return p.status === 'approved'; }).length;
+      return '<button class="' + (S.day === i ? 'on' : '') + '" onclick="r81Day(' + i + ')">' + e(dname(x.day, i)) + '<i>' + (x.on ? n + (ok ? ', ✓' + ok : '') : 'выходной') + '</i></button>';
+    }).join('') + '</div>';
+    var day = d.days[S.day] || d.days[0];
+    var list = (day.posts || []).map(postHTML).join('') || '<div class="tp-none">' + (day.on ? 'План на этот день ещё собирается, обновите через минуту.' : 'В этот день Threads не публикуется.') + '</div>';
+    b.innerHTML = '<div class="tp-box">' + head + '<div class="tp-k">' + e(info) + '</div>' + tabs + list + '</div>';
+  }
+  function find(id){ var out = null; ((S.data && S.data.days) || []).forEach(function(d){ (d.posts || []).forEach(function(p){ if(p.id === id) out = p; }); }); return out; }
+  function load(){ api('GET', '/content/threads/week').then(function(j){ S.data = j || {error:'нет ответа'}; paint(); }); paint(); }
+  window.r81PlanLoad = load;
+  window.r81Day = function(i){ S.day = i; paint(); };
+  window.r81Replace = function(id){
+    if(S.busy[id]) return; S.busy[id] = 'r'; paint();
+    api('POST', '/content/threads/replace/' + encodeURIComponent(id)).then(function(j){
+      delete S.busy[id];
+      if(!j || j.ok === false || j.error){ say('Не заменилось: ' + ((j && j.error) || 'нет ответа')); paint(); return; }
+      local(j.item); say('Заменено'); load();
+    });
+  };
+  window.r81Approve = function(id, on){
+    if(S.busy[id]) return; S.busy[id] = 'a'; paint();
+    api('POST', '/content/threads/approve/' + encodeURIComponent(id), {on: !!on}).then(function(j){
+      delete S.busy[id];
+      if(!j || j.ok === false || j.error){ say('Не получилось: ' + ((j && j.error) || 'нет ответа')); paint(); return; }
+      var p = find(id); if(p) p.status = j.item.status;
+      local(j.item); say(on ? 'Одобрено' : 'Вернули в план'); paint();
+    });
+  };
+})();
+</script>
+<!-- /R81 -->
 <script id="r57Script">
 // R57: «Ссылка для клиента»: доска без входа (только просмотр) + статистика просмотров
 (function(){

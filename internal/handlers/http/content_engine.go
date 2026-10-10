@@ -1597,7 +1597,11 @@ func (e *ContentEngine) Loop(ctx context.Context) {
 	if c, cancel := context.WithTimeout(ctx, 30*time.Second); true {
 		if d, _, err := e.load(c); err == nil {
 			st := e.settings(c, d)
-			log.Printf("threads: plan with magnets (%d%% of %d a day): %s", st.threadsMagnet(), st.threadsPerDay(), magnetPlanLine(st, e.now()))
+			if threadsValueOnly {
+				log.Printf("threads: plan R81 (magnets %d%% + «польза», no reach rubrics, %d a day): %s", threadsValueMgPct, st.threadsPerDay(), magnetPlanLine(st, e.now()))
+			} else {
+				log.Printf("threads: plan with magnets (%d%% of %d a day): %s", st.threadsMagnet(), st.threadsPerDay(), magnetPlanLine(st, e.now()))
+			}
 		}
 		cancel()
 	}

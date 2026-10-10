@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"regexp"
 	"sort"
@@ -346,7 +347,7 @@ func pickMagnets(slots int, mem *threadsMemory, key string, now time.Time) []*co
 	var out []*contentItem
 	for k := 0; k < slots; k++ {
 		var best *leadMagnet
-		bestSc := -1.0
+		bestSc := math.Inf(-1) // R81: a magnet planned later in the week scores below zero
 		for i := range leadMagnetList {
 			m := &leadMagnetList[i]
 			if used[m.ID] {
@@ -748,10 +749,13 @@ func (f *LeadFunnel) MagnetStats(ctx context.Context, days int) (*MagnetStat, er
 		if json.Unmarshal([]byte(cd.Value), &d) == nil {
 			s := parseContentSettings(d.Settings)
 			st.Share, st.PerDay = s.threadsMagnet(), s.manualPerDay()
+			if threadsValueOnly {
+				st.Share = threadsValueMgPct
+			}
 			for _, list := range [][]*contentItem{d.History, d.Queue} {
 				for _, it := range list {
 					r := rows[it.Magnet]
-					if r == nil || it.Channel != "threads" {
+					if r == nil || it.Channel != "threads" || it.Gen == "val" { // R81: a «польза» post only links to the magnet
 						continue
 					}
 					at, ok := parseContentAt(it.At)
@@ -901,6 +905,9 @@ func magnetPlanLine(st contentSettings, now time.Time) string {
 			continue
 		}
 		f, _, _ := threadsDayPlanMg(n, contentDay(day), st.threadsReach(), st.threadsMagnet())
+		if threadsValueOnly {
+			f, _ = threadsValuePlan(n, contentDay(day))
+		}
 		parts = append(parts, contentDay(day)+" ["+strings.Join(f, " ")+"]")
 	}
 	return strings.Join(parts, "; ")

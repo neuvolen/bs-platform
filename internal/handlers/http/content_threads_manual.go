@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bnursik/business_surgery_backend/internal/bot"
+	"github.com/bnursik/business_surgery_backend/internal/content"
 	"github.com/gin-gonic/gin"
 )
 
@@ -371,6 +372,7 @@ func (e *ContentEngine) sendManual(ctx context.Context, id string, now bool) (*c
 		log.Printf("content: manual threads %s: send: %v", id, serr)
 		return out, serr
 	}
+	log.Printf("threads: sent to the owner %s [%s] %s: %s", id, cp.Format, cp.Src, content.FirstLine(cp.Text, 90))
 	if out == nil {
 		out = &cp
 	}
@@ -481,6 +483,24 @@ func (e *ContentEngine) swapNext(d *contentDoc, it *contentItem, now time.Time, 
 		mem = &threadsMemory{src: map[string]time.Time{}, root: map[string]time.Time{}, first: map[string]bool{}, organ: map[string]int{}}
 	}
 	mem.remember(it.Text)
+	if threadsValueOnly { // R81: a fresh «польза» post, never a stock text
+		if r := thValueRoot(it.Src); r != "" {
+			mem.root[r] = now
+		}
+		f := it.Format
+		if !IsThreadsValue(f) {
+			f = threadsValueFormats[hashN(it.ID, len(threadsValueFormats))].ID
+		}
+		v := pickValue([]string{f}, mem, contentDay(now)+"/next/"+it.ID, "")[0]
+		if v == nil {
+			return false
+		}
+		nx := valueItem(v)
+		it.Src, it.V, it.Organ, it.Title, it.Rubric, it.Text, it.Parts = nx.Src, 0, nx.Organ, nx.Title, "", nx.Text, nil
+		it.Format, it.Gen, it.CTA, it.Edited, it.Magnet = nx.Format, nx.Gen, true, false, nx.Magnet
+		manualize(it)
+		return true
+	}
 	li, v, tx := libThreadsPost(e.lib(), mem, false, "", contentDay(now)+"/next/"+it.ID, map[string]bool{})
 	if li == nil {
 		return false

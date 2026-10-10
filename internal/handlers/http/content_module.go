@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -19,6 +20,9 @@ import (
 //	GET  /api/v1/platform/content/library       the library index (?src=g003 with texts, ?full=1 all texts)
 //	GET  /api/v1/platform/content/threads       Threads per day for the planner: {perDay, from, to, buildAt, days:[{day, on, count, build}]}
 //	POST /api/v1/platform/content/threads/build {day: "2026-10-05", force?: bool} make that day's Threads batch now
+//	GET  /api/v1/platform/content/threads/week  R81: the next 7 days' Threads posts for review {days:[{day, on, posts:[…]}]}
+//	POST /api/v1/platform/content/threads/replace/:id  another post of its kind in that slot
+//	POST /api/v1/platform/content/threads/approve/:id  {on: bool} approve (or back to the plan)
 type ContentModule struct {
 	E      *ContentEngine
 	secret []byte
@@ -38,6 +42,54 @@ func (m *ContentModule) Register(r *gin.Engine) {
 	g.GET("/library", m.library)
 	g.GET("/threads", m.threadsDays)
 	g.POST("/threads/build", m.threadsBuild)
+	g.GET("/threads/week", m.threadsWeek)
+	g.POST("/threads/replace/:id", m.threadsReplace)
+	g.POST("/threads/approve/:id", m.threadsApprove)
+}
+
+func (m *ContentModule) threadsWeek(c *gin.Context) {
+	if !m.ready(c) {
+		return
+	}
+	out, err := m.E.ThreadsWeek(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func (m *ContentModule) threadsReplace(c *gin.Context) {
+	if !m.ready(c) {
+		return
+	}
+	it, err := m.E.ReplaceThreadsPost(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "item": it})
+}
+
+func (m *ContentModule) threadsApprove(c *gin.Context) {
+	if !m.ready(c) {
+		return
+	}
+	var req struct {
+		On *bool `json:"on"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	on := req.On == nil || *req.On
+	by := "platform"
+	if v, ok := c.Get("user_id"); ok {
+		by = "platform:" + fmt.Sprint(v)
+	}
+	it, err := m.E.ApproveThreadsPost(c.Request.Context(), c.Param("id"), by, on)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "item": it})
 }
 
 func (m *ContentModule) threadsDays(c *gin.Context) {

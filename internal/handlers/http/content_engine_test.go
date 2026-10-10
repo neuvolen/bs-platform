@@ -92,7 +92,9 @@ func cntLib() []*content.LibItem {
 
 // The planning tests were written with both channels on and one Threads
 // post a day (the batch of 16 has its own tests: content_threads_test.go).
-func init() { contentTelegramDefault, contentThreadsPerDay = true, 1 }
+// R81: the classic and magnet plans keep their tests; the value policy has its
+// own (content_threads_value_test.go turns it on).
+func init() { contentTelegramDefault, contentThreadsPerDay, threadsValueOnly = true, 1, false }
 
 func TestContentTelegramOffRev2(t *testing.T) {
 	ctx := context.Background()
